@@ -71,6 +71,25 @@ enum GoalDomain: String, Codable, CaseIterable, Identifiable {
         case .other: return "🎯"
         }
     }
+
+    /// 领域自动认领（2026-11-13 目标界面减法重设计 v3，S3b）：
+    /// 表单不再让用户选领域，按标题本地关键词 contains 匹配认领，认不出=其他。
+    /// 纯客户端零后端；career 排 life 前（「跳槽后陪家人」类歧义按职业归）。
+    static func infer(from title: String) -> GoalDomain {
+        let text = title.lowercased()
+        let table: [(GoalDomain, [String])] = [
+            (.health, ["跑", "步", "走", "体重", "公斤", "kg", "睡", "熬", "烟", "酒", "健身", "游泳"]),
+            (.finance, ["存款", "贷款", "攒", "还", "花", "省钱", "预算", "投资", "基金", "股票", "万", "块"]),
+            (.learning, ["读", "书", "学", "考", "证", "雅思", "英语", "日语", "课", "单词"]),
+            (.project, ["上线", "发布", "交付", "项目", "开发", "写完", "做完"]),
+            (.career, ["上班", "跳槽", "简历", "晋升", "绩效", "面试"]),
+            (.life, ["家人", "朋友", "见", "陪", "旅行", "搬"]),
+        ]
+        for (domain, keywords) in table where keywords.contains(where: { text.contains($0) }) {
+            return domain
+        }
+        return .other
+    }
 }
 
 /// 量化目标类型：进度怎么算
@@ -122,12 +141,13 @@ enum GoalMetricSource: String, Codable, CaseIterable, Identifiable {
     }
 
     /// 表单可选项（按目标类型收窄矩阵）：
-    /// 累积型可选手动/习惯/账本；达标型只选手动/习惯（「账本」没有「降到某值」的语义）
+    /// 累积型可选手动/习惯/账本（全账本或指定账户净结余增加）；
+    /// 达标型可选手动/习惯/账本（账本只提供「账户余额到达目标值」，表单必选具体账户）
     static func selectable(for kind: GoalKind) -> [GoalMetricSource] {
         switch kind {
         case .process: return [.manual]
         case .cumulative: return [.manual, .habit, .ledger]
-        case .target: return [.manual, .habit]
+        case .target: return [.manual, .habit, .ledger]
         }
     }
 }
@@ -210,6 +230,9 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var metricBaselineValue: Double? = nil
     /// habit 源指向的数值习惯（三期 3b）
     var sourceHabitId: UUID? = nil
+    /// ledger 源的账本范围（2026-11-14 表单暴露）：累积型=全账本/指定账户净结余增加，
+    /// 达标型=账户余额；nil=未指定（老草案解码兼容，按全账本解释）
+    var ledgerScope: GoalLedgerScopePayload? = nil
 
     var isQuantitative: Bool { goalKind != .process }
 
@@ -244,12 +267,14 @@ extension GoalDraft {
         metricTargetValue = try c.decodeIfPresent(Double.self, forKey: .metricTargetValue)
         metricBaselineValue = try c.decodeIfPresent(Double.self, forKey: .metricBaselineValue)
         sourceHabitId = try c.decodeIfPresent(UUID.self, forKey: .sourceHabitId)
+        ledgerScope = try? c.decodeIfPresent(GoalLedgerScopePayload.self, forKey: .ledgerScope)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, title, summary, domain, iconEmoji, desiredOutcome, motivation, deadlineText
         case tasks, habits, missingInfoWarnings
         case goalKind, metricSource, metricUnit, metricTargetValue, metricBaselineValue, sourceHabitId
+        case ledgerScope
     }
 }
 

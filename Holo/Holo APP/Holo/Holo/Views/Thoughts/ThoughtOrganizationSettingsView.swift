@@ -57,6 +57,7 @@ struct ThoughtOrganizationSettingsView: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(Color.holoTextSecondary.opacity(0.6))
                         }
+                        .contentShape(Rectangle())
                     }
                     .accessibilityIdentifier("thoughts.settings.aiScope.open")
                 } header: { Text("AI 参与范围") } footer: {

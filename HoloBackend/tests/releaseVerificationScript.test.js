@@ -67,7 +67,7 @@ case "$url" in
     body='{"ok":true,"service":"holo-ai-gateway","release":{"commit":"abc","sourceDigest":"def","buildTime":"2026-07-19T00:00:00Z"}}'
     ;;
   */v1/admin/release/status)
-    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21,"content":"transactionDate reminderDate query_analysis"},{"type":"deep_report_writer","version":3,"content":"你是 HoloAI 的深度报告撰写器。事实清单是你唯一的数字来源。档案内容每一处都同样生效。"},{"type":"deep_report_checker","version":4,"content":"取整和约数不算问题。个人档案逐条审计。"}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true},"security":{"agentStepIdempotencyResponseEncryption":"aes-256-gcm-v1"}}'
+    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21,"content":"transactionDate reminderDate query_analysis"},{"type":"deep_report_writer","version":4,"content":"你是 HoloAI 的深度报告撰写器。事实清单是你唯一的数字来源。档案内容每一处都同样生效。"},{"type":"deep_report_checker","version":4,"content":"取整和约数不算问题。个人档案逐条审计。"}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true},"security":{"agentStepIdempotencyResponseEncryption":"aes-256-gcm-v1"}}'
     ;;
   */v1/ai/chat/completions)
     body='{"choices":[{"message":{"content":"{\\"items\\":[{\\"intent\\":\\"unexpected\\",\\"extractedData\\":{}}]}"}}]}'

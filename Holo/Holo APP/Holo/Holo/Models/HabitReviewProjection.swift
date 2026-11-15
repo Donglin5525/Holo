@@ -108,6 +108,8 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
     let createdAt: Date
     let unit: String
     let pauseWindows: [HabitPauseWindow]
+    /// 每周期目标（打卡型 = 次数；趋势图目标参考线的真源，2026-11-15）
+    let target: HabitTargetSummary?
 
     init(habit: Habit, lifecycle: HabitLifecycle) {
         self.id = habit.id
@@ -122,12 +124,14 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
         self.createdAt = habit.createdAt
         self.unit = habit.unit ?? ""
         self.pauseWindows = habit.pauseWindows
+        self.target = HabitPresentationProjector.targetSummary(for: habit)
     }
 
     init(id: UUID, name: String = "习惯", icon: String = "leaf", isCustomIcon: Bool = false,
          colorHex: String = "#987444", kind: HabitRowKind, frequency: HabitFrequency = .daily,
          isBadHabit: Bool = false, lifecycle: HabitLifecycle = .active,
-         createdAt: Date = .distantPast, unit: String = "", pauseWindows: [HabitPauseWindow] = []) {
+         createdAt: Date = .distantPast, unit: String = "", pauseWindows: [HabitPauseWindow] = [],
+         target: HabitTargetSummary? = nil) {
         self.id = id
         self.name = name
         self.icon = icon
@@ -140,6 +144,7 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
         self.createdAt = createdAt
         self.unit = unit
         self.pauseWindows = pauseWindows
+        self.target = target
     }
 
     var isNumeric: Bool { kind != .checkIn }

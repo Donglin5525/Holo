@@ -322,7 +322,7 @@ test("thought_voice_summary 默认 Prompt 做最小编辑并保留观点和确�
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 4);
+  assert.equal(prompt.version, 5);
   assert.match(prompt.content, /最小必要的编辑/);
   assert.match(prompt.content, /保留第一人称.*保留原来的说话人/);
   assert.match(prompt.content, /不设压缩比例/);

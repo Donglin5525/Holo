@@ -361,6 +361,7 @@ struct HoloAIUserSettingsContent: View {
                         .foregroundColor(.holoToolTextSecondary)
                 }
                 .padding(.vertical, HoloSpacing.xs)
+                .contentShape(Rectangle())
             }
             .accessibilityIdentifier("settings.holoai.debug.aiSettings")
             .sheet(isPresented: $showsDeveloperAISettings) {

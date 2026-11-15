@@ -64,6 +64,7 @@ struct CategoryMoveTargetPicker: View {
                                 .foregroundColor(.holoPrimary)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "转移到\(candidate.name)"))

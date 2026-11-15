@@ -88,6 +88,7 @@ struct TopicPickerView: View {
                                         .font(ThoughtLayout.metadata)
                                         .foregroundColor(.holoTextSecondary)
                                 }
+                                .contentShape(Rectangle())
                             }
                         }
 

@@ -1066,6 +1066,7 @@ struct TaskDetailView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

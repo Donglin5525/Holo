@@ -549,6 +549,16 @@ struct HabitSingleReviewView: View {
         }
     }
 
+    /// 每周目标天数（打卡型好习惯）：daily 目标×7、weekly 目标原值、monthly 无周化意义
+    private func weeklyTarget(info: HabitReviewHabitInfo) -> Double? {
+        guard info.kind == .checkIn, !info.isBadHabit, let count = info.target?.count, count > 0 else { return nil }
+        switch info.frequency {
+        case .daily: return Double(count * 7)
+        case .weekly: return Double(count)
+        case .monthly: return nil
+        }
+    }
+
     private func trendChartSection(_ trend: HabitTrend, info: HabitReviewHabitInfo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(trendTitle)
@@ -556,7 +566,8 @@ struct HabitSingleReviewView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.holoToolText)
                 .padding(.top, 10)
-            HabitTrendBarChart(trend: trend, color: Color(hex: info.colorHex), unit: info.unit) { bar in
+            HabitTrendBarChart(trend: trend, color: Color(hex: info.colorHex), unit: info.unit,
+                               weeklyTarget: weeklyTarget(info: info)) { bar in
                 selectBar(bar)
             }
         }
@@ -1260,6 +1271,8 @@ struct HabitTrendBarChart: View {
     let trend: HabitTrend
     let color: Color
     var unit: String = ""
+    /// 每周目标天数（打卡型；真源是习惯自己的周期目标，由调用方换算成周口径）
+    var weeklyTarget: Double? = nil
     var onInspect: (HabitTrendBar) -> Void
 
     @State private var selection: String?
@@ -1331,6 +1344,37 @@ struct HabitTrendBarChart: View {
         }
     }
 
+    /// 闲置读数行小字（2026-11-15 图表语言统一：不再是空行）：期数 + 均值/合计 + 操作提示
+    private var idleSummary: String {
+        let values = trend.bars.compactMap { value(for: $0) }
+        guard !values.isEmpty, !trend.bars.isEmpty else { return String(localized: "点按或横滑查看") }
+        let unitWord: String = {
+            switch trend.granularity {
+            case .day: return String(localized: "天")
+            case .week: return String(localized: "周")
+            case .month: return String(localized: "月")
+            }
+        }()
+        let count = trend.bars.count
+        let average = values.reduce(0, +) / Double(values.count)
+        if isRate {
+            return String(localized: "近 \(count) \(unitWord) · 平均 \(Int(average.rounded()))% · 点按或横滑查看")
+        }
+        if isAmount {
+            let total = values.reduce(0, +)
+            return String(localized: "近 \(count) \(unitWord) · 合计 \(HabitPresentationProjector.formatValue(total))\(unit.isEmpty ? "" : " \(unit)") · 点按或横滑查看")
+        }
+        return String(localized: "近 \(count) \(unitWord) · 平均 \(String(format: "%.1f", average)) \(String(localized: "天")) · 点按或横滑查看")
+    }
+
+    /// 目标参考线（仅打卡天数的周粒度、目标在 0–7 开区间内才画）：线在顶或贴底都没有信息量
+    private var targetRules: [HoloChartRule] {
+        guard trend.granularity == .week, trend.mode == .weeklyDays,
+              let weeklyTarget, weeklyTarget > 0, weeklyTarget < 7 else { return [] }
+        let display = weeklyTarget.rounded() == weeklyTarget ? String(Int(weeklyTarget)) : String(format: "%.1f", weeklyTarget)
+        return [HoloChartRule(value: weeklyTarget, label: "每周目标 \(display) 天", color: .holoPrimary)]
+    }
+
     var body: some View {
         HoloBarChart(
             buckets: buckets,
@@ -1338,7 +1382,7 @@ struct HabitTrendBarChart: View {
             selection: $selection,
             height: 140,
             yDomain: yDomain,
-            summary: "",
+            summary: idleSummary,
             summaryValues: isRate ? [nil] : nil,
             valueText: { value in
                 if trend.granularity == .day || isAmount {
@@ -1352,6 +1396,7 @@ struct HabitTrendBarChart: View {
             slotTicks: trend.granularity == .day
                 ? mondayTickIndices
                 : (trend.granularity == .month ? Array(trend.bars.indices) : nil),
+            rules: targetRules,
             onInspect: { bucket in
                 if let bar = trend.bars.first(where: { String($0.start.timeIntervalSince1970) == bucket.id }) {
                     onInspect(bar)

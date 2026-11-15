@@ -18,11 +18,21 @@ struct MemoryGalleryView: View {
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
-    private var close: () -> Void { holoDismiss ?? { dismiss() } }
+    /// 关闭=离开长廊会话：清随机漫步本轮已看集合（§5.2）。
+    /// 注意不走 onDisappear——想法深链等临时离开不应清轮次（交互审查 P0）。
+    private var close: () -> Void {
+        let leave = holoDismiss ?? { dismiss() }
+        return {
+            findDateModel.endGallerySession()
+            leave()
+        }
+    }
 
     // MARK: - State
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
+    /// 「找日期」面板（含随机漫步会话）：顶栏按钮与日历页共用同一展示宿主。
+    @StateObject private var findDateModel = MemoryGalleryFindDateModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var hasMountedInsight = false
     @State private var showGrowth = false
@@ -49,32 +59,12 @@ struct MemoryGalleryView: View {
             // 背景独立铺层（与任务/财务等模块同一模式）。
             // 不能写成 .background(Color.ignoresSafeArea())：该写法会把「忽略安全区」
             // 包装住整个内容 VStack，突破骨架层 720 列的布局上限，导致长廊通铺全宽。
-            Color.holoToolBackground.ignoresSafeArea()
+            Color.galleryPaper.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // 顶部导航栏（右侧并入页级 tab，L1 轻头部）
+                // 顶部导航（原型 appnav 1:1：返回｜记忆长廊｜找日期；2026-11-14 东林拍板
+                // 洞察拨动开关撤出长廊、欢迎条与「我的积累」卡按减法设计撤出，归个人页/记忆中心）
                 navigationBar
-
-                // 首访欢迎条：第一次进长廊时讲清「这里会自动汇集你的记录」，
-                // 挂在默认落地的日历 tab（新用户长廊是空的，日历本身看不出用途）
-                if selectedTab == .calendar {
-                    FirstVisitWelcomeBar(
-                        icon: "book.fill",
-                        title: String(localized: "欢迎来到记忆长廊"),
-                        message: String(localized: "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。"),
-                        seenKey: OnboardingProgressStore.memoryGalleryWelcomeKey
-                    )
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.top, HoloSpacing.sm)
-                }
-
-                Button { showGrowth = true } label: {
-                    HoloGrowthEntryView(compact: true)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.vertical, HoloSpacing.xs)
-                .holoContentColumn(maxWidth: contentColumnWidth, paintsBackground: false)
 
                 // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
                 // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
@@ -138,16 +128,16 @@ struct MemoryGalleryView: View {
     // MARK: - Navigation Bar
 
     private var navigationBar: some View {
-        // 标题绝对居中：底层左右各排返回键与视图开关，上层标题对齐屏幕正中，
-        // 不再受两侧元素宽度差影响（此前右侧分段 106pt vs 左侧 44pt 把标题挤偏）
+        // 原型 appnav 1:1（2026-11-14 东林拍板）：返回 | 居中衬线标题 | 「📅 找日期」
+        // 文字按钮（accent 橙、13pt、16pt 图标）；底 1px 细线；拨动开关按减法设计撤出。
         ZStack {
-            HStack {
+            HStack(spacing: 0) {
                 Button {
                     close()
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.holoToolText)
+                        .foregroundColor(Color.galleryInk)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -156,25 +146,57 @@ struct MemoryGalleryView: View {
 
                 Spacer(minLength: 0)
 
-                // 页级视图拨动开关（左＝日历 / 右＝洞察）
-                MemoryViewToggleSwitch(selectedTab: $selectedTab)
+                if selectedTab == .insight {
+                    // 洞察 Tab 只经旧深链可达（聊天/个人页「查看新记忆」）：落进来后给拨动开关作出口，
+                    // 否则进得去出不来；此态下「找日期」对洞察无意义故不显示（对抗审查必改2）。
+                    MemoryViewToggleSwitch(selectedTab: $selectedTab)
+                } else {
+                    HStack(spacing: 2) {
+                        // 随机漫步直达（11-15 东林实报「藏太深」）：顶栏常驻，面板内入口保留
+                        Button {
+                            findDateModel.openWalkDirectly()
+                        } label: {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.galleryAccent)
+                                .frame(width: 40, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("随机漫步")
+                        .accessibilityIdentifier("memoryGallery.randomWalkEntry")
+                        Button {
+                            findDateModel.open()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("找日期")
+                                    .font(.system(size: 13))
+                            }
+                            .foregroundStyle(Color.galleryAccent)
+                            .padding(.horizontal, 5)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("memoryGallery.findDate")
+                    }
+                }
             }
-            .padding(.horizontal, HoloSpacing.sm)
+            .padding(.horizontal, 12)
 
             Text("记忆长廊")
-                .font(.system(size: 20, weight: .semibold, design: .serif))
-                .foregroundColor(.holoToolText)
+                .font(.system(size: 18.4, weight: .bold, design: .serif))
+                .foregroundColor(Color.galleryInk)
                 .allowsHitTesting(false)
         }
-        .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
-        .background(Color.holoToolBackground)
+        .frame(maxWidth: .infinity, minHeight: 53, maxHeight: 53)
+        .background(Color.galleryPaper)
         .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [Color.holoToolBorder.opacity(0), Color.holoToolBorder.opacity(0.42), Color.holoToolBorder.opacity(0)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 0.5)
+            Rectangle()
+                .fill(Color.galleryRule)
+                .frame(height: 1)
         }
     }
 
@@ -212,7 +234,7 @@ struct MemoryGalleryView: View {
     // MARK: - 日历 Tab（日回放 / 周网格 / 月月历）
 
     private var calendarTab: some View {
-        CalendarRootView()
+        CalendarRootView(findDate: findDateModel)
     }
 
     // MARK: - 洞察 Tab

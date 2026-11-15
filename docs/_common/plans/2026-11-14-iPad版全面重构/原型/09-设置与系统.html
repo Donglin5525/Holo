@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo iPad · 设置与系统 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台，非 App 界面） ============ */
+:root{
+  /* Holo Tool 色板（来源 docs/standards/设计规范.md，Light/Dark 两套） */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA; --divider:#F1F5F9;
+  --action:#EA580C; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#B91C1C; --ai:#6D28D9;
+  --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+  --tg:#34C759; --dmg:#B91C1C; --on-dmg:#FFFFFF;
+  /* 画布 */
+  --canvas:#141416; --rail:#1D1D20; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --seg-track:rgba(120,120,128,.14); --seg-thumb:#FFFFFF;
+  --amber:#D97706;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A; --divider:#38383A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FCA5A5; --ai:#C4B5FD;
+  --seg-track:rgba(118,118,128,.24); --seg-thumb:#5A5A5E;
+  --tg:#30D158; --dmg:#FCA5A5; --on-dmg:#1C1C1E;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh; overflow:hidden;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;align-self:flex-start;max-height:calc(100vh - 56px);overflow-y:auto}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:11.5px;color:var(--rail-sub);line-height:1.5;margin-top:3px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px;margin-bottom:4px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-direction:column;gap:3px}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12px;padding:4px 10px;border-radius:9px;cursor:pointer;font-family:inherit;text-align:left}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.55;border-top:1px solid var(--rail-line);padding-top:9px}
+.rail .foot b{color:var(--rail-text)}
+.ptag{display:inline-block;font-size:10px;font-weight:700;color:#FBBF24;background:rgba(217,119,6,.16);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px}
+/* ---- 舞台与 iPad 机身 ---- */
+.stage{flex:1;display:grid;place-items:center;min-width:0;min-height:0}
+.frameWrap{transform-origin:center center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.ipad{background:#3A3A3C;border-radius:38px;padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.screen{width:1194px;height:834px;background:var(--bg-page);border-radius:26px;overflow:hidden;position:relative;color:var(--text);display:flex;flex-direction:column;transition:background .25s}
+.screen.pt{width:834px;height:1194px}
+/* 状态栏 */
+.sbar{flex:none;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text);opacity:.9}
+.sbar .ic{font-size:12px}
+/* ---- App 壳层 ---- */
+.app{flex:1;display:flex;min-height:0;position:relative}
+/* 侧边栏 */
+.sidebar{width:232px;flex:none;background:var(--inset);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 10px 12px;transition:width .2s}
+.screen.minisb .sidebar{width:68px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:4px 8px 10px}
+.sb-btn{width:32px;height:32px;border:none;background:transparent;color:var(--text-2);border-radius:8px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.sb-btn:hover{background:rgba(120,120,128,.12)}
+.sb-title{font-size:17px;font-weight:700;color:var(--text)}
+.screen.minisb .sb-title{display:none}
+.sb-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.sb-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:none;background:transparent;border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;position:relative}
+.sb-item svg.ic{font-size:17px;color:var(--text-2)}
+.sb-item .k{margin-left:auto;font-size:10.5px;color:var(--text-2);opacity:.7;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sb-item:hover{background:rgba(120,120,128,.10)}
+.sb-item.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.sb-item.on svg.ic{color:var(--action)}
+.screen.minisb .sb-item{justify-content:center;padding:0}
+.screen.minisb .sb-item span,.screen.minisb .sb-item .k{display:none}
+.sb-div{height:1px;background:var(--border);margin:8px 10px}
+.screen.minisb .sb-div{margin:8px 6px}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.sb-quick{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:none;background:var(--action);color:var(--on-action);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sb-quick:active{transform:scale(.97);opacity:.9}
+.sb-quick .k{margin-left:auto;font-size:10.5px;opacity:.8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.screen.minisb .sb-quick{justify-content:center;padding:0}
+.screen.minisb .sb-quick span,.screen.minisb .sb-quick .k{display:none}
+/* 竖屏覆盖式侧边栏 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.sbov{position:absolute;top:0;bottom:0;left:0;width:232px;background:var(--inset);border-right:1px solid var(--border);z-index:41;padding:10px 10px 12px;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.12)}
+.screen.sbov-open .scrim{opacity:1;pointer-events:auto}
+.screen.sbov-open .sbov{transform:translateX(0)}
+/* ---- 内容区 ---- */
+.content{flex:1;min-width:0;position:relative;overflow:hidden}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text-2);white-space:nowrap}
+.canvas-cap{margin-top:14px;text-align:center;font-size:12px;color:var(--rail-sub);letter-spacing:.3px}
+.canvas-cap b{color:var(--rail-text)}
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.note{position:absolute;z-index:45;font-size:11px;line-height:1.55;color:#7C2D12;background:#FDE8D7;border:1px solid #FDBA74;border-radius:10px;padding:7px 10px;max-width:220px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+[data-theme="dark"] .note{color:#FDBA74;background:rgba(217,119,6,.12);border-color:rgba(253,186,116,.4)}
+/* ============ 设置双栏框架 ============ */
+.scene-set{position:absolute;inset:0;display:flex;flex-direction:column}
+.set-wrap{flex:1;display:flex;min-height:0}
+/* 左列分组导航 260 */
+.set-nav{width:260px;flex:none;border-right:1px solid var(--border);padding:14px 12px 16px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.screen.pt .set-nav{display:none}
+.screen[data-sub="onboard"] .set-nav{display:none}
+.set-nav .navttl{font-size:28px;font-weight:700;letter-spacing:.2px;padding:2px 10px 10px}
+.gitem{display:flex;align-items:center;gap:10px;padding:8px 10px;border:none;background:transparent;border-radius:11px;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;width:100%}
+.gitem:hover{background:rgba(120,120,128,.10)}
+.gitem svg.ic{font-size:17px;color:var(--text-2);flex:none}
+.gitem .gt{min-width:0}
+.gitem .gt b{display:block;font-size:13.5px;font-weight:600}
+.gitem .gt span{display:block;font-size:10.5px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gitem.on{background:color-mix(in srgb,var(--action) 12%,transparent)}
+.gitem.on svg.ic,.gitem.on .gt b{color:var(--action)}
+.gitem.on .gt span{color:color-mix(in srgb,var(--action) 70%,var(--text-2))}
+.navdiv{height:1px;background:var(--border);margin:10px 8px}
+.dz-cap{font-size:10.5px;font-weight:700;color:var(--danger);letter-spacing:.5px;padding:0 10px 4px;opacity:.85}
+.gitem.dz{color:var(--danger)}
+.gitem.dz svg.ic,.gitem.dz .gt b{color:var(--danger)}
+.gitem.dz .gt span{color:color-mix(in srgb,var(--danger) 60%,var(--text-2))}
+.gitem.dz.on{background:color-mix(in srgb,var(--danger) 12%,transparent)}
+/* 右内容区 */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.pt-head{flex:none;height:46px;display:none;align-items:center;gap:6px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--bg-page)}
+.screen.pt .pt-head{display:flex}
+.screen.pt[data-sub="mmain"] .pt-head,.screen.pt[data-sub="onboard"] .pt-head{display:none}
+.pt-back{display:inline-flex;align-items:center;gap:2px;border:none;background:transparent;color:var(--action);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;padding:6px 8px 6px 2px;border-radius:8px}
+.pt-back svg.ic{font-size:16px}
+.pt-title{flex:1;text-align:center;font-size:20px;font-weight:700;margin-right:64px}
+.pane-host{flex:1;position:relative;min-height:0}
+.pane{position:absolute;inset:0;display:none;overflow-y:auto;overscroll-behavior:contain;padding:16px 26px 34px}
+.pane::-webkit-scrollbar,.nlist::-webkit-scrollbar,.ndetail::-webkit-scrollbar,.set-nav::-webkit-scrollbar{width:0}
+.screen.pt .pane{padding:14px 20px 30px}
+.pcol{max-width:720px;margin:0 auto}
+.screen[data-sub="main"]    .pane-main{display:block}
+.screen[data-sub="notify"]  .pane-notify{display:flex;flex-direction:column;padding:0}
+.screen[data-sub="icloud"]  .pane-icloud{display:block}
+.screen[data-sub="trash"]   .pane-trash{display:block}
+.screen[data-sub="data"]    .pane-data{display:block}
+.screen[data-sub="io"]      .pane-io{display:block}
+.screen[data-sub="appearance"] .pane-appearance{display:block}
+.screen[data-sub="ai"]      .pane-ai{display:block}
+.screen[data-sub="about"]   .pane-about{display:block}
+.screen[data-sub="danger"]  .pane-danger{display:block}
+.screen[data-sub="onboard"] .pane-onboard{display:block}
+.screen[data-sub="mmain"]   .pane-mmain{display:block}
+/* ---- 通用卡片与行 ---- */
+.sec{font-size:11.5px;font-weight:600;color:var(--text-2);letter-spacing:.4px;margin:20px 2px 8px}
+.sec:first-child{margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:52px;position:relative}
+.row + .row{border-top:1px solid var(--divider)}
+.row.act{cursor:pointer}
+.row.act:hover{background:color-mix(in srgb,var(--text) 4%,transparent)}
+.ric{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:none;background:var(--inset);color:var(--text-2)}
+.rmain{flex:1;min-width:0}
+.rmain b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rmain span{display:block;font-size:12px;color:var(--text-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .chv{color:var(--text-2);opacity:.55;font-size:14px;flex:none}
+.badge{font-size:12px;font-weight:700;background:var(--action);color:#fff;border-radius:999px;min-width:22px;height:22px;display:grid;place-items:center;padding:0 7px;flex:none}
+.badge.ok{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}
+.row.dgr .ric{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}
+.row.dgr .rmain b{color:var(--danger)}
+.row.dgr .rmain span{color:color-mix(in srgb,var(--danger) 55%,var(--text-2))}
+.dot-ok{width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 0 3px rgba(52,199,89,.18);flex:none;display:inline-block}
+/* 用户卡 */
+.ucard{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 16px}
+.uav{width:54px;height:54px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#FFB68A,#F46D38 55%,#EA580C);display:grid;place-items:center;color:#fff;font-size:21px;font-weight:700;flex:none}
+.uav.g{background:var(--inset);color:var(--text-2)}
+.utm{flex:1;min-width:0}
+.utm b{font-size:16.5px;font-weight:700;display:block}
+.utm .st{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text);margin-top:4px}
+.utm .ml{font-size:11.5px;color:var(--text-2);margin-top:2px}
+/* 按钮 */
+.btn-ghost{height:34px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;flex:none}
+.btn-ghost:active{transform:scale(.97);opacity:.85}
+.btn-primary{height:36px;padding:0 18px;border:none;background:var(--action);color:var(--on-action);border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px;flex:none}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.btn-primary.blk{flex:1;justify-content:center;height:44px;font-size:14.5px;border-radius:12px}
+.btn-dgr{height:32px;padding:0 12px;border:1px solid color-mix(in srgb,var(--danger) 45%,transparent);background:transparent;color:var(--danger);border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;flex:none}
+.btn-dgr.fill{height:44px;flex:1;justify-content:center;background:var(--dmg);border-color:var(--dmg);color:var(--on-dmg);font-size:14.5px;border-radius:12px}
+.btn-dgr.fill:disabled{opacity:.35;cursor:default}
+/* 开关 */
+.sw{width:46px;height:28px;border-radius:999px;background:var(--seg-track);border:none;position:relative;cursor:pointer;flex:none;transition:background .2s;padding:0}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:transform .2s}
+.sw.on{background:var(--tg)}
+.sw.on::after{transform:translateX(18px)}
+/* 分段 */
+.segc{display:inline-flex;background:var(--seg-track);border-radius:10px;padding:2px;gap:2px}
+.segc button{border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:500;padding:6px 14px;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.segc button.on{background:var(--seg-thumb);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--action);color:var(--action);font-weight:600}
+/* 单选 */
+.rd{width:20px;height:20px;border-radius:50%;border:1.7px solid var(--border);flex:none;transition:border .15s}
+.row.on .rd{border:6.5px solid var(--action)}
+/* 数据概览四格 */
+.dtiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.screen.pt .dtiles{grid-template-columns:repeat(4,1fr)}
+.dtile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 14px 12px}
+.dtile b{font-size:21px;font-weight:700;display:block;letter-spacing:.2px}
+.dtile span{font-size:11.5px;color:var(--text-2);display:block;margin-top:3px}
+/* 说明条 */
+.hint{display:flex;gap:10px;align-items:flex-start;background:var(--inset);border:1px solid var(--border);border-radius:14px;padding:12px 14px;font-size:12.5px;color:var(--text-2);line-height:1.65}
+.hint svg.ic{font-size:16px;margin-top:2px;color:var(--text-2);flex:none}
+/* 迷你缩样标注与容器 */
+.mini-cap{font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:.3px;margin:22px 2px 8px;padding-left:8px;border-left:3px solid var(--amber);opacity:.9}
+.sheetmini{width:520px;max-width:100%;background:var(--bg-page);border:1px solid var(--border);border-radius:20px;box-shadow:0 14px 44px rgba(0,0,0,.10);overflow:hidden;position:relative}
+.sm-grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:10px auto 0}
+.sm-x{position:absolute;top:10px;left:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--inset);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:13px;z-index:2}
+.sm-head{padding:8px 22px 0}
+.sm-head h4{font-size:16.5px;font-weight:700}
+.sm-head p{font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.55}
+.sm-body{padding:12px 22px 4px}
+.sm-foot{padding:12px 22px 18px}
+/* 字段映射 */
+.maprow{display:flex;align-items:center;gap:10px;padding:7px 0}
+.mapl{font-size:12px;background:var(--inset);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text-2);white-space:nowrap}
+.maprow svg.arr{font-size:14px;color:var(--action);flex:none}
+.mapr{font-size:12px;background:color-mix(in srgb,var(--action) 8%,transparent);border:1px solid color-mix(in srgb,var(--action) 32%,transparent);border-radius:8px;padding:5px 10px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapnote{font-size:11.5px;color:var(--text-2);line-height:1.6;margin-top:8px;display:flex;gap:6px}
+.mapnote svg.ic{font-size:13px;margin-top:2px;flex:none;color:var(--warning)}
+/* 输入框 */
+.ta{min-height:84px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;font-size:13px;color:var(--placeholder);line-height:1.6}
+.cin{height:40px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0 13px;font-size:13.5px;font-family:inherit;color:var(--text);width:100%}
+.cin:focus{outline:none;border-color:var(--action)}
+.cin.big{height:46px;font-size:15px;border-width:1.5px;text-align:center}
+/* 反馈截图块 */
+.shots{display:flex;gap:10px;align-items:center}
+.shot{width:56px;height:56px;border-radius:12px;border:1.5px dashed var(--border);display:grid;place-items:center;color:var(--placeholder);font-size:18px}
+.shots .cap{font-size:11.5px;color:var(--text-2)}
+/* ---- 外观三选 ---- */
+.apcards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:600px}
+.apcard{border:1.5px solid var(--border);background:var(--surface);border-radius:14px;padding:10px 10px 12px;cursor:pointer;text-align:center;position:relative;font-family:inherit}
+.apcard.on{border-color:var(--action);box-shadow:0 0 0 3px color-mix(in srgb,var(--action) 15%,transparent)}
+.apcard .prev{height:72px;border-radius:9px;overflow:hidden;border:1px solid var(--border);display:grid;grid-template-rows:1fr auto;padding:8px;gap:5px}
+.apcard .prev i{display:block;height:8px;border-radius:4px;opacity:.55}
+.apcard .prev i+i{width:62%}
+.prev.pl{background:#FDFCF8}.prev.pl i{background:#D8D2C6}
+.prev.pd{background:#17171A}.prev.pd i{background:#4A4A4E}
+.prev.pa{background:linear-gradient(90deg,#FDFCF8 50%,#17171A 50%)}.prev.pa i{background:#9A9488}
+.apcard .nm{font-size:12.5px;font-weight:600;margin-top:9px}
+.apcard .ck{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--action);color:#fff;display:none;place-items:center;font-size:12px;border:2px solid var(--bg-page)}
+.apcard.on .ck{display:grid}
+/* 应用锁覆盖层小图 */
+.lockdemo{width:380px;max-width:100%;height:186px;border-radius:18px;background:radial-gradient(130% 130% at 30% 18%,#2A2A2E 0%,#0A0A0B 72%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:#F5F5F5;border:1px solid #3A3A3C}
+.lockdemo svg.ic{font-size:44px;opacity:.95}
+.lockdemo b{font-size:15.5px;font-weight:700}
+.lockdemo span{font-size:12px;opacity:.6}
+/* ---- 通知双列 ---- */
+.ncols{flex:1;display:flex;min-height:0}
+.nlist{width:300px;flex:none;border-right:1px solid var(--border);overflow-y:auto;padding:14px 12px 30px 22px}
+.ncap{font-size:11.5px;font-weight:600;color:var(--text-2);letter-spacing:.4px;margin:2px 2px 10px;line-height:1.6}
+.nrow{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:none;background:transparent;border-radius:12px;color:var(--text);cursor:pointer;font-family:inherit;text-align:left}
+.nrow:hover{background:rgba(120,120,128,.08)}
+.nrow.on{background:color-mix(in srgb,var(--action) 12%,transparent)}
+.nrow svg.ic{font-size:16px;color:var(--text-2);flex:none}
+.nrow.on svg.ic{color:var(--action)}
+.nrow .nt{flex:1;min-width:0}
+.nrow .nt b{display:block;font-size:13.5px;font-weight:600}
+.nrow .nt span{display:block;font-size:11px;color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nrow .chv{color:var(--text-2);opacity:.55;font-size:13px;flex:none}
+.ndetail{flex:1;min-width:0;overflow-y:auto;padding:18px 28px 34px;position:relative}
+.screen.pt .nlist{width:auto;border-right:none}
+.screen.pt:not(.nsub) .ndetail{display:none}
+.screen.pt.nsub .nlist{display:none}
+.nd-head{display:flex;align-items:center;gap:12px}
+.nd-head h3{font-size:19px;font-weight:700;flex:1}
+/* ---- 弹层 ---- */
+.dlgsc{position:absolute;inset:0;z-index:55;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.38)}
+.screen.x-repull    .dlg-repull{display:flex}
+.screen.x-cleardata .dlg-cleardata{display:flex}
+.screen.x-signout   .dlg-signout{display:flex}
+.screen.x-delacc    .dlg-delacc{display:flex}
+/* danger 双弹层叠放：退出登录（上层）+ 删除账号（下层），上下错位示意；只留一层 scrim，上层容器点击穿透 */
+.screen.x-signout.x-delacc .dlg-signout{background:transparent;pointer-events:none;align-items:flex-start;padding-top:84px;z-index:57}
+.screen.x-signout.x-delacc .dlg-signout .alert{pointer-events:auto;box-shadow:0 30px 90px rgba(0,0,0,.5)}
+.screen.x-signout.x-delacc .dlg-delacc{z-index:56}
+.screen.x-signout.x-delacc .dlg-delacc .sheetdlg{transform:translateY(46px)}
+.alert{width:340px;max-width:86%;background:var(--bg-page);border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden;text-align:center;position:relative}
+.alert .ah{padding:20px 20px 16px}
+.alert .aic{width:42px;height:42px;margin:0 auto 10px;border-radius:13px;background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger);display:grid;place-items:center;font-size:21px}
+.alert h3{font-size:15.5px;font-weight:700}
+.alert p{font-size:12.5px;color:var(--text-2);line-height:1.65;margin-top:7px}
+.alert .ab{border-top:1px solid var(--divider);display:flex;flex-direction:column}
+.alert .ab button{height:44px;border:none;background:transparent;font-family:inherit;font-size:14.5px;cursor:pointer;color:var(--text)}
+.alert .ab button + button{border-top:1px solid var(--divider)}
+.alert .ab button.cancel{font-weight:700;color:var(--action)}
+.alert .ab button.dgrb{color:var(--dmg);font-weight:600}
+.sheetdlg{width:520px;max-width:88%;background:var(--bg-page);border:1px solid var(--border);border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden;position:relative}
+.dlg-x{position:absolute;top:12px;left:12px;width:30px;height:30px;border-radius:50%;border:none;background:var(--inset);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:13px;z-index:2}
+.dh{padding:16px 24px 0;text-align:center}
+.dh .aic{width:44px;height:44px;margin:0 auto 10px;border-radius:13px;background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger);display:grid;place-items:center;font-size:22px}
+.dh h3{font-size:17px;font-weight:700}
+.dh p{font-size:12.5px;color:var(--text-2);line-height:1.65;margin-top:6px}
+.wlist{margin:14px 24px 0;display:flex;flex-direction:column;gap:8px}
+.wli{display:flex;gap:8px;font-size:13px;line-height:1.6;color:var(--text)}
+.wli svg.ic{font-size:14px;margin-top:3px;flex:none;color:var(--dmg)}
+.din{margin:14px 24px 0}
+.din .cin.big{text-align:left;padding:0 16px}
+.din .cap{font-size:11.5px;color:var(--text-2);margin-top:8px;line-height:1.6}
+.dfoot{display:flex;gap:10px;padding:16px 24px 20px}
+/* ---- 新手引导链 ---- */
+.obrow{margin-bottom:6px}
+.obgrid{display:flex;gap:16px;flex-wrap:wrap}
+.obcard{width:212px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px}
+.obcard .obh{font-size:14px;font-weight:700;line-height:1.4}
+.obcard .obp{font-size:11px;color:var(--text-2);line-height:1.55}
+.obcap{font-size:10.5px;color:var(--text-2);margin-top:7px;text-align:center;opacity:.8}
+.ob-minirow{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left}
+.ob-mrow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text)}
+.ob-mrow svg.ic{font-size:14px;color:var(--action);flex:none}
+.swatch{display:flex;gap:8px;justify-content:center;margin:2px 0}
+.swatch i{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);display:grid;place-items:center}
+.swatch i svg.ic{font-size:14px}
+/* 聚光灯导览示意 */
+.coachdemo{position:relative;width:600px;max-width:100%;height:300px;border-radius:18px;overflow:hidden;background:var(--bg-page);border:1px solid var(--border)}
+.cd-home{position:absolute;inset:0;padding:22px 26px;display:flex;flex-direction:column;gap:16px}
+.cd-hero{display:flex;align-items:center;gap:14px}
+.cd-orb{width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#FFB68A,#F46D38 55%,#EA580C)}
+.cd-hero .l1{height:13px;width:150px;border-radius:6px;background:var(--inset)}
+.cd-hero .l2{height:9px;width:100px;border-radius:5px;background:var(--inset);margin-top:7px}
+.cd-entries{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.cd-ent{height:58px;border-radius:12px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.cd-ent i{width:18px;height:18px;border-radius:6px;background:color-mix(in srgb,var(--action) 18%,transparent)}
+.cd-ent u{width:44px;height:7px;border-radius:4px;background:var(--inset);text-decoration:none}
+.cd-spot{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);width:148px;height:62px;border-radius:15px;border:2.5px solid var(--brand);box-shadow:0 0 0 999px rgba(8,8,10,.62);display:grid;place-items:center;color:var(--brand);font-size:13px;font-weight:700;background:var(--surface)}
+.cd-coach{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:430px;max-width:92%;background:var(--surface);border:1px solid var(--border);border-radius:15px;padding:13px 16px;box-shadow:0 14px 40px rgba(0,0,0,.22);display:flex;align-items:center;gap:12px}
+.cd-coach .ct{flex:1}
+.cd-coach .ct b{font-size:13.5px;font-weight:700;display:block}
+.cd-coach .ct span{font-size:11.5px;color:var(--text-2);display:block;margin-top:3px}
+.cd-dots{display:flex;gap:5px;justify-content:center;margin-top:8px}
+.cd-dots i{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.cd-dots i.on{background:var(--action);width:16px;border-radius:3px}
+/* 首笔庆祝 */
+.celebdemo{position:relative;width:600px;max-width:100%;height:250px;border-radius:18px;background:var(--bg-page);border:1px solid var(--border);display:grid;place-items:center;overflow:hidden}
+.celeb-card{text-align:center;position:relative;z-index:2}
+.celeb-card b{font-size:22px;font-weight:800;display:block}
+.celeb-card span{font-size:13px;color:var(--text-2);display:block;margin-top:8px}
+.celeb-card .btn-primary{margin:16px auto 0}
+.confetti{position:absolute;inset:0;z-index:1}
+/* 布局标注位置 */
+.pane-icloud > .note{top:14px;right:20px}
+.pane-danger > .note{top:14px;right:20px}
+.pane-mmain > .note{top:14px;right:20px;display:none}
+.screen.pt[data-sub="mmain"] .pane-mmain > .note{display:block}
+.ndetail > .note{top:16px;right:22px}
+/* 回收站空态（最惨稀疏态） */
+.trempty-card{display:none;align-items:center;gap:16px;background:var(--surface);border:1px dashed color-mix(in srgb,var(--action) 45%,transparent);border-radius:16px;padding:20px 18px}
+.trempty-card .teic{width:46px;height:46px;border-radius:14px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);display:grid;place-items:center;font-size:22px;flex:none}
+.trempty-card .tet{flex:1;min-width:0}
+.trempty-card .tet b{font-size:15.5px;font-weight:700;display:block}
+.trempty-card .tet span{font-size:12.5px;color:var(--text-2);display:block;margin-top:4px;line-height:1.6}
+.screen[data-sub="trashEmpty"] .pane-trash{display:block}
+.screen[data-sub="trashEmpty"] .pane-trash .trempty-card{display:flex}
+.screen[data-sub="trashEmpty"] .pane-trash .has-data{display:none!important}
+/* 竖屏下加宽间距 */
+.screen.pt .sec{margin-top:22px}
+</style>
+</head>
+<body>
+
+<!-- ============ 控制栏 ============ -->
+<aside class="rail">
+  <div>
+    <h1>Holo iPad · 设置与系统</h1>
+    <div class="sub">设置双栏（左列导航 260 + 右内容）+ 系统角落：应用锁 / 回收站 / 导入导出 / 通知 / 同步 / 引导链。</div>
+  </div>
+  <div>
+    <div class="rlabel">朝向</div>
+    <div class="rseg" id="segOri">
+      <button data-v="lsz" aria-pressed="true">横屏 1194×834</button>
+      <button data-v="pt" aria-pressed="false">竖屏 834×1194</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">深浅色</div>
+    <div class="rseg" id="segTheme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">场景</div>
+    <div class="rchips" id="sceneChips">
+      <button data-v="main" aria-pressed="true">主页 · 数据与同步</button>
+      <button data-v="notify" aria-pressed="false">通知设置 · 早报详情</button>
+      <button data-v="icloud" aria-pressed="false">iCloud 同步 · 拉取弹层</button>
+      <button data-v="trash" aria-pressed="false">最近删除 · 回收站</button>
+      <button data-v="trashEmpty" aria-pressed="false">最近删除 · 空态最惨</button>
+      <button data-v="data" aria-pressed="false">数据管理 · 清空确认</button>
+      <button data-v="io" aria-pressed="false">导入导出 · 预览缩样</button>
+      <button data-v="appearance" aria-pressed="false">外观与应用锁</button>
+      <button data-v="ai" aria-pressed="false">HoloAI 设置聚合</button>
+      <button data-v="about" aria-pressed="false">关于与反馈 · 反馈缩样</button>
+      <button data-v="danger" aria-pressed="false">危险区 · 双确认弹层</button>
+      <button data-v="onboard" aria-pressed="false">新手引导链</button>
+      <button data-v="mmain" aria-pressed="false">竖屏变体 · 单列推入</button>
+    </div>
+  </div>
+  <div class="foot">
+    可点：左列分组 / 各行推入 / 危险行弹层 / 开关分段 / 回收站筛选 / 竖屏行推入二级页。<br>
+    键盘：<kbd>⌘,</kbd> 设置直达 · <kbd>Esc</kbd> 逐级返回 · <kbd>⌘N</kbd> 快速记录。<br>
+    拍板点：<span class="ptag">P24</span> 竖屏单列推入式；<span class="ptag">P25</span> 危险确认分级；<span class="ptag">P26</span> 通知右栏推入（明细见文件底注释）。
+  </div>
+</aside>
+
+<!-- ============ 舞台 ============ -->
+<div class="stage" id="stage">
+  <div class="frameWrap" id="frameWrap">
+    <div class="ipad">
+      <div class="screen" id="screen" data-scene="main" data-sub="main">
+
+        <div class="sbar">
+          <span class="tnum">23:47</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M7.8 15.6a6 6 0 0 1 8.4 0M10.6 18.4a2.2 2.2 0 0 1 2.8 0"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="8" rx="2.5"/><path d="M21.5 11v2"/><rect x="4.5" y="10" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </div>
+
+        <div class="app">
+          <!-- 侧边栏（照抄样板件 DOM；本模块「设置」选中） -->
+          <nav class="sidebar" id="sidebar">
+            <div class="sb-top">
+              <button class="sb-btn" id="sbToggle" title="收起/展开侧边栏（⌘⌥S）"><svg class="ic" viewBox="0 0 24 24" id="sbToggleIc"><path d="M9.5 6.5 5 12l4.5 5.5M14.5 6.5 19 12l-4.5 5.5" opacity=".35"/><rect x="3" y="4.5" width="18" height="15" rx="3"/></svg></button>
+              <span class="sb-title">Holo</span>
+            </div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="home"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg><span>今天</span><span class="k">⌘1</span></button>
+              <button class="sb-item" data-module="thoughts"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg><span>想法</span><span class="k">⌘2</span></button>
+              <button class="sb-item" data-module="finance"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg><span>财务</span><span class="k">⌘3</span></button>
+              <button class="sb-item" data-module="tasks"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg><span>任务</span><span class="k">⌘4</span></button>
+              <button class="sb-item" data-module="habits"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span>习惯</span><span class="k">⌘5</span></button>
+              <button class="sb-item" data-module="gallery"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg><span>记忆长廊</span><span class="k">⌘6</span></button>
+              <button class="sb-item" data-module="health"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span>健康</span><span class="k">⌘7</span></button>
+              <button class="sb-item" data-module="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span>AI 对话</span><span class="k">⌘8</span></button>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="personal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg><span>个人</span><span class="k">⌘9</span></button>
+              <button class="sb-item on" data-module="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg><span>设置</span><span class="k">⌘,</span></button>
+            </div>
+            <div class="sb-bottom">
+              <button class="sb-quick" id="quickAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button>
+            </div>
+          </nav>
+
+          <!-- 竖屏覆盖式侧边栏 -->
+          <div class="scrim" id="sbovScrim"></div>
+          <nav class="sbov" id="sbov">
+            <div class="sb-top"><span class="sb-title">Holo</span></div>
+            <div class="sb-list" id="sbovList"></div>
+          </nav>
+
+          <!-- 内容区：设置双栏 -->
+          <main class="content">
+            <section class="scene-set">
+              <div class="set-wrap">
+
+                <!-- 左列分组导航 260 -->
+                <nav class="set-nav" id="setNav">
+                  <div class="navttl">设置</div>
+                  <button class="gitem" data-g="g-pref" data-nav="appearance" id="navPref">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M4 7.5h8M16.5 7.5H20M4 16.5h3M11.5 16.5H20"/><circle cx="14.2" cy="7.5" r="2.2"/><circle cx="9.2" cy="16.5" r="2.2"/></svg>
+                    <span class="gt"><b>使用偏好</b><span>外观 · 通知设置</span></span>
+                  </button>
+                  <button class="gitem" data-g="g-ds" data-nav="main" id="navDs">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 6.9 8.7 4.5 4.5 0 0 0 7 18z"/><path d="M12 15.5v-4M10.3 13 12 11.2l1.7 1.8"/></svg>
+                    <span class="gt"><b>数据与同步</b><span>iCloud · 最近删除 · 导入导出</span></span>
+                  </button>
+                  <button class="gitem" data-g="g-sec" data-nav="appearance">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5 5.5 6v5.2c0 4.4 2.8 7.3 6.5 9.3 3.7-2 6.5-4.9 6.5-9.3V6z"/><path d="m9.5 11.8 1.8 1.8 3.4-3.4"/></svg>
+                    <span class="gt"><b>隐私与安全</b><span>应用锁 · 数据授权 · 隐私开关</span></span>
+                  </button>
+                  <button class="gitem" data-g="g-ai" data-nav="ai">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+                    <span class="gt"><b>HoloAI 与想法</b><span>一个发现 · 长期记忆 · 回放</span></span>
+                  </button>
+                  <button class="gitem" data-g="g-help" data-nav="about">
+                    <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M9.8 9.8a2.2 2.2 0 1 1 3.1 2c-.7.4-.9.9-.9 1.7"/><path d="M12 16.2v.3"/></svg>
+                    <span class="gt"><b>帮助与反馈</b><span>使用帮助 · 意见反馈 · 关于</span></span>
+                  </button>
+                  <div class="navdiv"></div>
+                  <div class="dz-cap">危险区</div>
+                  <button class="gitem dz" data-g="g-dz" data-nav="danger" id="navDz">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M13.5 4.5H18A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5h-4.5"/><path d="M4 12h10M10.5 8.5 14 12l-3.5 3.5"/></svg>
+                    <span class="gt"><b>退出登录</b><span>保留本机记录，停止同步</span></span>
+                  </button>
+                  <button class="gitem dz" data-g="g-dz" data-nav="danger">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/><path d="M10.5 10.5v5.5M13.5 10.5v5.5"/></svg>
+                    <span class="gt"><b>删除账号与数据</b><span>云端与本机全部抹掉</span></span>
+                  </button>
+                </nav>
+
+                <!-- 右内容区 -->
+                <div class="set-main">
+                  <div class="pt-head">
+                    <button class="pt-back" id="ptBack"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>设置</button>
+                    <span class="pt-title" id="ptTitle">数据与同步</span>
+                  </div>
+                  <div class="pane-host">
+
+                    <!-- 场景 1：双栏主页（数据与同步） -->
+                    <div class="pane pane-main"><div class="pcol">
+                      <div class="ucard">
+                        <span class="uav">东</span>
+                        <span class="utm">
+                          <b>东林</b>
+                          <span class="st"><span class="dot-ok"></span>已登录 iCloud · 同步正常</span>
+                          <span class="ml tnum">e***@icloud.com · Apple 账户</span>
+                        </span>
+                      </div>
+                      <div class="sec">数据与同步</div>
+                      <div class="card">
+                        <div class="row act" data-nav="icloud">
+                          <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 6.9 8.7 4.5 4.5 0 0 0 7 18z"/><path d="M12 15.5v-4M10.3 13 12 11.2l1.7 1.8"/></svg></span>
+                          <span class="rmain"><b>iCloud 同步</b><span class="tnum">上次同步 今天 08:12 · 一切正常</span></span>
+                          <span class="dot-ok"></span><i class="chv"></i>
+                        </div>
+                        <div class="row act" data-nav="trash">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/></svg></span>
+                          <span class="rmain"><b>最近删除</b><span>删掉的东西在这里保留 30 天</span></span>
+                          <span class="badge tnum">3</span><i class="chv"></i>
+                        </div>
+                        <div class="row act" data-nav="data">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></svg></span>
+                          <span class="rmain"><b>数据管理</b><span class="tnum">10,638 条记录 · 占用 1.9 GB</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-nav="io">
+                          <span class="ric" style="background:color-mix(in srgb,#8B5CF6 13%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M7.5 3.5h6L18 8v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 3.5V8H18"/></svg></span>
+                          <span class="rmain"><b>账单导入与导出</b><span>CSV / JSON · 微信、支付宝图文教程</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="日历接入子页原型见对应分文件（结构同分组内容页）">
+                          <span class="ric" style="background:color-mix(in srgb,#EAB308 16%,transparent);color:#EAB308"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/></svg></span>
+                          <span class="rmain"><b>日历接入</b><span class="tnum">已接入 1 个日历 · 课程表之外还有「交房租」</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 2：通知设置（列表 + 每日早报详情） -->
+                    <div class="pane pane-notify">
+                      <div class="ncols">
+                        <div class="nlist">
+                          <div class="ncap">通知都在这里调。每类可以单独开关、改时间、发测试。</div>
+                          <button class="nrow on" data-push="nsub">
+                            <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h8M8 13h8M8 16.5h4"/></svg>
+                            <span class="nt"><b>每日每周汇总</b><span class="tnum">每日早报 08:00 · 周一晨报 09:00</span></span>
+                            <i class="chv"></i>
+                          </button>
+                          <button class="nrow" data-toast="「财务提醒」详情同构：开关 + 时机 + 测试（原型画每日早报）">
+                            <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg>
+                            <span class="nt"><b>财务提醒</b><span>周期账单到期 · 预算超支</span></span>
+                            <i class="chv"></i>
+                          </button>
+                          <button class="nrow" data-toast="「按条提醒」详情同构：任务到期、习惯打卡、纪念日（原型画每日早报）">
+                            <svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8"/></svg>
+                            <span class="nt"><b>按条提醒</b><span>任务到期 · 习惯打卡 · 纪念日</span></span>
+                            <i class="chv"></i>
+                          </button>
+                          <button class="nrow" data-toast="「AI 主动提醒」详情同构：每周回放、一个发现整理（原型画每日早报）">
+                            <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>
+                            <span class="nt"><b>AI 主动提醒</b><span>每周回放 · 一个发现整理</span></span>
+                            <i class="chv"></i>
+                          </button>
+                        </div>
+                        <div class="ndetail">
+                          <div class="note"><span class="ptag">P26</span> 宽档通知详情走右栏二级推入，不用居中弹层；竖屏时先见列表、点行再推入。</div>
+                          <div class="nd-head">
+                            <h3>每日早报</h3>
+                            <button class="sw on" data-sw aria-label="每日早报开关"></button>
+                          </div>
+                          <div class="sec">提醒时间</div>
+                          <div class="card">
+                            <div class="row act" data-toast="时间选择 popover（P1 拍板：小选择器锚定触发点）">
+                              <span class="ric"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.5V12l3 2"/></svg></span>
+                              <span class="rmain"><b>每天早上提醒</b><span>起晚了也不会吵到你，只在 07:00–10:00 之间送到</span></span>
+                              <b class="tnum" style="font-size:15px">08:00</b><i class="chv"></i>
+                            </div>
+                          </div>
+                          <div class="sec">内容构成</div>
+                          <div class="card" style="padding:14px 16px">
+                            <div class="chips" data-selwrap>
+                              <button class="chip on" data-selg>今天的安排</button>
+                              <button class="chip on" data-selg>预算快照</button>
+                              <button class="chip" data-selg>习惯打卡</button>
+                              <button class="chip on" data-selg>一句天气与心情</button>
+                            </div>
+                            <div style="font-size:11.5px;color:var(--text-2);margin-top:10px;line-height:1.6">按当天有什么自动取舍，没有的不会硬凑；全关了早报只剩一句问候。</div>
+                          </div>
+                          <div class="sec">试一试</div>
+                          <div class="card">
+                            <div class="row">
+                              <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 1 6 6v4.5l1.6 2.7a.6.6 0 0 1-.5.9H4.9a.6.6 0 0 1-.5-.9L6 14.5V10a6 6 0 0 1 6-6z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>
+                              <span class="rmain"><b>发一条测试</b><span>只发到这台设备，不发到其他设备</span></span>
+                              <button class="btn-ghost" data-toast="测试早报已发出（演示）">发一条测试</button>
+                            </div>
+                            <div class="row act" data-toast="跳转系统设置 · 通知 · Holo（演示）">
+                              <span class="ric"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg></span>
+                              <span class="rmain"><b>收不到？去系统设置开权限</b><span>通知权限由 iOS 管理，Holo 只能带你过去</span></span>
+                              <i class="chv"></i>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 场景 3：iCloud 同步（拉取确认弹层展开） -->
+                    <div class="pane pane-icloud"><div class="pcol">
+                      <div class="note">未登录态：此卡位置改显「通过 Apple 登录」按钮（iPad 限宽 360）。</div>
+                      <div class="ucard">
+                        <span class="uav g"><svg class="ic" viewBox="0 0 24 24" style="font-size:22px"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg></span>
+                        <span class="utm">
+                          <b class="tnum">e***@icloud.com</b>
+                          <span class="st"><span class="dot-ok"></span>同步正常 · <span class="tnum">上次同步 今天 08:12</span></span>
+                          <span class="ml tnum">iCloud 容量已用 2.1 GB / 5 GB</span>
+                        </span>
+                      </div>
+                      <div class="sec">换设备与排障</div>
+                      <div class="card">
+                        <div class="row act" data-toast="恢复上传指引：换新设备时先补传未上传内容，再拉取最新（子页原型见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 9.5h9.5a5 5 0 1 1 0 10H9"/><path d="M8 6 4.5 9.5 8 13"/></svg></span>
+                          <span class="rmain"><b>恢复上传指引</b><span>换新设备时，先把没传完的补传，再拿最新的一版</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="同步诊断：近 7 天无失败记录 · 上次诊断 11月12日（子页原型见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg></span>
+                          <span class="rmain"><b>同步诊断</b><span class="tnum">近 7 天无失败 · 上次诊断 11月12日</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="sec">需要谨慎</div>
+                      <div class="card">
+                        <div class="row dgr act" data-dlg="x-repull">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 6.9 8.7 4.5 4.5 0 0 0 7 18z"/><path d="M12 11.5v4M10.3 14 12 15.8l1.7-1.8"/></svg></span>
+                          <span class="rmain"><b>从 iCloud 重新拉取</b><span>用 iCloud 上的最新一版，覆盖这台设备上冲突的改动</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 4：最近删除（回收站） -->
+                    <div class="pane pane-trash"><div class="pcol">
+                      <div class="hint has-data">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M4.5 9.5h9.5a5 5 0 1 1 0 10H9"/><path d="M8 6 4.5 9.5 8 13"/></svg>
+                        <span>放在这里的东西保留 30 天，之后会真正离开。想留的，趁早抱回来。恢复时如果和现有内容撞车，Holo 会先问你保留哪份。</span>
+                      </div>
+                      <div class="sec">按模块看</div>
+                      <div class="segc" id="segTrash" style="margin-bottom:14px">
+                        <button class="on" data-v="all">全部</button>
+                        <button data-v="task">任务</button>
+                        <button data-v="finance">财务</button>
+                        <button data-v="thought">想法</button>
+                      </div>
+                      <div class="card has-data" id="paneTrash">
+                        <div class="row" data-m="task">
+                          <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8"/></svg></span>
+                          <span class="rmain"><b>预约牙医复诊</b><span class="tnum">任务 · 今天 14:02 删除 · 还剩 30 天</span></span>
+                          <button class="btn-ghost" data-toast="已恢复到原处（演示）">恢复</button>
+                          <button class="btn-dgr" data-toast="演示原型 · 未执行彻底删除">彻底删除</button>
+                        </div>
+                        <div class="row" data-m="finance">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg></span>
+                          <span class="rmain"><b>星巴克 · ¥38.00</b><span class="tnum">财务 · 昨天 21:40 删除 · 还剩 29 天</span></span>
+                          <button class="btn-ghost" data-toast="已恢复到原处（演示）">恢复</button>
+                          <button class="btn-dgr" data-toast="演示原型 · 未执行彻底删除">彻底删除</button>
+                        </div>
+                        <div class="row" data-m="thought">
+                          <span class="ric" style="background:color-mix(in srgb,#8B5CF6 13%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg></span>
+                          <span class="rmain"><b>iPad 原型的三个念头</b><span class="tnum">想法 · 11月10日 删除 · 还剩 26 天</span></span>
+                          <button class="btn-ghost" data-toast="已恢复到原处（演示）">恢复</button>
+                          <button class="btn-dgr" data-toast="演示原型 · 未执行彻底删除">彻底删除</button>
+                        </div>
+                      </div>
+                      <div class="trempty-card">
+                        <span class="teic"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 9.5h9.5a5 5 0 1 1 0 10H9"/><path d="M8 6 4.5 9.5 8 13"/></svg></span>
+                        <span class="tet"><b>回收站是空的</b><span>删掉的东西 30 天内都能反悔，过期才真正离开。这里现在干干净净，挺好。</span></span>
+                        <button class="btn-primary" data-toast="回到上一页（演示）">知道了</button>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 5：数据管理（清空双重确认展开） -->
+                    <div class="pane pane-data"><div class="pcol">
+                      <div class="sec">数据概览</div>
+                      <div class="dtiles">
+                        <div class="dtile"><b class="tnum">1,204</b><span>任务</span></div>
+                        <div class="dtile"><b class="tnum">8,932</b><span>交易</span></div>
+                        <div class="dtile"><b class="tnum">251</b><span>想法</span></div>
+                        <div class="dtile"><b class="tnum">251</b><span>记忆 · 条</span></div>
+                      </div>
+                      <div class="sec">存储与缓存</div>
+                      <div class="card">
+                        <div class="row act" data-toast="存储与缓存子页原型见分文件（清理缓存不动记录）">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></svg></span>
+                          <span class="rmain"><b>存储与缓存</b><span class="tnum">本机 1.9 GB · 其中小票图片 620 MB</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="清理导入分类：合并 6 个导入带来的重复分类（子页原型见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,#EAB308 16%,transparent);color:#EAB308"><svg class="ic" viewBox="0 0 24 24"><path d="M4 5.5h6.6a2 2 0 0 1 1.4.6l7.5 7.5a2 2 0 0 1 0 2.8l-3.6 3.6a2 2 0 0 1-2.8 0l-7.5-7.5a2 2 0 0 1-.6-1.4V5.5z"/><circle cx="8.5" cy="8.5" r="1.3"/></svg></span>
+                          <span class="rmain"><b>清理导入分类</b><span class="tnum">检测到 6 个导入带来的重复分类，可合并</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="sec">需要谨慎</div>
+                      <div class="card">
+                        <div class="row dgr act" data-dlg="x-cleardata">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/><path d="M10.5 10.5v5.5M13.5 10.5v5.5"/></svg></span>
+                          <span class="rmain"><b>清空所有数据</b><span>抹掉这台设备上的全部记录 · 需输入「清空」二次确认</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 6：导入导出 -->
+                    <div class="pane pane-io"><div class="pcol">
+                      <div class="sec">导出</div>
+                      <div class="card" data-selwrap>
+                        <div class="row act on" data-selg>
+                          <span class="rd"></span>
+                          <span class="rmain"><b>CSV 表格</b><span>Excel / Numbers 直接打开 · 通用交换格式</span></span>
+                        </div>
+                        <div class="row act" data-selg>
+                          <span class="rd"></span>
+                          <span class="rmain"><b>JSON 备份</b><span>完整结构 · 适合整库搬家</span></span>
+                        </div>
+                        <div class="row act" data-selg>
+                          <span class="rd"></span>
+                          <span class="rmain"><b>含小票图片（ZIP）</b><span class="tnum">图片多、体积大，导出要等一会儿</span></span>
+                        </div>
+                        <div class="row" style="border-top:1px solid var(--divider)">
+                          <span class="rmain" style="font-size:12px;color:var(--text-2)">导出完成后用系统分享发送，或存到「文件」。</span>
+                          <button class="btn-primary" data-toast="已生成导出文件，可分享或存到「文件」（演示）"><svg class="ic" viewBox="0 0 24 24"><path d="M8 10H6.5A1.5 1.5 0 0 0 5 11.5v7A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 17.5 10H16"/><path d="M12 14V4M8.5 7 12 3.5 15.5 7"/></svg>导出</button>
+                        </div>
+                      </div>
+                      <div class="sec">导入</div>
+                      <div class="card">
+                        <div class="row act" data-toast="选择文件：支持 CSV / TSV / XLSX / ZIP，也支持把文件直接拖到 Holo 图标上（演示）">
+                          <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M7.5 3.5h6L18 8v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 3.5V8H18"/><path d="M12 11v5M9.8 13.8 12 16l2.2-2.2"/></svg></span>
+                          <span class="rmain"><b>选择文件导入</b><span>支持 CSV / TSV / XLSX / ZIP · 也可直接拖文件到 Holo 图标上</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="微信支付账单导入图文教程（子页见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,#22C55E 14%,transparent);color:#22C55E"><svg class="ic" viewBox="0 0 24 24"><path d="M4 17.5c2.5 1.2 4.8 1.8 8 1.8s5.5-.6 8-1.8"/><path d="M7 5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M9 10.5h.3M14.7 10.5h.3"/></svg></span>
+                          <span class="rmain"><b>微信支付账单</b><span>图文教程 · 到微信里导出邮寄账单那一步就对了</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="支付宝账单导入图文教程（子页见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><path d="M4 17.5c2.5 1.2 4.8 1.8 8 1.8s5.5-.6 8-1.8"/><path d="M7 5h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M9 10.5h.3M14.7 10.5h.3"/></svg></span>
+                          <span class="rmain"><b>支付宝账单</b><span>图文教程 · 选「不含商品信息」的版本更快</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="银行流水导入图文教程（子页见分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,#8B5CF6 13%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9.5 12 4l8 5.5"/><path d="M5.5 10.5v8M10 10.5v8M14 10.5v8M18.5 10.5v8M4 19h16"/></svg></span>
+                          <span class="rmain"><b>银行流水</b><span>图文教程 · 各家 App 里都能导出 CSV</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="模板已保存到「文件」（演示）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v10.5M8 11l4 4 4-4M5 19.5h14"/></svg></span>
+                          <span class="rmain"><b>下载导入模板</b><span>照模板整理好，导入一次过</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="mini-cap">导入预览 sheet · 缩样</div>
+                      <div class="sheetmini">
+                        <button class="sm-x" data-toast="关闭预览（演示）"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                        <div class="sm-grab"></div>
+                        <div class="sm-head">
+                          <h4>导入预览</h4>
+                          <p class="tnum">微信支付账单 2026年10月.csv · 共 12,442 行 · 都是10月的花销</p>
+                        </div>
+                        <div class="sm-body">
+                          <div class="maprow"><span class="mapl">交易时间</span><svg class="ic arr" viewBox="0 0 24 24"><path d="M4 12h14M14 8l4 4-4 4"/></svg><span class="mapr">日期</span></div>
+                          <div class="maprow"><span class="mapl">交易对方</span><svg class="ic arr" viewBox="0 0 24 24"><path d="M4 12h14M14 8l4 4-4 4"/></svg><span class="mapr">商户 · 备注</span></div>
+                          <div class="maprow"><span class="mapl">金额(元)</span><svg class="ic arr" viewBox="0 0 24 24"><path d="M4 12h14M14 8l4 4-4 4"/></svg><span class="mapr">金额 · 收/支</span></div>
+                          <div class="maprow"><span class="mapl">当前状态</span><svg class="ic arr" viewBox="0 0 24 24"><path d="M4 12h14M14 8l4 4-4 4"/></svg><span class="mapr">已撤单的行跳过</span></div>
+                          <div class="mapnote">
+                            <svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg>
+                            <span>检测到 36 笔疑似分期，将按分期规则合并入账；分类由 Holo 猜测，导入后可批量改。点列名可换映射。</span>
+                          </div>
+                        </div>
+                        <div class="sm-foot">
+                          <button class="btn-primary blk" style="width:100%" data-toast="导入完成：成功 12,442 笔（演示）">确认导入</button>
+                        </div>
+                      </div>
+                      <div class="card" style="margin-top:14px">
+                        <div class="row">
+                          <span class="ric" style="background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+                          <span class="rmain"><b class="tnum">成功导入 12,442 笔</b><span>刚才这次导入可整批撤回，发现不对马上点</span></span>
+                          <button class="btn-ghost" data-toast="已撤回刚才的导入（演示）">撤回</button>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 7：外观与应用锁 -->
+                    <div class="pane pane-appearance"><div class="pcol">
+                      <div class="sec">使用偏好 · 外观</div>
+                      <div class="apcards" data-selwrap>
+                        <button class="apcard on" data-selg>
+                          <span class="ck"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+                          <span class="prev pa"><i></i><i></i></span>
+                          <span class="nm">跟随系统</span>
+                        </button>
+                        <button class="apcard" data-selg>
+                          <span class="ck"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+                          <span class="prev pl"><i></i><i></i></span>
+                          <span class="nm">浅色</span>
+                        </button>
+                        <button class="apcard" data-selg>
+                          <span class="ck"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+                          <span class="prev pd"><i></i><i></i></span>
+                          <span class="nm">深色</span>
+                        </button>
+                      </div>
+                      <div class="card" style="margin-top:12px">
+                        <div class="row act" data-nav="notify">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 1 6 6v4.5l1.6 2.7a.6.6 0 0 1-.5.9H4.9a.6.6 0 0 1-.5-.9L6 14.5V10a6 6 0 0 1 6-6z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>
+                          <span class="rmain"><b>通知设置</b><span>每日早报 · 账单到期 · 习惯打卡</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="sec">隐私与安全 · 应用锁</div>
+                      <div class="card">
+                        <div class="row">
+                          <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><path d="M12 14.2v2.3"/></svg></span>
+                          <span class="rmain"><b>面容 ID 应用锁</b><span>离开 Holo 后上锁，回来扫脸或输密码</span></span>
+                          <button class="sw on" data-sw></button>
+                        </div>
+                        <div class="row">
+                          <span class="rmain"><b>锁定时机</b><span>切走后多久开始要解锁</span></span>
+                          <div class="segc">
+                            <button class="on">立即</button>
+                            <button>1 分钟后</button>
+                            <button>5 分钟后</button>
+                          </div>
+                        </div>
+                        <div class="row">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h8M8 13h5"/></svg></span>
+                          <span class="rmain"><b>小组件显示想法原文</b><span>关掉后，桌面小组件只显示标题，不露内容</span></span>
+                          <button class="sw" data-sw></button>
+                        </div>
+                        <div class="row act" data-nav="ai">
+                          <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                          <span class="rmain"><b>不参与 AI 的想法</b><span class="tnum">已排除 3 条</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-nav="ai">
+                          <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2"/></svg></span>
+                          <span class="rmain"><b>AI 数据授权</b><span>已授权 · 可随时撤回</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="隐私政策：法律文档 sheet（原型略，结构同弹层规范）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M7.5 3.5h6L18 8v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 3.5V8H18"/></svg></span>
+                          <span class="rmain"><b>隐私政策</b><span>你的数据怎么被对待，写在这里</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="mini-cap">应用锁覆盖层 · 场景小图</div>
+                      <div class="lockdemo">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 9.5v1M15 9.5v1M12 9.5v3.4h-.9"/><path d="M9.4 15.4c.7.7 1.6 1.1 2.6 1.1s1.9-.4 2.6-1.1"/></svg>
+                        <b>已为 Holo 上锁</b>
+                        <span>扫脸或点一下继续</span>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 8：HoloAI 设置聚合 -->
+                    <div class="pane pane-ai"><div class="pcol">
+                      <div class="hint">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>
+                        <span>这里的开关决定 Holo 有多懂你，以及你的记录去哪里。每一项都可以单独调整。</span>
+                      </div>
+                      <div class="sec">HoloAI</div>
+                      <div class="card">
+                        <div class="row act" data-toast="「一个发现」设置子页（开关/状态/使用范围/自动处理/反馈）见对应分文件">
+                          <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2"/></svg></span>
+                          <span class="rmain"><b>一个发现</b><span>每天替你留意一条值得留住的日子</span></span>
+                          <span class="badge ok">已开启</span><i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="长期记忆管理在「个人 · Holo 记住的你」（见对应分文件）">
+                          <span class="ric" style="background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg></span>
+                          <span class="rmain"><b>长期记忆</b><span class="tnum">Holo 记住了 251 条 · 可查看与管理</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="想法设置（自动归类 / 分析范围 / 整理节奏）见对应分文件">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg></span>
+                          <span class="rmain"><b>想法设置</b><span>自动归类 · 分析范围 · 整理节奏</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="周期回放设置（周/月回放自动生成与提醒 4 开关）见对应分文件">
+                          <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg></span>
+                          <span class="rmain"><b>周期回放</b><span>每周 / 每月回放自动生成 · 可设提醒</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="AI 数据授权子页（授权范围与撤回）见对应分文件">
+                          <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5 5.5 6v5.2c0 4.4 2.8 7.3 6.5 9.3 3.7-2 6.5-4.9 6.5-9.3V6z"/><path d="m9.5 11.8 1.8 1.8 3.4-3.4"/></svg></span>
+                          <span class="rmain"><b>AI 数据授权</b><span>已授权 · 撤回后立刻只用本机算力</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="AI 范围：排除不想被分析的内容（想法 3 条，见对应分文件）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M6 6l12 12"/></svg></span>
+                          <span class="rmain"><b>AI 范围</b><span class="tnum">3 条想法不参与 AI · 也可整类排除</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="云端处理说明：哪些内容会离开设备、何时删除、谁能看到（sheet 原型略）">
+                          <span class="ric" style="background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M9.8 9.8a2.2 2.2 0 1 1 3.1 2c-.7.4-.9.9-.9 1.7M12 16.2v.3"/></svg></span>
+                          <span class="rmain"><b>云端处理说明</b><span>哪些内容会离开这台设备，用大白话写清楚</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 9：关于与反馈 -->
+                    <div class="pane pane-about"><div class="pcol">
+                      <div class="card">
+                        <div class="row" style="gap:14px">
+                          <span style="width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 34% 30%,#FFB68A,#F46D38 55%,#EA580C);flex:none"></span>
+                          <span class="rmain"><b style="font-size:16px">Holo</b><span class="tnum">版本 1.1.8 (53) · 你的生活工作台</span></span>
+                        </div>
+                        <div class="row act" data-nav="onboard">
+                          <span class="ric" style="background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                          <span class="rmain"><b>重看新手引导</b><span>四页引导随时可以再看一遍</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="使用帮助：常见问题与玩法指南（子页见分文件）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M9.8 9.8a2.2 2.2 0 1 1 3.1 2c-.7.4-.9.9-.9 1.7M12 16.2v.3"/></svg></span>
+                          <span class="rmain"><b>使用帮助</b><span>怎么记账、怎么整理，一步一步教你</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="隐私政策：法律文档 sheet（原型略）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5 5.5 6v5.2c0 4.4 2.8 7.3 6.5 9.3 3.7-2 6.5-4.9 6.5-9.3V6z"/></svg></span>
+                          <span class="rmain"><b>隐私政策</b><span>你的数据怎么被对待</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row act" data-toast="用户协议：法律文档 sheet（原型略）">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M7.5 3.5h6L18 8v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 3.5V8H18"/><path d="M9 12.5h6M9 15.5h4"/></svg></span>
+                          <span class="rmain"><b>用户协议</b><span>使用 Holo 之前，先聊好规矩</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                      <div class="mini-cap">意见反馈 sheet · 缩样</div>
+                      <div class="sheetmini">
+                        <button class="sm-x" data-toast="关闭反馈（演示）"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                        <div class="sm-grab"></div>
+                        <div class="sm-head">
+                          <h4>意见反馈</h4>
+                          <p>想说的话直接寄给做 Holo 的人。有截图更好。</p>
+                        </div>
+                        <div class="sm-body">
+                          <div class="chips" data-selwrap>
+                            <button class="chip on" data-selg>功能建议</button>
+                            <button class="chip" data-selg>遇到问题</button>
+                            <button class="chip" data-selg>界面体验</button>
+                            <button class="chip" data-selg>其他</button>
+                          </div>
+                          <div class="ta" style="margin-top:12px">说说你的想法，或者哪里不顺手…</div>
+                          <div class="shots" style="margin-top:12px">
+                            <span class="shot"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                            <span class="shot"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                            <span class="shot"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                            <span class="cap">可附最多 3 张截图</span>
+                          </div>
+                          <div class="cin" style="margin-top:12px;color:var(--placeholder)">邮箱或手机号（选填，方便回访你）</div>
+                        </div>
+                        <div class="sm-foot">
+                          <button class="btn-primary blk" style="width:100%" data-toast="反馈已寄出，谢谢你说这些（演示）">发送反馈</button>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 10：危险区 -->
+                    <div class="pane pane-danger"><div class="pcol">
+                      <div class="note"><span class="ptag">P25</span> 不可逆操作分级确认：永久抹除（清空/删号）需输入关键词双重确认；可逆或影响同步类（重新拉取/退出登录）单击红色确认即可。</div>
+                      <div class="sec">危险区</div>
+                      <div class="hint" style="margin-bottom:12px">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg>
+                        <span>下面的动作影响面大。Holo 会拦着你确认一遍，再确认一遍——不是为了烦你，是希望你不会后悔。</span>
+                      </div>
+                      <div class="card">
+                        <div class="row act" data-dlg="x-signout">
+                          <span class="ric" style="background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)"><svg class="ic" viewBox="0 0 24 24"><path d="M13.5 4.5H18A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5h-4.5"/><path d="M4 12h10M10.5 8.5 14 12l-3.5 3.5"/></svg></span>
+                          <span class="rmain"><b>退出登录</b><span>保留本机记录，停止 iCloud 同步</span></span>
+                          <i class="chv"></i>
+                        </div>
+                        <div class="row dgr act" data-dlg="x-delacc">
+                          <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/><path d="M10.5 10.5v5.5M13.5 10.5v5.5"/></svg></span>
+                          <span class="rmain"><b>删除账号与数据</b><span>云端与本机全部抹掉，无法恢复 · 需输入「删除」二次确认</span></span>
+                          <i class="chv"></i>
+                        </div>
+                      </div>
+                    </div></div>
+
+                    <!-- 场景 11：新手引导链一页 -->
+                    <div class="pane pane-onboard">
+                      <div class="obrow">
+                        <div class="sec" style="margin-top:2px">轻量新人引导 · 4 页（首次启动逐页看完）</div>
+                        <div class="obgrid">
+                          <div>
+                            <div class="obcard">
+                              <span style="width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#FFB68A,#F46D38 55%,#EA580C)"></span>
+                              <div class="obh">你好，我是 Holo</div>
+                              <div class="obp">先想好我怎么称呼你</div>
+                              <div class="cin" style="text-align:center;height:36px;color:var(--text)">东林</div>
+                            </div>
+                            <div class="obcap">第 1 页 · 欢迎与昵称</div>
+                          </div>
+                          <div>
+                            <div class="obcard">
+                              <div class="obh">Holo 能搭把手的事</div>
+                              <div class="ob-minirow">
+                                <div class="ob-mrow"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8"/></svg>任务与纪念日，替你记着日子</div>
+                                <div class="ob-mrow"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg>账本账单，花在哪一眼看清</div>
+                                <div class="ob-mrow"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h3"/></svg>想法收纳，随手记自动归类</div>
+                                <div class="ob-mrow"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg>身体数据，和习惯互相带动</div>
+                              </div>
+                            </div>
+                            <div class="obcap">第 2 页 · 能力介绍</div>
+                          </div>
+                          <div>
+                            <div class="obcard">
+                              <div class="obh">挑个顺眼的样子</div>
+                              <div class="swatch">
+                                <i style="background:#FDFCF8"></i>
+                                <i style="background:#17171A"><svg class="ic" viewBox="0 0 24 24" style="color:#F5F5F5"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>
+                                <i style="background:linear-gradient(90deg,#FDFCF8 50%,#17171A 50%)"></i>
+                              </div>
+                              <div class="obp">浅色 / 深色 / 跟随系统，之后随时能换</div>
+                            </div>
+                            <div class="obcap">第 3 页 · 主题设置</div>
+                          </div>
+                          <div>
+                            <div class="obcard">
+                              <div class="obh">让 Holo 更懂你</div>
+                              <div class="ob-minirow" style="align-items:center">
+                                <div class="ob-mrow" style="justify-content:space-between"><span style="font-size:12px;font-weight:600">分析我的记录给建议</span><button class="sw on" data-sw style="transform:scale(.85)"></button></div>
+                              </div>
+                              <div class="obp">只在获得你允许时进行；随时可以关，关了立刻生效。</div>
+                            </div>
+                            <div class="obcap">第 4 页 · AI 授权</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="obrow" style="margin-top:20px">
+                        <div class="sec">首页三步聚光灯导览 · 第 1 步示意</div>
+                        <div class="coachdemo">
+                          <div class="cd-home">
+                            <div class="cd-hero">
+                              <span class="cd-orb"></span>
+                              <span><i class="l1" style="display:block"></i><i class="l2" style="display:block"></i></span>
+                            </div>
+                            <div class="cd-entries">
+                              <span class="cd-ent"><i></i><u></u></span>
+                              <span class="cd-ent"><i></i><u></u></span>
+                              <span class="cd-ent"><i></i><u></u></span>
+                              <span class="cd-ent"><i></i><u></u></span>
+                              <span class="cd-ent"><i></i><u></u></span>
+                            </div>
+                          </div>
+                          <div class="cd-spot">今天</div>
+                          <div class="cd-coach">
+                            <span class="ct"><b>① 这是「今天」</b><span>看板帮你把一天摊开：要做的事、花掉的钱、身体的状况，都在这一屏。</span>
+                              <span class="cd-dots"><i class="on"></i><i></i><i></i></span>
+                            </span>
+                            <button class="btn-ghost" data-toast="跳过导览（演示）">跳过</button>
+                            <button class="btn-primary" data-toast="第 2 步：认识五入口（演示）">下一步</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="obrow" style="margin-top:20px">
+                        <div class="sec">首笔庆祝浮层 · 光痕与彩带（monoline）</div>
+                        <div class="celebdemo">
+                          <svg class="confetti" viewBox="0 0 600 250" fill="none" stroke-width="1.7" stroke-linecap="round">
+                            <path d="M80 60l14 14" stroke="#F46D38"/><circle cx="150" cy="40" r="4" stroke="#3B82F6"/>
+                            <path d="M230 52l10-12" stroke="#34C759"/><path d="M310 38h16" stroke="#EAB308"/>
+                            <circle cx="400" cy="55" r="4" stroke="#F46D38"/><path d="M470 40l12 12" stroke="#8B5CF6"/>
+                            <path d="M530 70l-12 10" stroke="#3B82F6"/><path d="M60 150l12-10" stroke="#EAB308"/>
+                            <circle cx="110" cy="200" r="4" stroke="#F46D38"/><path d="M180 215h14" stroke="#34C759"/>
+                            <path d="M440 190l12 12" stroke="#EAB308"/><circle cx="510" cy="170" r="4" stroke="#34C759"/>
+                            <path d="M560 130l-10 12" stroke="#8B5CF6"/><path d="M270 205l10-12" stroke="#F46D38"/>
+                          </svg>
+                          <div class="celeb-card">
+                            <b>第一笔，落下了。</b>
+                            <span>光球从今天起为你转。继续记第二笔，Holo 会越来越懂你。</span>
+                            <button class="btn-primary" data-toast="回到首页继续记录（演示）">记下一笔</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 场景 12：竖屏变体（单列推入式） -->
+                    <div class="pane pane-mmain">
+                      <div class="note"><span class="ptag">P24</span> 竖屏设置：左列收起，单列长滚动；点分组行推入二级页，返回保留状态；旋转到横屏恢复双栏且不清当前页。</div>
+                      <div class="pcol">
+                        <div class="ucard">
+                          <span class="uav">东</span>
+                          <span class="utm">
+                            <b>东林</b>
+                            <span class="st"><span class="dot-ok"></span>已登录 iCloud · 同步正常</span>
+                            <span class="ml tnum">e***@icloud.com · Apple 账户</span>
+                          </span>
+                        </div>
+                        <div class="sec">使用偏好</div>
+                        <div class="card">
+                          <div class="row act" data-nav="appearance">
+                            <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7.5h8M16.5 7.5H20M4 16.5h3M11.5 16.5H20"/><circle cx="14.2" cy="7.5" r="2.2"/><circle cx="9.2" cy="16.5" r="2.2"/></svg></span>
+                            <span class="rmain"><b>外观</b><span>跟随系统 / 浅色 / 深色</span></span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-nav="notify">
+                            <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 1 6 6v4.5l1.6 2.7a.6.6 0 0 1-.5.9H4.9a.6.6 0 0 1-.5-.9L6 14.5V10a6 6 0 0 1 6-6z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span>
+                            <span class="rmain"><b>通知设置</b><span>每日早报 · 账单 · 习惯打卡</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                        <div class="sec">数据与同步</div>
+                        <div class="card">
+                          <div class="row act" data-nav="icloud">
+                            <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 6.9 8.7 4.5 4.5 0 0 0 7 18z"/><path d="M12 15.5v-4M10.3 13 12 11.2l1.7 1.8"/></svg></span>
+                            <span class="rmain"><b>iCloud 同步</b><span class="tnum">上次同步 今天 08:12</span></span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-nav="trash">
+                            <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/></svg></span>
+                            <span class="rmain"><b>最近删除</b><span>30 天内可恢复</span></span><span class="badge tnum">3</span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-nav="data">
+                            <span class="ric" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6"/><path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8"/></svg></span>
+                            <span class="rmain"><b>数据管理</b><span class="tnum">10,638 条记录 · 1.9 GB</span></span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-nav="io">
+                            <span class="ric" style="background:color-mix(in srgb,#8B5CF6 13%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M7.5 3.5h6L18 8v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19V5a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M13.5 3.5V8H18"/></svg></span>
+                            <span class="rmain"><b>账单导入与导出</b><span>CSV / JSON · 教程与模板</span></span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-toast="日历接入子页原型见对应分文件">
+                            <span class="ric" style="background:color-mix(in srgb,#EAB308 16%,transparent);color:#EAB308"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/></svg></span>
+                            <span class="rmain"><b>日历接入</b><span class="tnum">已接入 1 个日历</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                        <div class="sec">隐私与安全</div>
+                        <div class="card">
+                          <div class="row act" data-nav="appearance">
+                            <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></span>
+                            <span class="rmain"><b>应用锁与隐私开关</b><span>面容 ID · 小组件隐私</span></span><i class="chv"></i>
+                          </div>
+                          <div class="row act" data-nav="ai">
+                            <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5 5.5 6v5.2c0 4.4 2.8 7.3 6.5 9.3 3.7-2 6.5-4.9 6.5-9.3V6z"/></svg></span>
+                            <span class="rmain"><b>AI 数据授权</b><span>已授权 · 可撤回</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                        <div class="sec">HoloAI 与想法</div>
+                        <div class="card">
+                          <div class="row act" data-nav="ai">
+                            <span class="ric" style="background:color-mix(in srgb,var(--ai) 12%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                            <span class="rmain"><b>HoloAI 设置</b><span>一个发现 · 长期记忆 · 周期回放</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                        <div class="sec">帮助与反馈</div>
+                        <div class="card">
+                          <div class="row act" data-nav="about">
+                            <span class="ric"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M9.8 9.8a2.2 2.2 0 1 1 3.1 2c-.7.4-.9.9-.9 1.7M12 16.2v.3"/></svg></span>
+                            <span class="rmain"><b>关于与反馈</b><span class="tnum">版本 1.1.8 (53) · 意见反馈</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                        <div class="sec" style="color:var(--danger)">危险区</div>
+                        <div class="card">
+                          <div class="row dgr act" data-nav="danger">
+                            <span class="ric"><svg class="ic" viewBox="0 0 24 24"><path d="M13.5 4.5H18A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5h-4.5"/><path d="M4 12h10M10.5 8.5 14 12l-3.5 3.5"/></svg></span>
+                            <span class="rmain"><b>退出登录 / 删除账号与数据</b><span>影响面大的动作都在这里</span></span><i class="chv"></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              <!-- 弹层：从 iCloud 重新拉取（红色单击确认，P25 分级中的可逆/同步类） -->
+              <div class="dlgsc dlg-repull" role="dialog" aria-label="从 iCloud 重新拉取确认">
+                <div class="alert">
+                  <button class="dlg-x" data-close aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <div class="ah">
+                    <div class="aic"><svg class="ic" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .6-7.96A5.5 5.5 0 0 0 6.9 8.7 4.5 4.5 0 0 0 7 18z"/><path d="M12 11.5v4M10.3 14 12 15.8l1.7-1.8"/></svg></div>
+                    <h3>从 iCloud 重新拉取？</h3>
+                    <p>会用 iCloud 上的最新一版，覆盖这台设备上冲突的改动。最近 24 小时还没来得及上传的内容会先补传，再开始拉取。确认前 Holo 会先做一次快照。</p>
+                  </div>
+                  <div class="ab">
+                    <button class="cancel" data-close>先想想</button>
+                    <button class="dgrb" data-close data-toast="演示原型 · 未重新拉取">重新拉取</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 弹层：清空所有数据（双重确认 · 输入「清空」） -->
+              <div class="dlgsc dlg-cleardata" role="dialog" aria-label="清空所有数据确认">
+                <div class="sheetdlg">
+                  <button class="dlg-x" data-close><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <div class="dh">
+                    <div class="aic"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/><path d="M10.5 10.5v5.5M13.5 10.5v5.5"/></svg></div>
+                    <h3>清空这台设备上的所有数据？</h3>
+                    <p>这一步没有回头路。Holo 想再跟你确认一次，才敢动手。</p>
+                  </div>
+                  <div class="wlist">
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span class="tnum">任务 1,204 · 交易 8,932 · 想法 251 · 记忆 251，全部抹掉</span></div>
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>iCloud 不会替你留着这份备份，「最近删除」也会一并清空。</span></div>
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>光球会忘记它认识的你。这个动作，找不回来。</span></div>
+                  </div>
+                  <div class="din">
+                    <input class="cin big" id="inpClear" placeholder="输入「清空」以确认" autocomplete="off">
+                    <div class="cap">想只清一部分？去各模块的设置里单独清理，不用走到这一步。</div>
+                  </div>
+                  <div class="dfoot">
+                    <button class="btn-ghost" style="flex:1;height:44px" data-close>取消</button>
+                    <button class="btn-dgr fill" id="btnClear" disabled>永久清空</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 弹层：退出登录（单击确认） -->
+              <div class="dlgsc dlg-signout" role="dialog" aria-label="退出登录确认">
+                <div class="alert">
+                  <button class="dlg-x" data-close aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <div class="ah">
+                    <div class="aic" style="background:color-mix(in srgb,var(--warning) 14%,transparent);color:var(--warning)"><svg class="ic" viewBox="0 0 24 24"><path d="M13.5 4.5H18A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5h-4.5"/><path d="M4 12h10M10.5 8.5 14 12l-3.5 3.5"/></svg></div>
+                    <h3>退出登录？</h3>
+                    <p>退出后停止 iCloud 同步，这台设备上的记录会保留。想再同步，重新登录就好。</p>
+                  </div>
+                  <div class="ab">
+                    <button class="cancel" data-close>再想想</button>
+                    <button class="dgrb" data-close data-toast="演示原型 · 未退出登录">退出登录</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 弹层：删除账号与数据（红色双重确认 · 输入「删除」） -->
+              <div class="dlgsc dlg-delacc" role="dialog" aria-label="删除账号与数据确认">
+                <div class="sheetdlg">
+                  <button class="dlg-x" data-close><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <div class="dh">
+                    <div class="aic"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/><path d="M10.5 10.5v5.5M13.5 10.5v5.5"/></svg></div>
+                    <h3>删除账号与全部数据？</h3>
+                    <p>这是 Holo 里最重的一个决定。请把下面的后果读完，再决定要不要继续。</p>
+                  </div>
+                  <div class="wlist">
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>云端的备份与同步数据将在 30 天内彻底清除。</span></div>
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>这台设备上的全部记录——任务、账单、想法、记忆——立即抹掉。</span></div>
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>订阅不会自动退款，需自行联系 Apple。</span></div>
+                    <div class="wli"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5 20.5 19h-17z"/><path d="M12 10.5v3.5M12 16.6v.4"/></svg><span>Holo 不会再记得你，也不会再打扰你。</span></div>
+                  </div>
+                  <div class="din">
+                    <input class="cin big" id="inpDel" placeholder="输入「删除」以确认" autocomplete="off">
+                    <div class="cap">输入错了没关系，改到对了为止；确认按钮只有输入正确才会亮。</div>
+                  </div>
+                  <div class="dfoot">
+                    <button class="btn-ghost" style="flex:1;height:44px" data-close>取消</button>
+                    <button class="btn-dgr fill" id="btnDel" disabled>删除账号与数据</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="toast" id="toast"></div>
+            </section>
+          </main>
+        </div>
+
+      </div>
+    </div>
+    <div class="canvas-cap" id="cap">底表 M · 设置主页（数据与同步）</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var stage  = document.getElementById('stage');
+  var wrap   = document.getElementById('frameWrap');
+  var toast  = document.getElementById('toast');
+  var toastTimer = null;
+  var cap    = document.getElementById('cap');
+  var ptTitle= document.getElementById('ptTitle');
+  var sub = 'main';
+
+  /* 行内 chevron 占位替换为 monoline SVG */
+  document.querySelectorAll('i.chv').forEach(function(el){
+    el.outerHTML = '<svg class="ic" viewBox="0 0 24 24" style="font-size:14px;color:var(--text-2);opacity:.55;flex:none"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>';
+  });
+
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+
+  var SUBS = {
+    main:'数据与同步', notify:'通知设置', icloud:'iCloud 同步', trash:'最近删除', trashEmpty:'最近删除',
+    data:'数据管理', io:'账单导入与导出', appearance:'外观与应用锁', ai:'HoloAI 与想法',
+    about:'关于与反馈', danger:'危险区', onboard:'新手引导链', mmain:'设置'
+  };
+  var GROUP = { main:'g-ds', notify:'g-pref', icloud:'g-ds', trash:'g-ds', trashEmpty:'g-ds', data:'g-ds', io:'g-ds',
+    appearance:'g-pref', ai:'g-ai', about:'g-help', danger:'g-dz', onboard:null, mmain:null };
+  var BTAG = {
+    main:'底表 M · 设置主页（数据与同步）',
+    notify:'底表 M · 通知设置 · 五·5',
+    icloud:'底表 M · iCloud 同步 · 五·11',
+    trash:'底表 M · 最近删除 · 五·4',
+    trashEmpty:'底表 M · 五·4 · 最近删除（最惨稀疏态）',
+    data:'底表 M · 数据管理',
+    io:'底表 M · 账单导入与导出 · 五·3',
+    appearance:'底表 M · 外观/应用锁 · 五·1',
+    ai:'底表 M · HoloAI 设置 · 五·12',
+    about:'底表 M · 关于/帮助/反馈',
+    danger:'底表 M · 危险区 · 五·11',
+    onboard:'底表 五·9 · 新手引导链',
+    mmain:'底表 M · iPhone 单列口径（竖屏推入式）'
+  };
+  var DLGS = ['x-repull','x-cleardata','x-signout','x-delacc'];
+  var DLG_DEFAULT = { icloud:'x-repull', data:'x-cleardata', danger:['x-delacc','x-signout'] };
+
+  function closeDlg(){ DLGS.forEach(function(c){ screen.classList.remove(c); }); }
+
+  function syncChips(){
+    document.querySelectorAll('#sceneChips button').forEach(function(x){
+      x.setAttribute('aria-pressed', x.dataset.v === sub ? 'true' : 'false');
+    });
+  }
+  function syncNav(){
+    document.querySelectorAll('#setNav .gitem').forEach(function(x){
+      x.classList.toggle('on', !!GROUP[sub] && x.dataset.g === GROUP[sub]);
+    });
+  }
+  function setSub(v){
+    sub = v;
+    screen.setAttribute('data-scene', v);   /* 与样板件约定一致：data-scene 即当前场景键 */
+    screen.setAttribute('data-sub', v);
+    screen.classList.remove('nsub');
+    closeDlg();
+    var dd = DLG_DEFAULT[v];
+    if (dd) { (Array.isArray(dd) ? dd : [dd]).forEach(function(c){ screen.classList.add(c); }); }
+    syncChips(); syncNav();
+    ptTitle.textContent = SUBS[v];
+    cap.textContent = BTAG[v];
+  }
+
+  /* 朝向 */
+  var segOri = document.getElementById('segOri');
+  function setOri(v){
+    segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v === v ? 'true':'false'); });
+    screen.classList.toggle('pt', v === 'pt');
+    if (v === 'pt') { screen.classList.add('minisb'); }
+    else { screen.classList.remove('minisb','sbov-open'); }
+    fit();
+  }
+  segOri.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    setOri(b.dataset.v);
+  });
+
+  /* 深浅色 */
+  var segTheme = document.getElementById('segTheme');
+  segTheme.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    document.documentElement.setAttribute('data-theme', b.dataset.v);
+  });
+
+  /* 场景 chips */
+  var chips = document.getElementById('sceneChips');
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    setSub(b.dataset.v);
+    if (b.dataset.v === 'mmain') { setOri('pt'); }
+  });
+
+  /* 通用点击分发 */
+  document.addEventListener('click', function(e){
+    var t;
+    if ((t = e.target.closest('[data-nav]')))    { setSub(t.dataset.nav); return; }
+    if ((t = e.target.closest('[data-dlg]')))    { closeDlg(); screen.classList.add(t.dataset.dlg); return; }
+    if ((t = e.target.closest('[data-close]')))  { closeDlg(); if (t.dataset.toast) say(t.dataset.toast); return; }
+    if ((t = e.target.closest('[data-push]')))   { screen.classList.add('nsub'); return; }
+    if ((t = e.target.closest('[data-selg]')))   {
+      var wrapEl = t.closest('[data-selwrap]');
+      if (wrapEl) { wrapEl.querySelectorAll('[data-selg]').forEach(function(x){ x.classList.toggle('on', x === t); }); }
+      return;
+    }
+    if ((t = e.target.closest('[data-sw]')))     { t.classList.toggle('on'); return; }
+    if ((t = e.target.closest('#segTrash button'))) {
+      t.closest('#segTrash').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === t); });
+      var v = t.dataset.v;
+      document.querySelectorAll('#paneTrash .tr-row, #paneTrash [data-m]').forEach(function(r){
+        if (!r.dataset.m) return;
+        r.hidden = (v !== 'all' && r.dataset.m !== v);
+      });
+      return;
+    }
+    if ((t = e.target.closest('.segc button'))) {
+      t.closest('.segc').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === t); });
+      return;
+    }
+    if ((t = e.target.closest('[data-toast]')))  { say(t.dataset.toast); return; }
+  });
+
+  /* 双重确认：输入关键词解锁 */
+  var inpClear = document.getElementById('inpClear'), btnClear = document.getElementById('btnClear');
+  inpClear.addEventListener('input', function(){ btnClear.disabled = inpClear.value.trim() !== '清空'; });
+  btnClear.addEventListener('click', function(){ closeDlg(); inpClear.value=''; btnClear.disabled = true; say('演示原型 · 未执行任何删除'); });
+  var inpDel = document.getElementById('inpDel'), btnDel = document.getElementById('btnDel');
+  inpDel.addEventListener('input', function(){ btnDel.disabled = inpDel.value.trim() !== '删除'; });
+  btnDel.addEventListener('click', function(){ closeDlg(); inpDel.value=''; btnDel.disabled = true; say('演示原型 · 未删除任何数据'); });
+
+  /* 竖屏 pt-head 返回：先退二级推入，再回设置根 */
+  document.getElementById('ptBack').addEventListener('click', function(){
+    if (screen.classList.contains('pt') && sub === 'notify' && screen.classList.contains('nsub')) {
+      screen.classList.remove('nsub'); return;
+    }
+    setSub('mmain');
+  });
+
+  /* 侧边栏收起/展开（横屏） */
+  document.getElementById('sbToggle').addEventListener('click', function(){
+    screen.classList.toggle('minisb');
+    fit();
+  });
+
+  /* 竖屏：图标条双击展开覆盖侧边栏 */
+  document.getElementById('sidebar').addEventListener('dblclick', function(){
+    if (screen.classList.contains('pt') && !screen.classList.contains('minisb')) { return; }
+    if (screen.classList.contains('pt')) { screen.classList.add('sbov-open'); }
+  });
+  document.getElementById('sbovScrim').addEventListener('click', function(){
+    screen.classList.remove('sbov-open');
+  });
+  var sbovList = document.getElementById('sbovList');
+  sbovList.innerHTML = document.querySelector('.sidebar .sb-list').outerHTML +
+                       '<div class="sb-div"></div>' +
+                       document.querySelectorAll('.sidebar .sb-list')[1].outerHTML;
+
+  /* 占位模块点击：提示对应分文件（本文件即设置） */
+  document.addEventListener('click', function(e){
+    var m = e.target.closest('[data-module]');
+    if (!m) return;
+    if (m.dataset.module === 'settings') { say('已在「设置」· 本文件即设置与系统原型'); }
+    else if (m.dataset.module === 'home') { say('「今天」原型见 00-壳层与今天.html'); }
+    else { say('「' + labelOf(m.dataset.module) + '」原型见对应分文件（index.html 可跳转）'); }
+  });
+  function labelOf(key){
+    return ({thoughts:'想法',finance:'财务',tasks:'任务',habits:'习惯',gallery:'记忆长廊',health:'健康',ai:'AI 对话',personal:'个人'})[key] || key;
+  }
+
+  /* 键盘：Esc 逐级返回；⌘, 设置直达 */
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') {
+      if (screen.classList.contains('sbov-open')) { screen.classList.remove('sbov-open'); return; }
+      for (var i = 0; i < DLGS.length; i++) {
+        if (screen.classList.contains(DLGS[i])) { screen.classList.remove(DLGS[i]); return; }
+      }
+      if (screen.classList.contains('pt') && sub === 'notify' && screen.classList.contains('nsub')) { screen.classList.remove('nsub'); return; }
+      if (sub !== 'mmain') { setSub('mmain'); }
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+      e.preventDefault();
+      say('⌘, 设置直达：任何模块按它可以跳到设置（本原型即设置页）');
+    }
+  });
+
+  /* 快速记录 */
+  document.getElementById('quickAdd').addEventListener('click', function(){
+    say('⌘N 快速记录：按当前模块分流（设置页 → 新建任务）');
+  });
+
+  /* 自适应缩放：整台 iPad 永远在舞台里看得全 */
+  function fit(){
+    var r = screen.getBoundingClientRect();
+    var w = r.width, h = r.height;
+    var availW = stage.clientWidth - 16, availH = stage.clientHeight - 16;
+    var s = Math.min(1, availW / w, availH / h);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  /* 默认场景先落位，hash 随后覆盖。默认值绝不能写在 hash 解析之后，
+     否则会把 #scene=xxx 直达的场景冲回主页（本轮渲染事故的根因）。 */
+  setSub('main');
+
+  /* URL hash 初始化（渲染截图用）：#scene=main|notify|icloud|trash|trashEmpty|data|io|appearance|ai|about|danger|onboard|mmain&ori=lsz|pt&theme=light|dark&sb=mini&debug=1 */
+  (function(){
+    var q = {};
+    location.hash.replace(/^#/, '').split('&').forEach(function(kv){
+      var p = kv.split('='); if (p[0]) q[p[0]] = p[1];
+    });
+    if (q.theme || q.ori || q.scene || q.sb) { document.documentElement.classList.add('instant'); }
+    if (q.theme === 'dark') {
+      document.documentElement.setAttribute('data-theme','dark');
+      segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='dark' ? 'true':'false'); });
+    }
+    if (q.ori === 'pt') { setOri('pt'); }
+    if (q.sb === 'mini') { screen.classList.add('minisb'); }
+    if (q.scene && SUBS[q.scene]) {
+      setSub(q.scene);
+      if (q.scene === 'mmain') { setOri('pt'); }
+    }
+    if (q.debug === '1') {
+      var sbar = document.querySelector('.sbar');
+      document.title = 'DBG scene=' + screen.getAttribute('data-scene') +
+        ' screen=' + getComputedStyle(screen).backgroundColor +
+        ' sbar=' + getComputedStyle(sbar).backgroundColor +
+        ' sbarColor=' + getComputedStyle(sbar).color +
+        ' theme=' + document.documentElement.getAttribute('data-theme');
+    }
+    fit();
+  })();
+})();
+</script>
+
+<!--
+  新增拍板点（本轮自 P24 起顺延，均附推荐）：
+
+  P24 竖屏设置形态：左列 260 分组导航收起，改「单列长滚动 + 推入式」——
+      设置根（单列分组行）→ 点行推入二级内容页 → pt-head 返回保留状态；
+      旋转到横屏时恢复双栏且不清当前所在页（状态保留，符合总契约 §三）。
+      推荐：推入式（与全 App 列表-详情语义一致）。
+
+  P25 危险操作确认分级：不可逆操作不再一刀切——
+      a) 永久抹除类（清空所有数据 / 删除账号与数据）：红色双重确认，需手动输入
+         关键词（「清空」「删除」）才亮确认按钮；
+      b) 可逆或影响同步类（从 iCloud 重新拉取 / 退出登录）：红色单击确认弹层。
+      推荐：按 a/b 分级落全 App 统一规范。
+
+  P26 通知详情宽档承载：通知设置详情（每日早报等 6 个详情页）在宽档走
+      「右栏二级推入」（列表 300 + 详情），不弹居中 sheet；竖屏先见列表、
+      点行推入详情，Esc/返回逐级退。推荐：与列表-详情双栏语义统一。
+-->
+</body>
+</html>

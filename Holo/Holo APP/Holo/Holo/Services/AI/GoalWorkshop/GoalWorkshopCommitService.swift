@@ -235,7 +235,8 @@ final class GoalWorkshopCommitService {
                     effectiveFrom: now, effectiveThrough: nil, displayTitle: nil, isGoalOwned: false
                 ))
             }
-            if source.sourceType == .ledger, source.resolvedLedgerScope == .accountBalance {
+            if source.sourceType == .ledger,
+               source.resolvedLedgerScope == .accountBalance || source.resolvedLedgerScope == .accountDelta {
                 if let accountID = source.ledgerScope?.accountID {
                     guard fetchAccount(id: accountID, in: context) != nil else {
                         throw CommitError.validation("资金账户不存在")
@@ -469,7 +470,11 @@ final class GoalWorkshopCommitService {
         goal.metricTargetValueDouble = source.targetValue
         goal.baselineValueDouble = goal.goalKindEnum == .target ? source.baselineValue : nil
         goal.sourceHabitId = source.sourceType == .habit ? source.sourceID : nil
-        goal.ledgerScope = source.sourceType == .ledger ? source.resolvedLedgerScope.rawValue : nil
+        // 存完整 payload JSON（含账户 ID，2026-11-14 表单按 Goal 侧口径读账本范围）；
+        // payload 缺失时按解析出的 kind 落一份无账户的兜底，读取方回落计划版本
+        goal.ledgerScopePayload = source.sourceType == .ledger
+            ? source.ledgerScope ?? GoalLedgerScopePayload(kind: source.resolvedLedgerScope, accountID: nil)
+            : nil
         goal.baselineDate = source.baselineObservedAt
     }
 
@@ -497,6 +502,7 @@ final class GoalWorkshopCommitService {
         goal.metricTargetValueDouble = draft.metricTargetValue
         goal.baselineValueDouble = draft.goalKind == .target ? draft.metricBaselineValue : nil
         goal.sourceHabitId = draft.metricSource == .habit ? draft.sourceHabitId : nil
+        goal.ledgerScopePayload = draft.metricSource == .ledger ? draft.ledgerScope : nil
         goal.baselineDate = now
     }
 }

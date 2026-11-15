@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo iPad · 习惯与健康 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台，非 App 界面） ============ */
+:root{
+  /* Holo Tool 色板（来源 docs/standards/设计规范.md，Light/Dark 两套） */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA; --divider:#F1F5F9;
+  --action:#EA580C; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#B91C1C; --ai:#6D28D9;
+  --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+  /* 画布 */
+  --canvas:#141416; --rail:#1D1D20; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --seg-track:rgba(120,120,128,.14); --seg-thumb:#FFFFFF;
+  --amber:#D97706;
+  /* 雾蓝六档热力真值（同 05-记忆长廊） */
+  --h0:#F0F0ED; --h1:#D5E3F1; --h2:#A4C2DC; --h3:#75A0C5; --h4:#4980AC; --h5:#335F83;
+  /* 软键盘（自绘 iOS 风格） */
+  --kbd-bg:#D7D9DF; --key:#FFFFFF; --key2:#B4B7BF; --key-tx:#1C1C1E;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A; --divider:#38383A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FCA5A5; --ai:#C4B5FD;
+  --seg-track:rgba(118,118,128,.24); --seg-thumb:#5A5A5E;
+  --kbd-bg:#2A2A2E; --key:#6E6E73; --key2:#4A4A4F; --key-tx:#F5F5F5;
+  --h0:#363638; --h1:#385064; --h2:#496D8B; --h3:#5E8BB2; --h4:#73ABDA; --h5:#A5C9E8;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh; overflow:hidden;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;align-self:flex-start;max-height:calc(100vh - 56px);overflow-y:auto}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:12px;color:var(--rail-sub);line-height:1.6;margin-top:4px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px;margin-bottom:6px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-direction:column;gap:6px}
+.rchips .rgroup{font-size:10.5px;font-weight:700;color:var(--rail-sub);letter-spacing:.6px;margin:4px 2px 0}
+.rchips .rgroup:first-child{margin-top:0}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.7;border-top:1px solid var(--rail-line);padding-top:12px}
+.rail .foot b{color:var(--rail-text)}
+.ptag{display:inline-block;font-size:10px;font-weight:700;color:#FBBF24;background:rgba(217,119,6,.16);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px}
+/* ---- 舞台与 iPad 机身 ---- */
+.stage{flex:1;display:grid;place-items:center;min-width:0;min-height:0;position:relative}
+.frameWrap{transform-origin:center center}
+.ipad{background:#3A3A3C;border-radius:38px;padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.screen{width:1194px;height:834px;background:var(--bg-page);border-radius:26px;overflow:hidden;position:relative;color:var(--text);display:flex;flex-direction:column;transition:background .25s}
+.screen.pt{width:834px;height:1194px}
+/* 状态栏 */
+.sbar{flex:none;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text);opacity:.9}
+.sbar .ic{font-size:12px}
+/* ---- App 壳层 ---- */
+.app{flex:1;display:flex;min-height:0;position:relative}
+/* 侧边栏 */
+.sidebar{width:232px;flex:none;background:var(--inset);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 10px 12px;transition:width .2s}
+.screen.minisb .sidebar{width:68px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:4px 8px 10px}
+.sb-btn{width:32px;height:32px;border:none;background:transparent;color:var(--text-2);border-radius:8px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.sb-btn:hover{background:rgba(120,120,128,.12)}
+.sb-title{font-size:17px;font-weight:700;color:var(--text)}
+.screen.minisb .sb-title{display:none}
+.sb-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.sb-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:none;background:transparent;border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;position:relative}
+.sb-item svg.ic{font-size:17px;color:var(--text-2)}
+.sb-item .k{margin-left:auto;font-size:10.5px;color:var(--text-2);opacity:.7;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sb-item:hover{background:rgba(120,120,128,.10)}
+.sb-item.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.sb-item.on svg.ic{color:var(--action)}
+.screen.minisb .sb-item{justify-content:center;padding:0}
+.screen.minisb .sb-item span,.screen.minisb .sb-item .k{display:none}
+.sb-div{height:1px;background:var(--border);margin:8px 10px}
+.screen.minisb .sb-div{margin:8px 6px}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.sb-quick{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:none;background:var(--action);color:var(--on-action);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sb-quick:active{transform:scale(.97);opacity:.9}
+.sb-quick .k{margin-left:auto;font-size:10.5px;opacity:.8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.screen.minisb .sb-quick{justify-content:center;padding:0}
+.screen.minisb .sb-quick span,.screen.minisb .sb-quick .k{display:none}
+/* 竖屏覆盖式侧边栏 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.sbov{position:absolute;top:0;bottom:0;left:0;width:232px;background:var(--inset);border-right:1px solid var(--border);z-index:41;padding:10px 10px 12px;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.12)}
+.screen.sbov-open .scrim{opacity:1;pointer-events:auto}
+.screen.sbov-open .sbov{transform:translateX(0)}
+/* ---- 内容区 ---- */
+.content{flex:1;min-width:0;position:relative;overflow:hidden}
+.scene{position:absolute;inset:0;display:none;flex-direction:column}
+/* 场景 → 显示映射（叠层场景共用底层 DOM，旋转只换 .pt，状态天然保留） */
+.screen[data-scene="today"] .scene-habits,
+.screen[data-scene="review"] .scene-habits,
+.screen[data-scene="log"] .scene-habits,
+.screen[data-scene="add"] .scene-habits,
+.screen[data-scene="retro"] .scene-habits{display:flex}
+.screen[data-scene="single"] .scene-hsingle{display:flex}
+.screen[data-scene="hempty"] .scene-hempty{display:flex}
+.screen[data-scene="health"] .scene-health,
+.screen[data-scene="sleep"] .scene-health,
+.screen[data-scene="hzero"] .scene-health{display:flex}
+.screen[data-scene="hauth"] .scene-hauth{display:flex}
+.screen[data-scene="log"] .ov-log,
+.screen[data-scene="add"] .ov-add,
+.screen[data-scene="retro"] .ov-retro{display:flex}
+/* 顶栏（内容区级） */
+.topbar{flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 28px}
+.topbar .ttl{font-size:28px;font-weight:700;letter-spacing:.2px}
+.topbar .sp{flex:1}
+.btn-ghost{height:34px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn-ghost:active{transform:scale(.97);opacity:.85}
+.btn-primary{height:36px;padding:0 16px;border:none;background:var(--action);color:var(--on-action);border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.btn-primary kbd{background:color-mix(in srgb,currentColor 18%,transparent);border:none;color:inherit;margin-left:2px}
+.iconbtn{width:34px;height:34px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:15px}
+.iconbtn:active{transform:scale(.95);opacity:.8}
+/* 顶部胶囊分段（今天/回顾，滑块模式） */
+.seg{position:relative;display:flex;background:var(--seg-track);border-radius:10px;padding:2px;flex:none}
+.seg button{position:relative;z-index:1;flex:1;min-width:86px;border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:500;padding:5px 14px;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.seg button.on{color:var(--text);font-weight:600}
+.seg-thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 3px);background:var(--seg-thumb);border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.12);transition:transform .22s cubic-bezier(.32,.72,.35,1)}
+.seg.r .seg-thumb{transform:translateX(calc(100% + 2px))}
+/* 二选 seg（表单内） */
+.seg2{display:flex;background:var(--seg-track);border-radius:10px;padding:2px;gap:2px}
+.seg2 button{flex:1;border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:500;padding:6px 10px;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.seg2 button.on{background:var(--seg-thumb);color:var(--text);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-bottom:52px}
+.scroll::-webkit-scrollbar,.sscroll::-webkit-scrollbar{width:0}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text-2);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber);font-weight:700;font-size:11px;border-radius:6px;padding:2px 7px;flex:none}
+/* 底表角标：画布层机身下方（全项目统一 canvas-cap，随场景换文案） */
+.canvas-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:11px;letter-spacing:.3px;color:#9A9AA0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 布局说明浮签（琥珀角标） */
+.note{position:absolute;z-index:45;font-size:11px;line-height:1.55;color:#7C2D12;background:#FDE8D7;border:1px solid #FDBA74;border-radius:10px;padding:7px 10px;max-width:230px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+[data-theme="dark"] .note{color:#FDBA74;background:rgba(217,119,6,.12);border-color:rgba(253,186,116,.4)}
+/* toast */
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ============ 习惯 · 今天磁贴 ============ */
+.hb-wrap{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+.hb-full{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:2px 28px 8px;align-content:start}
+.htile{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);position:relative;transition:transform .15s;min-height:94px}
+.htile:active{transform:scale(.97)}
+.h-ic{width:44px;height:44px;border-radius:13px;background:color-mix(in srgb,var(--hc) 14%,transparent);color:var(--hc);display:grid;place-items:center;font-size:22px;flex:none}
+.h-ic .ic{font-size:21px}
+.h-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.h-name{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+.h-streak{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#B45309;background:rgba(245,158,11,.14);border-radius:7px;padding:1px 7px;flex:none}
+.h-streak .ic{font-size:11px;color:#F59E0B}
+.h-sub{font-size:12px;color:var(--text-2)}
+.h-prog{height:4px;border-radius:2px;background:var(--seg-track);overflow:hidden}
+.h-prog i{display:block;height:100%;background:var(--hc);border-radius:2px;transition:width .2s}
+.h-plus{width:34px;height:34px;border-radius:50%;border:1.5px dashed var(--hc);color:var(--hc);display:grid;place-items:center;flex:none;background:transparent}
+.h-plus .ic{font-size:15px}
+.htile.done{background:color-mix(in srgb,var(--success) 9%,var(--surface));border-color:color-mix(in srgb,var(--success) 32%,var(--border))}
+.htile.done .h-name{color:var(--success)}
+.h-check{width:30px;height:30px;border-radius:50%;background:var(--success);color:#fff;display:grid;place-items:center;flex:none}
+.h-check .ic{font-size:14px;stroke-width:2.4}
+/* 戒除类（反向习惯）深灰静默态 · P11 */
+.htile.bad{background:#45474D;border-color:#5A5C63}
+[data-theme="dark"] .htile.bad{background:#1F1F22;border-color:#3F3F46} /* 深色下比周围磁贴更沉，静默语义 */
+[data-theme="dark"] .htile.bad .h-sub{color:#9A9AA0}
+.htile.bad .h-name{color:#F4F4F5}
+.htile.bad .h-sub{color:#C7C9CF}
+.htile.bad .h-ic{background:rgba(244,244,245,.10);color:#E4E4E7}
+.h-streak.keep{color:#E4E4E7;background:rgba(255,255,255,.10)}
+.h-streak.keep .ic{color:#D1D5DB}
+.hb-cap{flex:none;padding:2px 28px 10px;font-size:11.5px;color:var(--text-2);display:flex;align-items:center;gap:6px}
+/* ============ 习惯 · P4 同屏两栏 ============ */
+.hb-split{display:none;flex:1;min-height:0;gap:18px;padding:2px 28px 10px;align-items:stretch}
+/* 回顾档：整个今天容器（含长按提示行）让位，两栏紧贴 Tab 行顶对齐 */
+.screen[data-scene="review"] .hb-wrap{display:none}
+.screen[data-scene="review"] .hb-split{display:flex}
+.hb-side{width:300px;flex:none;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px}
+.hb-side h3{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.hb-side h3 .cnt{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--success);background:color-mix(in srgb,var(--success) 12%,transparent);border-radius:7px;padding:1px 8px}
+.mhab{display:flex;align-items:center;gap:10px;background:var(--inset);border-radius:12px;padding:10px 12px;cursor:pointer;border:none;font-family:inherit;color:var(--text);text-align:left;width:100%}
+.mhab:active{transform:scale(.98);opacity:.9}
+.mhab .mic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;flex:none}
+.mhab .mt{min-width:0;flex:1}
+.mhab .mt b{font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mhab .mt span{font-size:11px;color:var(--text-2)}
+.mhab.ok{background:color-mix(in srgb,var(--success) 10%,transparent)}
+.mhab.ok .mt b{color:var(--success)}
+.hb-rev{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-bottom:8px}
+.hb-rev::-webkit-scrollbar{width:0}
+.rev-top{display:flex;align-items:center;gap:10px;flex:none}
+.rev-top .rev-title{font-size:16px;font-weight:700}
+.rev-top .sp{flex:1}
+.fchips{display:flex;gap:6px}
+.fchip{border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:12px;border-radius:999px;padding:5px 12px;cursor:pointer;font-family:inherit}
+.fchip.on{border-color:var(--action);color:var(--action);font-weight:600}
+.rev-grid{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:stretch}
+.rcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+.rcard h4{font-size:13px;font-weight:600;color:var(--text-2);display:flex;align-items:center;gap:6px}
+/* 完成率环 */
+.ring-card{display:flex;flex-direction:column;align-items:center;gap:12px}
+.cring{width:124px;height:124px;border-radius:50%;background:conic-gradient(var(--c,#3B82F6) calc(var(--p)*1%),color-mix(in srgb,var(--border) 65%,transparent) 0);display:grid;place-items:center;flex:none}
+.cring i{width:calc(100% - 16px);height:calc(100% - 16px);border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;gap:1px}
+.cring b{font-size:21px;font-weight:700}
+.cring span{font-size:10.5px;color:var(--text-2)}
+.rstats{display:flex;flex-direction:column;gap:6px;width:100%;font-size:12.5px}
+.rstats .rs-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--inset);border-radius:10px}
+.rstats .rs-row span{color:var(--text-2)}
+.rstats .rs-row b{font-weight:700;display:inline-flex;align-items:center;gap:4px}
+.rstats .ic{font-size:12px;color:#F59E0B}
+.rstats .rs-row b.warn{color:var(--warning)}
+/* 月历热力（雾蓝阶） */
+.cal-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cal-head b{font-size:13px;font-weight:600}
+.cal-head .sp{flex:1}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .w{font-size:10.5px;color:var(--text-2);text-align:center;padding:2px 0}
+.cal .cell{aspect-ratio:1;border-radius:8px;display:grid;place-items:center;font-size:11.5px;font-variant-numeric:tabular-nums;background:var(--inset);color:var(--text-2)}
+.cal .cell.blank{background:transparent}
+.cal .cell.fut{opacity:.35;background:transparent;border:1px dashed var(--border);color:var(--placeholder)}
+.cal .cell.today{box-shadow:inset 0 0 0 2px var(--action);color:var(--action);font-weight:700}
+/* 雾蓝六档（真值同 05-记忆长廊：浅/深两套走 --h0..--h5） */
+.cal .cell.l0{background:var(--h0)}
+.cal .cell.l1{background:var(--h1)}
+.cal .cell.l2{background:var(--h2)}
+.cal .cell.l3{background:var(--h3);color:#F2F8FF}
+.cal .cell.l4{background:var(--h4);color:#F2F8FF}
+.cal .cell.l5{background:var(--h5);color:#F2F8FF}
+/* 中性灰阶（戒除类 · P11，主题中立） */
+.cal.grey .cell.l1{background:#E4E4E7;color:#52525B}
+.cal.grey .cell.l2{background:#D4D4D8;color:#3F3F46}
+.cal.grey .cell.l3{background:#A1A1AA;color:#fff}
+.cal.grey .cell.l4{background:#52525B;color:#fff}
+.cal.grey .cell.l5{background:#3F3F46;color:#fff}
+/* 筛选高亮 */
+.cal.f-done .cell:not(.hi):not(.blank):not(.w){opacity:.22}
+.cal.f-miss .cell:not(.miss){opacity:.22}
+.cal.f-miss .cell.miss{outline:2px solid var(--amber);opacity:1}
+.cal .cell.miss{position:relative}
+/* 补签日历 */
+.cal.pick .cell.past{cursor:pointer}
+.cal.pick .cell.past:hover{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--action) 45%,transparent)}
+.cal.pick .cell.sel{background:var(--action);color:#fff;font-weight:700;box-shadow:none}
+.cal-legend{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-2);margin-top:10px}
+.cal-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+/* 习惯维度切换 chips */
+.dim-chips{display:flex;flex-wrap:wrap;gap:7px;flex:none}
+.dchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;border-radius:999px;padding:5px 12px;cursor:pointer;font-family:inherit}
+.dchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.dchip.on{border-color:var(--action);color:var(--action);font-weight:600;background:color-mix(in srgb,var(--action) 6%,transparent)}
+/* ============ 习惯 · 单习惯回顾（覆盖页） ============ */
+.hs-head{display:flex;align-items:center;gap:10px;padding:0 28px;height:52px;flex:none}
+.hs-head .hic{width:36px;height:36px;border-radius:11px;background:color-mix(in srgb,#3B82F6 14%,transparent);color:#3B82F6;display:grid;place-items:center;font-size:18px;flex:none}
+.hs-head .ht b{font-size:19px;font-weight:700;display:block}
+.hs-head .ht span{font-size:11.5px;color:var(--text-2);display:block;margin-top:1px}
+.hs-grid{display:grid;grid-template-columns:400px 1fr;gap:16px;padding:2px 28px 10px;align-items:start;flex:1;min-height:0}
+.hs-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+/* 连续天数横幅 */
+.streak-hero{display:flex;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px}
+.streak-hero .fl{width:54px;height:54px;border-radius:16px;background:rgba(245,158,11,.14);color:#F59E0B;display:grid;place-items:center;font-size:26px;flex:none}
+.streak-hero .ft b{font-size:19px;font-weight:700;display:block}
+.streak-hero .ft span{font-size:12px;color:var(--text-2);display:block;margin-top:2px}
+/* 30 天走势 */
+.trend30{display:flex;align-items:flex-end;gap:3px;height:96px;margin-top:12px}
+.trend30 i{flex:1;border-radius:3px 3px 1px 1px;background:var(--h5);min-height:3px}
+.trend30 i.mid{background:var(--h3)}
+.trend30 i.low{background:var(--h1)}
+.trend-cap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--text-2);margin-top:8px}
+/* ============ 空态 ============ */
+.empty-wrap{flex:1;display:grid;place-items:center;padding-bottom:44px}
+.bigempty{text-align:center;display:flex;flex-direction:column;align-items:center;gap:7px;max-width:460px;padding:0 20px}
+.be-ic{width:86px;height:86px;border-radius:24px;background:color-mix(in srgb,var(--action) 9%,transparent);color:var(--action);display:grid;place-items:center;font-size:40px;margin-bottom:10px}
+.bigempty b{font-size:20px;font-weight:700}
+.bigempty p{font-size:13.5px;color:var(--text-2);line-height:1.75}
+.bigempty .btn-primary{margin-top:14px;height:44px;padding:0 22px;font-size:14.5px;border-radius:13px}
+/* ============ 弹层（居中 560）+ 软键盘 ============ */
+.ov{position:absolute;inset:0;z-index:50;display:none}
+.ov-c{position:absolute;inset:0;display:none;flex-direction:column;z-index:50}
+.ov-c .mid{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:20px 20px 0;min-height:0;overflow:hidden}
+.fscrim{position:absolute;inset:0;background:rgba(0,0,0,.34)}
+.sheet{width:560px;background:var(--bg-page);border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;max-height:100%}
+.sheet-grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:10px auto 0;flex:none}
+.sheet-head{padding:12px 24px 0 58px;position:relative} /* 左上 X 圆钮（全项目统一款 inset 圆钮），标题右让位 */
+.sheet-head h2{font-size:20px;font-weight:700;flex:1;display:flex;align-items:center;gap:10px}
+.sheet-head h2 .hic{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,#3B82F6 14%,transparent);color:#3B82F6;display:grid;place-items:center;font-size:17px;flex:none}
+.sheet-x{position:absolute;left:18px;top:12px;width:30px;height:30px;border:none;background:var(--inset);border-radius:50%;color:var(--text-2);cursor:pointer;display:grid;place-items:center;font-size:14px}
+.sheet-body{padding:16px 24px;overflow-y:auto;flex:1;min-height:0}
+.sheet-foot{padding:14px 24px 20px;border-top:1px solid var(--divider)}
+.sheet-foot .btn-primary{width:100%;height:46px;justify-content:center;font-size:15px;border-radius:13px}
+.esc-chip{position:absolute;top:60px;right:18px;z-index:5;font-size:11px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;display:inline-flex;gap:5px;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,.10)}
+/* 表单小件 */
+.flab{font-size:11.5px;font-weight:700;color:var(--text-2);letter-spacing:.4px;margin:12px 2px 6px}
+.flab:first-child{margin-top:0}
+.fin{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14.5px;font-family:inherit;color:var(--text)}
+.fin::placeholder{color:var(--placeholder)}
+.fin:focus{outline:none;border-color:var(--action)}
+.frow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 14px;cursor:pointer;font-family:inherit;color:var(--text);width:100%;text-align:left}
+.frow .ic{font-size:16px;color:var(--text-2)}
+.frow .fl{font-size:13.5px;font-weight:500}
+.frow .fv{margin-left:auto;font-size:13px;color:var(--text-2);display:inline-flex;align-items:center;gap:6px}
+.frow + .frow{margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--action);color:var(--action);font-weight:600}
+.chips-cap{font-size:11px;color:var(--text-2);margin-top:8px}
+/* 打卡数值 stepper */
+.stepper{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.stepper .stb{width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--inset);color:var(--text);font-size:18px;display:grid;place-items:center;cursor:pointer;flex:none;font-family:inherit}
+.stepper .stv{flex:1;text-align:center}
+.stepper .stv b{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.stepper .stv span{font-size:12px;color:var(--text-2);display:block;margin-top:2px}
+/* 图标色板选择 */
+.swrow{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:20px;border:none;cursor:pointer;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);position:relative;font-family:inherit}
+.swatch.on{box-shadow:0 0 0 2px var(--bg-page),0 0 0 4px var(--c)}
+/* 说明行 */
+.inforow{display:flex;gap:8px;align-items:flex-start;background:var(--inset);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--text-2);line-height:1.6;margin-top:12px}
+.inforow .ic{font-size:14px;flex:none;margin-top:1px;color:var(--text-2)}
+/* 软键盘 */
+.ioskb{position:relative;flex:none;background:var(--kbd-bg);padding:7px 5px 22px;z-index:2}
+/* 键盘态：sheet 收紧，保证整张落在键盘上方、拖动条始终在 sheet 内 */
+.ov-log .sheet-body{padding:12px 24px}
+.ov-log .flab{margin:10px 2px 5px}
+.ov-log .flab:first-child{margin-top:0}
+.ov-log .stepper{padding:8px 14px}
+.ov-log .stepper .stv b{font-size:26px}
+.ov-log .fin{min-height:44px;padding:10px 14px}
+.ov-log .sheet-foot{padding:10px 24px 14px}
+.sugbar{display:flex;align-items:center;justify-content:space-around;height:34px;margin:0 4px 6px;color:var(--key-tx)}
+.sug{font-size:13px;padding:4px 12px;border-radius:8px;cursor:pointer}
+.sug.mid{font-weight:700}
+.krow{display:flex;gap:5px;padding:0 3px;margin-bottom:7px}
+.key{flex:1;height:41px;border-radius:6px;background:var(--key);color:var(--key-tx);font-size:15.5px;font-weight:400;display:grid;place-items:center;box-shadow:0 1px 0 rgba(0,0,0,.28);cursor:pointer;font-family:inherit;border:none}
+.key.sp{flex:1.35;background:var(--key2);font-size:12px}
+.key.space{flex:4.6;font-size:13px}
+.key.ret{flex:1.7;background:var(--action);color:var(--on-action);font-size:13px;font-weight:700}
+/* ============ 健康 · 宽档选中式双栏 ============ */
+.hl-split{display:flex;flex:1;min-height:0;gap:18px;padding:2px 28px 10px;align-items:stretch}
+.hl-left{width:400px;flex:none;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:8px}
+.hl-left::-webkit-scrollbar{width:0}
+.hl-right{flex:1;min-width:0;overflow-y:auto;padding-bottom:8px}
+.hl-right::-webkit-scrollbar{width:0}
+.hcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px}
+.hcard h3{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.hcard h3 .more{margin-left:auto;font-size:11.5px;font-weight:500;color:var(--text-2);cursor:pointer}
+/* 四指标环 */
+.rings4{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.mring{width:100%;aspect-ratio:1;max-width:132px;margin:0 auto;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),color-mix(in srgb,var(--border) 60%,transparent) 0);display:grid;place-items:center;border:none;cursor:pointer;padding:0;font-family:inherit;color:var(--text)}
+.mring i{width:calc(100% - 15px);height:calc(100% - 15px);border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;gap:1px}
+.mring b{font-size:15.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.mring span{font-size:10.5px;color:var(--text-2)}
+.mring.sel{box-shadow:0 0 0 2px var(--bg-page),0 0 0 4px var(--action)}
+.mring.big{width:150px;max-width:150px;flex:none}
+.mring.big b{font-size:19px}
+/* 0 态环（授权有、数据无） */
+.zring{width:100%;max-width:132px;aspect-ratio:1;margin:0 auto;border-radius:50%;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:transparent}
+.zring b{font-size:15.5px;color:var(--placeholder);font-variant-numeric:tabular-nums}
+.zring span{font-size:10.5px;color:var(--placeholder)}
+/* 趋势小卡 */
+.tbars{display:flex;align-items:flex-end;gap:3px;height:58px;margin-top:10px}
+.tbars i{flex:1;border-radius:3px 3px 1px 1px;min-height:3px;opacity:.9}
+.tbars-cap{font-size:10.5px;color:var(--text-2);margin-top:6px}
+/* 洞察卡 */
+.ins-p{font-size:13px;line-height:1.7;margin-top:8px}
+.evi{margin-top:10px;border:none;background:transparent;color:var(--action);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;padding:0;display:inline-flex;align-items:center;gap:4px}
+/* 生活闭环 */
+.loop-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider);cursor:pointer}
+.loop-row:last-child{border-bottom:none}
+.loop-row .lic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:none}
+.loop-row .lt{flex:1;min-width:0}
+.loop-row .lt b{font-size:12.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loop-row .lt span{font-size:11px;color:var(--text-2);display:block;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loop-row .go{flex:none;font-size:11.5px;font-weight:600;color:var(--action)}
+/* 数据源 */
+.src-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--divider);font-size:12.5px}
+.src-row:last-child{border-bottom:none}
+.src-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+.src-row .sp{flex:1}
+.src-row .v{color:var(--text-2)}
+/* 右栏详情通用 */
+.rd{display:flex;flex-direction:column;gap:12px}
+.rd-head{display:flex;align-items:center;gap:10px;flex:none}
+.rd-head b{font-size:18px;font-weight:700}
+.rd-head .sub{font-size:12px;color:var(--text-2)}
+.dnav2{margin-left:auto;display:flex;align-items:center;gap:6px}
+.dnav2 button{width:28px;height:28px;border:1px solid var(--border);background:var(--surface);border-radius:8px;color:var(--text-2);cursor:pointer;display:grid;place-items:center;font-size:12px}
+.dnav2 .dtx{font-size:13px;font-weight:600;padding:0 4px}
+.gen-hero{display:flex;align-items:center;gap:20px}
+.gen-side{flex:1;min-width:0}
+.gline{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--text-2);padding:6px 0}
+.gline b{color:var(--text);font-size:13px}
+.rel-row{display:flex;align-items:center;gap:10px;padding:10px 0 2px;font-size:12.5px;border-top:1px solid var(--divider);margin-top:10px}
+.rel-row .ic{font-size:14px;color:var(--text-2);flex:none}
+.rel-row span{color:var(--text-2)}
+/* 睡眠分期 */
+.sl-sum{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.sl-sum b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.sl-sum span{font-size:12px;color:var(--text-2)}
+.sl-band{display:flex;height:26px;border-radius:9px;overflow:hidden}
+.sl-band i{display:block;height:100%}
+.sl-band i + i{border-left:1px solid var(--surface)}
+/* 刻度按实际时长比例定位（全程 442 分钟：23:40→07:02） */
+.sl-ticks{position:relative;height:14px;font-size:10px;color:var(--text-2);margin-top:6px;font-variant-numeric:tabular-nums}
+.sl-ticks span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}
+.sl-ticks span:first-child{transform:none}
+.sl-ticks span:last-child{transform:translateX(-100%)}
+.sl-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.sl-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;background:var(--inset);border-radius:999px;padding:4px 10px;color:var(--text)}
+.sl-chip i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.sl-chip b{font-variant-numeric:tabular-nums}
+.wk-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.wk-box{background:var(--inset);border-radius:12px;padding:10px 12px}
+.wk-box b{font-size:15px;font-weight:700;display:block;font-variant-numeric:tabular-nums}
+.wk-box span{font-size:10.5px;color:var(--text-2);display:block;margin-top:2px}
+.wk-note{font-size:12px;color:var(--text-2);margin-top:12px;display:flex;align-items:center;gap:6px}
+.wk-note .ic{color:#F59E0B}
+/* 0 数据空态（右栏） */
+.rd-zero{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;min-height:340px}
+.zero-ring{width:130px;height:130px;border-radius:50%;border:2.5px dashed var(--border);display:grid;place-items:center;margin-bottom:10px}
+.zero-ring b{font-size:26px;color:var(--placeholder);font-variant-numeric:tabular-nums}
+.rd-zero b{font-size:18px;font-weight:700}
+.rd-zero p{font-size:13px;color:var(--text-2);line-height:1.75;max-width:340px}
+/* hzero：授权有、当天无数据（环 0 态） */
+.screen[data-scene="hzero"] .hasdata{display:none!important}
+.screen[data-scene="hzero"] .zero-only{display:block!important}
+.screen[data-scene="hzero"] .rd{display:none!important}
+.screen[data-scene="hzero"] .rd-zero{display:flex!important}
+/* ============ 健康 · 授权引导 ============ */
+.hauth-wrap{flex:1;display:grid;place-items:center;padding-bottom:44px}
+.hauth-card{width:560px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:30px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
+.hauth-card .be-ic{margin-bottom:2px}
+.hauth-card b{font-size:19px;font-weight:700}
+.hauth-card .hp{font-size:13px;color:var(--text-2);line-height:1.8}
+.hauth-uses{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0 4px}
+.hauth-btns{display:flex;gap:10px;margin-top:12px}
+.hauth-btns .btn-primary{height:42px;padding:0 20px;border-radius:12px}
+/* ============ 竖屏（标准档）：单列紧凑，双栏收起，状态保留 ============ */
+.screen.pt .topbar{padding:0 16px}
+.screen.pt .topbar .ttl{display:none}
+.screen.pt .stxt{display:none}
+.screen.pt .hb-full{grid-template-columns:1fr 1fr;gap:10px;padding:2px 16px 8px}
+.screen.pt .hb-cap{padding:2px 16px 10px}
+.screen.pt .hb-split{padding:2px 16px 10px;gap:0}
+.screen.pt .hb-side{display:none}
+.screen.pt .hb-rev{padding:0 2px 8px}
+.screen.pt .rev-grid{grid-template-columns:1fr}
+.screen.pt .hs-grid{grid-template-columns:1fr;padding:2px 16px 10px}
+.screen.pt .hs-head{padding:0 16px}
+.screen.pt .hl-split{flex-direction:column;padding:2px 16px 10px;overflow-y:auto}
+.screen.pt .hl-left{width:100%;max-width:720px;margin:0 auto;padding-bottom:4px}
+.screen.pt .hl-right{display:none}
+.screen.pt .rings4{gap:8px}
+.screen.pt .hauth-card{width:min(560px,calc(100% - 32px))}
+.screen.pt .hb-cap .long{display:none}
+@media (prefers-reduced-motion:reduce){.seg-thumb{transition:none}}
+</style>
+</head>
+<body>
+
+<!-- ============ 控制栏 ============ -->
+<aside class="rail">
+  <div>
+    <h1>Holo iPad · 习惯与健康</h1>
+    <div class="sub">底表 F（习惯）+ 底表 G（健康）两模块：磁贴打卡、P4 同屏两栏回顾、补签、健康选中式双栏。</div>
+  </div>
+  <div>
+    <div class="rlabel">朝向</div>
+    <div class="rseg" id="segOri">
+      <button data-v="lsz" aria-pressed="true">横屏 1194×834</button>
+      <button data-v="pt" aria-pressed="false">竖屏 834×1194</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">深浅色</div>
+    <div class="rseg" id="segTheme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">场景（11）</div>
+    <div class="rchips" id="sceneChips">
+      <div class="rgroup">习惯 · 底表 F</div>
+      <button data-v="today" aria-pressed="true">1 · 今天（磁贴网格）</button>
+      <button data-v="log" aria-pressed="false">2 · 打卡备注（键盘态）</button>
+      <button data-v="review" aria-pressed="false">3 · 今天+回顾同屏 <span class="ptag">P4</span></button>
+      <button data-v="single" aria-pressed="false">4 · 单习惯回顾（覆盖页）</button>
+      <button data-v="add" aria-pressed="false">5 · 新增习惯表单</button>
+      <button data-v="retro" aria-pressed="false">6 · 补签（多选过去）</button>
+      <button data-v="hempty" aria-pressed="false">7 · 习惯空态</button>
+      <div class="rgroup">健康 · 底表 G</div>
+      <button data-v="health" aria-pressed="false">8 · 主页双栏（横屏）</button>
+      <button data-v="sleep" aria-pressed="false">9 · 睡眠详情（右栏）</button>
+      <button data-v="hauth" aria-pressed="false">10 · 授权引导</button>
+      <button data-v="hzero" aria-pressed="false">11 · 无数据空态</button>
+    </div>
+  </div>
+  <div class="foot">
+    可操作：点磁贴出打卡备注、磁贴 ＋ 直接 +1、右键/长按磁贴看菜单；回顾里切习惯维度与筛选、日历联动；补签日历多选；健康左栏点环右栏跟着换。<kbd>Esc</kbd> 关弹层 / 退覆盖页。<br>
+    侧边栏其他模块为占位（见对应分文件）。切到健康场景时侧边栏选中会跟过去。<br>
+    <span class="ptag">P1</span> 提醒时间等小选择器宽档 popover 锚定；<span class="ptag">P4</span> 今天+回顾宽档同屏两栏（契约既有）；新拍板点 <span class="ptag">P11</span> 戒除类磁贴样式、<span class="ptag">P12</span> 磁贴排序交互——细则见文件底注。
+  </div>
+</aside>
+
+<!-- ============ 舞台 ============ -->
+<div class="stage" id="stage">
+  <div class="frameWrap" id="frameWrap">
+    <div class="ipad">
+      <div class="screen" id="screen" data-scene="today">
+
+        <div class="sbar">
+          <span class="tnum">23:47</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M7.8 15.6a6 6 0 0 1 8.4 0M10.6 18.4a2.2 2.2 0 0 1 2.8 0"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="8" rx="2.5"/><path d="M21.5 11v2"/><rect x="4.5" y="10" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </div>
+
+        <div class="app">
+          <!-- 侧边栏（常驻 232 / 图标条 68） -->
+          <nav class="sidebar" id="sidebar">
+            <div class="sb-top">
+              <button class="sb-btn" id="sbToggle" title="收起/展开侧边栏（⌘⌥S）"><svg class="ic" viewBox="0 0 24 24" id="sbToggleIc"><path d="M9.5 6.5 5 12l4.5 5.5M14.5 6.5 19 12l-4.5 5.5" opacity=".35"/><rect x="3" y="4.5" width="18" height="15" rx="3"/></svg></button>
+              <span class="sb-title">Holo</span>
+            </div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="home"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg><span>今天</span><span class="k">⌘1</span></button>
+              <button class="sb-item" data-module="thoughts"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg><span>想法</span><span class="k">⌘2</span></button>
+              <button class="sb-item" data-module="finance"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg><span>财务</span><span class="k">⌘3</span></button>
+              <button class="sb-item" data-module="tasks"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg><span>任务</span><span class="k">⌘4</span></button>
+              <button class="sb-item on" data-module="habits"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span>习惯</span><span class="k">⌘5</span></button>
+              <button class="sb-item" data-module="gallery"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg><span>记忆长廊</span><span class="k">⌘6</span></button>
+              <button class="sb-item" data-module="health"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span>健康</span><span class="k">⌘7</span></button>
+              <button class="sb-item" data-module="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span>AI 对话</span><span class="k">⌘8</span></button>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="personal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg><span>个人</span><span class="k">⌘9</span></button>
+              <button class="sb-item" data-module="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg><span>设置</span><span class="k">⌘,</span></button>
+            </div>
+            <div class="sb-bottom">
+              <button class="sb-quick" id="quickAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button>
+            </div>
+          </nav>
+
+          <!-- 竖屏覆盖式侧边栏 -->
+          <div class="scrim" id="sbovScrim"></div>
+          <nav class="sbov" id="sbov">
+            <div class="sb-top"><span class="sb-title">Holo</span></div>
+            <div class="sb-list" id="sbovList"></div>
+          </nav>
+
+          <!-- 内容区 -->
+          <main class="content">
+
+            <!-- ===== 场景 1/3/2/5/6：习惯模块（今天 + P4 同屏回顾 + 弹层宿主） ===== -->
+            <section class="scene scene-habits">
+              <div class="topbar">
+                <span class="ttl">习惯</span>
+                <div class="seg" id="habSeg" title="今天 / 回顾">
+                  <span class="seg-thumb"></span>
+                  <button data-v="today" class="on">今天</button>
+                  <button data-v="review">回顾</button>
+                </div>
+                <span class="sp"></span>
+                <button class="iconbtn" data-toast="搜索：习惯名 / 备注都能搜到（⌘F）" title="搜索（⌘F）"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+                <button class="btn-ghost" data-goto="retro"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span class="stxt">补签</span></button>
+                <button class="btn-ghost" data-toast="更多选项：已暂停与已归档名单 · 今天列表排序 · 提醒入口（底表 F · HabitModuleOptionsSheet）"><svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg><span class="stxt">更多</span></button>
+                <button class="btn-primary" data-goto="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="stxt">新习惯</span></button>
+              </div>
+
+              <!-- 今天：磁贴网格（宽档 3 列 / 竖屏 2 列） -->
+              <div class="hb-wrap">
+                <div class="hb-full">
+                  <button class="htile" data-h="water" style="--hc:#3B82F6">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">喝水 8 杯 <span class="h-streak"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>12</span></span>
+                      <span class="h-sub tnum"><b id="wcount">6</b> / 8 杯 · 还差 2 杯</span>
+                      <span class="h-prog"><i id="wprog" style="width:75%"></i></span>
+                    </span>
+                    <span class="h-plus" data-plus title="快速 +1 杯"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                  </button>
+
+                  <button class="htile done" data-h="stretch" style="--hc:#10B981">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="4.6" r="1.9"/><path d="M12 7.2v5M12 12.2l-3.4 5M12 12.2l3.4 5M12 8.4 7.2 5.6M12 8.4l4.8-2.2"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">拉伸 10 分钟 <span class="h-streak"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>9</span></span>
+                      <span class="h-sub tnum">已完成 · 今早 07:40</span>
+                    </span>
+                    <span class="h-check"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span>
+                  </button>
+
+                  <button class="htile" data-h="read" style="--hc:#F59E0B">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M5.5 5A2.5 2.5 0 0 1 8 2.5h10.5V17H8a2.5 2.5 0 0 0-2.5 2.5z"/><path d="M5.5 19.5A2.5 2.5 0 0 1 8 17h10.5"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">阅读 30 分钟 <span class="h-streak"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>13</span></span>
+                      <span class="h-sub">还没开始 · 昨天读到《卡片笔记法》第 5 章</span>
+                    </span>
+                  </button>
+
+                  <button class="htile" data-h="early" style="--hc:#8B5CF6">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">早睡 <span class="h-streak"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>5</span></span>
+                      <span class="h-sub tnum">目标 23:30 · 到点 Holo 会轻声提一句</span>
+                    </span>
+                  </button>
+
+                  <button class="htile bad" data-h="noyell">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/><path d="M9.6 11.2a2.4 2.4 0 0 1 2.4-2.3c.9 0 1.7.4 2.4 1.2.7-.8 1.5-1.2 2.4-1.2" opacity="0"/><path d="M9.3 10.5c.5-1 1.5-1.6 2.7-1.6 1.2 0 2.2.6 2.7 1.6.4-.8 1.2-1.3 2.1-1.3" opacity="0"/><path d="M9.2 11.5c.4-1.5 1.5-2.4 2.8-2.4s2.4.9 2.8 2.4" opacity="0"/><path d="M9.5 10.8c.4 1.9 1.5 3 2.5 3.7 1-.7 2.1-1.8 2.5-3.7" opacity="0"/><path d="M12 15.5c-1.6-.9-2.9-2.3-2.9-4a1.8 1.8 0 0 1 2.9-1.4 1.8 1.8 0 0 1 2.9 1.4c0 1.7-1.3 3.1-2.9 4z"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">不给娃吼叫 <span class="ptag" title="P11 戒除类磁贴样式">P11</span> <span class="h-streak keep"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/></svg>守住 7</span></span>
+                      <span class="h-sub">今天还早 · 昨天也守住了</span>
+                    </span>
+                  </button>
+
+                  <button class="htile" data-h="med" style="--hc:#EF4444">
+                    <span class="h-ic"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="9.2" width="17" height="6.6" rx="3.3" transform="rotate(-28 12 12.5)"/><path d="M9.2 8.6l5.6 7.8"/></svg></span>
+                    <span class="h-main">
+                      <span class="h-name">服药 <span class="h-streak"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>4</span></span>
+                      <span class="h-sub tnum">每天提醒 20:00 · 还没打卡</span>
+                    </span>
+                  </button>
+                </div>
+                <div class="hb-cap">
+                  <svg class="ic" viewBox="0 0 24 24" style="font-size:13px"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><circle cx="5.5" cy="6.5" r="1"/><circle cx="5.5" cy="12" r="1"/><circle cx="5.5" cy="17.5" r="1"/></svg>
+                  长按磁贴（或右键）：编辑 · 暂停 · 补签 · 置顶 <span class="ptag" title="P12 磁贴排序交互">P12</span><span class="long"> · 拖到空位即换位，排序只存这台设备</span>
+                </div>
+              </div>
+
+              <!-- P4：今天(左窄) + 回顾(右) 同屏两栏（宽档），竖屏回退单列回顾 -->
+              <div class="hb-split">
+                <div class="hb-side">
+                  <h3>今天 <span class="cnt tnum">3 / 6</span></h3>
+                  <button class="mhab ok"><span class="mic" style="background:color-mix(in srgb,#10B981 16%,transparent);color:#10B981"><svg class="ic" viewBox="0 0 24 24"><path d="M5 13l4 4 10-10"/></svg></span><span class="mt"><b>拉伸 10 分钟</b><span>已完成 · 07:40</span></span></button>
+                  <button class="mhab"><span class="mic" style="background:color-mix(in srgb,#3B82F6 14%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg></span><span class="mt"><b>喝水 8 杯</b><span class="tnum">6 / 8 · 差 2 杯</span></span></button>
+                  <button class="mhab"><span class="mic" style="background:color-mix(in srgb,#F59E0B 16%,transparent);color:#F59E0B"><svg class="ic" viewBox="0 0 24 24"><path d="M5.5 5A2.5 2.5 0 0 1 8 2.5h10.5V17H8a2.5 2.5 0 0 0-2.5 2.5z"/><path d="M5.5 19.5A2.5 2.5 0 0 1 8 17h10.5"/></svg></span><span class="mt"><b>阅读 30 分钟</b><span>还没开始</span></span></button>
+                  <button class="mhab"><span class="mic" style="background:color-mix(in srgb,#8B5CF6 14%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><span class="mt"><b>早睡</b><span class="tnum">目标 23:30</span></span></button>
+                  <button class="mhab"><span class="mic" style="background:rgba(244,244,245,.10);color:#9A9AA0"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/></svg></span><span class="mt"><b>不给娃吼叫</b><span>今天守到今晚就 +1</span></span></button>
+                  <button class="mhab"><span class="mic" style="background:color-mix(in srgb,#EF4444 12%,transparent);color:#EF4444"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="9.2" width="17" height="6.6" rx="3.3" transform="rotate(-28 12 12.5)"/><path d="M9.2 8.6l5.6 7.8"/></svg></span><span class="mt"><b>服药</b><span class="tnum">提醒 20:00</span></span></button>
+                </div>
+
+                <div class="hb-rev">
+                  <div class="rev-top">
+                    <span class="rev-title tnum">2026年11月</span>
+                    <span class="sp"></span>
+                    <div class="fchips" id="fchips">
+                      <button class="fchip on" data-f="">全部</button>
+                      <button class="fchip" data-f="f-done">已完成</button>
+                      <button class="fchip" data-f="f-miss">待补</button>
+                    </div>
+                  </div>
+                  <div class="dim-chips" id="dimChips">
+                    <button class="dchip on" data-h="all"><i style="background:#3B82F6"></i>全部习惯</button>
+                    <button class="dchip" data-h="water"><i style="background:#3B82F6"></i>喝水</button>
+                    <button class="dchip" data-h="stretch"><i style="background:#10B981"></i>拉伸</button>
+                    <button class="dchip" data-h="read"><i style="background:#F59E0B"></i>阅读</button>
+                    <button class="dchip" data-h="early"><i style="background:#8B5CF6"></i>早睡</button>
+                    <button class="dchip" data-h="noyell"><i style="background:#71717A"></i>不吼叫</button>
+                    <button class="dchip" data-h="med"><i style="background:#EF4444"></i>服药</button>
+                  </div>
+                  <div class="rev-grid">
+                    <div class="rcard ring-card">
+                      <h4 style="align-self:flex-start">完成率 <span id="revHname" style="color:var(--text)">· 全部习惯</span></h4>
+                      <div class="cring" id="revRing" style="--p:93;--c:#3B82F6"><i><b class="tnum" id="revPct">93%</b><span>本月至今</span></i></div>
+                      <div class="rstats" id="revStats">
+                        <div class="rs-row"><span>当前连续</span><b class="tnum"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>12 天</b></div>
+                        <div class="rs-row"><span>已完成 / 待补</span><b class="tnum">12 天 / <span class="warn">2 天</span></b></div>
+                        <div class="rs-row"><span>最长连续</span><b class="tnum">21 天</b></div>
+                      </div>
+                    </div>
+                    <div class="rcard">
+                      <div class="cal-head"><b id="calTitle">全部习惯 · 11月</b><span class="sp"></span><span style="font-size:11px;color:var(--text-2)">点单天看当天打卡</span></div>
+                      <div class="cal" id="revCal"></div>
+                      <div class="cal-legend">少 <i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i> 多 · <i style="box-shadow:inset 0 0 0 2px var(--action);background:var(--inset)"></i> 今天</div>
+                    </div>
+                  </div>
+                  <div class="note" style="position:static;align-self:flex-start;max-width:none;margin-top:2px"><span class="ptag">P4</span> 宽档：今天磁贴栏（左窄，可打卡）+ 整体回顾（右）同屏两栏——不用切 Tab 也能边打卡边看走势；竖屏回退单列 Tab（顶部胶囊切）。</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景 4：单习惯回顾（覆盖页） ===== -->
+            <section class="scene scene-hsingle">
+              <div class="hs-head">
+                <button class="iconbtn" data-goto="review" title="返回（Esc），回不到的现场不存在"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                <span class="hic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg></span>
+                <span class="ht"><b>喝水 8 杯</b><span>2026年3月14日 开始 · 已坚持 246 天</span></span>
+                <span class="sp" style="flex:1"></span>
+                <button class="btn-ghost" data-goto="today">去今天的打卡</button>
+                <button class="btn-ghost" data-toast="提醒设置：兜底时间 + 单独习惯提醒（底表 F · HabitReminderDetailView）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9.5a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13.5 6 9.5z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></svg>提醒</button>
+                <button class="btn-ghost" data-toast="暂停会问一句「这段时间为什么歇」，歇完可一键恢复（底表 F · HabitPauseSheet）"><svg class="ic" viewBox="0 0 24 24"><rect x="7" y="5.5" width="3.4" height="13" rx="1.2"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1.2"/></svg>暂停</button>
+                <button class="btn-ghost" data-goto="add"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h16M13.5 4.5l4 4L8 18l-4.5.5.5-4.5z"/></svg>编辑</button>
+              </div>
+              <span class="esc-chip" style="top:auto;right:auto;bottom:12px;left:28px"><kbd>Esc</kbd> 返回回顾</span>
+              <div class="hs-grid">
+                <div class="hs-col">
+                  <div class="streak-hero">
+                    <span class="fl"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg></span>
+                    <span class="ft"><b class="tnum">当前连续 12 天</b><span>最长 21 天 · 上次断在 11月1日（4 杯）</span></span>
+                  </div>
+                  <div class="rcard">
+                    <div class="cal-head"><b>喝水 · 11月热力</b><span class="sp"></span><span style="font-size:11px;color:var(--text-2)">越蓝越接近 8 杯</span></div>
+                    <div class="cal" id="singleCal"></div>
+                    <div class="cal-legend">少 <i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i> 多 · <i style="box-shadow:inset 0 0 0 2px var(--action);background:var(--inset)"></i> 今天</div>
+                  </div>
+                </div>
+                <div class="hs-col">
+                  <div class="rcard">
+                    <h4>近 30 天 · 每天杯数</h4>
+                    <div class="trend30" id="trend30"></div>
+                    <div class="trend-cap tnum"><span>10月16日</span><span>10月31日</span><span>今天 · 6 杯（还在喝）</span></div>
+                  </div>
+                  <div class="rcard">
+                    <h4>这段时间的样子</h4>
+                    <p class="ins-p">30 天里有 26 天喝够 8 杯；喝不够的日子多半是周末出门。平均第一杯在 9:20——比上个月提前了 40 分钟。</p>
+                    <button class="evi" data-toast="问 Holo「我这个月喝水怎么样」会生成一份可追问的小结（AI 卡片跨模块跳转）">让 Holo 展开讲讲 ›</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景 7：习惯空态（最惨稀疏态四件套） ===== -->
+            <section class="scene scene-hempty">
+              <div class="topbar">
+                <span class="ttl">习惯</span>
+                <div class="seg"><span class="seg-thumb"></span><button class="on">今天</button><button>回顾</button></div>
+                <span class="sp"></span>
+                <button class="btn-primary" data-goto="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="stxt">新习惯</span></button>
+              </div>
+              <div class="empty-wrap">
+                <div class="bigempty">
+                  <span class="be-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg></span>
+                  <b>还没有习惯在跑</b>
+                  <p>一天一杯水、十分钟拉伸，都算数。挑一件小到不可能失败的事，Holo 陪你把它熬成日常——火苗会替你记住每一天。</p>
+                  <button class="btn-primary" data-goto="add"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>从一个小习惯开始</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景 8/9/11：健康模块（宽档选中式双栏） ===== -->
+            <section class="scene scene-health">
+              <div class="topbar">
+                <span class="ttl">健康</span>
+                <div class="dnav2" style="margin-left:2px">
+                  <button data-toast="切到昨天：看 11月13日 的环与详情（左右滑手势同效）">‹</button>
+                  <span class="dtx tnum">11月14日 周六</span>
+                  <button data-toast="今天之后还没有数据">›</button>
+                </div>
+                <span class="sp"></span>
+                <button class="btn-ghost" data-toast="身体状态 Vitals：心率 / 血氧 / 体温等体征列表（底表 G · VitalsView）"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span class="stxt">身体状态</span></button>
+              </div>
+
+              <div class="hl-split">
+                <!-- 左栏：今天 -->
+                <div class="hl-left">
+                  <div class="hcard hasdata">
+                    <h3>今天 <span class="more" data-toast="环的目标值在 设置 → 健康 里调">目标 ›</span></h3>
+                    <div class="rings4">
+                      <button class="mring sel" data-metric="steps" style="--p:64;--c:#3B82F6"><i><b>6,412</b><span>步数</span></i></button>
+                      <button class="mring" data-metric="sleep" style="--p:92;--c:#8B5CF6"><i><b>7h22m</b><span>睡眠</span></i></button>
+                      <button class="mring" data-metric="motion" style="--p:53;--c:#10B981"><i><b>32 分</b><span>运动</span></i></button>
+                      <button class="mring" data-metric="stand" style="--p:83;--c:#F59E0B"><i><b>10 / 12</b><span>站立</span></i></button>
+                    </div>
+                  </div>
+
+                  <div class="hcard zero-only" style="display:none">
+                    <h3>今天</h3>
+                    <div class="rings4">
+                      <span class="zring"><b>--</b><span>步数</span></span>
+                      <span class="zring"><b>--</b><span>睡眠</span></span>
+                      <span class="zring"><b>--</b><span>运动</span></span>
+                      <span class="zring"><b>--</b><span>站立</span></span>
+                    </div>
+                    <p style="font-size:12px;color:var(--text-2);margin-top:10px;line-height:1.7">授权没问题，只是今天还没有同步到数据。晚上再来看看，或者现在去动一动。</p>
+                  </div>
+
+                  <div class="hcard hasdata">
+                    <h3>趋势</h3>
+                    <div class="seg2" id="trendSeg" style="margin-top:10px">
+                      <button data-t="sleep" class="on">睡眠</button>
+                      <button data-t="steps">步数</button>
+                      <button data-t="motion">运动</button>
+                    </div>
+                    <div class="tbars" id="ltBars"></div>
+                    <div class="tbars-cap tnum" id="ltCap">近 14 天 · 均值 7.2h</div>
+                  </div>
+
+                  <div class="hcard hasdata">
+                    <h3>今天的洞察</h3>
+                    <p class="ins-p">昨晚 23:40 才放下手机，深睡比上周少了 22 分钟——「早睡」这周有点松。</p>
+                    <button class="evi" data-toast="证据核对：逐条列出数据来源与推算口径，可逐条反馈（底表 G · HealthInsightEvidenceSheet）">为什么这么说 ›</button>
+                  </div>
+
+                  <div class="hcard hasdata">
+                    <h3>生活闭环</h3>
+                    <div class="loop-row" data-metric="sleep">
+                      <span class="lic" style="background:color-mix(in srgb,#8B5CF6 12%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span>
+                      <span class="lt"><b>「早睡」昨晚 23:40 放下手机</b><span>睡了 7 小时 22 分，比上周多 18 分钟</span></span>
+                      <span class="go">睡眠 ›</span>
+                    </div>
+                    <div class="loop-row" data-metric="motion">
+                      <span class="lic" style="background:color-mix(in srgb,#10B981 12%,transparent);color:#10B981"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="4.6" r="1.9"/><path d="M12 7.2v5M12 12.2l-3.4 5M12 12.2l3.4 5M12 8.4 7.2 5.6M12 8.4l4.8-2.2"/></svg></span>
+                      <span class="lt"><b>傍晚快走 32 分钟</b><span>顺手记了条想法：「江边风很舒服」</span></span>
+                      <span class="go">运动 ›</span>
+                    </div>
+                  </div>
+
+                  <div class="hcard">
+                    <h3>数据源</h3>
+                    <div class="src-row" style="margin-top:8px"><span class="src-dot"></span><b>HealthKit 已连接</b><span class="sp"></span><span class="v">iPhone · Apple Watch</span></div>
+                    <div class="src-row"><svg class="ic" viewBox="0 0 24 24" style="font-size:14px;color:var(--text-2)"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/><path d="M9.5 12l2 2 3.5-3.8"/></svg><span>数据只留在这台设备，用于画环与洞察</span><span class="sp"></span><span class="v" style="cursor:pointer" data-toast="权限管理：去系统设置可随时关掉某一类数据">管理 ›</span></div>
+                  </div>
+                </div>
+
+                <!-- 右栏：选中指标详情 -->
+                <div class="hl-right">
+                  <div class="note" style="position:static;max-width:none;margin-bottom:12px"><span class="badge">契约升级</span> 宽档从「双列静态」升级为<b>选中式双栏</b>：左栏点环，右栏跟着换详情（现状手机/旧 iPad 是两列各看各的）。</div>
+
+                  <!-- 步数/运动/站立 通用详情（数据驱动） -->
+                  <div class="rd rd-general" id="rdGeneral">
+                    <div class="rd-head"><b id="gmName">步数</b><span class="sub tnum" id="gmTarget">目标 10,000 步</span>
+                      <div class="dnav2"><button data-toast="切到 11月13日">‹</button><span class="dtx tnum">今天</span><button data-toast="今天之后还没有数据">›</button></div>
+                    </div>
+                    <div class="rcard gen-hero">
+                      <div class="mring big" id="gmRing" style="--p:64;--c:#3B82F6"><i><b class="tnum" id="gmVal">6,412</b><span class="tnum" id="gmUnit">步 · 64%</span></i></div>
+                      <div class="gen-side">
+                        <div class="gline"><span>周均值</span><b class="tnum" id="gmAvg">7,842 步</b></div>
+                        <div class="tbars" id="gmBars"></div>
+                        <div class="tbars-cap tnum" id="gmCap">近 7 天 · 最高 9,100（周日）</div>
+                      </div>
+                    </div>
+                    <div class="rcard">
+                      <h4>相关记录</h4>
+                      <div class="rel-row"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg><span id="gmRel">18:42 · 和娃在小区里走了两圈（顺手记进了想法）</span></div>
+                    </div>
+                  </div>
+
+                  <!-- 睡眠详情（场景 9 特写） -->
+                  <div class="rd" id="rdSleep" style="display:none">
+                    <div class="rd-head"><b>睡眠 · 昨晚</b><span class="sub">睡眠效率 94%</span>
+                      <div class="dnav2"><button data-toast="切到 11月12日 那晚">‹</button><span class="dtx tnum">11月13日</span><button data-toast="今晚还没睡，明早再看">›</button></div>
+                    </div>
+                    <div class="rcard">
+                      <div class="sl-sum"><b>7 小时 22 分</b><span>23:40 入睡 · 07:02 醒</span></div>
+                      <div class="sl-band">
+                        <i style="width:3.39%;background:#F59E0B" title="清醒"></i>
+                        <i style="width:9.05%;background:#7DA9F0" title="浅睡"></i>
+                        <i style="width:13.57%;background:#4F46E5" title="深睡"></i>
+                        <i style="width:11.31%;background:#7DA9F0" title="浅睡"></i>
+                        <i style="width:9.05%;background:#A855F7" title="REM"></i>
+                        <i style="width:15.84%;background:#7DA9F0" title="浅睡"></i>
+                        <i style="width:6.79%;background:#4F46E5" title="深睡"></i>
+                        <i style="width:14.71%;background:#A855F7" title="REM"></i>
+                        <i style="width:13.57%;background:#7DA9F0" title="浅睡"></i>
+                        <i style="width:2.71%;background:#F59E0B" title="清醒"></i>
+                      </div>
+                      <div class="sl-ticks"><span style="left:0">23:40 入睡</span><span style="left:31.67%">2:00</span><span style="left:58.82%">4:00</span><span style="left:85.97%">6:00</span><span style="left:100%">07:02</span></div>
+                      <div class="sl-legend">
+                        <span class="sl-chip"><i style="background:#4F46E5"></i>深睡 <b>1.5h</b></span>
+                        <span class="sl-chip"><i style="background:#7DA9F0"></i>浅睡 <b>3.7h</b></span>
+                        <span class="sl-chip"><i style="background:#A855F7"></i>REM <b>1.8h</b></span>
+                        <span class="sl-chip"><i style="background:#F59E0B"></i>清醒 <b>27 分</b></span>
+                      </div>
+                      <div class="inforow"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v4M12 8h.01"/></svg>分期的颜色和 Apple 健康，一个说法。长按色带可以看每一段的说明（底表 G · SleepStageGuideCard）。</div>
+                    </div>
+                    <div class="rcard">
+                      <h4>周均值</h4>
+                      <div class="wk-grid">
+                        <div class="wk-box"><b class="tnum">1.4h</b><span>深睡</span></div>
+                        <div class="wk-box"><b class="tnum">3.8h</b><span>浅睡</span></div>
+                        <div class="wk-box"><b class="tnum">1.3h</b><span>REM</span></div>
+                        <div class="wk-box"><b class="tnum">0.3h</b><span>清醒</span></div>
+                      </div>
+                      <div class="wk-note"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M6 13l6-8 6 8"/></svg>时长均值 7.1h，比上周多 12 分钟；昨晚深睡在均值之上。</div>
+                    </div>
+                  </div>
+
+                  <!-- 0 数据空态（场景 11） -->
+                  <div class="rd-zero" id="rdZero">
+                    <div class="zero-ring"><b>0</b></div>
+                    <b>今天还没有数据</b>
+                    <p>授权没问题，只是今天还没同步到步数和睡眠。晚上再来看看，或者现在去楼下走一圈——环不会自己转，你动它才动。</p>
+                    <button class="btn-ghost" style="margin-top:8px" data-toast="正在重新向 HealthKit 要一次数据…">手动刷新</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景 10：健康授权引导 ===== -->
+            <section class="scene scene-hauth">
+              <div class="topbar"><span class="ttl">健康</span></div>
+              <div class="hauth-wrap">
+                <div class="hauth-card">
+                  <span class="be-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg></span>
+                  <b>让健康数据进来</b>
+                  <p class="hp">打开 HealthKit 授权后，Holo 才能画出步数、睡眠、运动、站立这四个环，也算得出「昨晚为什么没睡好」这类洞察。</p>
+                  <div class="hauth-uses">
+                    <span class="chip"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg>只读本机数据</span>
+                    <span class="chip"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/></svg>不上传原始数据</span>
+                    <span class="chip"><svg class="ic" viewBox="0 0 24 24"><path d="M6 4.5v16M6 5h11l-2.5 3.5L17 12H6"/></svg>随时可关</span>
+                  </div>
+                  <p class="hp" style="font-size:12px">用途只有三件：画环、算趋势、生成洞察。拒绝也不影响 App 其他功能，以后随时可以在系统设置里打开。</p>
+                  <div class="hauth-btns">
+                    <button class="btn-primary" data-goto="hzero"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg>去 HealthKit 授权</button>
+                    <button class="btn-ghost" data-toast="先看看别的，健康页会留一个「去授权」的入口条，不会消失">稍后再说</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景 2：打卡备注 sheet + 软键盘 ===== -->
+            <div class="ov ov-c ov-log">
+              <div class="fscrim"></div>
+              <span class="esc-chip"><kbd>Esc</kbd> 收起并关闭</span>
+              <div class="mid">
+                <div class="sheet" role="dialog" aria-label="打卡备注">
+                  <div class="sheet-grab"></div>
+                  <div class="sheet-head">
+                    <button class="sheet-x" data-close-esc><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                    <h2><span class="hic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg></span>喝水 8 杯</h2>
+                  </div>
+                  <div class="sheet-body">
+                    <div class="flab">今天喝了几杯</div>
+                    <div class="stepper">
+                      <button class="stb" data-step="-1">－</button>
+                      <span class="stv"><b class="tnum" id="logCount">6</b><span class="tnum" id="logHint">目标 8 杯 · 还差 2 杯</span></span>
+                      <button class="stb" data-step="1">＋</button>
+                    </div>
+                    <div class="chips" style="margin-top:10px">
+                      <button class="chip" data-quick="1">+1 杯</button>
+                      <button class="chip" data-quick="2">+2 杯</button>
+                      <button class="chip" data-quick="8">喝够了</button>
+                    </div>
+                    <div class="flab">备注一句</div>
+                    <div class="fin" aria-label="备注输入中">第 6 杯，开会前接的温水<span class="caret" aria-hidden="true" style="display:inline-block;width:2px;height:1.05em;background:var(--action);vertical-align:-.15em;animation:blink 1.1s steps(1) infinite"></span></div>
+                    <div class="flab">此刻心情</div>
+                    <div class="chips">
+                      <button class="chip on">平静</button>
+                      <button class="chip">开心</button>
+                      <button class="chip">疲惫</button>
+                      <button class="chip">烦躁</button>
+                      <button class="chip">不说</button>
+                    </div>
+                    <div class="chips-cap">心情会进当天回顾，Holo 只看不说破</div>
+                  </div>
+                  <div class="sheet-foot">
+                    <button class="btn-primary" id="logSave"><svg class="ic" viewBox="0 0 24 24"><path d="M5 13l4 4 10-10"/></svg>保存打卡</button>
+                  </div>
+                </div>
+              </div>
+              <div class="ioskb" aria-hidden="true">
+                <div class="sugbar"><span class="sug">第 6 杯</span><span class="sug mid">温水</span><span class="sug">开会前</span></div>
+                <div class="krow"><span class="key">Q</span><span class="key">W</span><span class="key">E</span><span class="key">R</span><span class="key">T</span><span class="key">Y</span><span class="key">U</span><span class="key">I</span><span class="key">O</span><span class="key">P</span></div>
+                <div class="krow" style="padding:0 20px"><span class="key">A</span><span class="key">S</span><span class="key">D</span><span class="key">F</span><span class="key">G</span><span class="key">H</span><span class="key">J</span><span class="key">K</span><span class="key">L</span></div>
+                <div class="krow"><span class="key sp"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5.5l5.5 5.5H14v5h-4v-5H6.5z"/><path d="M5 19.5h14"/></svg></span><span class="key">Z</span><span class="key">X</span><span class="key">C</span><span class="key">V</span><span class="key">B</span><span class="key">N</span><span class="key">M</span><span class="key sp"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5.5h10.5v13H9L3.5 12z"/><path d="M12.5 9.8l4.4 4.4M16.9 9.8l-4.4 4.4"/></svg></span></div>
+                <div class="krow" style="margin-bottom:0"><span class="key sp">123</span><span class="key sp"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg></span><span class="key space">空格</span><span class="key ret">保存</span></div>
+              </div>
+            </div>
+
+            <!-- ===== 场景 5：新增习惯 sheet ===== -->
+            <div class="ov ov-c ov-add">
+              <div class="fscrim"></div>
+              <span class="esc-chip"><kbd>Esc</kbd> 关闭</span>
+              <div class="mid">
+                <div class="note" style="position:absolute;top:18px;left:24px;margin:0">表单类宽窄档都居中 560，与手机同构；「提醒时间」这类小选择器宽档改 popover 锚定 <span class="ptag">P1</span></div>
+                <div class="sheet" role="dialog" aria-label="新增习惯">
+                  <div class="sheet-grab"></div>
+                  <div class="sheet-head">
+                    <button class="sheet-x" data-close-esc><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                    <h2>新习惯</h2>
+                  </div>
+                  <div class="sheet-body">
+                    <div class="flab">叫什么</div>
+                    <input class="fin" placeholder="例如：每天 8 杯水、睡前拉伸 10 分钟">
+                    <div class="flab">挑个长相</div>
+                    <div class="swrow">
+                      <button class="swatch on" style="--c:#3B82F6" data-toast="水滴 · 蓝"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5S6.5 9.6 6.5 13.5a5.5 5.5 0 0 0 11 0C17.5 9.6 12 3.5 12 3.5z"/></svg></button>
+                      <button class="swatch" style="--c:#8B5CF6" data-toast="月亮 · 紫"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+                      <button class="swatch" style="--c:#F59E0B" data-toast="书 · 琥珀"><svg class="ic" viewBox="0 0 24 24"><path d="M5.5 5A2.5 2.5 0 0 1 8 2.5h10.5V17H8a2.5 2.5 0 0 0-2.5 2.5z"/><path d="M5.5 19.5A2.5 2.5 0 0 1 8 17h10.5"/></svg></button>
+                      <button class="swatch" style="--c:#10B981" data-toast="拉伸 · 绿"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="4.6" r="1.9"/><path d="M12 7.2v5M12 12.2l-3.4 5M12 12.2l3.4 5"/></svg></button>
+                      <button class="swatch" style="--c:#EF4444" data-toast="药丸 · 红"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="9.2" width="17" height="6.6" rx="3.3" transform="rotate(-28 12 12.5)"/><path d="M9.2 8.6l5.6 7.8"/></svg></button>
+                      <button class="swatch" style="--c:#64748B" data-toast="盾牌 · 灰（戒除类用）"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l6.5 2.5v5.2c0 4.3-2.7 7.5-6.5 9.3-3.8-1.8-6.5-5-6.5-9.3V6z"/></svg></button>
+                    </div>
+                    <div class="chips-cap">颜色跟着图标走，不单独调色——磁贴要一眼认出来</div>
+                    <div class="flab">多久算一次</div>
+                    <div class="seg2" id="freqSeg">
+                      <button class="on" data-q="day">每天</button>
+                      <button data-q="week">每周 N 次</button>
+                      <button data-q="month">每月 N 次</button>
+                    </div>
+                    <div class="frow" style="margin-top:8px;cursor:default">
+                      <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+                      <span class="fl" id="freqLabel">每天 8 杯</span>
+                      <span class="fv tnum" id="freqSub">凌晨 2:30 算前一天</span>
+                    </div>
+                    <div class="frow" style="margin-top:10px">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M6 9.5a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13.5 6 9.5z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></svg>
+                      <span class="fl">提醒时间</span>
+                      <span class="fv tnum">20:30 <span class="ptag">P1</span> ›</span>
+                    </div>
+                    <div class="inforow"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v4M12 8h.01"/></svg><span><b>每日结算</b>：每天凌晨 2:30 结算前一天。过了结算还没打卡的会进「待补」，可以补最近 7 天——补的是记录，不是心安。</span></div>
+                  </div>
+                  <div class="sheet-foot">
+                    <button class="btn-primary" id="addHabitGo"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>创建习惯</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== 场景 6：补签 sheet ===== -->
+            <div class="ov ov-c ov-retro">
+              <div class="fscrim"></div>
+              <span class="esc-chip"><kbd>Esc</kbd> 关闭</span>
+              <div class="mid">
+                <div class="sheet" role="dialog" aria-label="补打卡">
+                  <div class="sheet-grab"></div>
+                  <div class="sheet-head">
+                    <button class="sheet-x" data-close-esc><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                    <h2>补打卡</h2>
+                  </div>
+                  <div class="sheet-body">
+                    <div class="flab">选要补的日期（可多选）</div>
+                    <div class="cal pick" id="retroCal"></div>
+                    <div class="cal-legend">橙色 = 已选 · 今天和未来选不了 · 只开放最近 7 天</div>
+                    <div class="inforow"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v4M12 8h.01"/></svg><span>补打卡按当天目标记满，连续天数会重新接上。经常要补的习惯，Holo 会问一句是不是目标定猛了。</span></div>
+                  </div>
+                  <div class="sheet-foot">
+                    <button class="btn-primary" id="retroGo"><svg class="ic" viewBox="0 0 24 24"><path d="M5 13l4 4 10-10"/></svg><span id="retroGoTx">补 2 天打卡</span></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="toast" id="toast"></div>
+          </main>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="canvas-cap" id="canvasCap">底表 F · 今天页磁贴（宽档 3 列 / 竖屏 2 列）· 长按菜单 · 补签与更多在右上</div>
+</div>
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var stage  = document.getElementById('stage');
+  var wrap   = document.getElementById('frameWrap');
+  var toast  = document.getElementById('toast');
+  var toastTimer = null;
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+
+  /* ====== 数据（示意口径：2026年11月，今天=14日） ====== */
+  var HABITS = {
+    water:  { name:'喝水 8 杯',  c:'#3B82F6', cups:[4,8,8,8,8,8,8,8,8,8,8,8,8,6] },
+    stretch:{ name:'拉伸 10 分钟', c:'#10B981', bin:[1,1,1,1,0,1,1,1,1,1,1,1,1,1] },
+    read:   { name:'阅读 30 分钟', c:'#F59E0B', bin:[1,1,1,1,1,1,1,1,1,1,1,1,1,0] },
+    early:  { name:'早睡',       c:'#8B5CF6', bin:[0,1,1,0,1,1,1,1,1,1,1,1,1,0] },
+    noyell: { name:'不给娃吼叫',  c:'#71717A', bin:[1,1,1,1,1,1,0,1,1,1,1,1,1,1], bad:true },
+    med:    { name:'服药',       c:'#EF4444', bin:[1,1,1,1,1,1,1,1,0,1,1,1,1,0] }
+  };
+  var TODAY = 14, DIM = 30;
+  function ratio(h,d){ var H=HABITS[h]; if(H.cups) return (H.cups[d-1]||0)/8; return H.bin[d-1]||0; }
+  function allRatio(d){
+    var s=0,n=0; for(var k in HABITS){ s+=ratio(k,d); n++; } return s/n;
+  }
+  function levelOf(r){ if(r<=0) return 0; return Math.min(5, Math.ceil(r*5)); }
+  function allLevels(){ var a=[]; for(var d=1;d<=DIM;d++) a.push(levelOf(allRatio(d))); return a; }
+  function habitLevels(h){
+    var H=HABITS[h],a=[];
+    for(var d=1;d<=DIM;d++){
+      if(d<=TODAY){ var r=ratio(h,d); a.push(levelOf(h==='water'?r:(r>=1?1:0))); }
+      else a.push(-1);
+    }
+    return a;
+  }
+  function statsOf(h){ /* 统计 1..13（今天未结算） */
+    var done=0,part=0,miss=0,streak=0;
+    for(var d=1;d<=13;d++){ var r=ratio(h,d); if(r>=1)done++; else if(r>0)part++; else miss++; }
+    var s=0; for(var d2=13;d2>=1;d2--){ if(ratio(h,d2)>=1)s++; else break; } streak=s;
+    var tot=0,cnt=0; for(var d3=1;d3<=13;d3++){ tot+=ratio(h,d3); cnt++; }
+    return { done:done, part:part, miss:miss, streak:streak, pct:Math.round(tot/cnt*100) };
+  }
+  function streakOf(h){ var s=0; for(var d=13;d>=1;d--){ if(ratio(h,d)>=1)s++; else break; } return s; }
+
+  /* ====== 月历渲染（周一开头；2026-11-01 是周日 → 偏移 6） ====== */
+  function renderCal(el, opts){
+    var off=6, html='';
+    ['一','二','三','四','五','六','日'].forEach(function(w){ html+='<span class="w">'+w+'</span>'; });
+    for(var i=0;i<off;i++) html+='<span class="cell blank"></span>';
+    for(var d=1;d<=DIM;d++){
+      var cls='cell';
+      if(d>TODAY){ cls+=' fut'; }
+      else{
+        var lv = opts.levels ? opts.levels[d-1] : 0;
+        if(lv>=0) cls+=' l'+lv;
+        if(d===TODAY) cls+=' today';
+        if(opts.filter==='f-done' && lv>=3) cls+=' hi';
+        if(opts.filter==='f-miss' && lv<=1) cls+=' miss';
+        if(opts.pickable) cls+=' past';
+        if(opts.selected && opts.selected.indexOf(d)>=0) cls+=' sel';
+      }
+      html+='<span class="'+cls+'" data-d="'+d+'">'+d+'</span>';
+    }
+    el.innerHTML = html;
+    el.classList.toggle('grey', !!opts.grey);
+    if(opts.filter) el.classList.add(opts.filter); else el.classList.remove('f-done','f-miss');
+  }
+  var revCal = document.getElementById('revCal');
+  var curHabit='all', curFilter='';
+  function renderReview(){
+    var lv = curHabit==='all' ? allLevels() : habitLevels(curHabit);
+    var bad = curHabit!=='all' && HABITS[curHabit].bad;
+    renderCal(revCal,{levels:lv, filter:curFilter, grey:bad});
+    var hname = curHabit==='all' ? '全部习惯' : HABITS[curHabit].name;
+    document.getElementById('calTitle').textContent = hname+' · 11月';
+    document.getElementById('revHname').textContent = '· '+hname;
+    var st, pct, color;
+    if(curHabit==='all'){
+      var full=0, gap=0, sum=0;
+      for(var d=1;d<=13;d++){ var r=allRatio(d); sum+=r; if(r>=1) full++; else gap++; }
+      pct = Math.round(sum/13*100);
+      var best=0; for(var k in HABITS){ best=Math.max(best,streakOf(k)); }
+      st = { streak:best, miss:gap };
+      color = '#3B82F6';
+      document.getElementById('revStats').innerHTML =
+        '<div class="rs-row"><span>当前连续（以喝水计）</span><b class="tnum"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>'+streakOf('water')+' 天</b></div>'+
+        '<div class="rs-row"><span>全勤 / 有缺口</span><b class="tnum">'+full+' 天 / <span class="warn">'+gap+' 天</span></b></div>'+
+        '<div class="rs-row"><span>最长连续（单个习惯）</span><b class="tnum">21 天</b></div>';
+    } else {
+      st = statsOf(curHabit); pct = st.pct; color = HABITS[curHabit].c;
+      document.getElementById('revStats').innerHTML =
+        '<div class="rs-row"><span>当前连续</span><b class="tnum"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5c3 2.7 5.5 5.7 5.5 8.9a5.5 5.5 0 0 1-11 0c0-1.7.6-3.3 1.8-4.8.3 1.1 1 2 1.9 2.6C10.4 8.5 11.1 5.7 12 3.5z"/></svg>'+st.streak+' 天</b></div>'+
+        '<div class="rs-row"><span>已完成 / 待补</span><b class="tnum">'+st.done+' 天 / <span class="warn">'+st.miss+' 天</span></b></div>'+
+        '<div class="rs-row"><span>部分完成</span><b class="tnum">'+st.part+' 天</b></div>';
+    }
+    var ring=document.getElementById('revRing');
+    ring.style.setProperty('--p', pct); ring.style.setProperty('--c', color);
+    document.getElementById('revPct').textContent = pct+'%';
+  }
+  document.getElementById('dimChips').addEventListener('click', function(e){
+    var b=e.target.closest('.dchip'); if(!b) return;
+    document.querySelectorAll('#dimChips .dchip').forEach(function(x){ x.classList.toggle('on', x===b); });
+    curHabit=b.dataset.h; renderReview();
+    if(curHabit==='noyell'){ say('P11：戒除类热力用中性灰阶——「守住」不该和好习惯抢蓝色'); }
+  });
+  document.getElementById('fchips').addEventListener('click', function(e){
+    var b=e.target.closest('.fchip'); if(!b) return;
+    document.querySelectorAll('#fchips .fchip').forEach(function(x){ x.classList.toggle('on', x===b); });
+    curFilter=b.dataset.f; renderReview();
+  });
+  revCal.addEventListener('click', function(e){
+    var c=e.target.closest('.cell'); if(!c||c.classList.contains('blank')||c.classList.contains('fut'))return;
+    say('11月'+c.dataset.d+' 日 · 当天打卡明细（示意：点单天看明细）');
+  });
+
+  /* 单习惯回顾：热力 + 30 天走势 */
+  renderCal(document.getElementById('singleCal'), {levels:habitLevels('water')});
+  (function(){
+    var cups=[8,8,6,7,8,8,8,5,8,8,8,8,8,6,8, 4,8,8,8,8,8,8,8,8,8,8,8,8,8,6];
+    var el=document.getElementById('trend30'), html='';
+    cups.forEach(function(v){
+      var cls = v>=8?'':(v>=5?'mid':'low');
+      html+='<i class="'+cls+'" style="height:'+Math.max(6,v/8*100)+'%" title="'+v+' 杯"></i>';
+    });
+    el.innerHTML=html;
+  })();
+
+  /* 补签日历：过去可选，预选 1、5 */
+  var retroSel=[1,5];
+  var retroCal=document.getElementById('retroCal');
+  (function(){
+    var lv=[]; for(var d=1;d<=DIM;d++) lv.push(d<=TODAY?1:-1);
+    renderCal(retroCal,{levels:lv, pickable:true, selected:retroSel});
+  })();
+  retroCal.addEventListener('click', function(e){
+    var c=e.target.closest('.cell.past'); if(!c) return;
+    var d=parseInt(c.dataset.d,10), i=retroSel.indexOf(d);
+    if(i>=0){ retroSel.splice(i,1); c.classList.remove('sel'); }
+    else{ retroSel.push(d); c.classList.add('sel'); }
+    document.getElementById('retroGoTx').textContent = retroSel.length ? ('补 '+retroSel.length+' 天打卡') : '选上面的日期再补';
+  });
+  document.getElementById('retroGo').addEventListener('click', function(){
+    if(!retroSel.length){ say('先挑要补的日子'); return; }
+    setScene('today');
+    say('补上了 '+retroSel.length+' 天 · 喝水的连续重新接上，火苗长回来了');
+  });
+
+  /* ====== 健康右栏：数据驱动 ====== */
+  var GM = {
+    steps:{ name:'步数', target:'目标 10,000 步', val:'6,412', unit:'步 · 64%', pct:64, c:'#3B82F6', avg:'7,842 步', bars:[5200,7800,6400,9100,8300,4800,6412], max:10000, cap:'近 7 天 · 最高 9,100（周日）', rel:'18:42 · 和娃在小区里走了两圈（顺手记进了想法）' },
+    motion:{ name:'运动', target:'目标 60 分钟', val:'32', unit:'分钟 · 53%', pct:53, c:'#10B981', avg:'26 分钟', bars:[0,24,0,32,18,0,32], max:60, cap:'近 7 天 · 3 次快走', rel:'17:30 · 傍晚快走（Apple Watch 自动记录）' },
+    stand:{ name:'站立', target:'目标 12 小时', val:'10 / 12', unit:'小时 · 83%', pct:83, c:'#F59E0B', avg:'11 小时', bars:[8,10,11,9,12,10,10], max:12, cap:'近 7 天 · 周末坐得久', rel:'站立小时不产生记录，只画环。' }
+  };
+  function fmtBar(v,key){
+    if(key==='steps') return Math.round(v/1000*10)/10+'k';
+    return v;
+  }
+  function renderGeneral(key){
+    var m=GM[key];
+    document.getElementById('gmName').textContent=m.name;
+    document.getElementById('gmTarget').textContent=m.target;
+    var r=document.getElementById('gmRing');
+    r.style.setProperty('--p',m.pct); r.style.setProperty('--c',m.c);
+    document.getElementById('gmVal').textContent=m.val;
+    document.getElementById('gmUnit').textContent=m.unit;
+    document.getElementById('gmAvg').textContent=m.avg;
+    document.getElementById('gmCap').textContent=m.cap;
+    document.getElementById('gmRel').textContent=m.rel;
+    document.getElementById('gmBars').innerHTML = m.bars.map(function(v){
+      return '<i style="height:'+Math.max(4,v/m.max*100)+'%;background:'+m.c+'" title="'+fmtBar(v,key)+'"></i>';
+    }).join('');
+  }
+  function selectRing(key){
+    document.querySelectorAll('.rings4 .mring').forEach(function(r){ r.classList.toggle('sel', r.dataset.metric===key); });
+  }
+  function showRD(which){
+    document.getElementById('rdGeneral').style.display = which==='general'?'flex':'none';
+    document.getElementById('rdSleep').style.display   = which==='sleep'?'flex':'none';
+  }
+  document.querySelectorAll('.rings4 .mring, .loop-row[data-metric]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var k=el.dataset.metric;
+      if(k==='sleep'){ showRD('sleep'); selectRing('sleep'); }
+      else{ renderGeneral(k); showRD('general'); selectRing(k); }
+    });
+  });
+  /* 趋势卡切换 */
+  var TR = {
+    sleep:{ c:'#8B5CF6', max:9,  d:[6.8,7.1,7.4,6.2,7.8,7.2,6.9,7.5,7.0,7.3,6.6,7.7,7.4,7.4], cap:'近 14 天 · 均值 7.2h' },
+    steps:{ c:'#3B82F6', max:10000, d:[5200,7800,6400,9100,8300,4800,6412,7200,8100,5900,7600,6800,9300,6412], cap:'近 14 天 · 均值 7,214 步' },
+    motion:{ c:'#10B981', max:60, d:[0,24,0,32,18,0,32,26,0,38,22,0,45,32], cap:'近 14 天 · 8 次运动' }
+  };
+  function renderTrend(key){
+    var t=TR[key];
+    document.getElementById('ltBars').innerHTML = t.d.map(function(v){
+      return '<i style="height:'+Math.max(4,v/t.max*100)+'%;background:'+t.c+'"></i>';
+    }).join('');
+    document.getElementById('ltCap').textContent=t.cap;
+  }
+  document.getElementById('trendSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#trendSeg button').forEach(function(x){ x.classList.toggle('on',x===b); });
+    renderTrend(b.dataset.t);
+  });
+  renderTrend('sleep'); renderGeneral('steps');
+
+  /* ====== 打卡 stepper ====== */
+  var logV=6;
+  function paintLog(){
+    document.getElementById('logCount').textContent=logV;
+    document.getElementById('logHint').textContent = logV>=8 ? '目标 8 杯 · 达成' : ('目标 8 杯 · 还差 '+(8-logV)+' 杯');
+  }
+  document.querySelectorAll('[data-step]').forEach(function(b){
+    b.addEventListener('click', function(){ logV=Math.max(0,Math.min(12,logV+parseInt(b.dataset.step,10))); paintLog(); });
+  });
+  document.querySelectorAll('[data-quick]').forEach(function(b){
+    b.addEventListener('click', function(){ var q=parseInt(b.dataset.quick,10); logV = q>=8?8:Math.min(12,logV+q); paintLog(); });
+  });
+  document.getElementById('logSave').addEventListener('click', function(){
+    var done = logV>=8;
+    document.getElementById('wcount').textContent=Math.min(8,logV);
+    document.getElementById('wprog').style.width=(Math.min(8,logV)/8*100)+'%';
+    setScene('today');
+    say(done ? '8 杯齐了 · 火苗 +1，连续 13 天' : ('记下 '+logV+' 杯 · 晚点补完也算'));
+  });
+  /* 磁贴 ＋ 快速 +1 */
+  document.querySelector('[data-plus]').addEventListener('click', function(e){
+    e.stopPropagation();
+    logV=Math.min(8,logV+1);
+    document.getElementById('wcount').textContent=logV;
+    document.getElementById('wprog').style.width=(logV/8*100)+'%';
+    say(logV>=8 ? '今天 8 杯齐了 · 连续 13 天' : ('记 1 杯 · 现在 '+logV+' / 8'));
+  });
+
+  /* ====== 场景机 ====== */
+  var chips = document.getElementById('sceneChips');
+  var HMOD  = { today:'habits', log:'habits', review:'habits', single:'habits', add:'habits', retro:'habits', hempty:'habits', health:'health', sleep:'health', hauth:'health', hzero:'health' };
+  var ESCB  = { log:'today', add:'today', retro:'today', single:'review', sleep:'health', hauth:'health', hzero:'health' };
+  var BTAG  = {
+    today:'底表 F · 今天页磁贴（宽档 3 列 / 竖屏 2 列）· 长按菜单 · 补签与更多在右上',
+    review:'底表 F · 今天+回顾同屏两栏（P4）· 竖屏回退单列',
+    log:'底表 F · 打卡备注 / 记录数值 居中 560 · 软键盘',
+    single:'底表 F · 单习惯回顾覆盖页 · 返回保留现场',
+    add:'底表 F · 新增习惯 居中 560',
+    retro:'底表 F · 补签 居中 560 · 多选过去日期',
+    hempty:'底表 F · 习惯空态（最惨稀疏态四件套）',
+    health:'底表 G · 健康主页宽档选中式双栏 / 无数据空态',
+    sleep:'底表 G · 睡眠分期详情（右栏特写）· 切天 ‹ ›',
+    hauth:'底表 G · 权限引导页（拒绝态同构）',
+    hzero:'底表 G · 授权有、当天无数据（环 0 态）'
+  };
+  function syncSidebar(mod){
+    document.querySelectorAll('.sb-item').forEach(function(b){
+      b.classList.toggle('on', b.dataset.module===mod);
+    });
+  }
+  function syncSeg(v){
+    var seg=document.getElementById('habSeg');
+    seg.classList.toggle('r', v==='review');
+    seg.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', b.dataset.v===(v==='review'?'review':'today')); });
+    var cap=document.getElementById('canvasCap');
+    if(cap){ cap.textContent = BTAG[v] || BTAG.today; }
+  }
+  function setScene(v){
+    screen.setAttribute('data-scene', v);
+    chips.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v===v ? 'true':'false'); });
+    syncSidebar(HMOD[v]||'habits');
+    if(screen.querySelector('.scene-habits')) syncSeg(v);
+    if(v==='health'){ showRD('general'); selectRing('steps'); }
+    if(v==='sleep'){ showRD('sleep'); selectRing('sleep'); }
+  }
+  chips.addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b||!b.dataset.v) return;
+    setScene(b.dataset.v);
+  });
+  document.getElementById('habSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    setScene(b.dataset.v);
+  });
+
+  /* 全局点击委托 */
+  function labelOf(key){
+    return ({home:'今天',thoughts:'想法',finance:'财务',tasks:'任务',habits:'习惯',gallery:'记忆长廊',health:'健康',ai:'AI 对话',personal:'个人',settings:'设置'})[key] || key;
+  }
+  document.addEventListener('click', function(e){
+    var sb=e.target.closest('.sb-item');
+    if(sb){
+      var m=sb.dataset.module;
+      if(m==='habits'){ setScene('today'); }
+      else if(m==='health'){ setScene('health'); }
+      else{ say('「'+labelOf(m)+'」原型见对应分文件（index.html 可跳转）'); }
+      return;
+    }
+    var g=e.target.closest('[data-goto]');
+    if(g){ setScene(g.dataset.goto); return; }
+    var t=e.target.closest('[data-toast]');
+    if(t){ say(t.dataset.toast); return; }
+    var c=e.target.closest('[data-close-esc]');
+    if(c){ setScene(ESCB[screen.getAttribute('data-scene')]||'today'); return; }
+    var tile=e.target.closest('.htile');
+    if(tile){ setScene('log'); return; }
+    var mh=e.target.closest('.mhab');
+    if(mh){ say('操作同今天页：点开打卡备注 / 长按看菜单'); return; }
+  });
+  /* 长按 / 右键菜单提示 */
+  document.addEventListener('contextmenu', function(e){
+    var t=e.target.closest('.htile');
+    if(t){ e.preventDefault(); say('长按菜单：编辑 · 暂停 · 补签 · 置顶（排序见 P12）'); }
+  });
+
+  /* 键盘：Esc 关弹层 / 退覆盖页；↑↓ 在 P4 左栏磁贴列表上挪（右栏日历概念上跟随） */
+  document.addEventListener('keydown', function(e){
+    var cur=screen.getAttribute('data-scene');
+    if(e.key==='Escape'){
+      if(screen.classList.contains('sbov-open')){ screen.classList.remove('sbov-open'); return; }
+      if(ESCB[cur]){ setScene(ESCB[cur]); }
+      return;
+    }
+    if((e.key==='ArrowDown'||e.key==='ArrowUp') && (cur==='review')){
+      var rows=Array.prototype.slice.call(document.querySelectorAll('.hb-side .mhab'));
+      if(!rows.length) return;
+      var idx=rows.findIndex(function(r){ return r.classList.contains('sel'); });
+      idx = idx<0 ? 0 : (e.key==='ArrowDown' ? Math.min(idx+1,rows.length-1) : Math.max(idx-1,0));
+      rows.forEach(function(r,i){ r.classList.toggle('sel', i===idx); });
+      say('↑↓ 在今天磁贴栏上移动（P3 列表键位，右栏概念上跟随）');
+    }
+  });
+
+  /* 侧边栏收起/展开（横屏） */
+  document.getElementById('sbToggle').addEventListener('click', function(){
+    screen.classList.toggle('minisb'); fit();
+  });
+  /* 竖屏：图标条双击展开覆盖侧边栏 */
+  document.getElementById('sidebar').addEventListener('dblclick', function(){
+    if(screen.classList.contains('pt') && !screen.classList.contains('minisb')){ return; }
+    if(screen.classList.contains('pt')){ screen.classList.add('sbov-open'); }
+  });
+  document.getElementById('sbovScrim').addEventListener('click', function(){
+    screen.classList.remove('sbov-open');
+  });
+  var sbovList=document.getElementById('sbovList');
+  sbovList.innerHTML = document.querySelector('.sidebar .sb-list').outerHTML +
+                       '<div class="sb-div"></div>' +
+                       document.querySelectorAll('.sidebar .sb-list')[1].outerHTML;
+
+  /* 快速记录 */
+  document.getElementById('quickAdd').addEventListener('click', function(){
+    say('⌘N 快速记录：习惯模块下分流域是「新建任务」；记习惯走右上「新习惯」');
+  });
+  /* 新增/补签保存后的回落 */
+  document.getElementById('addHabitGo').addEventListener('click', function(){
+    setScene('today'); say('「每天 8 杯水」已在今天页就位 · 火苗从 1 开始');
+  });
+  /* 目标频次 seg：文案随档位换 */
+  var FREQ = {
+    day:   ['每天 8 杯',  '凌晨 2:30 算前一天'],
+    week:  ['每周 3 次',  '周一重置'],
+    month: ['每月 12 次', '月初重置']
+  };
+  document.getElementById('freqSeg').addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    document.querySelectorAll('#freqSeg button').forEach(function(x){ x.classList.toggle('on', x===b); });
+    document.getElementById('freqLabel').textContent = FREQ[b.dataset.q][0];
+    document.getElementById('freqSub').textContent  = FREQ[b.dataset.q][1];
+  });
+
+  /* 朝向 */
+  var segOri=document.getElementById('segOri');
+  segOri.addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b?'true':'false'); });
+    screen.classList.toggle('pt', b.dataset.v==='pt');
+    if(b.dataset.v==='pt'){ screen.classList.add('minisb'); }
+    else{ screen.classList.remove('minisb','sbov-open'); }
+    fit();
+  });
+  /* 深浅色 */
+  var segTheme=document.getElementById('segTheme');
+  segTheme.addEventListener('click', function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b?'true':'false'); });
+    document.documentElement.setAttribute('data-theme', b.dataset.v);
+  });
+
+  /* 自适应缩放 */
+  function fit(){
+    var r=screen.getBoundingClientRect();
+    var availW=stage.clientWidth-16, availH=stage.clientHeight-42; /* 底部预留画布层角标 */
+    var s=Math.min(1, availW/r.width, availH/r.height);
+    wrap.style.transform='scale('+s+')';
+  }
+  window.addEventListener('resize', fit);
+
+  /* URL hash 初始化（渲染截图用）：#scene=today|log|review|single|add|retro|hempty|health|sleep|hauth|hzero&ori=lsz|pt&theme=light|dark&sb=mini&debug=1 */
+  (function(){
+    var q={};
+    location.hash.replace(/^#/,'').split('&').forEach(function(kv){
+      var p=kv.split('='); if(p[0]) q[p[0]]=p[1];
+    });
+    if(q.theme||q.ori||q.scene||q.sb){ document.documentElement.classList.add('instant'); }
+    if(q.theme==='dark'){
+      document.documentElement.setAttribute('data-theme','dark');
+      segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='dark'?'true':'false'); });
+    }
+    if(q.ori==='pt'){
+      screen.classList.add('pt','minisb');
+      segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='pt'?'true':'false'); });
+    }
+    if(q.sb==='mini'){ screen.classList.add('minisb'); }
+    if(q.scene && chips.querySelector('[data-v="'+q.scene+'"]')){
+      setScene(q.scene);
+    }
+    if(q.debug==='1'){
+      var sbar=document.querySelector('.sbar');
+      document.title='DBG screen='+getComputedStyle(screen).backgroundColor+
+        ' sbar='+getComputedStyle(sbar).backgroundColor+
+        ' sbarColor='+getComputedStyle(sbar).color+
+        ' theme='+document.documentElement.getAttribute('data-theme');
+    }
+    fit();
+  })();
+
+  renderReview();
+  fit();
+})();
+</script>
+<style>
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+</style>
+<!-- ============ 文件底注 · 新拍板点与覆盖对照 ============
+  P11（本模块新设）：戒除类（反向）习惯的磁贴与回顾口径。
+    背景：底表 F/既有契约只定义了正向习惯（打卡/数值），「不给娃吼叫」这类戒除目标在手机版只有
+    深灰磁贴的零散痕迹，没有成体系口径。本稿提案：磁贴深灰静默态（不抢注意力、不发火苗，
+    改发「守住 N 天」盾形计数）；完成语义是「守住今天」而非「打卡」；回顾热力用中性灰阶
+    而非正向雾蓝阶，避免「没吼娃」和「喝了水」在图上看起来是同一类成就。深色模式下磁贴另配
+    更沉的底色覆盖（#1F1F22/#3F3F46，比周围磁贴更暗一档），静默语义不随主题翻转。
+    热力图沿用 05-记忆长廊的雾蓝六档真值（--h0..--h5，浅/深两套），不再是本文件的近似四档。
+    备选：与正向习惯完全同构、只换图标颜色（实现最省，但回顾图会把两类动机混在一起）。
+  P12（本模块新设）：磁贴排序交互。
+    底表 F 有 HabitDragReorder 组件（手机版长按拖拽）。iPad 网格下本稿沿用「长按 0.3s 起拖，
+    拖到空位换位（iOS 惯例）」，并在长按菜单里保留「排序模式」作兜底（点进排序模式后全部
+    磁贴轻晃、点选两两交换，供拖拽不惯的用户）。备选：只用菜单排序模式、不做拖拽。
+    本稿推荐长按拖拽 + 菜单兜底，实现前需拍板。
+
+  场景 → 底表覆盖对照：
+    1 今天磁贴 → F 今天页/磁贴打卡/长按菜单/补签入口/拖拽排序提示（P12）
+    2 打卡备注 → F 今天的记录/打卡备注/记录数值（数值+备注+心情+保存，键盘态）
+    3 回顾同屏 → F 习惯回顾（整体）+ P4 宽档同屏两栏（左今天磁贴/右月历热力+完成率环+筛选+习惯维度切换）
+    4 单习惯回顾 → F 单习惯回顾覆盖页（返回在最左、去今天定位、编辑/暂停/提醒入口、热力+30天走势+连续12天）
+    5 新增表单 → F 新增习惯 AddHabitSheet（名称/图标颜色/频次 seg/提醒 P1 popover/每日结算说明）
+    6 补签 → F 补录/补签 HabitRetroactiveSheet（当月日历多选过去日期+说明）
+    7 空态 → F 空态四件套（无习惯）
+    8 健康双栏 → G 健康主页（四指标环/趋势切换/洞察+为什么这么说/生活闭环/数据源 HealthKit）+ 契约「选中式双栏」升级标注
+    9 睡眠详情 → G 指标详情·睡眠分期卡+时间轴+周均值+切天 ‹ 11月13日 ›
+    10 授权态 → G 权限引导页（未授权说明+去 HealthKit+数据用途；拒绝态同构）
+    11 无数据空态 → G 最惨空态（授权有、当天无数据：环 0 态+文案）
+  未画进原型但实现须带上的 F/G 项：习惯来源详情（每日确认/关联目标，sheet）、更多选项 sheet 全量内容、
+  记录编辑 sheet、测量输入 sheet、暂停确认、提醒详情页、运动会话详情 sheet、身体状态 Vitals、
+  健康切天左右滑手势——均为既有页面，弹层骨架照本文件 sheet 规范套用即可。
+================================================= -->
+</body>
+</html>

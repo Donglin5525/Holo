@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo iPad · 目标与记忆中心 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台，非 App 界面） ============ */
+:root{
+  /* Holo Tool 色板（来源 docs/standards/设计规范.md，Light/Dark 两套） */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA; --divider:#F1F5F9;
+  --action:#EA580C; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#B91C1C; --ai:#6D28D9;
+  --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+  --canvas:#141416; --rail:#1D1D20; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --seg-track:rgba(120,120,128,.14); --seg-thumb:#FFFFFF;
+  --amber:#D97706;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A; --divider:#38383A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FCA5A5; --ai:#C4B5FD;
+  --seg-track:rgba(118,118,128,.24); --seg-thumb:#5A5A5E;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh; overflow:hidden;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;align-self:flex-start;max-height:calc(100vh - 56px);overflow-y:auto}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:12px;color:var(--rail-sub);line-height:1.6;margin-top:4px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px;margin-bottom:6px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-direction:column;gap:6px}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.7;border-top:1px solid var(--rail-line);padding-top:12px}
+.rail .foot b{color:var(--rail-text)}
+.ptag{display:inline-block;font-size:10px;font-weight:700;color:#FBBF24;background:rgba(217,119,6,.16);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px}
+/* ---- 舞台与 iPad 机身 ---- */
+.stage{flex:1;display:grid;place-items:center;min-width:0;min-height:0}
+.frameWrap{transform-origin:center center}
+.ipad{background:#3A3A3C;border-radius:38px;padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.screen{width:1194px;height:834px;background:var(--bg-page);border-radius:26px;overflow:hidden;position:relative;color:var(--text);display:flex;flex-direction:column;transition:background .25s}
+.screen.pt{width:834px;height:1194px}
+/* 状态栏 */
+.sbar{flex:none;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text);opacity:.9}
+.sbar .ic{font-size:12px}
+/* ---- App 壳层 ---- */
+.app{flex:1;display:flex;min-height:0;position:relative}
+.sidebar{width:232px;flex:none;background:var(--inset);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 10px 12px;transition:width .2s}
+.screen.minisb .sidebar{width:68px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:4px 8px 10px}
+.sb-btn{width:32px;height:32px;border:none;background:transparent;color:var(--text-2);border-radius:8px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.sb-btn:hover{background:rgba(120,120,128,.12)}
+.sb-title{font-size:17px;font-weight:700;color:var(--text)}
+.screen.minisb .sb-title{display:none}
+.sb-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.sb-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:none;background:transparent;border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;position:relative}
+.sb-item svg.ic{font-size:17px;color:var(--text-2)}
+.sb-item .k{margin-left:auto;font-size:10.5px;color:var(--text-2);opacity:.7;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sb-item:hover{background:rgba(120,120,128,.10)}
+.sb-item.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.sb-item.on svg.ic{color:var(--action)}
+.screen.minisb .sb-item{justify-content:center;padding:0}
+.screen.minisb .sb-item span,.screen.minisb .sb-item .k{display:none}
+.sb-div{height:1px;background:var(--border);margin:8px 10px}
+.screen.minisb .sb-div{margin:8px 6px}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.sb-quick{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:none;background:var(--action);color:var(--on-action);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sb-quick:active{transform:scale(.97);opacity:.9}
+.sb-quick .k{margin-left:auto;font-size:10.5px;opacity:.8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.screen.minisb .sb-quick{justify-content:center;padding:0}
+.screen.minisb .sb-quick span,.screen.minisb .sb-quick .k{display:none}
+/* 竖屏覆盖式侧边栏 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.sbov{position:absolute;top:0;bottom:0;left:0;width:232px;background:var(--inset);border-right:1px solid var(--border);z-index:41;padding:10px 10px 12px;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.12)}
+.screen.sbov-open .scrim{opacity:1;pointer-events:auto}
+.screen.sbov-open .sbov{transform:translateX(0)}
+/* ---- 内容区与场景 ---- */
+.content{flex:1;min-width:0;position:relative;overflow:hidden}
+.scene{position:absolute;inset:0;display:none;flex-direction:column}
+.screen[data-scene="goals"] .scene-goals,.screen[data-scene="workshop"] .scene-goals,.screen[data-scene="draft"] .scene-goals,.screen[data-scene="edit"] .scene-goals,.screen[data-scene="log"] .scene-goals{display:flex}
+.screen[data-scene="memory"] .scene-memory,.screen[data-scene="mcorrect"] .scene-memory{display:flex}
+.screen[data-scene="gempty"] .scene-gempty{display:flex}
+.screen[data-scene="mempty"] .scene-mempty{display:flex}
+/* 顶栏 */
+.topbar{flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 20px}
+.topbar .ttl{font-size:28px;font-weight:700;letter-spacing:.2px}
+.topbar .sub{font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:5px}
+.topbar .sub svg.ic{font-size:12px}
+.topbar .sp{flex:1}
+.btn-ghost{height:34px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn-ghost:active{transform:scale(.97);opacity:.85}
+.btn-ghost.brand{color:var(--action);border-color:color-mix(in srgb,var(--action) 38%,var(--border));font-weight:600}
+.btn-primary{height:36px;padding:0 16px;border:none;background:var(--action);color:var(--on-action);border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.iconbtn{width:34px;height:34px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.iconbtn:active{transform:scale(.95);opacity:.8}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-bottom:52px}
+.scroll::-webkit-scrollbar,.tscroll::-webkit-scrollbar,.dscroll::-webkit-scrollbar{width:0}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text-2);white-space:nowrap}
+/* 底表标注：画布层（机身下方），随场景切换文案，不压 App 内容 */
+.canvas-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:11px;letter-spacing:.3px;color:#9A9AA0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{position:absolute;z-index:45;font-size:11px;line-height:1.55;color:#7C2D12;background:#FDE8D7;border:1px solid #FDBA74;border-radius:10px;padding:7px 10px;max-width:230px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+[data-theme="dark"] .note{color:#FDBA74;background:rgba(217,119,6,.12);border-color:rgba(253,186,116,.4)}
+/* ---- 双栏骨架（列表 360 + 详情右栏） ---- */
+.split{flex:1;display:flex;min-height:0;position:relative;padding:0 20px 8px}
+.lcol{width:360px;flex:none;display:flex;flex-direction:column;min-height:0}
+.iseg{display:flex;background:var(--seg-track);border-radius:10px;padding:2px;gap:2px;flex:none;margin-bottom:10px}
+.iseg button{flex:1;border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:500;padding:6px 8px;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.iseg button.on{background:var(--seg-thumb);color:var(--text);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.iseg .badge{display:inline-flex;align-items:center;background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber);font-weight:700;font-size:10.5px;border-radius:6px;padding:1px 6px}
+.tscroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-right:0;padding-bottom:8px}
+.lhint{flex:none;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-2);padding:8px 2px 0}
+.rcol{flex:1;min-width:0;margin-left:14px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 20px 14px;display:flex;flex-direction:column;min-height:0;position:relative}
+.dscroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 2px 8px;min-height:0}
+.rhead{flex:none;display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--divider);position:relative}
+.dtitle{flex:1;min-width:0;font-size:19px;font-weight:700;line-height:1.35}
+/* 进度环 */
+.ring{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .trk{fill:none;stroke:var(--border);stroke-width:4.5}
+.ring .val{fill:none;stroke:var(--action);stroke-width:4.5;stroke-linecap:round;transition:stroke-dashoffset .45s}
+.gring{width:40px;height:40px;position:relative;flex:none}
+.gring i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:9.5px;font-weight:700}
+.bigring{width:128px;height:128px;position:relative;margin:6px auto 0}
+.bigring .ring .trk{stroke-width:10}
+.bigring .ring .val{stroke-width:10}
+.bigring .bctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.bigring .bctr b{font-size:26px;font-weight:700}
+.bigring .bctr span{font-size:11px;color:var(--text-2)}
+.ringzone.done .ring .val{stroke:var(--success)}
+.forecast{font-size:13px;color:var(--text-2);line-height:1.65;text-align:center;max-width:400px;margin:12px auto 0}
+/* 目标卡（列表） */
+.recover{display:flex;align-items:center;gap:10px;width:100%;background:color-mix(in srgb,var(--amber) 9%,transparent);border:1px solid color-mix(in srgb,var(--amber) 30%,transparent);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left;margin-bottom:12px}
+.recover svg.ic{font-size:16px;color:var(--amber);flex:none}
+.recover .rt{flex:1;min-width:0}
+.recover .rt b{font-size:12.5px;font-weight:600;display:block}
+.recover .rt span{font-size:11px;color:var(--text-2);display:block;margin-top:1px}
+.recover>svg.ic:last-child{color:var(--text-2);font-size:13px}
+.grow{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px;margin-bottom:8px;cursor:pointer;display:flex;gap:12px;align-items:center;width:100%;font-family:inherit;text-align:left;transition:box-shadow .15s}
+.grow:active{transform:scale(.99)}
+.grow.sel{border-color:var(--action);box-shadow:0 0 0 1.2px var(--action);background:color-mix(in srgb,var(--action) 5%,var(--surface))}
+.gt{flex:1;min-width:0}
+.gt b{font-size:14px;font-weight:600;display:block;line-height:1.4}
+.gm{display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:nowrap;overflow:hidden}
+.gbadge{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 7px;flex:none}
+.b-run{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand-dark)}
+.b-pause{background:var(--seg-track);color:var(--text-2)}
+.b-done{background:color-mix(in srgb,var(--success) 14%,transparent);color:var(--success)}
+.gdl{font-size:11px;color:var(--text-2);white-space:nowrap}
+/* 目标详情 */
+.metline{display:flex;align-items:center;gap:10px;background:var(--inset);border-radius:12px;padding:11px 13px;margin-top:16px}
+.metline .ml{flex:1;min-width:0}
+.metline .ml span{font-size:11px;color:var(--text-2);display:block}
+.metline .ml b{font-size:14px;font-weight:700;display:block;margin-top:2px}
+.metline .btn-primary{height:32px;padding:0 13px;font-size:12.5px;border-radius:9px;flex:none}
+.habline{margin-top:10px;display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:none;padding:8px 4px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left;border-bottom:1px solid var(--divider)}
+.habline svg.ic{font-size:15px;color:var(--brand)}
+.habline .ht2{font-size:12.5px;color:var(--text-2)}
+.habline .ht2 b{color:var(--text);font-weight:600}
+.habline .swap{margin-left:auto;font-size:12px;font-weight:600;color:var(--action)}
+.dsec{margin-top:14px}
+.dsec-h{font-size:11.5px;font-weight:600;color:var(--text-2);letter-spacing:.3px;margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.dsec-h .n{color:var(--text-2);font-weight:500}
+.dsec-h .mg{margin-left:auto;font-size:12px;font-weight:600;color:var(--action);cursor:pointer;border:none;background:none;font-family:inherit}
+.trow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--divider);font-size:13px}
+.trow:last-of-type{border-bottom:none}
+.trow .ck{width:20px;height:20px;border-radius:50%;border:1.6px solid var(--border);flex:none;display:grid;place-items:center;color:transparent;font-size:11px}
+.trow.done .ck{background:var(--success);border-color:var(--success);color:#fff}
+.trow .tt2{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow.done .tt2{color:var(--text-2);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--text-2) 50%,transparent)}
+.trow .tm{flex:none;font-size:11px;color:var(--text-2)}
+.trow.mute{color:var(--text-2);font-size:12px;border-bottom:none}
+.gate{margin-top:16px;display:flex;gap:11px;background:color-mix(in srgb,var(--amber) 7%,transparent);border:1px dashed color-mix(in srgb,var(--amber) 40%,transparent);border-radius:14px;padding:13px 14px;align-items:flex-start}
+.gate .gic{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber);display:grid;place-items:center;font-size:17px;flex:none}
+.gate .gtt{flex:1;min-width:0}
+.gate .gtt b{font-size:13px;font-weight:600;display:block}
+.gate .gtt span{font-size:11.5px;color:var(--text-2);line-height:1.6;display:block;margin-top:3px}
+.gate .btn-ghost{height:30px;padding:0 12px;font-size:12px;flex:none;margin-top:2px}
+/* 锚定菜单（目标「…」/ 新建） */
+.menu{position:absolute;right:8px;top:44px;width:236px;background:var(--bg-page);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 46px rgba(0,0,0,.22);z-index:8;padding:5px;display:none}
+.menu.open{display:block}
+.menu::before{content:"";position:absolute;right:16px;top:-5px;width:9px;height:9px;background:var(--bg-page);border-left:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(135deg)}
+.mh{font-size:11px;font-weight:700;color:var(--text-2);padding:6px 10px 4px;letter-spacing:.4px}
+.mi{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;border:none;background:transparent;width:100%;font-family:inherit;text-align:left}
+.mi svg.ic{font-size:15px;color:var(--text-2)}
+.mi:active{background:rgba(120,120,128,.12)}
+.mi.dim{opacity:.35;pointer-events:none}
+.mi.danger{color:var(--danger)}
+.mi.danger svg.ic{color:var(--danger)}
+.mdiv{height:1px;background:var(--border);margin:4px 8px}
+.menu.newmenu{top:50px;right:20px}
+/* ---- 记忆中心 ---- */
+.srch{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 12px;margin-bottom:12px;flex:none}
+.srch svg.ic{font-size:14px;color:var(--text-2)}
+.srch input{flex:1;min-width:0;border:none;background:transparent;font-size:13px;color:var(--text);font-family:inherit;outline:none}
+.srch input::placeholder{color:var(--placeholder)}
+.mgh{font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:.4px;padding:10px 4px 6px;display:flex;gap:6px;align-items:center}
+.mgh b{font-weight:500}
+.mcap-row{display:flex;align-items:center;gap:9px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:8px 13px;margin-bottom:6px;cursor:pointer;font-family:inherit;text-align:left;transition:box-shadow .15s}
+.mcap-row:active{transform:scale(.99)}
+.mcap-row.sel{border-color:var(--action);box-shadow:0 0 0 1.2px var(--action);background:color-mix(in srgb,var(--action) 5%,var(--surface))}
+.mcap-row .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.cf-hi{background:var(--success)}
+.dot.cf-mid{background:var(--amber)}
+.mcap-row .mtx{flex:1;min-width:0;font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcap-row>svg.ic{font-size:13px;color:var(--text-2);flex:none}
+.mcap-hint{font-size:11px;color:var(--text-2);padding:2px 6px 10px;line-height:1.6}
+.gchip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;color:var(--text-2);background:var(--inset);border-radius:8px;padding:4px 10px}
+.cfbadge{display:inline-flex;align-items:center;font-size:11px;font-weight:700;border-radius:7px;padding:2px 9px}
+.cfbadge.cf-hi{background:color-mix(in srgb,var(--success) 13%,transparent);color:var(--success)}
+.cfbadge.cf-mid{background:color-mix(in srgb,var(--amber) 14%,transparent);color:var(--amber)}
+.mconfline{display:flex;align-items:center;gap:8px;margin-top:2px}
+.mconfline .lab{font-size:11px;color:var(--text-2)}
+.mtxt{font-size:16px;font-weight:600;line-height:1.7;margin-top:12px}
+.evline{margin-top:14px;display:flex;align-items:center;gap:8px;width:100%;background:var(--inset);border:none;border-radius:11px;padding:10px 12px;cursor:pointer;font-family:inherit;color:var(--text-2);text-align:left}
+.evline svg.ic{font-size:14px;flex:none}
+.evline .ev{font-size:12px}
+.evline .ev b{font-weight:600;color:var(--text)}
+.evline .evlink{margin-left:auto;font-size:12px;font-weight:600;color:var(--action);flex:none}
+.dactions{flex:none;display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--divider)}
+.act{flex:1;height:40px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.act:active{transform:scale(.97);opacity:.85}
+.act.warn{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 32%,var(--border))}
+.act.p{background:var(--success);border-color:var(--success);color:#fff}
+[data-theme="dark"] .act.p{color:#0F2E17}
+/* ---- 居中 sheet 560 ---- */
+.ov{position:absolute;inset:0;z-index:50;display:none;align-items:center;justify-content:center}
+.screen[data-scene="workshop"] .ov-workshop,.screen[data-scene="draft"] .ov-draft,.screen[data-scene="edit"] .ov-edit,.screen[data-scene="log"] .ov-log,.screen[data-scene="mcorrect"] .ov-mcorrect{display:flex}
+.ov .scrimbg{position:absolute;inset:0;background:rgba(0,0,0,.36)}
+.sheet{position:relative;z-index:1;width:560px;max-width:calc(100% - 40px);background:var(--bg-page);border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;max-height:82%}
+.sheet-grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:10px auto 0;flex:none}
+.sheet-head{padding:12px 24px 0;position:relative}
+.sheet-head h2{font-size:20px;font-weight:700;padding-left:42px}
+.sheet-head p{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.6}
+.sheet-x{position:absolute;left:18px;top:10px;width:30px;height:30px;border:none;background:var(--inset);border-radius:50%;color:var(--text-2);cursor:pointer;display:grid;place-items:center;font-size:14px}
+.sheet-x:active{transform:scale(.94);opacity:.85}
+.sheet-skip{position:absolute;right:18px;top:16px;border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sheet-body{padding:16px 24px;overflow-y:auto;flex:1}
+.sheet-body::-webkit-scrollbar{width:0}
+.sheet-foot{padding:13px 24px 20px;border-top:1px solid var(--divider);display:flex;gap:10px}
+.sheet-foot .btn-primary{flex:1;height:46px;justify-content:center;font-size:15px;border-radius:13px}
+.sheet-foot .btn-ghost{height:46px;padding:0 18px;font-size:14px;border-radius:13px}
+.sheet-cap{font-size:10.5px;color:var(--text-2);margin-top:9px;text-align:center}
+/* 共创工作流 */
+.wprog{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.wprog .dots{display:flex;gap:5px}
+.wprog .dots i{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.wprog .dots i.f{background:var(--action)}
+.wprog .wt{font-size:11.5px;color:var(--text-2);margin-left:2px}
+.qcard{display:flex;gap:11px;background:color-mix(in srgb,var(--ai) 7%,transparent);border:1px solid color-mix(in srgb,var(--ai) 22%,transparent);border-radius:14px;padding:14px 15px}
+.qcard .qic{width:32px;height:32px;border-radius:10px;background:color-mix(in srgb,var(--ai) 13%,transparent);color:var(--ai);display:grid;place-items:center;font-size:16px;flex:none}
+.qcard .qt{font-size:14.5px;font-weight:600;line-height:1.65;color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{font-size:12.5px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 14px;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--action);color:var(--action);font-weight:600}
+.finput{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;font-size:14px;color:var(--text);font-family:inherit;outline:none}
+.finput::placeholder{color:var(--placeholder)}
+.finput:focus{border-color:var(--action)}
+textarea.finput{resize:none;line-height:1.6}
+.frow{margin-top:14px}
+.flabel{font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;display:block}
+/* 草案确认 */
+.draft-ai{display:flex;align-items:center;gap:10px;background:color-mix(in srgb,var(--ai) 7%,transparent);border:1px solid color-mix(in srgb,var(--ai) 22%,transparent);border-radius:12px;padding:10px 13px;margin-bottom:12px}
+.draft-ai svg.ic{font-size:16px;color:var(--ai);flex:none}
+.draft-ai span{font-size:12.5px;color:var(--text-2);line-height:1.5}
+.draft-ai b{color:var(--text)}
+.drow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:8px;cursor:pointer;font-family:inherit;text-align:left;width:100%}
+.drow:active{transform:scale(.99)}
+.drow .dl{font-size:11.5px;color:var(--text-2);width:64px;flex:none}
+.drow .dv{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--text)}
+.drow .dv small{display:block;font-size:11px;color:var(--text-2);font-weight:500;margin-top:1px}
+.drow svg.ic{font-size:14px;color:var(--text-2);flex:none}
+/* 记一笔 */
+.bigval-wrap{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 16px}
+.bigval-wrap .cur{font-size:22px;font-weight:700;color:var(--text-2)}
+.bigval-wrap input{flex:1;min-width:0;border:none;background:transparent;font-size:30px;font-weight:700;color:var(--text);font-family:inherit;outline:none;font-variant-numeric:tabular-nums}
+.qadd{display:flex;gap:8px;margin-top:10px}
+.qadd .chip{font-weight:600}
+.daterow{display:flex;align-items:center;gap:9px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 13px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left}
+.daterow svg.ic{font-size:15px;color:var(--text-2)}
+.daterow b{font-size:13.5px;font-weight:600}
+.daterow span{margin-left:auto;font-size:12px;color:var(--action);font-weight:600}
+.pvwrap{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:18px}
+.pv{display:flex;flex-direction:column;align-items:center;gap:6px}
+.pv .pring{width:64px;height:64px;position:relative}
+.pv .pring i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:13px;font-weight:700}
+.pv span{font-size:11px;color:var(--text-2)}
+.pvarrow{font-size:18px;color:var(--text-2)}
+.pvline{font-size:12px;color:var(--text-2);text-align:center;margin-top:10px;line-height:1.6}
+.pvline b{color:var(--text)}
+/* 纠正弹层 */
+.orow{display:flex;align-items:flex-start;gap:11px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-family:inherit;text-align:left}
+.orow .radio{width:19px;height:19px;border-radius:50%;border:1.7px solid var(--border);flex:none;margin-top:1px;position:relative}
+.orow.on{border-color:var(--action);background:color-mix(in srgb,var(--action) 5%,var(--surface))}
+.orow.on .radio{border-color:var(--action)}
+.orow.on .radio::after{content:"";position:absolute;inset:3.5px;border-radius:50%;background:var(--action)}
+.orow .ot b{font-size:13.5px;font-weight:600;display:block;color:var(--text)}
+.orow .ot span{font-size:11.5px;color:var(--text-2);display:block;margin-top:2px;line-height:1.5}
+/* ---- 空态 ---- */
+.ecenter{max-width:560px;margin:0 auto;padding:56px 20px 20px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.ecenter .eic{width:64px;height:64px;border-radius:20px;background:color-mix(in srgb,var(--brand) 10%,transparent);color:var(--brand);display:grid;place-items:center;font-size:30px}
+.ecenter h2{font-size:21px;font-weight:700;margin-top:18px}
+.ecenter>p{font-size:13.5px;color:var(--text-2);line-height:1.75;margin-top:10px}
+.ecards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px;width:100%}
+.ecard{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 14px;cursor:pointer;font-family:inherit;text-align:left}
+.ecard:active{transform:scale(.98)}
+.ecard .cic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:17px;flex:none;background:var(--inset);color:var(--text-2)}
+.ecard b{font-size:13.5px;font-weight:600;display:block}
+.ecard span{font-size:11px;color:var(--text-2);display:block;margin-top:1px}
+.ebtns{display:flex;gap:10px;margin-top:22px}
+.ebtns .btn-primary{height:44px;padding:0 22px;font-size:14px;border-radius:13px}
+.ebtns .btn-ghost{height:44px;padding:0 22px;font-size:14px;border-radius:13px}
+/* toast */
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ---- 竖屏：单列限宽 + 详情推入（P21） ---- */
+.ptback{display:none}
+.screen.pt .split{padding:0 16px 8px}
+.screen.pt .lcol{width:100%;max-width:720px;margin:0 auto;padding-right:0}
+.screen.pt .rcol{position:absolute;inset:0;z-index:20;margin:0;width:auto;border-radius:0;border:none;transform:translateX(102%);transition:transform .26s cubic-bezier(.32,.72,.35,1);box-shadow:-12px 0 34px rgba(0,0,0,.12)}
+.screen.pt .split.pushed .rcol{transform:translateX(0)}
+.screen.pt .ptback{display:inline-grid}
+.screen.pt .grow.sel,.screen.pt .mcap-row.sel{border-color:var(--border);box-shadow:none;background:var(--surface)}
+.screen.pt .lhint{display:none}
+.screen.pt .sc-note{display:none}
+.screen.pt .pnote{display:block}
+.pnote{display:none;position:absolute;left:20px;bottom:12px;z-index:22}
+.screen.pt .topbar{padding:0 16px}
+.screen.pt .ecards{max-width:520px;margin-left:auto;margin-right:auto}
+/* 场景分段显隐（目标 进行中/已完成） */
+.scene-goals.segdone .only-run{display:none!important}
+.scene-goals:not(.segdone) .only-done{display:none!important}
+/* 记忆 分段显隐 */
+.scene-memory.segc .mlist-run{display:none!important}
+.scene-memory:not(.segc) .mlist-cf{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ============ 控制栏 ============ -->
+<aside class="rail">
+  <div>
+    <h1>Holo iPad · 目标与记忆中心</h1>
+    <div class="sub">底表 K（目标）+ 底表 J（记忆中心）：双栏、共创工作流、弹层族、空态、竖屏推入。壳层照抄样板件 00，入口都在个人页。</div>
+  </div>
+  <div>
+    <div class="rlabel">朝向</div>
+    <div class="rseg" id="segOri">
+      <button data-v="lsz" aria-pressed="true">横屏 1194×834</button>
+      <button data-v="pt" aria-pressed="false">竖屏 834×1194</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">深浅色</div>
+    <div class="rseg" id="segTheme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">场景</div>
+    <div class="rchips" id="sceneChips">
+      <button data-v="goals" aria-pressed="true">目标 · 双栏 + 操作菜单（默认）</button>
+      <button data-v="workshop" aria-pressed="false">目标 · 共创「一起想清楚」</button>
+      <button data-v="draft" aria-pressed="false">目标 · 草案确认</button>
+      <button data-v="edit" aria-pressed="false">目标 · 编辑表单</button>
+      <button data-v="log" aria-pressed="false">目标 · 记一笔（进度预览）</button>
+      <button data-v="gempty" aria-pressed="false">目标 · 空态（四件套）</button>
+      <button data-v="memory" aria-pressed="false">记忆 · 双栏 + 详情</button>
+      <button data-v="mcorrect" aria-pressed="false">记忆 · 纠正弹层</button>
+      <button data-v="mempty" aria-pressed="false">记忆 · 空态</button>
+      <button data-v="ptpush" aria-pressed="false">竖屏 · 单列推入详情（自动切竖屏）</button>
+    </div>
+  </div>
+  <div class="foot">
+    可操作：列表点选与 <kbd>↑</kbd><kbd>↓</kbd> 导航（右栏跟随）/ <kbd>⌘N</kbd> 快速记录 / <kbd>Esc</kbd> 关弹层、退推入详情；分段可切换；「…」与「＋」菜单可开合；记忆搜索可真打字过滤。<br>
+    <span class="ptag">P18</span> 目标操作收右上锚定菜单；<span class="ptag">P19</span> 确信度三档不说百分数；<span class="ptag">P20</span> 历史分析门卡常驻详情底部；<span class="ptag">P21</span> 竖屏详情推入、旋转不清状态。<br>
+    其余拍板点见总契约与文件底注。
+  </div>
+</aside>
+
+<!-- ============ 舞台 ============ -->
+<div class="stage" id="stage">
+  <div class="frameWrap" id="frameWrap">
+    <div class="ipad">
+      <div class="screen" id="screen" data-scene="goals">
+
+        <div class="sbar">
+          <span class="tnum">23:47</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M7.8 15.6a6 6 0 0 1 8.4 0M10.6 18.4a2.2 2.2 0 0 1 2.8 0"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="8" rx="2.5"/><path d="M21.5 11v2"/><rect x="4.5" y="10" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </div>
+
+        <div class="app">
+          <!-- 侧边栏（照抄样板件 00，「个人」选中） -->
+          <nav class="sidebar" id="sidebar">
+            <div class="sb-top">
+              <button class="sb-btn" id="sbToggle" title="收起/展开侧边栏（⌘⌥S）"><svg class="ic" viewBox="0 0 24 24" id="sbToggleIc"><path d="M9.5 6.5 5 12l4.5 5.5M14.5 6.5 19 12l-4.5 5.5" opacity=".35"/><rect x="3" y="4.5" width="18" height="15" rx="3"/></svg></button>
+              <span class="sb-title">Holo</span>
+            </div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="today"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg><span>今天</span><span class="k">⌘1</span></button>
+              <button class="sb-item" data-module="thoughts"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg><span>想法</span><span class="k">⌘2</span></button>
+              <button class="sb-item" data-module="finance"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg><span>财务</span><span class="k">⌘3</span></button>
+              <button class="sb-item" data-module="tasks"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg><span>任务</span><span class="k">⌘4</span></button>
+              <button class="sb-item" data-module="habits"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span>习惯</span><span class="k">⌘5</span></button>
+              <button class="sb-item" data-module="gallery"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg><span>记忆长廊</span><span class="k">⌘6</span></button>
+              <button class="sb-item" data-module="health"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span>健康</span><span class="k">⌘7</span></button>
+              <button class="sb-item" data-module="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span>AI 对话</span><span class="k">⌘8</span></button>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-list">
+              <button class="sb-item on" data-module="personal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg><span>个人</span><span class="k">⌘9</span></button>
+              <button class="sb-item" data-module="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg><span>设置</span><span class="k">⌘,</span></button>
+            </div>
+            <div class="sb-bottom">
+              <button class="sb-quick" id="quickAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button>
+            </div>
+          </nav>
+
+          <!-- 竖屏覆盖式侧边栏 -->
+          <div class="scrim" id="sbovScrim"></div>
+          <nav class="sbov" id="sbov">
+            <div class="sb-top"><span class="sb-title">Holo</span></div>
+            <div class="sb-list" id="sbovList"></div>
+          </nav>
+
+          <!-- 内容区 -->
+          <main class="content">
+
+            <!-- ===== 场景：目标 · 列表+详情双栏 ===== -->
+            <section class="scene scene-goals" id="sceneGoals">
+              <div class="topbar">
+                <span class="ttl">我的目标</span>
+                <span class="sub"><svg class="ic" viewBox="0 0 24 24"><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/><circle cx="12" cy="8.5" r="3.5"/></svg>入口：个人 › 我的目标</span>
+                <span class="sp"></span>
+                <button class="btn-primary" id="btnNewGoal" style="height:34px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新目标</button>
+                <!-- 新建菜单（底表 K：新建菜单三种方式） -->
+                <div class="menu newmenu" id="newmenu">
+                  <div class="mh">立一个新目标</div>
+                  <button class="mi" data-nm="edit"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg>手动立一个</button>
+                  <button class="mi" data-nm="workshop"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>跟 Holo 一起想</button>
+                  <button class="mi" data-nm="habit"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg>从习惯里长一个</button>
+                </div>
+              </div>
+              <div class="split" id="goalSplit">
+                <div class="lcol">
+                  <div class="iseg" id="goalSeg">
+                    <button class="on" data-seg="run">进行中 <b class="tnum">2</b></button>
+                    <button data-seg="done">已完成 <b class="tnum">1</b></button>
+                  </div>
+                  <div class="tscroll" id="goalList">
+                    <button class="recover only-run" data-toast="「21 天早睡挑战」回到进行中，从第 1 天重新数">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 1 2.5 6M3.5 12V7M3.5 12H8"/></svg>
+                      <span class="rt"><b>「21 天早睡挑战」昨天完成</b><span>想再来一轮？点一下就恢复</span></span>
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></svg>
+                    </button>
+                    <button class="grow only-run sel" data-i="0">
+                      <span class="gring"><svg class="ring" viewBox="0 0 40 40"><circle class="trk" cx="20" cy="20" r="16"/><circle class="val" data-pct="68" data-c="100.5" cx="20" cy="20" r="16"/></svg><i class="tnum">68%</i></span>
+                      <span class="gt"><b>11 月底存下 ¥8,000</b><span class="gm"><em class="gbadge b-run">进行中</em><em class="gdl tnum">期限 11月30日</em></span></span>
+                    </button>
+                    <button class="grow only-run" data-i="1">
+                      <span class="gring"><svg class="ring" viewBox="0 0 40 40"><circle class="trk" cx="20" cy="20" r="16"/><circle class="val" data-pct="42" data-c="100.5" cx="20" cy="20" r="16"/></svg><i class="tnum">42%</i></span>
+                      <span class="gt"><b>12 月中累计跑 100 公里</b><span class="gm"><em class="gbadge b-pause">已暂停</em><em class="gdl tnum">期限 12月15日</em></span></span>
+                    </button>
+                    <button class="grow only-done" data-i="2">
+                      <span class="gring"><svg class="ring" viewBox="0 0 40 40"><circle class="trk" cx="20" cy="20" r="16"/><circle class="val" data-pct="100" data-c="100.5" cx="20" cy="20" r="16" style="stroke:var(--success)"/></svg><i class="tnum">100%</i></span>
+                      <span class="gt"><b>21 天早睡挑战</b><span class="gm"><em class="gbadge b-done">已完成</em><em class="gdl tnum">10月31日 达成</em></span></span>
+                    </button>
+                  </div>
+                  <div class="lhint"><kbd>⌘N</kbd> 快速记录 · <kbd>↑</kbd><kbd>↓</kbd> 列表导航 · <kbd>Esc</kbd> 关弹层</div>
+                </div>
+                <div class="rcol">
+                  <div class="rhead">
+                    <button class="sb-btn ptback" id="goalBack" title="返回列表（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                    <div class="dtitle" id="gTitle">11 月底存下 ¥8,000</div>
+                    <span class="gbadge b-run" id="gBadge">进行中</span>
+                    <button class="iconbtn" id="btnMore" title="更多操作"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg></button>
+                    <!-- 「…」锚定菜单（P18，默认收起，点「…」展开） -->
+                    <div class="menu gmenu" id="gmenu">
+                      <div class="mh">操作这份目标</div>
+                      <button class="mi" data-mi="workshop"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>一起想清楚怎么调整</button>
+                      <button class="mi" data-mi="edit"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg>编辑</button>
+                      <button class="mi" data-mi="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg>设置</button>
+                      <div class="mdiv"></div>
+                      <button class="mi" id="miPause"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5.5v13M15 5.5v13"/></svg>暂停</button>
+                      <button class="mi dim" id="miResume"><svg class="ic" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></svg>恢复</button>
+                      <button class="mi" id="miDone2"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>标记完成</button>
+                      <div class="mdiv"></div>
+                      <button class="mi danger" data-mi="del"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 6.5h15M9.5 6V4.5h5V6M6.5 6.5l1 13h9l1-13"/><path d="M10 10.5v5.5M14 10.5v5.5"/></svg>删除</button>
+                    </div>
+                  </div>
+                  <div class="dscroll">
+                    <div class="ringzone" id="ringZone">
+                      <div class="bigring">
+                        <svg class="ring" viewBox="0 0 120 120"><circle class="trk" cx="60" cy="60" r="52"/><circle class="val" id="bigVal" data-c="326.7" cx="60" cy="60" r="52"/></svg>
+                        <div class="bctr"><b class="tnum" id="bigPct">68%</b><span id="bigLab">存下金额</span></div>
+                      </div>
+                      <p class="forecast" id="gForecast">照现在这个存法，Holo 估 11 月 26 日就能到——比期限还早四天。</p>
+                    </div>
+                    <div class="metline">
+                      <span class="ml"><span>存下金额</span><b class="tnum" id="gMetric">已存 ¥5,440 · 目标 ¥8,000</b></span>
+                      <button class="btn-primary" id="btnLog">记一笔</button>
+                    </div>
+                    <button class="habline" data-toast="数据源习惯可以换：换完之后，进度跟着新习惯的记录走">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5l5-5M8 12l-2.5 2.5a3.5 3.5 0 0 0 5 5L13 17M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></svg>
+                      <span class="ht2">由习惯 <b id="gHabit">存钱罐</b> 带动 · 每天记一笔就往前推</span>
+                      <span class="swap">换一个</span>
+                    </button>
+                    <div class="dsec">
+                      <div class="dsec-h">关联任务 <span class="n tnum" id="gTaskN">2</span><button class="mg" data-toast="关联管理：把任务挂上或摘下来，完成时会推进目标">管理</button></div>
+                      <div id="gTasks"></div>
+                    </div>
+                    <div class="gate">
+                      <span class="gic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                      <span class="gtt"><b>这段路是怎么走过来的？</b><span>历史分析在云端跑，需要先开启云端智能。只用于生成这份分析，原始记录不出你的账号。</span></span>
+                      <button class="btn-ghost" data-toast="开启云端智能后，这里会变成一条完整的目标旅程线">开启</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="note sc-note" style="right:24px;top:132px;max-width:230px"><span class="ptag">P18</span> 目标操作收进右上「…」锚定菜单（点「…」展开）；「暂停 / 恢复」按状态互斥置灰。</div>
+              <div class="note sc-note" style="right:24px;bottom:44px"><span class="ptag">P20</span> 历史分析门卡常驻详情底部：云端授权要被看见，不藏进菜单。</div>
+              <div class="note pnote"><span class="ptag">P21</span> 竖屏：列表单列限宽，点条目推入详情，左上或 <kbd>Esc</kbd> 返回；旋转不清选中与列表位置。</div>
+            </section>
+
+            <!-- ===== 场景：目标 · 空态 ===== -->
+            <section class="scene scene-gempty">
+              <div class="topbar">
+                <span class="ttl">我的目标</span>
+                <span class="sub"><svg class="ic" viewBox="0 0 24 24"><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/><circle cx="12" cy="8.5" r="3.5"/></svg>入口：个人 › 我的目标</span>
+              </div>
+              <div class="scroll">
+                <div class="ecenter">
+                  <span class="eic"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></span>
+                  <h2>还没有小目标</h2>
+                  <p>不急，好目标多半是聊出来的。挑一个模板起步，<br>或者跟 Holo 把脑子里模糊的念头想清楚。</p>
+                  <div class="ecards">
+                    <button class="ecard" data-toast="模板只是起点，数字和期限进去都能改"><span class="cic" style="background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M9.5 11.5h5M12 9v5"/><path d="M4.5 8.5 3 6M19.5 8.5 21 6"/></svg></span><span><b>存下一笔钱</b><span>月底数得出来的底气</span></span></button>
+                    <button class="ecard" data-toast="模板只是起点，数字和期限进去都能改"><span class="cic" style="background:color-mix(in srgb,#8B5CF6 13%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M19 13.5A7.5 7.5 0 1 1 10.5 5 6 6 0 0 0 19 13.5z"/></svg></span><span><b>21 天早睡</b><span>把熬夜还给自己一次</span></span></button>
+                    <button class="ecard" data-toast="模板只是起点，数字和期限进去都能改"><span class="cic" style="background:color-mix(in srgb,#3B82F6 13%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="19" r="1.4"/><circle cx="18" cy="19" r="1.4"/><path d="M6 19h9.5a2.5 2.5 0 0 0 0-5H10"/><path d="M4 8.5 8 14l3.5-4"/></svg></span><span><b>每周跑 20 公里</b><span>一口气跑不动，就分四次</span></span></button>
+                    <button class="ecard" data-toast="模板只是起点，数字和期限进去都能改"><span class="cic" style="background:color-mix(in srgb,#EAB308 15%,transparent);color:#EAB308"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5.5c-1.8-1.3-4.2-1.6-7-1v14c2.8-.6 5.2-.3 7 1 1.8-1.3 4.2-1.6 7-1v-14c-2.8-.6-5.2-.3-7 1z"/><path d="M12 5.5v14"/></svg></span><span><b>读完 4 本书</b><span>一本一个月，刚刚好</span></span></button>
+                  </div>
+                  <div class="ebtns">
+                    <button class="btn-primary" id="emptyManual"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>立一个小目标</button>
+                    <button class="btn-ghost brand" id="emptyWorkshop"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>跟 Holo 一起想</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 场景：记忆中心 · 列表+详情双栏 ===== -->
+            <section class="scene scene-memory" id="sceneMemory">
+              <div class="topbar">
+                <span class="ttl">Holo 记忆</span>
+                <span class="sub"><svg class="ic" viewBox="0 0 24 24"><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/><circle cx="12" cy="8.5" r="3.5"/></svg>入口：个人 › Holo 记忆</span>
+                <span class="sp"></span>
+                <button class="btn-ghost" data-toast="历史与停用：被忘掉、被换掉的旧记忆都躺在这里，随时翻"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 1 2.5 6M3.5 12V7M3.5 12H8"/><path d="M12 8v4.5l3 1.8"/></svg>历史与停用</button>
+                <button class="btn-ghost" data-toast="记忆设置：哪些话可以记、哪些不打扰，都在里面"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg>设置</button>
+              </div>
+              <div class="split" id="memSplit">
+                <div class="lcol">
+                  <div class="iseg" id="memSeg">
+                    <button class="on" data-seg="run">已记住 <b class="tnum">12</b></button>
+                    <button data-seg="cf">值得确认 <span class="badge tnum">2</span></button>
+                  </div>
+                  <div class="srch">
+                    <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+                    <input id="memSearch" placeholder="搜搜 Holo 记住了什么">
+                    <kbd>⌘F</kbd>
+                  </div>
+                  <div class="tscroll">
+                    <div class="mlist-run" id="memListRun"></div>
+                    <div class="mlist-cf">
+                      <div class="mgh">值得确认 <b class="tnum">2</b></div>
+                      <div class="mcap-hint">这些话 Holo 拿不准，等你一句话——确认了才转正，不确认就慢慢淡掉。</div>
+                      <div id="memListCf"></div>
+                    </div>
+                  </div>
+                  <div class="lhint"><kbd>↑</kbd><kbd>↓</kbd> 列表导航 · <kbd>Esc</kbd> 关弹层</div>
+                </div>
+                <div class="rcol">
+                  <div class="rhead">
+                    <button class="sb-btn ptback" id="memBack" title="返回列表（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                    <span class="gchip" id="mGroup">习惯偏好</span>
+                    <span class="sp" style="flex:1"></span>
+                  </div>
+                  <div class="dscroll">
+                    <div class="mconfline">
+                      <span class="lab">Holo 的把握</span>
+                      <span class="cfbadge cf-hi" id="mConf">很确定</span>
+                    </div>
+                    <p class="mtxt" id="mTxt">咖啡不加糖，下午两点后就不再喝。</p>
+                    <button class="evline" data-toast="跳到 11 月 2 日那晚的对话，高亮这一句">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M12 5.5c-1.8-1.3-4.2-1.6-7-1v14c2.8-.6 5.2-.3 7 1 1.8-1.3 4.2-1.6 7-1v-14c-2.8-.6-5.2-.3-7 1z"/><path d="M12 5.5v14"/></svg>
+                      <span class="ev">来自 <b class="tnum" id="mEv">11月2日</b> 的对话</span>
+                      <span class="evlink">查看原始记录</span>
+                    </button>
+                    <div class="note sc-note" style="right:16px;top:64px;max-width:210px"><span class="ptag">P19</span> 确信度用三档说人话：很确定 / 一般 / 待确认——不给假精确的百分数。</div>
+                  </div>
+                  <div class="dactions">
+                    <button class="act" id="btnCorrect">纠正</button>
+                    <button class="act warn" data-toast="先跟你确认一次再忘掉，这条不会悄无声息地消失">忘记</button>
+                    <button class="act" data-toast="编辑弹层这稿没画：改文字、换分组都在里面">编辑</button>
+                    <button class="act p" id="btnConfirmYes" hidden>对，就是这样</button>
+                  </div>
+                </div>
+              </div>
+              <div class="note pnote"><span class="ptag">P21</span> 竖屏：列表单列限宽，点条目推入详情，左上或 <kbd>Esc</kbd> 返回；旋转不清选中与列表位置。</div>
+            </section>
+
+            <!-- ===== 场景：记忆 · 空态 ===== -->
+            <section class="scene scene-mempty">
+              <div class="topbar">
+                <span class="ttl">Holo 记忆</span>
+                <span class="sub"><svg class="ic" viewBox="0 0 24 24"><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/><circle cx="12" cy="8.5" r="3.5"/></svg>入口：个人 › Holo 记忆</span>
+              </div>
+              <div class="scroll">
+                <div class="ecenter">
+                  <span class="eic"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v13.5l-3-2-3 2-3-2-3 2V6a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M9.5 9.5h5M9.5 13h3.5"/></svg></span>
+                  <h2>Holo 还没记住关于你的事</h2>
+                  <p>去找 Holo 聊聊，它会把重要的记下来。<br>第一次可以从作息和口味聊起——聊得越多，它越懂你。</p>
+                  <div class="ebtns">
+                    <button class="btn-primary" data-toast="跳到 AI 对话（见 06 分文件）"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>去和 Holo 聊聊</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== 弹层：共创工作流「一起想清楚」 ===== -->
+            <div class="ov ov-workshop">
+              <div class="scrimbg"></div>
+              <div class="sheet" role="dialog" aria-label="一起想清楚">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <h2>一起想清楚</h2>
+                  <button class="sheet-skip" id="wsSkip">跳过这问</button>
+                  <button class="sheet-x" data-close="goals" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                  <p>不急着定。Holo 会问你几个问题，把模糊的念头问成一张拿得出手的目标卡。</p>
+                </div>
+                <div class="sheet-body">
+                  <div class="wprog">
+                    <span class="dots"><i class="f"></i><i class="f"></i><i></i><i></i></span>
+                    <span class="wt tnum">第 2 问 · 共 4 问</span>
+                  </div>
+                  <div class="qcard">
+                    <span class="qic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                    <span class="qt">为什么是 ¥8,000？这个数字对你意味着什么——三个月的应急钱、一次说走就走，还是单纯想要一份底气？</span>
+                  </div>
+                  <div class="chips">
+                    <button class="chip">三个月的应急钱</button>
+                    <button class="chip">年底给家里的一份心</button>
+                    <button class="chip">说走就走的一次旅行</button>
+                    <button class="chip">给自己定的里程碑</button>
+                  </div>
+                  <div class="frow">
+                    <input class="finput" placeholder="或者用自己的话说，怎么说都行">
+                  </div>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-primary" id="wsNext">就这个意思，下一问</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== 弹层：草案确认 ===== -->
+            <div class="ov ov-draft">
+              <div class="scrimbg"></div>
+              <div class="sheet" role="dialog" aria-label="目标草案">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <h2>草案出来了</h2>
+                  <button class="sheet-x" data-close="goals" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                </div>
+                <div class="sheet-body">
+                  <div class="draft-ai">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>
+                    <span>Holo 按刚才的对话起的草案。<b>每一行都能改</b>，改完它照你的算。</span>
+                  </div>
+                  <button class="drow" data-toast="名称可以直接改，改完进度环跟着换说法"><span class="dl">名称</span><span class="dv">11 月底存下 ¥8,000</span><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/></svg></button>
+                  <button class="drow" data-toast="指标 = 数值 + 单位，Holo 拿它算进度"><span class="dl">指标</span><span class="dv">¥8,000<small>存下金额 · 每记一笔就推进</small></span><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/></svg></button>
+                  <button class="drow" data-toast="期限可以改；改完 Holo 会重新估节奏"><span class="dl">期限</span><span class="dv tnum">11 月 30 日<small>还有 16 天，节奏刚好</small></span><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/></svg></button>
+                  <button class="drow" data-toast="搭配习惯可以换一个，或者不挂习惯纯手记"><span class="dl">搭配习惯</span><span class="dv">存钱罐<small>每天记一笔，进度自动走</small></span><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/></svg></button>
+                  <div class="sheet-cap"><kbd>Tab</kbd> 在几行之间移动 · 每行点开都能改</div>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-ghost" data-close="workshop">再想想</button>
+                  <button class="btn-primary" id="draftOk">就这样定</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== 弹层：编辑表单 ===== -->
+            <div class="ov ov-edit">
+              <div class="scrimbg"></div>
+              <div class="sheet" role="dialog" aria-label="编辑目标">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <h2>编辑目标</h2>
+                  <button class="sheet-x" data-close="goals" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                </div>
+                <div class="sheet-body">
+                  <div class="frow" style="margin-top:0">
+                    <label class="flabel" for="efName">名称</label>
+                    <input class="finput" id="efName" value="11 月底存下 ¥8,000">
+                  </div>
+                  <div class="frow">
+                    <label class="flabel">指标（数值 + 单位）</label>
+                    <div style="display:flex;gap:8px">
+                      <input class="finput tnum" value="8,000" style="flex:1">
+                      <input class="finput" value="元" style="width:96px;flex:none">
+                    </div>
+                  </div>
+                  <div class="frow">
+                    <label class="flabel">期限</label>
+                    <button class="daterow" data-toast="日期选择在 iPad 上从这一行锚定弹出（总契约 P1）">
+                      <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+                      <b class="tnum">11 月 30 日 · 周一</b>
+                      <span>改一下</span>
+                    </button>
+                  </div>
+                  <div class="frow">
+                    <label class="flabel" for="efNote">备注</label>
+                    <textarea class="finput" id="efNote" rows="3" placeholder="为什么是它？给未来的自己留一句话"></textarea>
+                  </div>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-primary" id="editSave">保存</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== 弹层：指标记一笔 ===== -->
+            <div class="ov ov-log">
+              <div class="scrimbg"></div>
+              <div class="sheet" role="dialog" aria-label="记一笔">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <h2>记一笔</h2>
+                  <button class="sheet-x" data-close="goals" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                  <p>存钱罐今天进账多少？记完进度马上变。</p>
+                </div>
+                <div class="sheet-body">
+                  <div class="bigval-wrap">
+                    <span class="cur">¥</span>
+                    <input class="tnum" value="1,240.00">
+                  </div>
+                  <div class="qadd">
+                    <button class="chip" data-toast="快捷面额直接加进输入框">+ ¥100</button>
+                    <button class="chip" data-toast="快捷面额直接加进输入框">+ ¥500</button>
+                    <button class="chip" data-toast="快捷面额直接加进输入框">+ ¥1,000</button>
+                  </div>
+                  <div class="frow">
+                    <button class="daterow" data-toast="日期选择在 iPad 上从这一行锚定弹出（总契约 P1）">
+                      <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8.5 3.5v3M15.5 3.5v3"/></svg>
+                      <b class="tnum">今天 · 11 月 14 日</b>
+                      <span>改日期</span>
+                    </button>
+                  </div>
+                  <div class="frow">
+                    <input class="finput" placeholder="备注一句（可选）：比如「年终奖到了」">
+                  </div>
+                  <div class="pvwrap">
+                    <div class="pv">
+                      <span class="pring"><svg class="ring" viewBox="0 0 60 60"><circle class="trk" cx="30" cy="30" r="26"/><circle class="val" data-pct="68" data-c="163.4" cx="30" cy="30" r="26"/></svg><i class="tnum">68%</i></span>
+                      <span>现在</span>
+                    </div>
+                    <svg class="ic pvarrow" viewBox="0 0 24 24"><path d="M4 12h15M14 6.5 19.5 12 14 17.5"/></svg>
+                    <div class="pv">
+                      <span class="pring"><svg class="ring" viewBox="0 0 60 60"><circle class="trk" cx="30" cy="30" r="26"/><circle class="val" data-pct="82" data-c="163.4" cx="30" cy="30" r="26"/></svg><i class="tnum">82%</i></span>
+                      <span>记完这一笔</span>
+                    </div>
+                  </div>
+                  <p class="pvline">¥1,240.00 进账后，预计达成提前到 <b class="tnum">11 月 24 日</b>——又早了两天。</p>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-primary" id="logSave">记下这一笔</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== 弹层：记忆纠正 ===== -->
+            <div class="ov ov-mcorrect">
+              <div class="scrimbg"></div>
+              <div class="sheet" role="dialog" aria-label="纠正记忆">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <h2>哪里不对？</h2>
+                  <button class="sheet-x" data-close="memory" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+                  <p>告诉 Holo 哪里记岔了，它会改过来，并且记住这次的教训。</p>
+                </div>
+                <div class="sheet-body">
+                  <button class="orow on" data-correct="改一处"><span class="radio"></span><span class="ot"><b>改一处</b><span>意思对，细节不对——比如日期、数字、名字</span></span></button>
+                  <button class="orow" data-correct="不是我的情况"><span class="radio"></span><span class="ot"><b>这不是我的情况</b><span>整条都不对，可能听岔了</span></span></button>
+                  <button class="orow" data-correct="完全忘记"><span class="radio"></span><span class="ot"><b>完全忘记这条</b><span>让 Holo 把它收进「历史」，不再提起</span></span></button>
+                  <div class="frow">
+                    <textarea class="finput" rows="2" placeholder="想补充一句吗（可选）：比如「是三点后不喝」"></textarea>
+                  </div>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-primary" id="mcorrectSend">告诉 Holo</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="toast" id="toast"></div>
+          </main>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="canvas-cap" id="canvasCap">底表 K · 目标列表+详情双栏（360+右栏）/ 竖屏单列推入 · ↑↓ 导航</div>
+</div>
+
+<!--
+新增拍板点（顺延总契约 P1–P17）：
+P18 · 目标详情「…」菜单的承载方式：右上锚定菜单（沿 P1 小选择器惯例）vs 详情底部动作条。
+    推荐：锚定菜单——动作多（7 项）且含破坏项（删除），popover 不挤占阅读区；「暂停/恢复/标记完成」按状态互斥置灰。
+P19 · 记忆「确信度」的呈现：三档徽章（很确定 / 一般 / 待确认）vs 百分数。
+    推荐：三档徽章——确信度是模型自我评估，百分数会显得假精确；三档颜色语义（绿/琥珀/琥珀）一眼可读。
+P20 · 目标历史分析门卡（需云端授权）的位置：详情右栏底部常驻门卡 vs 收进「…」菜单。
+    推荐：常驻门卡——云端授权必须被看见，藏进菜单会变成死功能；开启前门卡即入口、开启后原位变成旅程线。
+P21 · 竖屏详情转场：列表单列限宽 720，点条目推入详情（左上返回 / Esc 退出），列表滚动位置与选中保留。
+    推荐：推入式（iOS 惯例）；旋转回宽档时右栏恢复显示当前选中，与总契约 §三「旋转不清状态」一致。
+其余沿用总契约：P1（日期等小选择器锚定弹出，见「编辑表单」「记一笔」内注记）、P3（↑↓ 双栏列表导航已实现）、P5（竖屏图标条 + 覆盖式侧边栏）。
+-->
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var stage  = document.getElementById('stage');
+  var wrap   = document.getElementById('frameWrap');
+  var toast  = document.getElementById('toast');
+  var toastTimer = null;
+  var chips  = document.getElementById('sceneChips');
+  var segOri = document.getElementById('segOri');
+  var goalSplit = document.getElementById('goalSplit');
+  var memSplit  = document.getElementById('memSplit');
+  var canvasCap = document.getElementById('canvasCap');
+  var CAPS = {
+    goals:'底表 K · 目标列表+详情双栏（360+右栏）/ 竖屏单列推入 · ↑↓ 导航 · 新建菜单三种方式（右上「新目标」）',
+    gempty:'底表 K · 目标空态：四件套模板 + 双入口（手动立 / 共创）',
+    memory:'底表 J · 记忆中心列表+详情双栏（360+右栏）/ 竖屏单列推入 · 四类分组',
+    mempty:'底表 J · 记忆中心空态：引导去对话，不催不打扰',
+    workshop:'底表 K · 共创工作流「一起想清楚」：问答流 · 选项 chips · 自由输入 · 进度 2/4 · 可跳过',
+    draft:'底表 K · 目标草案确认：AI 草案卡（名称/指标/期限/搭配习惯）每项可改',
+    edit:'底表 K · 目标编辑表单：名称 / 指标数值+单位 / 期限 / 备注 · 保存贴底',
+    log:'底表 K · 记一笔（指标记录）：数值大输入 + 日期 + 备注 + 记后进度预览',
+    mcorrect:'底表 J · 记忆纠错反馈：改一处 / 不是我的情况 / 完全忘记 + 补充说明'
+  };
+  function updateCap(v){ canvasCap.textContent = CAPS[v] || CAPS.goals; }
+
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2400);
+  }
+
+  /* ---------- 朝向（P21：横竖同一 DOM，旋转不清状态） ---------- */
+  function setOri(v){
+    segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v===v ? 'true':'false'); });
+    if(v === 'pt'){
+      screen.classList.add('pt','minisb');          /* P5：竖屏默认图标条 */
+    } else {
+      screen.classList.remove('pt','minisb','sbov-open');
+      goalSplit.classList.remove('pushed');
+      memSplit.classList.remove('pushed');
+      syncChips(screen.getAttribute('data-scene'));
+    }
+    fit();
+  }
+  segOri.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    setOri(b.dataset.v);
+  });
+
+  /* ---------- 深浅色 ---------- */
+  var segTheme = document.getElementById('segTheme');
+  segTheme.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    document.documentElement.setAttribute('data-theme', b.dataset.v);
+  });
+
+  /* ---------- 场景 ---------- */
+  var OVERLAYS = { workshop:'goals', draft:'goals', edit:'goals', log:'goals', mcorrect:'memory' };
+  function syncChips(v){
+    var cur = v;
+    if((v==='goals') && screen.classList.contains('pt') && goalSplit.classList.contains('pushed')) cur = 'ptpush';
+    chips.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v===cur ? 'true':'false'); });
+  }
+  function setScene(v){
+    if(OVERLAYS[v]){ screen.setAttribute('data-scene', v); }
+    else{
+      screen.setAttribute('data-scene', v);
+      goalSplit.classList.remove('pushed');
+      memSplit.classList.remove('pushed');
+    }
+    closeMenus();
+    syncChips(v);
+    updateCap(v);
+  }
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var v = b.dataset.v;
+    if(v === 'ptpush'){
+      setOri('pt');
+      setScene('goals');
+      goalSplit.classList.add('pushed');
+      syncChips('goals');
+      say('竖屏：列表单列限宽，详情推入——左上或 Esc 返回，列表位置不丢');
+      return;
+    }
+    setScene(v);
+  });
+
+  /* ---------- 通用：data-toast / data-close / data-goto ---------- */
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-toast]');
+    if(t){ say(t.getAttribute('data-toast')); return; }
+    var c = e.target.closest('[data-close]');
+    if(c){ setScene(c.getAttribute('data-close')); return; }
+    var m = e.target.closest('[data-module]');
+    if(m && !m.classList.contains('on')){ say('「' + labelOf(m.dataset.module) + '」原型见对应分文件（index.html 可跳转）'); }
+  });
+  function labelOf(key){
+    return ({today:'今天',thoughts:'想法',finance:'财务',tasks:'任务',habits:'习惯',gallery:'记忆长廊',health:'健康',ai:'AI 对话',personal:'个人',settings:'设置'})[key] || key;
+  }
+
+  /* ---------- 锚定菜单开合（P18 / 新建菜单） ---------- */
+  var gmenu = document.getElementById('gmenu');
+  var newmenu = document.getElementById('newmenu');
+  function closeMenus(){ gmenu.classList.remove('open'); newmenu.classList.remove('open'); }
+  document.getElementById('btnMore').addEventListener('click', function(e){
+    e.stopPropagation();
+    newmenu.classList.remove('open');
+    gmenu.classList.toggle('open');
+  });
+  document.getElementById('btnNewGoal').addEventListener('click', function(e){
+    e.stopPropagation();
+    gmenu.classList.remove('open');
+    newmenu.classList.toggle('open');
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#gmenu,#btnMore')) gmenu.classList.remove('open');
+    if(!e.target.closest('#newmenu,#btnNewGoal')) newmenu.classList.remove('open');
+  });
+  gmenu.addEventListener('click', function(e){
+    var mi = e.target.closest('.mi'); if(!mi) return;
+    var act = mi.getAttribute('data-mi');
+    if(act === 'workshop'){ setScene('workshop'); }
+    else if(act === 'edit'){ setScene('edit'); }
+    else if(act === 'del'){ say('删除前会再问你一遍；相关的记录和记忆不受影响'); }
+    else if(mi.id === 'miPause'){ say('已暂停。进度先冻结，习惯照常记，想走了随时恢复'); }
+    else if(mi.id === 'miResume'){ say('恢复啦。Holo 把落下的两周也排进了预测'); }
+    else if(mi.id === 'miDone2'){ say('会先跟你确认一次，然后放进「已完成」，恢复条里随时能再来一轮'); }
+    else if(act === 'settings'){ say('设置弹层这稿没展开：提醒节奏、隐私与可见范围都在里面'); }
+    gmenu.classList.remove('open');
+  });
+  newmenu.addEventListener('click', function(e){
+    var mi = e.target.closest('.mi'); if(!mi) return;
+    var act = mi.getAttribute('data-nm');
+    if(act === 'edit'){ setScene('edit'); }
+    else if(act === 'workshop'){ setScene('workshop'); }
+    else{ say('挑一个习惯挂上来，它的每笔记录都自动推进这个目标'); }
+    newmenu.classList.remove('open');
+  });
+
+  /* ---------- 目标数据与详情渲染 ---------- */
+  var GOALS = [
+    { name:'11 月底存下 ¥8,000', pct:68, badge:'进行中', bc:'b-run', st:'run', lab:'存下金额',
+      forecast:'照现在这个存法，Holo 估 11 月 26 日就能到——比期限还早四天。',
+      metric:'已存 ¥5,440 · 目标 ¥8,000', habit:'存钱罐',
+      tasks:[ {t:'核对 11 月订阅与自动扣款', m:'本周日', done:false}, {t:'把双十一退货款记回存钱罐', m:'待办', done:false} ] },
+    { name:'12 月中累计跑 100 公里', pct:42, badge:'已暂停', bc:'b-pause', st:'pause', lab:'累计里程',
+      forecast:'停了两周。按原来的节奏恢复，12 月 20 日前后能到——稍稍压线。',
+      metric:'已跑 42.3 公里 · 目标 100 公里', habit:'晨跑打卡',
+      tasks:[ {t:'周日晨跑 8 公里', m:'周日', done:false}, {t:'旧跑鞋退役，换双新的', m:'已完成', done:true} ] },
+    { name:'21 天早睡挑战', pct:100, badge:'已完成', bc:'b-done', st:'done', lab:'早睡天数',
+      forecast:'10 月 31 日达成——21 天里做到了 19 天，比答应自己的还多两次。',
+      metric:'达成于 10 月 31 日 · 21 天做到 19 天', habit:'早睡',
+      tasks:[] }
+  ];
+  var gTitle = document.getElementById('gTitle'), gBadge = document.getElementById('gBadge'),
+      bigVal = document.getElementById('bigVal'), bigPct = document.getElementById('bigPct'),
+      bigLab = document.getElementById('bigLab'), ringZone = document.getElementById('ringZone'),
+      gForecast = document.getElementById('gForecast'), gMetric = document.getElementById('gMetric'),
+      gHabit = document.getElementById('gHabit'), gTasks = document.getElementById('gTasks'),
+      gTaskN = document.getElementById('gTaskN'), btnLog = document.getElementById('btnLog'),
+      miPause = document.getElementById('miPause'), miResume = document.getElementById('miResume'),
+      miDone2 = document.getElementById('miDone2');
+  function setRing(c, pct){
+    var cc = parseFloat(c.getAttribute('data-c')) || 0;
+    c.style.strokeDashoffset = (cc * (1 - pct/100)).toFixed(1);
+  }
+  function renderGoal(i){
+    var g = GOALS[i];
+    gTitle.textContent = g.name;
+    gBadge.textContent = g.badge;
+    gBadge.className = 'gbadge ' + g.bc;
+    setRing(bigVal, g.pct);
+    bigPct.textContent = g.pct + '%';
+    bigLab.textContent = g.lab;
+    ringZone.classList.toggle('done', g.st === 'done');
+    gForecast.textContent = g.forecast;
+    gMetric.textContent = g.metric;
+    gHabit.textContent = g.habit;
+    btnLog.hidden = (g.st === 'done');
+    if(g.tasks.length){
+      gTaskN.textContent = g.tasks.length;
+      gTasks.innerHTML = g.tasks.map(function(t){
+        return '<div class="trow' + (t.done ? ' done' : '') + '"><span class="ck">' +
+          (t.done ? '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.4"><path d="M5 12.5l4 4 9-9"/></svg>' : '') +
+          '</span><span class="tt2">' + t.t + '</span><span class="tm tnum">' + t.m + '</span></div>';
+      }).join('');
+    } else {
+      gTaskN.textContent = '0';
+      gTasks.innerHTML = '<div class="trow mute">没挂任务——这条靠「' + g.habit + '」习惯自己走完了</div>';
+    }
+    miPause.classList.toggle('dim', g.st !== 'run');
+    miResume.classList.toggle('dim', g.st !== 'pause');
+    miDone2.classList.toggle('dim', g.st === 'done');
+  }
+  var goalCards = Array.prototype.slice.call(document.querySelectorAll('#goalList .grow'));
+  goalCards.forEach(function(c){
+    c.addEventListener('click', function(){
+      selectGoal(goalCards.indexOf(c));
+      if(screen.classList.contains('pt')) goalSplit.classList.add('pushed');
+    });
+  });
+  function selectGoal(i){
+    goalCards.forEach(function(c, k){ c.classList.toggle('sel', k === i); });
+    renderGoal(i);
+  }
+
+  /* 目标分段：进行中 / 已完成 */
+  var sceneGoals = document.getElementById('sceneGoals');
+  document.getElementById('goalSeg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    var done = b.dataset.seg === 'done';
+    sceneGoals.classList.toggle('segdone', done);
+    var visible = goalCards.filter(function(c){ return c.offsetParent !== null; });
+    selectGoal(goalCards.indexOf(visible[0]));
+  });
+
+  /* 空态双入口 */
+  document.getElementById('emptyManual').addEventListener('click', function(){ setScene('edit'); });
+  document.getElementById('emptyWorkshop').addEventListener('click', function(){ setScene('workshop'); });
+
+  /* ---------- 记忆中心数据与渲染 ---------- */
+  var MEM = [
+    { g:'关于你',   c:'很确定', txt:'想事情习惯先说一遍再落文字，聊比写快。',           ev:'11月9日' },
+    { g:'关于你',   c:'很确定', txt:'计划 2027 年初回一趟成都，看家人顺便吃顿火锅。',   ev:'10月28日' },
+    { g:'习惯偏好', c:'很确定', txt:'咖啡不加糖，下午两点后就不再喝。',                 ev:'11月2日' },
+    { g:'习惯偏好', c:'一般',   txt:'周末睡到自然醒，上午不排事。',                     ev:'11月1日' },
+    { g:'习惯偏好', c:'很确定', txt:'记账要当天记，拖到第二天就不想记了。',             ev:'10月30日' },
+    { g:'生活事实', c:'很确定', txt:'房子租在滨江，每月月底交房租。',                   ev:'11月2日' },
+    { g:'生活事实', c:'很确定', txt:'养了一只猫，叫团子。',                             ev:'10月19日' },
+    { g:'生活事实', c:'一般',   txt:'快递习惯走顺丰，放丰巢。',                         ev:'11月5日' },
+    { g:'生活事实', c:'很确定', txt:'妈妈生日是 3 月 14 日。',                          ev:'10月12日' },
+    { g:'其他',     c:'一般',   txt:'装修预算 8 万，倾向简单耐看的风格。',              ev:'11月8日' },
+    { g:'其他',     c:'很确定', txt:'对花哨的弹窗提示很敏感，喜欢安静的产品。',         ev:'10月25日' },
+    { g:'其他',     c:'一般',   txt:'周三晚上一般有羽毛球局。',                         ev:'11月6日' }
+  ];
+  var MEMC = [
+    { g:'待确认', c:'待确认', txt:'说过想学吉他——还没确认是认真的还是随口一提。', ev:'11月3日' },
+    { g:'待确认', c:'待确认', txt:'提到对咖啡因敏感。是只对咖啡，还是茶也算？',     ev:'11月7日' }
+  ];
+  var memListRun = document.getElementById('memListRun');
+  var memListCf  = document.getElementById('memListCf');
+  function dotCls(c){ return c === '很确定' ? 'cf-hi' : 'cf-mid'; }
+  (function buildMem(){
+    var lastG = null, html = '';
+    var counts = {};
+    MEM.forEach(function(m){ counts[m.g] = (counts[m.g]||0)+1; });
+    MEM.forEach(function(m, i){
+      if(m.g !== lastG){
+        html += '<div class="mgh">' + m.g + ' <b class="tnum">' + counts[m.g] + '</b></div>';
+        lastG = m.g;
+      }
+      html += '<button class="mcap-row" data-t="m" data-i="' + i + '"><span class="dot ' + dotCls(m.c) + '"></span><span class="mtx">' + m.txt + '</span><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></svg></button>';
+    });
+    memListRun.innerHTML = html;
+    memListCf.innerHTML = MEMC.map(function(m, i){
+      return '<button class="mcap-row" data-t="c" data-i="' + i + '"><span class="dot cf-mid"></span><span class="mtx">' + m.txt + '</span><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></svg></button>';
+    }).join('');
+  })();
+  var mGroup = document.getElementById('mGroup'), mConf = document.getElementById('mConf'),
+      mTxt = document.getElementById('mTxt'), mEv = document.getElementById('mEv'),
+      btnConfirmYes = document.getElementById('btnConfirmYes');
+  var memSel = { t:'m', i:2 };   /* 默认选中「咖啡不加糖」（11月2日 证据行） */
+  function curMem(){ return memSel.t === 'm' ? MEM[memSel.i] : MEMC[memSel.i]; }
+  function renderMem(){
+    var m = curMem();
+    mGroup.textContent = m.g;
+    mConf.textContent = m.c;
+    mConf.className = 'cfbadge ' + (m.c === '很确定' ? 'cf-hi' : 'cf-mid');
+    mTxt.textContent = m.txt;
+    mEv.textContent = m.ev;
+    btnConfirmYes.hidden = (m.c !== '待确认');
+    document.querySelectorAll('.mcap-row').forEach(function(r){
+      r.classList.toggle('sel', r.dataset.t === memSel.t && +r.dataset.i === memSel.i);
+    });
+  }
+  document.getElementById('memSplit').addEventListener('click', function(e){
+    var r = e.target.closest('.mcap-row'); if(!r) return;
+    memSel = { t:r.dataset.t, i:+r.dataset.i };
+    renderMem();
+    if(screen.classList.contains('pt')) memSplit.classList.add('pushed');
+  });
+  /* 记忆分段：已记住 / 值得确认 */
+  var sceneMemory = document.getElementById('sceneMemory');
+  document.getElementById('memSeg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    var cf = b.dataset.seg === 'cf';
+    sceneMemory.classList.toggle('segc', cf);
+    memSel = cf ? { t:'c', i:0 } : { t:'m', i:0 };
+    renderMem();
+  });
+  /* 搜索：真过滤（⌘F 聚焦） */
+  var memSearch = document.getElementById('memSearch');
+  memSearch.addEventListener('input', function(){
+    var q = this.value.trim();
+    document.querySelectorAll('#memListRun .mcap-row').forEach(function(r){
+      r.style.display = (!q || r.textContent.indexOf(q) >= 0) ? '' : 'none';
+    });
+    document.querySelectorAll('#memListRun .mgh').forEach(function(h){
+      var el = h.nextElementSibling, any = false;
+      while(el && el.classList.contains('mcap-row')){
+        if(el.style.display !== 'none') any = true;
+        el = el.nextElementSibling;
+      }
+      h.style.display = any ? '' : 'none';
+    });
+  });
+  /* 纠正弹层 */
+  document.getElementById('btnCorrect').addEventListener('click', function(){ setScene('mcorrect'); });
+  document.querySelectorAll('.orow').forEach(function(o){
+    o.addEventListener('click', function(){
+      document.querySelectorAll('.orow').forEach(function(x){ x.classList.toggle('on', x === o); });
+    });
+  });
+  document.getElementById('mcorrectSend').addEventListener('click', function(){
+    var pick = document.querySelector('.orow.on .ot b').textContent;
+    setScene('memory');
+    say('Holo 记下了这次的纠正（' + pick + '），同类的话它会更小心');
+  });
+  document.getElementById('btnConfirmYes').addEventListener('click', function(){
+    say('这条转正了，进了「已记住」——Holo 又笃定了一点');
+  });
+
+  /* 弹层底部按钮 */
+  document.getElementById('wsNext').addEventListener('click', function(){
+    say('后面还有两问：期限为什么合理、要不要挂个习惯带着走');
+  });
+  document.getElementById('wsSkip').addEventListener('click', function(){
+    say('跳过也行——Holo 会拿默认说法先起一版草案');
+  });
+  document.getElementById('draftOk').addEventListener('click', function(){
+    setScene('goals');
+    say('定了。目标卡已经放进「进行中」，习惯那边也打好了招呼');
+  });
+  document.getElementById('editSave').addEventListener('click', function(){
+    setScene('goals');
+    say('改好了。进度和预测按新指标重新算了一遍');
+  });
+  document.getElementById('logSave').addEventListener('click', function(){
+    setScene('goals');
+    say('记上了。存钱罐 +¥1,240.00，进度 68% → 82%');
+  });
+
+  /* 竖屏推入详情的返回（P21） */
+  document.getElementById('goalBack').addEventListener('click', function(){ goalSplit.classList.remove('pushed'); });
+  document.getElementById('memBack').addEventListener('click', function(){ memSplit.classList.remove('pushed'); });
+
+  /* ---------- 侧边栏 ---------- */
+  document.getElementById('sbToggle').addEventListener('click', function(){ screen.classList.toggle('minisb'); fit(); });
+  document.getElementById('sidebar').addEventListener('dblclick', function(e){
+    if(screen.classList.contains('pt') && !screen.classList.contains('minisb')){ return; }
+    if(screen.classList.contains('pt')){ screen.classList.add('sbov-open'); }
+  });
+  document.getElementById('sbovScrim').addEventListener('click', function(){ screen.classList.remove('sbov-open'); });
+  document.getElementById('sbovList').innerHTML =
+    document.querySelector('.sidebar .sb-list').outerHTML + '<div class="sb-div"></div>' +
+    document.querySelectorAll('.sidebar .sb-list')[1].outerHTML;
+  document.getElementById('quickAdd').addEventListener('click', function(){
+    say('⌘N 快速记录：个人页分流到新建任务；要立目标，用右上「新目标」');
+  });
+
+  /* ---------- 键盘：Esc / ↑↓ / ⌘N / ⌘F ---------- */
+  document.addEventListener('keydown', function(e){
+    var cur = screen.getAttribute('data-scene');
+    if(e.key === 'Escape'){
+      if(screen.classList.contains('sbov-open')){ screen.classList.remove('sbov-open'); return; }
+      if(OVERLAYS[cur]){ setScene(OVERLAYS[cur]); return; }
+      if(screen.classList.contains('pt')){
+        if(goalSplit.classList.contains('pushed')){ goalSplit.classList.remove('pushed'); return; }
+        if(memSplit.classList.contains('pushed')){ memSplit.classList.remove('pushed'); return; }
+      }
+      closeMenus();
+      return;
+    }
+    if((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')){
+      e.preventDefault();
+      say('⌘N 快速记录：个人页分流到新建任务；要立目标，用右上「新目标」');
+      return;
+    }
+    if((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && cur === 'memory'){
+      e.preventDefault();
+      memSearch.focus();
+      return;
+    }
+    if(e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if(/INPUT|TEXTAREA/.test(document.activeElement && document.activeElement.tagName || '')) return;
+    if(cur === 'goals'){
+      if(screen.classList.contains('pt') && goalSplit.classList.contains('pushed')) return;
+      var vis = goalCards.filter(function(c){ return c.offsetParent !== null; });
+      if(!vis.length) return;
+      var idx = vis.findIndex(function(c){ return c.classList.contains('sel'); });
+      idx = idx < 0 ? 0 : (e.key === 'ArrowDown' ? Math.min(idx+1, vis.length-1) : Math.max(idx-1, 0));
+      selectGoal(goalCards.indexOf(vis[idx]));
+      e.preventDefault();
+    } else if(cur === 'memory'){
+      if(screen.classList.contains('pt') && memSplit.classList.contains('pushed')) return;
+      var rows = Array.prototype.slice.call(document.querySelectorAll('.mcap-row')).filter(function(r){ return r.offsetParent !== null; });
+      if(!rows.length) return;
+      var k = rows.findIndex(function(r){ return r.classList.contains('sel'); });
+      k = k < 0 ? 0 : (e.key === 'ArrowDown' ? Math.min(k+1, rows.length-1) : Math.max(k-1, 0));
+      var r = rows[k];
+      memSel = { t:r.dataset.t, i:+r.dataset.i };
+      renderMem();
+      e.preventDefault();
+    }
+  });
+
+  /* ---------- 自适应缩放 ---------- */
+  function fit(){
+    var r = screen.getBoundingClientRect();
+    var availW = stage.clientWidth - 16, availH = stage.clientHeight - 16;
+    var s = Math.min(1, availW / r.width, availH / r.height);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+
+  /* ---------- URL hash 初始化（渲染截图用）：#scene=goals|workshop|draft|edit|log|gempty|memory|mcorrect|mempty|ptpush&ori=lsz|pt&theme=light|dark&sb=mini&debug=1 ---------- */
+  (function(){
+    var q = {};
+    location.hash.replace(/^#/, '').split('&').forEach(function(kv){
+      var p = kv.split('='); if(p[0]) q[p[0]] = p[1];
+    });
+    if(q.theme || q.ori || q.scene || q.sb){ document.documentElement.classList.add('instant'); }
+    if(q.theme === 'dark'){
+      document.documentElement.setAttribute('data-theme','dark');
+      segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='dark' ? 'true':'false'); });
+    }
+    if(q.ori === 'pt' || q.scene === 'ptpush'){
+      screen.classList.add('pt','minisb');
+      segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='pt' ? 'true':'false'); });
+    }
+    if(q.sb === 'mini'){ screen.classList.add('minisb'); }
+    if(q.scene && q.scene !== 'goals'){
+      var v = OVERLAYS[q.scene] ? q.scene : (['gempty','memory','mempty','ptpush'].indexOf(q.scene) >= 0 ? (q.scene === 'ptpush' ? 'goals' : q.scene) : 'goals');
+      screen.setAttribute('data-scene', v);
+      if(q.scene === 'ptpush'){ goalSplit.classList.add('pushed'); }
+      closeMenus();
+      syncChips(v);
+      updateCap(v);
+    }
+    /* 初始渲染：默认选中第一个进行中目标 + 记忆第 3 条（11月2日 证据） */
+    selectGoal(0);
+    renderMem();
+    document.querySelectorAll('circle.val[data-pct]').forEach(function(c){ setRing(c, parseFloat(c.getAttribute('data-pct'))); });
+    if(q.debug === '1'){
+      var sbar = document.querySelector('.sbar');
+      document.title = 'DBG screen=' + getComputedStyle(screen).backgroundColor +
+        ' sbar=' + getComputedStyle(sbar).backgroundColor +
+        ' sbarColor=' + getComputedStyle(sbar).color +
+        ' theme=' + document.documentElement.getAttribute('data-theme');
+    }
+    fit();
+  })();
+})();
+</script>
+</body>
+</html>

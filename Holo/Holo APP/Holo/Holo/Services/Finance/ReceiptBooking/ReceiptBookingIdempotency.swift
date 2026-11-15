@@ -28,4 +28,10 @@ enum ReceiptBookingIdempotency {
     static func itemKey(index: Int) -> String {
         "transaction:\(index)"
     }
+
+    /// 多笔合并确认的条目键（2026-11-14 截图记账 · 多笔合并为一笔）：
+    /// 合并态整单只落一条，条目固定 merged。与逐笔键（transaction:N）不同键——
+    /// 同一张图先「分开记」落过第 N 笔、再切「合并记为一笔」确认时精确幂等
+    /// 拦不住（键不同会再记一条）；该跨模式残余风险由既有语义重复检测兜底。
+    static let mergedItemKey = "transaction:merged"
 }

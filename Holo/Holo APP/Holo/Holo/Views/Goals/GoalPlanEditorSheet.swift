@@ -5,6 +5,105 @@ import AppKit
 #endif
 import CoreData
 
+/// 计划编辑面板的账本范围三档适配（与表单 v4 同构，2026-11-14 全链路补全）：
+/// 累积语义（aggregation=sum，与 GoalWorkshopCommitService.applyResultSource 判定同口径）
+/// = 全账本净增 + 各活跃账户「该账本净增加」；达标语义（latest/窗口趋势）
+/// = 各活跃账户「余额达到」，无全账本；计划缺 aggregation 时三档全给。
+/// 载入的 accountDelta 原样回显，不再归一成账户余额。
+enum GoalPlanLedgerScopeEditor {
+    struct Option: Equatable {
+        let scope: GoalLedgerScopePayload
+        let title: String
+    }
+
+    static func options(aggregation: GoalHabitAggregationKind?, accounts: [Account]) -> [Option] {
+        let isCumulative = aggregation != .latest && aggregation != .windowTrend
+        let isReach = aggregation != .sum
+        var result: [Option] = []
+        if isCumulative {
+            result.append(Option(scope: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil),
+                                 title: "全部账本·净结余增加"))
+        }
+        for account in accounts {
+            if isCumulative {
+                result.append(Option(scope: GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id),
+                                     title: account.name + "·该账本净增加"))
+            }
+            if isReach {
+                result.append(Option(scope: GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id),
+                                     title: account.name + "·余额达到"))
+            }
+        }
+        return result
+    }
+
+    /// 行值文案：账户已删/缺账户 ID 时回落口径名，不归一成别的档
+    static func displayTitle(for scope: GoalLedgerScopePayload?, accounts: [Account]) -> String {
+        let name = scope?.accountID.flatMap { id in accounts.first { $0.id == id }?.name }
+        switch scope?.kind {
+        case .wholeLedgerDelta, nil: return "全部账本·净结余增加"
+        case .accountDelta: return (name.map { $0 + "·" } ?? "") + "该账本净增加"
+        case .accountBalance: return (name.map { $0 + "·" } ?? "") + "余额达到"
+        }
+    }
+
+    /// 换选写回：范围 + 来源账户 + 账本源单位固定 ¥（与表单 v4 同规则）
+    static func apply(_ scope: GoalLedgerScopePayload, to source: inout GoalPlanResultSourceV2) {
+        source.ledgerScope = scope
+        source.sourceID = scope.accountID
+        source.unit = "¥"
+    }
+}
+
+/// 资金来源行：Menu 三档/两档按计划语义适配；行样式对齐表单 v4 单行选择（值 15 主文字 + chevron、禁换行）
+private struct GoalPlanLedgerScopeField: View {
+    @Binding var payload: GoalPlanPayloadV2
+    let accounts: [Account]
+
+    var body: some View {
+        if accounts.isEmpty {
+            rowLabel(value: "还没有账户", showsChevron: false).foregroundStyle(Color.holoToolTextSecondary)
+        } else {
+            Menu {
+                Picker("资金来源", selection: selection) {
+                    ForEach(GoalPlanLedgerScopeEditor.options(aggregation: payload.resultSource?.aggregation, accounts: accounts), id: \.scope) { option in
+                        Text(option.title).tag(option.scope)
+                    }
+                }
+            } label: {
+                rowLabel(value: GoalPlanLedgerScopeEditor.displayTitle(for: payload.resultSource?.ledgerScope, accounts: accounts), showsChevron: true)
+            }
+        }
+    }
+
+    private var selection: Binding<GoalLedgerScopePayload> {
+        Binding(
+            get: { payload.resultSource?.ledgerScope ?? GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil) },
+            set: { scope in
+                guard var source = payload.resultSource else { return }
+                GoalPlanLedgerScopeEditor.apply(scope, to: &source)
+                payload.resultSource = source
+            }
+        )
+    }
+
+    private func rowLabel(value: String, showsChevron: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(value)
+                .goalJourneyText(.body)
+                .foregroundStyle(Color.holoToolText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+    }
+}
+
 private struct GoalPlanCriteriaFields: View {
     @Binding var payload: GoalPlanPayloadV2
     @State private var accounts: [Account] = []
@@ -14,7 +113,8 @@ private struct GoalPlanCriteriaFields: View {
                 TextField("怎样才算达成", text: Binding(get: { payload.intent.successCriteria ?? "" }, set: { payload.intent.successCriteria = $0 }), axis: .vertical)
             }
             if payload.resultSource != nil {
-                GoalJourneyField(title: "成果目标值 · " + (payload.resultSource?.unit ?? "数值")) {
+                // 账本源单位固定 ¥（与表单 v4 同规则），其余来源沿用计划单位
+                GoalJourneyField(title: "成果目标值 · " + (payload.resultSource?.sourceType == .ledger ? "¥" : (payload.resultSource?.unit ?? "数值"))) {
                     TextField("成果目标值", value: Binding<Double>(get: { payload.resultSource?.targetValue ?? 0 }, set: { payload.resultSource?.targetValue = $0 }), format: .number)
                         #if canImport(UIKit)
                         .keyboardType(.decimalPad).accessibilityIdentifier("goal-plan-result-target")
@@ -23,13 +123,7 @@ private struct GoalPlanCriteriaFields: View {
             }
             if payload.resultSource?.sourceType == .ledger {
                 GoalJourneyField(title: "资金来源") {
-                    Picker("资金来源", selection: Binding<UUID?>(get: { payload.resultSource?.ledgerScope?.accountID }, set: { id in
-                        payload.resultSource?.sourceID = id
-                        payload.resultSource?.ledgerScope = GoalLedgerScopePayload(kind: id == nil ? .wholeLedgerDelta : .accountBalance, accountID: id)
-                    })) {
-                        Text("全账本净结余增加（旧口径）").tag(Optional<UUID>.none)
-                        ForEach(accounts, id: \.id) { account in Text(account.name).tag(Optional(account.id)) }
-                    }.labelsHidden().frame(maxWidth: .infinity, alignment: .leading)
+                    GoalPlanLedgerScopeField(payload: $payload, accounts: accounts)
                 }
             }
         }.onAppear { accounts = FinanceRepository.shared.getAccounts() }
@@ -257,6 +351,12 @@ private struct GoalBindingRequirementEditor: View {
 
 /// 影响预览只比较计划版本，不对当前观测或原始记录做估算写回。
 enum GoalPlanEditPresentation {
+    /// 口径变更文案：kind.displayName + 账户名动态生成，不再写死口径
+    static func ledgerScopeText(_ scope: GoalLedgerScopePayload?, accounts: [Account]) -> String {
+        guard let scope else { return GoalLedgerScopeKind.wholeLedgerDelta.displayName }
+        let name = scope.accountID.flatMap { id in accounts.first { $0.id == id }?.name }
+        return name.map { scope.kind.displayName + "·" + $0 } ?? scope.kind.displayName
+    }
     static func unit(for binding: GoalPlanBindingV2) -> String {
         switch binding.requirement?.metric {
         case .recordedDays: return "天"
@@ -281,8 +381,7 @@ enum GoalPlanEditPresentation {
             result.append("成果要求：" + (old.resultSource?.targetValue.map(GoalMetricEvaluator.formatValue) ?? "未设置") + " → " + (new.resultSource?.targetValue.map(GoalMetricEvaluator.formatValue) ?? "未设置") + " " + (new.resultSource?.unit ?? ""))
         }
         if old.resultSource?.ledgerScope != new.resultSource?.ledgerScope {
-            let name = new.resultSource?.ledgerScope?.accountID.flatMap { id in FinanceRepository.shared.getAccounts().first { $0.id == id }?.name } ?? "全账本净结余增加"
-            result.append("资金来源改为：" + name)
+            result.append("资金来源改为：" + ledgerScopeText(new.resultSource?.ledgerScope, accounts: FinanceRepository.shared.getAccounts()))
         }
         for binding in new.bindings {
             let previous = old.bindings.first { $0.id == binding.id }

@@ -318,6 +318,7 @@ private struct MatterV2DetailPreview: View {
                             .foregroundStyle(completed.contains(step.id) ? .secondary : .primary)
                         Spacer()
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

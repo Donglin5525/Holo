@@ -433,6 +433,7 @@ struct GoalReviewHistorySheet: View {
                                 Text(reason).holoText(.metadata).foregroundColor(.holoToolTextSecondary)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
                     .disabled(!(entry.status == .completed || entry.status == .stale) || entry.reportMessageID == nil)
                 }

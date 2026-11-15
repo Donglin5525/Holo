@@ -121,6 +121,7 @@ struct AccountRow: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .fill(isSelected ? Color.holoPrimary.opacity(0.05) : Color.clear)
             )
+            .contentShape(Rectangle())
         }
     }
 

@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { createApp } from "../src/app.js";
 import { createDatabase } from "../src/db/database.js";
+import defaultPrompts from "../src/prompts/defaultPrompts.json" with { type: "json" };
 import { injectServerPrompt, promptTypeForPurpose, renderPromptVariables } from "../src/prompts/serverPromptPolicy.js";
 
 test("every public AI purpose resolves to a server-owned Prompt", () => {
@@ -15,17 +16,17 @@ test("every public AI purpose resolves to a server-owned Prompt", () => {
   for (const purpose of purposes) assert.ok(promptTypeForPurpose(purpose), purpose);
 });
 
-test("口述整理只采用服务端任务规则，旧客户端指令和界面语言不改写转写原文", () => {
-  const user = { role: "user", content: "我想先试试这个 flow。" };
+test("口述整理只向模型发送整理指令和原文，兼容仍发送档案的旧客户端", () => {
+  const user = { role: "user", content: "最近没有太多事情，测试一下。" };
   const result = injectServerPrompt("thought_voice_summary", [
     { role: "system", content: "长文缩到 50%" },
     user,
-  ], { language: "en" });
-  assert.equal(result.promptVersion, 4);
-  assert.deepEqual(result.messages.map(({ role }) => role), ["system", "user"]);
-  assert.deepEqual(result.messages[1], user);
-  assert.doesNotMatch(result.messages[0].content, /Write ALL output|长文缩到 50%/);
-  assert.match(result.messages[0].content, /保留原有的中外文混用/);
+  ], { language: "en", profileBrief: "称呼我为东林。", profileChannelEnabled: true });
+  assert.equal(result.promptVersion, 5);
+  assert.deepEqual(result.messages, [
+    { role: "system", content: defaultPrompts.thought_voice_summary },
+    user,
+  ]);
 });
 
 test("replayDigest purpose resolves to the consolidation prompt and treats data as non-executable", () => {

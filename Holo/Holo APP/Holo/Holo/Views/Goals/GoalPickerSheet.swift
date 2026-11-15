@@ -38,6 +38,7 @@ struct GoalPickerSheet: View {
                                     .foregroundColor(.holoPrimary)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
                 }
 

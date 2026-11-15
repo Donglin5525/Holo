@@ -118,4 +118,58 @@ final class HabitReminderContentTests: XCTestCase {
         ])!
         XCTAssertEqual(c.body, "阅读、喝水 等 3 个")
     }
+
+    // MARK: - 周频/月频提醒策略（2026-11-12「来得及不催，来不及才催」）
+
+    func testPeriodicMetTargetStaysSilent() {
+        // 本周期已达标 → 整周期静默
+        XCTAssertFalse(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 3, daysRemainingInPeriod: 7))
+        XCTAssertFalse(HabitReminderScheduler.shouldRemindPeriodic(target: 1, completedInPeriod: 2, daysRemainingInPeriod: 1))
+    }
+
+    func testPeriodicPlentyDaysLeftNoNudge() {
+        // 每周 3 次、周初剩 7 天 > 剩 3 次 → 不催；打过 1 次后剩 5 天 > 剩 2 次仍不催
+        XCTAssertFalse(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 0, daysRemainingInPeriod: 7))
+        XCTAssertFalse(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 1, daysRemainingInPeriod: 5))
+    }
+
+    func testPeriodicDeadlineApproachesNudgeDaily() {
+        // 剩余天数 ≤ 剩余次数（再拖就完不成）→ 天天催
+        XCTAssertTrue(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 0, daysRemainingInPeriod: 3))
+        XCTAssertTrue(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 1, daysRemainingInPeriod: 2))
+        XCTAssertTrue(HabitReminderScheduler.shouldRemindPeriodic(target: 3, completedInPeriod: 2, daysRemainingInPeriod: 1))
+    }
+
+    func testPeriodicWeeklyOnceOnlyRemindsOnLastDay() {
+        // 每周 1 次：剩 2~7 天都不催，只剩最后 1 天（剩 1 天 == 剩 1 次）才催
+        for remaining in stride(from: 2, through: 7, by: 1) {
+            XCTAssertFalse(HabitReminderScheduler.shouldRemindPeriodic(target: 1, completedInPeriod: 0, daysRemainingInPeriod: remaining))
+        }
+        XCTAssertTrue(HabitReminderScheduler.shouldRemindPeriodic(target: 1, completedInPeriod: 0, daysRemainingInPeriod: 1))
+    }
+
+    // MARK: - 周期区间切分（streak 与提醒调度共用口径）
+
+    private func makeDate(_ year: Int, _ month: Int, _ day: Int, calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+
+    func testWeekPeriodIntervalAnchorsFirstWeekday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2 // 周一为一周之始
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        // 2026-11-12 周四 → [11-09 周一, 11-16 周一)
+        let week = HabitRepository.periodInterval(periodComponent: .weekOfYear, containing: makeDate(2026, 11, 12, calendar: calendar), calendar: calendar)!
+        XCTAssertEqual(week.start, makeDate(2026, 11, 9, calendar: calendar))
+        XCTAssertEqual(week.end, makeDate(2026, 11, 16, calendar: calendar))
+    }
+
+    func testMonthPeriodIntervalCrossesYear() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        // 2026-12-31 → [12-01, 2027-01-01)
+        let month = HabitRepository.periodInterval(periodComponent: .month, containing: makeDate(2026, 12, 31, calendar: calendar), calendar: calendar)!
+        XCTAssertEqual(month.start, makeDate(2026, 12, 1, calendar: calendar))
+        XCTAssertEqual(month.end, makeDate(2027, 1, 1, calendar: calendar))
+    }
 }

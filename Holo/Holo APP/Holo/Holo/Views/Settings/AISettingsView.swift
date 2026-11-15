@@ -101,6 +101,7 @@ struct AISettingsView: View {
                                 .foregroundColor(.holoPrimary)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
             }
         } header: {

@@ -9,7 +9,13 @@ struct HoloChartGalleryView: View {
         false
         #endif
     }
-    @State private var tab = 0
+    /// 走查启动参数：-HoloChartGalleryTab=N 直接落在第 N 个样板（验收工具走启动参数，不进 App 界面）
+    private static let initialTab: Int = {
+        guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-HoloChartGalleryTab=") }),
+              let value = arg.split(separator: "=").last, let n = Int(value) else { return 0 }
+        return min(max(n, 0), 8)
+    }()
+    @State private var tab = HoloChartGalleryView.initialTab
     @State private var selection: String?
     @State private var heatSelection: Date?
     @State private var heatID = "未选中"
@@ -43,6 +49,45 @@ struct HoloChartGalleryView: View {
                            count: index % 12, isFuture: index >= 82)
         }
     }
+    /// 构成趋势样板：三层、六桶，末桶「其他」增厚
+    private var stackBuckets: [HoloStackedAreaBucket] {
+        (1...6).map { HoloStackedAreaBucket(id: "m\($0)", label: "\($0)月", detail: "2026 年 \($0) 月") }
+    }
+    private var stackSeries: [HoloStackedAreaSeries] {
+        [
+            .init(id: "base", title: "居住", color: .holoChart1, values: [220, 220, 220, 220, 220, 220]),
+            .init(id: "mid", title: "餐饮", color: .holoChart2, values: [118, 124, 109, 128, 115, 128]),
+            .init(id: "top", title: "其他", color: .holoChart5, values: [202, 132, 134, 142, 147, 178])
+        ]
+    }
+    /// 瀑布样板（真实极端量级回归：存量 7.4 万 vs 流水千元级，验证横向瀑布零线定标不挤压）：
+    /// 74660.68 + 6150 + 3400 − 5426.22 − 2208.30 − 1074.90 − 1526.53 = 73974.73
+    private var waterfallItems: [HoloWaterfallItem] {
+        [
+            .init(id: "open", label: "期初", total: 74_660.68),
+            .init(id: "inc-top", label: "投资理财", delta: 6_150),
+            .init(id: "inc-rest", label: "其他收入", delta: 3_400),
+            .init(id: "exp-1", label: "居住", delta: -5_426.22),
+            .init(id: "exp-2", label: "餐饮", delta: -2_208.30),
+            .init(id: "exp-3", label: "其他", delta: -1_074.90),
+            .init(id: "exp-rest", label: "其余 3 类", delta: -1_526.53),
+            .init(id: "close", label: "期末", total: 73_974.73)
+        ]
+    }
+    /// 增强折线样板：峰 41 / 谷 30，区间带 20–40
+    private var measureBuckets: [HoloChartBucket] {
+        let values: [Double] = [36, 39, 35, 41, 34, 38, 33, 40, 32, 37, 30, 35]
+        return values.indices.map {
+            HoloChartBucket(id: "m-\($0)", label: "\($0 + 1)日", values: [values[$0]])
+        }
+    }
+    private var miniPoints: [HoloMiniTrendChart.Point] {
+        let offsets = [0, 2, 5, 9, 14, 20, 27]
+        let values = [38.5, 38.1, 37.6, 37.9, 37.2, 36.8, 36.4]
+        return offsets.indices.map {
+            .init(date: calendar.date(byAdding: .day, value: offsets[$0], to: origin) ?? origin, value: values[$0])
+        }
+    }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -54,6 +99,9 @@ struct HoloChartGalleryView: View {
                         Text("占比").tag(3)
                         Text("排名").tag(4)
                         Text("双轴").tag(5)
+                        Text("构成").tag(6)
+                        Text("瀑布").tag(7)
+                        Text("增强").tag(8)
                     }.pickerStyle(.segmented)
                     Text(tab == 2 ? heatID : (selection ?? "未选中"))
                         .accessibilityIdentifier("chart.gallery.selection")
@@ -109,9 +157,32 @@ struct HoloChartGalleryView: View {
             }
         case 5:
             HoloBarChart(buckets: dualBuckets,
-                         series: [.init(id: "expense", title: "支出", color: .holoError),
-                                  .init(id: "income", title: "收入", color: .holoSuccess)],
+                         series: [.init(id: "expense", title: "支出", color: .holoChartOutflow),
+                                  .init(id: "income", title: "收入", color: .holoChartInflow)],
                          selection: $selection, dualValueAxes: true)
+        case 6:
+            HoloStackedAreaChart(buckets: stackBuckets, series: stackSeries,
+                                 selection: $selection, summary: "近 6 月")
+        case 7:
+            HoloWaterfallChart(items: waterfallItems)
+        case 8:
+            VStack(alignment: .leading, spacing: 20) {
+                HoloBarChart(buckets: (0..<6).map {
+                        HoloChartBucket(id: "r-\($0)", label: "\($0 + 1)日",
+                                        values: [Double($0 * 10 + 15)])
+                    },
+                    series: [.init(id: "only", title: "支出", color: .holoChart2)],
+                    selection: $selection,
+                    rules: [HoloChartRule(value: 55, label: "月预算 55", color: .holoPrimary)],
+                    comparison: HoloChartComparison(ghostValues: [8, 18, 28, 38, 48, 58]))
+                HoloLineChart(buckets: measureBuckets,
+                              series: [.init(id: "measure", title: "测量", color: .holoChart6)],
+                              selection: $selection,
+                              annotateExtrema: true, extremaUnit: " 单位",
+                              band: 20...40)
+                HoloBarChart(buckets: buckets, series: series, selection: $selection, legendToggle: true)
+                HoloMiniTrendChart(points: miniPoints, color: .holoChart6, title: "样例测量")
+            }
         default:
             HoloBarChart(buckets: Array(buckets.prefix(4)), series: Array(series.prefix(1)), orientation: .horizontal, selection: $selection)
         }

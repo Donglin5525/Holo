@@ -10,6 +10,14 @@ import SwiftUI
 import Combine
 import os.log
 
+// MARK: - 构成趋势数据
+
+/// 类别页「构成趋势」档：近 6 个整月的一级分类构成（顶层 4 类 + 其他）
+struct HoloCategoryTrendData: Equatable {
+    let buckets: [HoloStackedAreaBucket]
+    let series: [HoloStackedAreaSeries]
+}
+
 // MARK: - FinanceAnalysisState
 
 /// 财务分析模块状态管理器
@@ -58,6 +66,12 @@ class FinanceAnalysisState: ObservableObject {
 
     /// 下钻后的二级分类聚合
     @Published var drillDownAggregations: [CategoryAggregation] = []
+
+    /// 收支卡「现金流」档（趋势 ⇄ 现金流分段切换）：期初→收入→支出分类→期末；空 = 无现金流可讲
+    @Published var cashflowItems: [HoloWaterfallItem] = []
+
+    /// 类别页「构成趋势」档数据（随类别页类型/项目过滤口径加载）
+    @Published var categoryTrend: HoloCategoryTrendData? = nil
 
     /// 是否正在加载
     @Published var isLoading: Bool = false
@@ -333,6 +347,10 @@ class FinanceAnalysisState: ObservableObject {
             periodSummary = summary
             accountAggregations = accountRankings
             financeProjectAggregations = projectRankings
+            cashflowItems = FinanceAnalysisState.cashflowItems(
+                points: points,
+                expenseAggregations: expenseAggregations,
+                incomeAggregations: incomeAggregations)
             availableAccounts = accounts
             availableFinanceProjects = sortedProjects
 
@@ -437,6 +455,109 @@ class FinanceAnalysisState: ObservableObject {
     /// 类别页签下钻/弹窗取数应带的项目范围
     private var categoryScope: StatisticsScope {
         categoryProjectFilter.map { StatisticsScope(accountId: nil, financeProjectId: $0.id) } ?? .all
+    }
+
+    // MARK: - 现金流瀑布（收支卡「现金流」档）
+
+    /// 现金流瀑布推导（纯函数，单测锁定）：
+    /// 期初 = 首桶余额回推（balance − income + expense，统计口径；首桶含对账调整时有微小偏差）；
+    /// 收入取最大一类命名，其余并入「其他收入」；支出取前三大类，其余并入「其余 N 类」；
+    /// 期末 = 末桶余额（含对账调整，与余额线同口径）。
+    nonisolated static func cashflowItems(opening: Decimal, closing: Decimal,
+                                          income: [(name: String, amount: Decimal)],
+                                          expense: [(name: String, amount: Decimal)]) -> [HoloWaterfallItem] {
+        var items: [HoloWaterfallItem] = [.init(id: "open", label: "期初", total: Double(truncating: opening as NSDecimalNumber))]
+        let sortedIncome = income.filter { $0.amount > 0 }.sorted { $0.amount > $1.amount }
+        if let top = sortedIncome.first {
+            items.append(.init(id: "income-top", label: top.name,
+                               delta: Double(truncating: top.amount as NSDecimalNumber)))
+            let rest = sortedIncome.dropFirst().reduce(Decimal(0)) { $0 + $1.amount }
+            if rest > 0 {
+                items.append(.init(id: "income-rest", label: "其他收入",
+                                   delta: Double(truncating: rest as NSDecimalNumber)))
+            }
+        }
+        let sortedExpense = expense.filter { $0.amount > 0 }.sorted { $0.amount > $1.amount }
+        for agg in sortedExpense.prefix(3) {
+            items.append(.init(id: "exp-\(agg.name)", label: agg.name,
+                               delta: -Double(truncating: agg.amount as NSDecimalNumber)))
+        }
+        let restExpense = sortedExpense.dropFirst(3)
+        let expenseRest = restExpense.reduce(Decimal(0)) { $0 + $1.amount }
+        if expenseRest > 0 {
+            // 合并项叫「其余 N 类」：旧名「支出·其他」与真实分类「其他」并排撞名（11-15 东林真机截图）
+            items.append(.init(id: "exp-rest", label: "其余 \(restExpense.count) 类",
+                               delta: -Double(truncating: expenseRest as NSDecimalNumber)))
+        }
+        items.append(.init(id: "close", label: "期末", total: Double(truncating: closing as NSDecimalNumber)))
+        return items
+    }
+
+    /// 从周期桶与分类聚合映射成瀑布项（薄封装：字段搬运 + 期初回推）
+    nonisolated static func cashflowItems(points: [ChartDataPoint],
+                                          expenseAggregations: [CategoryAggregation],
+                                          incomeAggregations: [CategoryAggregation]) -> [HoloWaterfallItem] {
+        guard let first = points.first, let last = points.last else { return [] }
+        let opening = first.balance - first.income + first.expense
+        return cashflowItems(
+            opening: opening,
+            closing: last.balance,
+            income: incomeAggregations.map { ($0.category.name, $0.amount) },
+            expense: expenseAggregations.map { ($0.category.name, $0.amount) })
+    }
+
+    // MARK: - 构成趋势（类别页「趋势」档）
+
+    /// 近 6 个整月的一级分类构成（顶层 4 类按全期总量排序 + 其他）；类型与项目范围随类别页口径
+    func loadCategoryTrend(type: TransactionType) async {
+        let calendar = Calendar.current
+        let now = Date()
+        let thisMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        guard let firstMonth = calendar.date(byAdding: .month, value: -5, to: thisMonthStart) else { return }
+        let scope = categoryScope
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("y年M月")
+
+        var byMonth: [[(name: String, amount: Decimal)]] = []
+        var buckets: [HoloStackedAreaBucket] = []
+        for offset in 0..<6 {
+            guard let start = calendar.date(byAdding: .month, value: offset, to: firstMonth),
+                  let end = calendar.date(byAdding: .month, value: offset + 1, to: firstMonth) else { continue }
+            let aggregations = (try? await repository.getTopLevelCategoryAggregations(
+                from: start, to: end, type: type, scope: scope)) ?? []
+            byMonth.append(aggregations.map { ($0.category.name, $0.amount) })
+            buckets.append(HoloStackedAreaBucket(id: "m\(offset)",
+                                                 label: HoloChartFormat.date(start, template: "M月"),
+                                                 detail: formatter.string(from: start)))
+        }
+        guard categoryScope == scope else { return }   // 筛选中途变了，丢弃旧口径
+        guard buckets.count == byMonth.count, !byMonth.isEmpty else { return }
+
+        // 顶层 4 类按全期总量排序；其余并入「其他」
+        var totals: [String: Decimal] = [:]
+        for month in byMonth {
+            for item in month where item.amount > 0 {
+                totals[item.name, default: 0] += item.amount
+            }
+        }
+        let topNames = totals.sorted { $0.value > $1.value }.prefix(4).map(\.key)
+        let palette = Color.holoChartCategoryPalette   // 视觉 V4 分类色板；「其他」恒用石灰
+        var series: [HoloStackedAreaSeries] = topNames.enumerated().map { index, name in
+            HoloStackedAreaSeries(id: name, title: name, color: palette.indices.contains(index) ? palette[index] : .holoChartStone,
+                                  values: byMonth.map { month in
+                                      Double(truncating: (month.first { $0.name == name }?.amount ?? 0) as NSDecimalNumber)
+                                  })
+        }
+        let topSet = Set(topNames)
+        let other = byMonth.map { month in
+            month.filter { !topSet.contains($0.name) && $0.amount > 0 }.reduce(Decimal(0)) { $0 + $1.amount }
+        }
+        if other.contains(where: { $0 > 0 }) {
+            series.append(HoloStackedAreaSeries(id: "other", title: "其他", color: .holoChartStone,
+                                                values: other.map { Double(truncating: $0 as NSDecimalNumber) }))
+        }
+        categoryTrend = HoloCategoryTrendData(buckets: buckets, series: series)
     }
 
     // MARK: - 下钻操作

@@ -5,6 +5,8 @@
 //  复核确认页 · 多笔紧凑摘要行（2026-11-12 两行制，原型画板②）：
 //  账单式两行——L1 名称（行标题）+ 金额右对齐成列，L2 方向胶囊 + 「科目 · 账户」小灰字。
 //  点行展开细改（手风琴，一次一笔），点勾选圆剔除这笔（独立 a11y 元素，不与行展开合并）。
+//  2026-11-14 合并态（mergeMode）：清单收成单行勾选池——只留勾选圈+名称+金额，
+//  L2 副注与行尾箭头收起、点行不展开（细改集中到下方「这一笔」卡）。
 //
 
 import SwiftUI
@@ -16,6 +18,8 @@ struct ReceiptReviewCompactRow: View {
     var expenseCategories: [HoloFinanceCategory]
     var incomeCategories: [HoloFinanceCategory]
     var isExpanded: Bool
+    /// 合并态：单行勾选池（无副注/无箭头/点行不展开）
+    var mergeMode: Bool
     var onToggleIncluded: () -> Void
     var onToggleExpanded: () -> Void
 
@@ -39,16 +43,20 @@ struct ReceiptReviewCompactRow: View {
                             .fixedSize()
                             .layoutPriority(1)
                     }
-                    // L2：方向胶囊 + 「科目 · 账户」副注
-                    HStack(spacing: 6) {
-                        directionPill
-                        subNote
+                    // L2：方向胶囊 + 「科目 · 账户」副注（合并态收起：细改由「这一笔」卡承载）
+                    if !mergeMode {
+                        HStack(spacing: 6) {
+                            directionPill
+                            subNote
+                        }
                     }
                 }
-                Image(systemName: "chevron.right")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                if !mergeMode {
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())

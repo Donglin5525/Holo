@@ -1,0 +1,208 @@
+import SwiftUI
+
+// 语义色 Color.warmLightPaper / warmLightInk / warmLightAccent 由资产目录
+// 自动生成符号（GeneratedAssetSymbols）提供，深浅色走资产变体，不在手写扩展里重复。
+
+// MARK: - 暖光过场叶子视图
+
+/// 「一束暖光」过场：底板 + 椭圆光晕 + 出发/抵达两组日期文案的合成层。
+///
+/// 只收只读参数（内容快照、时间线、elapsed 闭包），不持有会话状态、不发交互事件；
+/// 开始、取消、交接提交与收尾统一由漫步会话控制（暖光规格 §4.3）。
+/// 整层对辅助功能隐藏，播放期间对命中区域形成遮罩。
+struct MemoryWarmLightTransition: View {
+    /// 一组日期文案。摘句只挂在抵达组；出发组只有标签、年份与日期。
+    struct StampContent: Equatable {
+        /// 「今天」或「出发」；抵达组固定「想起那一天」。
+        var label: String
+        /// 如「2026 年」，等宽数字。
+        var yearText: String
+        /// 如「5 月 21 日」。
+        var dateText: String
+        /// 同一抵达日的原文摘句，保持语义完整；无想法目标时为 nil。
+        var excerpt: String?
+    }
+
+    let departure: StampContent
+    let arrival: StampContent
+    let timeline: WarmLightTimeline
+    /// 单调时钟域内的已播放秒数；Debug 对拍注入固定值冻结静帧。
+    let elapsed: () -> TimeInterval
+
+    var body: some View {
+        // 限 60fps：ProMotion 真机不限频会按 120Hz 全量求值+下发渲染，压力翻倍；
+        // 柔和光效 60fps 视觉无差（CSS 动画同基准）。11-15 东林真机实报「卡一下
+        // 动画不出」的配套减负——主线程每帧成本不变的前提下帧预算翻倍。
+        //
+        // 11-15 四报定谳：.animation schedule 在漫步 sheet 里不逐帧驱动（录屏实证
+        // 首帧后文案/光晕 1 秒零变化，2.3s 后整层被 phase 流转移除）——Sheet 弹层
+        // 环境下帧驱动调度停更（TimelineView stops updating 已知行为类别）。
+        // 改 .periodic 显式周期调度（墙钟驱动，不依赖 display link 判活），
+        // 60Hz 与限频目标一致。UITEST_WARM_LIGHT_ANIMATION 可切回旧调度做 A/B 对照。
+        let usePeriodic = !ProcessInfo.processInfo.arguments.contains("UITEST_WARM_LIGHT_ANIMATION")
+        TimelineViewContent(departure: departure,
+                            arrival: arrival,
+                            timeline: timeline,
+                            elapsed: elapsed,
+                            usePeriodic: usePeriodic)
+            .accessibilityHidden(true)
+    }
+}
+
+/// schedule 选择器：.animation（帧驱动）与 .periodic（墙钟周期）类型不同，走分支。
+private struct TimelineViewContent: View {
+    let departure: MemoryWarmLightTransition.StampContent
+    let arrival: MemoryWarmLightTransition.StampContent
+    let timeline: WarmLightTimeline
+    let elapsed: () -> TimeInterval
+    let usePeriodic: Bool
+
+    var body: some View {
+        let plate = GeometryReader { proxy in
+            WarmLightPlate(departure: departure,
+                           arrival: arrival,
+                           frame: timeline.frame(at: elapsed(), canvas: proxy.size),
+                           canvas: proxy.size)
+        }
+        if usePeriodic {
+            TimelineView(.periodic(from: .now, by: 1.0 / 60.0)) { _ in plate }
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in plate }
+        }
+    }
+}
+
+// MARK: - 合成层
+
+/// 底板、光晕与两组文案叠成的单层；先裁切到画布，再按合成透明度整体淡出，
+/// 露出宿主已排版好的抵达页（暖光规格 §4.1 图层顺序）。
+private struct WarmLightPlate: View {
+    let departure: MemoryWarmLightTransition.StampContent
+    let arrival: MemoryWarmLightTransition.StampContent
+    let frame: WarmLightFrame
+    let canvas: CGSize
+
+    var body: some View {
+        // 图层（底→顶）：纸底板 → 超尺寸椭圆光晕 → 两组日期文案。
+        // 光晕是画布 1.4 倍大，必须挂在 .background 里：background 不参与布局尺寸且默认居中，
+        // 否则会把 ZStack 撑大、经 GeometryReader 左上锚定后整体画面偏移（P0 对拍实抓）。
+        ZStack {
+            WarmLightStamp(content: departure, alpha: frame.departureAlpha)
+            WarmLightStamp(content: arrival, alpha: frame.arrivalAlpha)
+        }
+        .background {
+            // 渐变只栅格化一次（ShapeStyle 层），动画帧只改 scale/offset/opacity 三个
+            // GPU 变换——此前 Canvas 每帧重录 51 色标渐变，真机 120Hz 下卡成幻灯片
+            //（11-15 东林实报「动画很卡/没加载出来」根因）。
+            WarmLightGlowLayer(canvas: canvas)
+                .scaleEffect(frame.glowScale, anchor: .center)
+                .offset(x: frame.glowOffset.width, y: frame.glowOffset.height)
+                .opacity(frame.glowAlpha)
+        }
+        .background {
+            Color.warmLightPaper
+        }
+        .compositingGroup()
+        .clipped()
+        .contentShape(Rectangle())
+        .opacity(frame.compositeAlpha)
+    }
+}
+
+// MARK: - 椭圆光晕
+
+/// 椭圆径向渐变（静态层）。规格同前：椭圆心在扩展框 (0.47Gw, 0.45Gh)，
+/// 半轴 √2×(0.53Gw, 0.55Gh)。实现＝单位圆径向渐变（RadialGradient ShapeStyle，
+/// 只栅格化一次）＋非等比 scaleEffect 拉成椭圆，动画帧零重绘。
+private struct WarmLightGlowLayer: View {
+    let canvas: CGSize
+
+    /// 圆渐变的边长：直径取水平半轴的两倍；垂直方向由 scaleEffect 压到 0.55Gh/0.53Gw。
+    private var squareSide: CGFloat { 2.0.squareRoot() * 1.06 * canvas.width * WarmLightTimeline.extendedBoxFactor }
+    private var yAxisRatio: CGFloat {
+        let gw = canvas.width * WarmLightTimeline.extendedBoxFactor
+        let gh = canvas.height * WarmLightTimeline.extendedBoxFactor
+        return gh / gw * 0.55 / 0.53
+    }
+
+    var body: some View {
+        let gw = canvas.width * WarmLightTimeline.extendedBoxFactor
+        let gh = canvas.height * WarmLightTimeline.extendedBoxFactor
+        let side = squareSide
+        RadialGradient(
+            gradient: Gradient(stops: WarmLightGlowPalette.denseStops().map { stop in
+                Gradient.Stop(color: Color(.sRGB,
+                                           red: stop.red,
+                                           green: stop.green,
+                                           blue: stop.blue,
+                                           opacity: stop.alpha),
+                              location: stop.position)
+            }),
+            center: .center,
+            startRadius: 0,
+            endRadius: side / 2
+        )
+        .frame(width: side, height: side)
+        .scaleEffect(x: 1, y: yAxisRatio, anchor: .center)
+        // 椭圆心定位到扩展框 (0.47Gw, 0.45Gh)：锚点居中后偏移即中心点。
+        .offset(x: 0.47 * gw - side / 2,
+                y: 0.45 * gh - side / 2)
+        .frame(width: gw, height: gh, alignment: .topLeading)
+    }
+}
+
+// MARK: - 日期文案组
+
+/// 一组居中文案：28×1 细线（0.65）→ 标签 → 年份 → 日期 → 可选摘句。
+/// 排版与原型 `.motion-stamp` 对齐：列内 4pt，线下额外 5pt，摘句额外上距 8pt。
+private struct WarmLightStamp: View {
+    let content: MemoryWarmLightTransition.StampContent
+    let alpha: Double
+
+    /// 日期字号：CSS clamp(1.9rem, 8vw, 2.7rem) 在 393pt 视口的值，随动态字体缩放。
+    @ScaledMetric(relativeTo: .title) private var dateSize: CGFloat = 31.44
+    @ScaledMetric(relativeTo: .body) private var excerptSize: CGFloat = 15.2
+    @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .footnote) private var yearSize: CGFloat = 13
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Rectangle()
+                .fill(Color.warmLightAccent)
+                .frame(width: 28, height: 1)
+                .opacity(0.65)
+                .padding(.bottom, 5)
+            Text(content.label)
+                .font(.system(size: labelSize, weight: .semibold))
+                .tracking(0.84)
+                .foregroundStyle(Color.warmLightAccent)
+            Text(content.yearText)
+                .font(.system(size: yearSize))
+                .monospacedDigit()
+                .foregroundStyle(Color.warmLightAccent)
+            Text(content.dateText)
+                .font(.system(size: dateSize, weight: .semibold, design: .serif))
+                .tracking(-0.07 * dateSize)
+                .foregroundStyle(Color.warmLightInk)
+                .lineLimit(1)
+                // 不用 fixedSize：衬线 CJK 回退字形的理想宽度与实际字形宽度不一致，
+                // fixedSize 会钉住错误宽度让整行向右溢出（P0 对拍 bbox 实测：标签 184✓ 日期 243✗）。
+            if let excerpt = content.excerpt {
+                Text(excerpt)
+                    .font(.system(size: excerptSize, weight: .semibold, design: .serif))
+                    .lineSpacing(excerptSize * 0.25)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: excerptMaxWidth)
+                    .padding(.top, 8)
+                    .foregroundStyle(Color.warmLightInk)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(16)
+        .opacity(alpha)
+    }
+
+    /// CSS `max-width: 24ch`：衬线数字 advance ≈ 0.5em，即 12em。
+    private var excerptMaxWidth: CGFloat { excerptSize * 12 }
+}

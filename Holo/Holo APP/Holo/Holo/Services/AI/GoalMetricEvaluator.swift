@@ -35,6 +35,11 @@ enum GoalMetricEvaluator {
     /// 入口：非量化目标或配置不完整返回 nil（调用方回落过程型展示）。
     /// habit 源习惯失效（被删/归档）同样返回 nil，由 isHabitSourceUnavailable 区分提示。
     static func evaluate(goal: Goal) -> GoalMetricProgress? {
+        evaluate(goal: goal, finance: .shared)
+    }
+
+    /// finance 注入点：单测用 in-memory 账户+交易走真链路（生产恒走 .shared）
+    static func evaluate(goal: Goal, finance: FinanceRepository) -> GoalMetricProgress? {
         guard goal.isQuantitative,
               let target = goal.metricTargetValueDouble, target > 0 else { return nil }
 
@@ -44,7 +49,7 @@ enum GoalMetricEvaluator {
         case .habit:
             return evaluateHabit(goal: goal, target: target)
         case .ledger:
-            return evaluateLedger(goal: goal, target: target)
+            return evaluateLedger(goal: goal, target: target, finance: finance)
         }
     }
 
@@ -106,11 +111,42 @@ enum GoalMetricEvaluator {
 
     // MARK: - ledger 源
 
-    /// ledger 源只配累积型（存钱目标）：当前净结余 − 基线日净结余。
-    /// 口径=全账本（未归档）期初+净流，与净资产页一致，含信用卡负债
-    private static func evaluateLedger(goal: Goal, target: Double) -> GoalMetricProgress? {
-        guard goal.goalKindEnum == .cumulative else { return nil }
-        let finance = FinanceRepository.shared
+    /// ledger 源按表单选定的账本范围计算（2026-11-14 表单暴露账本范围）：
+    /// Goal.ledgerScopePayload（JSON）为真源——wholeLedgerDelta 全账本净结余增加、
+    /// accountDelta 指定账户净结余增加（累积型），accountBalance 账户余额 reach（达标型）。
+    /// 共创旧目标只存 kind 原始值、payload 读不出来，回落计划版本 payload（兼容旧入口与小组件）。
+    private static func evaluateLedger(goal: Goal, target: Double, finance: FinanceRepository) -> GoalMetricProgress? {
+        if let scope = goal.ledgerScopePayload {
+            switch scope.kind {
+            case .accountDelta:
+                // 累积型·指定账户：该账户当前净结余 − 累计起点净结余（两次 observation 相减；
+                // 账户缺失/删除/查询失败一律返回 nil，不折算 0）
+                let start = goal.baselineDate ?? goal.createdAt
+                guard goal.goalKindEnum == .cumulative, let id = scope.accountID,
+                      case .observed(let nowBalance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()),
+                      case .observed(let startBalance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: start) else {
+                    return nil
+                }
+                let delta = NSDecimalNumber(decimal: nowBalance - startBalance).doubleValue
+                return makeProgress(goal: goal, current: delta, target: target, baseline: nil, elapsedAnchor: start)
+            case .accountBalance:
+                guard let id = scope.accountID,
+                      case .observed(let balance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()) else {
+                    return nil
+                }
+                let current = NSDecimalNumber(decimal: balance).doubleValue
+                // 达标型：账户余额到达目标值，进度从基线起算（与 manual/habit 同构）
+                if goal.goalKindEnum == .target {
+                    guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
+                    return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
+                }
+                // 累积型旧口径（余额达到目标）保持不变
+                return GoalMetricProgress(currentValue: current, progress: min(max(current / target, 0), 1), isAchieved: current >= target, forecast: nil)
+            case .wholeLedgerDelta:
+                guard goal.goalKindEnum == .cumulative else { return nil }
+                return wholeLedgerDeltaProgress(goal: goal, target: target, finance: finance)
+            }
+        }
         // 兼容旧入口与小组件：已有单账户约定时，也必须读取该真实账户。
         if let context = goal.managedObjectContext {
             let request = NSFetchRequest<NSDictionary>(entityName: "GoalPlanRevisionMO")
@@ -134,6 +170,12 @@ enum GoalMetricEvaluator {
                 }
             }
         }
+        return wholeLedgerDeltaProgress(goal: goal, target: target, finance: finance)
+    }
+
+    /// 全账本净结余增加（累积型）：当前净结余 − 基线日净结余。
+    /// 口径=全账本（未归档）期初+净流，与净资产页一致，含信用卡负债
+    private static func wholeLedgerDeltaProgress(goal: Goal, target: Double, finance: FinanceRepository) -> GoalMetricProgress? {
         let start = goal.baselineDate ?? goal.createdAt
         let saved = finance.getCumulativeBalance(before: Date()) - finance.getCumulativeBalance(before: start)
         let current = NSDecimalNumber(decimal: saved).doubleValue

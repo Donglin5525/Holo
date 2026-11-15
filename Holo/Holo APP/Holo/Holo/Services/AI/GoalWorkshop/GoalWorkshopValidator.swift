@@ -210,6 +210,14 @@ enum GoalWorkshopValidator {
             if let scope = source.ledgerScope, GoalLedgerScopeKind(rawValue: scope) == nil {
                 throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.ledgerScope", value: scope)
             }
+            // 账户口径（余额 reach / 该账本净增，2026-11-14 三档补全）必须带账户候选引用；
+            // 规则对 accountBalance 与 accountDelta 一致：无账户的口径拒绝重试，
+            // 不静默挂起（要挂起请用 whole_ledger_delta 或换 manual）
+            if let scope = source.ledgerScope,
+               let scopeKind = GoalLedgerScopeKind(rawValue: scope), scopeKind != .wholeLedgerDelta,
+               source.candidateRef == nil {
+                throw GoalWorkshopValidationError.kindPayloadMismatch("ledgerScope \(scope) 需要账户候选 candidateRef")
+            }
             if let aggregation = source.aggregation, GoalHabitAggregationKind(rawValue: aggregation) == nil {
                 throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.aggregation", value: aggregation)
             }

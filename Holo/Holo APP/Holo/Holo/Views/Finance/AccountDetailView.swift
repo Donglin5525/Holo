@@ -695,6 +695,7 @@ struct AccountDetailView: View {
                 }
             }
             .padding(.vertical, HoloSpacing.sm)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
         .contextMenu {

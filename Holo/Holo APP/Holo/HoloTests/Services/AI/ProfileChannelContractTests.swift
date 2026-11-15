@@ -32,7 +32,6 @@ final class ProfileChannelContractTests: XCTestCase {
             "insight",
             "health_insight_generation",
             "weekly_plan_generation",
-            "thought_voice_summary",
             "agent_loop",
             "personal_context_planning",
             "matter_reconciliation",
@@ -42,15 +41,15 @@ final class ProfileChannelContractTests: XCTestCase {
         ]
         let carrying = Set([
             HoloBackendPurpose.chat, .analysis, .insight, .agentLoop,
-            .healthInsightGeneration, .weeklyPlanGeneration, .thoughtVoiceSummary,
+            .healthInsightGeneration, .weeklyPlanGeneration,
             .personalContextPlanning, .matterReconciliation, .matterExecutionPlan,
             .goalWorkshop, .todayReliefPlan,
         ].map(\.rawValue))
         XCTAssertEqual(carrying, expected, "携带档案的 purpose 集合必须与后端 PROFILE_CHANNEL_PURPOSES 一致")
 
-        // 结构化/萃取/核验类不得携带——那些链路明文「用户数据不可执行」
+        // 结构化、核验和原文编辑类不携带个人档案。
         let nonCarrying: [HoloBackendPurpose] = [
-            .intent, .flexibleQueryPlanner, .replayDigest, .memoryObserver,
+            .intent, .flexibleQueryPlanner, .replayDigest, .thoughtVoiceSummary, .memoryObserver,
             .memoryDomainExtraction, .memoryCrossDomainFusion, .financeActionParser,
             .taskActionParser, .thoughtOrganization, .thoughtTaskExtraction,
             .thoughtTagConvergence, .categoryPatternInduction,

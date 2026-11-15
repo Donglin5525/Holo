@@ -26,6 +26,8 @@ struct GoalDetailView: View {
     @State private var showLinkManager = false
     @State private var showMetricLogSheet = false
     @State private var showGoalSettings = false
+    /// 五字段设置面板（说明/期望结果/动机/图标/AI 上下文，S5 接线）
+    @State private var showGoalSettingsEdit = false
     @State private var showGoalReview = false
 
     init(
@@ -88,6 +90,9 @@ struct GoalDetailView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     #endif
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalSettings = false } } }
+            }
+            .sheet(isPresented: $showGoalSettingsEdit) {
+                GoalSettingsEditSheet(goal: goal)
             }
         .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除目标", role: .destructive) {
@@ -372,7 +377,7 @@ struct GoalDetailView: View {
             Button {
                 onOpenLinkedEntity(.finance)
             } label: {
-                sourceLabelRow(text: String(localized: "数据来自：账本（按全账本净结余计算，含信用卡负债）"))
+                sourceLabelRow(text: String(localized: "数据来自：账本"))
             }
             .buttonStyle(HoloPressStyle())
         }
@@ -498,6 +503,9 @@ struct GoalDetailView: View {
             Button("编辑目标") {
                 showEditForm = true
             }
+            Button("目标设置") {
+                showGoalSettingsEdit = true
+            }
             if goal.goalStatus == .active {
                 Button("暂停目标") {
                     perform { try repository.updateStatus(goal, status: .paused) }
@@ -510,6 +518,11 @@ struct GoalDetailView: View {
             if goal.goalStatus != .completed {
                 Button("标记完成") {
                     perform { try repository.updateStatus(goal, status: .completed) }
+                }
+            } else {
+                // 红队 U10：误触「标记完成」可逆——恢复为进行中（completedAt 由模型自动清）
+                Button("恢复为进行中") {
+                    perform { try repository.updateStatus(goal, status: .active) }
                 }
             }
             Button("删除目标", role: .destructive) { showDeleteConfirm = true }
@@ -537,6 +550,7 @@ struct GoalDetailView: View {
                     .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.vertical, HoloSpacing.sm)
+            .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
     }
@@ -581,6 +595,9 @@ struct GoalEditSheet: View {
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var criteriaConfirmed = false
+    /// 是否存在活跃账本账户（红队 U1）：无账户时账本源不可保存；
+    /// 与 GoalEditForm.loadAccounts 同源，onAppear 取一次不在 body 里反复 fetch
+    @State private var hasActiveLedgerAccounts = true
     private let baseRevisionID: UUID?
     let onSaved: () -> Void
 
@@ -594,7 +611,7 @@ struct GoalEditSheet: View {
     private var canSave: Bool {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && GoalEditForm.metricFieldsValid(in: draft)
+            && GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
             && (!criteriaChanged || criteriaConfirmed)
     }
 
@@ -603,61 +620,51 @@ struct GoalEditSheet: View {
         return draft.desiredOutcome != before.desiredOutcome || draft.deadlineText != before.deadlineText
             || draft.goalKind != before.goalKind || draft.metricTargetValue != before.metricTargetValue
             || draft.metricSource != before.metricSource || draft.sourceHabitId != before.sourceHabitId
+            || draft.ledgerScope != before.ledgerScope
     }
 
     var body: some View {
-        NavigationStack {
+        HoloSheetScaffold(
+            title: String(localized: "编辑目标"),
+            onClose: { dismiss() },
+            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "保存"),
+            primaryAction: { save() },
+            primaryDisabled: !canSave,
+            primaryHint: isSaving ? nil : GoalEditForm.disabledHint(
+                for: draft,
+                hasActiveLedgerAccounts: hasActiveLedgerAccounts,
+                criteriaUnconfirmed: criteriaChanged && !criteriaConfirmed
+            ),
+            primaryActionColor: GoalJourneyStyle.action,
+            footerBackground: GoalJourneyStyle.sheetFooterCream,
+            primaryAccessory: {
+                // 修改成功条件的确认勾选（红队 U8）：放脚手架恒可见区（保存钮上方），
+                // 不再埋在滚动区里——滚出视口时保存钮静默禁用、找不到原因
+                if criteriaChanged {
+                    Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed)
+                        .holoText(.supporting)
+                }
+            }
+        ) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.lg) {
-                    GoalEditForm(draft: $draft)
-                    if criteriaChanged { Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed).holoText(.supporting) }
-                }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.md)
-                .padding(.bottom, 100)
+                GoalEditForm(draft: $draft)
+                    .padding(.horizontal, HoloSpacing.page)
+                    .padding(.top, 4)
+                    .padding(.bottom, 20)
             }
-            .background(Color.holoToolBackground)
-            .navigationTitle("编辑目标")
-            #if canImport(UIKit)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    save()
-                } label: {
-                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存"))
-                        .holoText(.body)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-                .disabled(!canSave)
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.vertical, HoloSpacing.md)
-                .background(Color.holoToolSurface)
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
-            }
-            .alert("保存失败", isPresented: Binding(
-                get: { saveError != nil },
-                set: { if !$0 { saveError = nil } }
-            )) {
-                Button("知道了", role: .cancel) {}
-            } message: {
-                Text(saveError ?? "")
-            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .onAppear {
+            hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
+        }
+        .presentationDetents([.large])
+        .alert("保存失败", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
@@ -688,10 +695,13 @@ struct GoalEditSheet: View {
                     metricSource: draft.isQuantitative ? draft.metricSource : nil,
                     sourceHabitId: draft.isQuantitative
                         ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil,
+                    ledgerScope: draft.isQuantitative
+                        ? .some(draft.metricSource == .ledger ? draft.ledgerScope : nil) : nil,
                     expectedPlanRevisionID: baseRevisionID
                 )
                 isSaving = false
                 GoalNotificationService.broadcastGoalDataChange()
+                HapticManager.success()
                 onSaved()
                 dismiss()
             } catch {

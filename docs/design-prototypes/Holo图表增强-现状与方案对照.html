@@ -1,0 +1,1262 @@
+<!doctype html>
+<html lang="zh-CN" data-zcode-design>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo 图表增强 · 现状 → 方案对照</title>
+<style>
+:root {
+  /* Holo 设计令牌（真源：Assets.xcassets + DesignSystem.swift） */
+  --bg: #FDFCF8;            /* Background / ToolBackground */
+  --surface: #FFFFFF;       /* ToolSurface（卡片） */
+  --inset: #F7F1EA;         /* ToolInset */
+  --text: #333333;          /* ToolText */
+  --text-2: #6E6E6E;        /* ToolTextSecondary */
+  --border: #E9E4DA;        /* ToolBorder */
+  --action: #EA580C;        /* ToolAction */
+  --primary: #F46D38;       /* holoPrimary 品牌橙 */
+  --c1: #3B82F6; --c2: #F97316; --c3: #22C55E; --c4: #EF4444;
+  --c5: #8B5CF6; --c6: #14B8A6; --c7: #EC4899; --c8: #EAB308;
+  --ghost: rgba(110, 110, 110, 0.20);   /* 上期淡影 */
+  --band: rgba(59, 130, 246, 0.08);     /* 健康正常区间带 */
+  --grid: rgba(233, 228, 218, 0.6);     /* 网格线 ToolBorder@0.6 */
+  --page-max: 1180px;
+}
+html[data-theme="dark"] {
+  --bg: #0E0E10; --surface: #2C2C2E; --inset: #3A3A3C;
+  --text: #F5F5F5; --text-2: #A8A8A8; --border: #48484A;
+  --action: #FF8A5C; --primary: #F46D38;
+  --ghost: rgba(168, 168, 168, 0.32);
+  --band: rgba(59, 130, 246, 0.14);
+  --grid: rgba(72, 72, 74, 0.6);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/* ── 顶栏 ─────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px 10px;
+}
+.topbar-row { display: flex; align-items: center; gap: 12px; max-width: var(--page-max); margin: 0 auto; }
+.brand { font-size: 17px; font-weight: 700; letter-spacing: 0.2px; }
+.brand .hl { color: var(--action); }
+.top-note { font-size: 12px; color: var(--text-2); max-width: var(--page-max); margin: 4px auto 0; }
+.btn-theme {
+  margin-left: auto; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 13px; padding: 6px 14px; border-radius: 10px;
+  cursor: pointer; min-height: 34px;
+}
+.btn-theme:active { opacity: 0.8; }
+/* ── 目录导航 ─────────────────────── */
+.secnav {
+  display: flex; gap: 8px; flex-wrap: wrap; max-width: var(--page-max);
+  margin: 14px auto 0; padding: 0 24px;
+}
+.secnav a {
+  font-size: 12px; color: var(--text-2); text-decoration: none;
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px;
+  background: var(--surface);
+}
+.secnav a:hover { color: var(--action); border-color: var(--action); }
+.secnav a b { color: var(--action); font-weight: 600; margin-right: 2px; }
+/* ── 主体 ─────────────────────────── */
+main { max-width: var(--page-max); margin: 0 auto; padding: 8px 24px 80px; }
+.prop { margin-top: 44px; }
+.prop-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.prop-no {
+  font-size: 13px; font-weight: 700; color: #fff; background: var(--action);
+  border-radius: 8px; padding: 2px 8px; letter-spacing: 0.5px; flex: none;
+}
+.prop-title { font-size: 19px; font-weight: 700; }
+.prop-line { font-size: 13px; color: var(--text-2); margin: 6px 0 0; max-width: 720px; }
+.adopt {
+  margin-left: auto; display: inline-flex; border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; flex: none; background: var(--surface);
+}
+.adopt button {
+  border: 0; background: transparent; color: var(--text-2); font-size: 13px;
+  padding: 7px 14px; cursor: pointer; min-height: 34px;
+}
+.adopt button.on-adopt { background: var(--action); color: #fff; font-weight: 600; }
+.adopt button.on-skip { background: var(--inset); color: var(--text-2); font-weight: 600; }
+.prop[data-adopt="skip"] .panels { opacity: 0.55; }
+/* ── 双面板 ───────────────────────── */
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; margin-top: 16px; }
+.panel { min-width: 0; max-width: 470px; display: flex; flex-direction: column; }
+.panel .phone { flex: 1 0 auto; }
+.panel-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  margin: 0 0 8px 2px; letter-spacing: 0.3px;
+}
+.panel-tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.panel-tag.now::before { background: var(--text-2); }
+.panel-tag.new::before { background: var(--action); }
+/* 手机卡片：HoloChartFrame(independent: true) */
+.phone {
+  position: relative;
+  background: var(--surface); border: 0.5px solid var(--border); border-radius: 16px;
+  padding: 16px; overflow: hidden;
+}
+.phone .cap {
+  font-size: 11px; color: var(--text-2); text-align: right; margin-top: 10px;
+}
+/* 卡内结构（复刻 HoloChartFrame + Readout） */
+.card-title { font-size: 17px; font-weight: 600; margin: 0; }
+.card-sub { font-size: 12px; color: var(--text-2); margin: 2px 0 0; }
+.readout { margin-top: 12px; }
+.readout-top { display: flex; align-items: center; min-height: 26px; }
+.readout-date { font-size: 12px; color: var(--text-2); }
+.readout-detail {
+  margin-left: auto; border: 0; background: none; color: var(--action);
+  font-size: 12px; cursor: pointer; padding: 4px 0 4px 12px; visibility: hidden;
+}
+.readout-values { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-top: 2px; min-height: 30px; }
+.rv { display: inline-flex; align-items: baseline; gap: 5px; }
+.rv .dot { width: 6px; height: 6px; border-radius: 50%; align-self: center; }
+.rv .name { font-size: 12px; color: var(--text-2); }
+.rv .val { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.2px; }
+.multi .rv .val { font-size: 17px; }
+.rv .sub { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.badge {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  border-radius: 6px; padding: 2px 7px;
+}
+.badge.up { color: var(--c4); background: rgba(239, 68, 68, 0.10); }
+.badge.down { color: var(--c3); background: rgba(34, 197, 94, 0.10); }
+.chart-host { position: relative; margin-top: 6px; }
+.chart-host svg { display: block; width: 100%; }
+.tick-pulse {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--action); opacity: 0; pointer-events: none;
+}
+.tick-pulse.pulse { animation: tickpop 0.35s ease-out; }
+@keyframes tickpop { 0% { opacity: 0.9; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2.4); } }
+/* 图例开关（方案 10） */
+.legend { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.legend-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text);
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px;
+  background: var(--surface); cursor: pointer; min-height: 30px; user-select: none;
+}
+.legend-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.legend-chip.off { opacity: 0.4; }
+.legend-chip.off .dot { background: var(--text-2) !important; }
+/* 分段切换（复刻 App 的 vizSwitch：灰轨白块） */
+.seg { display: inline-flex; padding: 2.5px; background: var(--inset); border-radius: 10px; }
+.seg button {
+  border: 0; background: transparent; color: var(--text-2); font-size: 13px;
+  padding: 0 14px; min-height: 36px; border-radius: 8px; cursor: pointer;
+}
+.seg button.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 1.5px rgba(0,0,0,0.10); }
+.seg-row { display: flex; justify-content: flex-end; margin: 10px 0 2px; }
+/* 现场小标题（第 11 条双现场） */
+.scene-cap { font-size: 12px; color: var(--text-2); margin-top: 16px; }
+.bare-title { font-size: 13px; font-weight: 600; margin-top: 8px; }
+.scene-cap:first-of-type { margin-top: 12px; }
+.mini-dates { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-2); margin-top: 2px; }
+/* 变化点标注 */
+.changes { margin: 10px 2px 0; padding: 0; list-style: none; }
+.changes li { font-size: 12.5px; color: var(--text-2); padding: 3px 0; display: flex; gap: 8px; }
+.changes .mk {
+  flex: none; width: 17px; height: 17px; border-radius: 50%;
+  background: var(--action); color: #fff; font-size: 10.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; margin-top: 2px;
+}
+.mk-pin {
+  position: absolute; z-index: 5; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--action); color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25); pointer-events: none;
+}
+/* 环形图列表（现状 6） */
+.donut-list { margin-top: 12px; }
+.donut-row {
+  display: flex; align-items: center; gap: 8px; padding: 0 8px; min-height: 40px;
+  border-radius: 8px; font-size: 14px;
+}
+.donut-row .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.donut-row .nm { color: var(--text); }
+.donut-row .vv { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text); }
+.donut-row .pc { color: var(--text-2); font-variant-numeric: tabular-nums; width: 52px; text-align: right; }
+/* 空态（第 9 条） */
+.empty-now { text-align: center; color: var(--text-2); font-size: 14px; padding: 44px 16px; }
+.empty-new { text-align: center; padding: 30px 16px 26px; }
+.empty-new .et { font-size: 15px; font-weight: 600; color: var(--text); }
+.empty-new .ed { font-size: 13px; color: var(--text-2); margin-top: 6px; }
+.empty-new .go {
+  margin-top: 16px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--action); color: #fff; font-size: 14px; font-weight: 600;
+  padding: 10px 22px; min-height: 40px;
+}
+.empty-new .go:active { opacity: 0.85; }
+/* 汇总 */
+.summary {
+  margin-top: 56px; border: 1px dashed var(--border); border-radius: 16px;
+  padding: 18px 20px; background: var(--surface);
+}
+.summary h2 { font-size: 16px; margin: 0 0 8px; }
+.summary .cnt { font-size: 13px; color: var(--text-2); }
+.summary .cnt b { color: var(--action); font-size: 15px; }
+.summary ul { margin: 8px 0 0; padding-left: 0; list-style: none; column-count: 2; }
+.summary li { font-size: 13px; color: var(--text-2); padding: 2px 0; }
+.summary li b { color: var(--text); font-weight: 600; }
+@media (max-width: 640px) { .summary ul { column-count: 1; } }
+footer { max-width: var(--page-max); margin: 0 auto; padding: 0 24px 48px; font-size: 12px; color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) { .tick-pulse.pulse { animation: none; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-row">
+    <div class="brand">Holo 图表增强 · <span class="hl">现状 → 方案</span>对照</div>
+    <button class="btn-theme" id="themeToggle" type="button">切换深色</button>
+  </div>
+  <p class="top-note">左边是 App 现在的样子（按图表组件真实代码 1:1 复刻，颜色/字号/间距同款），右边是增强方案——红点标出每一处变化。柱状图可以直接按住横滑试试手感。每节右上可勾「采纳 / 跳过」，勾选会记住。示例数据为演示用，非真实账本。</p>
+  <nav class="secnav" id="secnav"></nav>
+</header>
+<main id="main"></main>
+<section class="summary" id="summary" hidden>
+  <h2>圈选汇总</h2>
+  <div class="cnt" id="summaryCnt"></div>
+  <ul id="summaryList"></ul>
+</section>
+<footer>原型即契约：勾选结果将按本页「方案」面板 1:1 落进组件层（Holo/Components/Charts），不散落业务页面。触感反馈一条在网页里只能示意，真机上是轻触觉「嗒」。</footer>
+<script>
+"use strict";
+/* ══════════ 工具 ══════════ */
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(NS, tag);
+  for (const k in attrs) {
+    if (k === "text") el.textContent = attrs[k];
+    else el.setAttribute(k, attrs[k]);
+  }
+  return el;
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function money(v) { return "¥" + Math.round(v).toLocaleString("zh-CN"); }
+function num1(v) { return (Math.round(v * 10) / 10).toLocaleString("zh-CN"); }
+function axisNum(v) {
+  const a = Math.abs(v);
+  if (a >= 100000000) return num1(v / 100000000) + "亿";
+  if (a >= 10000) return num1(v / 10000) + "万";
+  return Math.round(v).toLocaleString("zh-CN");
+}
+function niceStep(raw) {
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (raw <= m * mag) return m * mag;
+  return 10 * mag;
+}
+function yTicks(maxV, count = 4) {
+  let step = niceStep(maxV / count);
+  if (maxV <= 12) step = Math.max(1, Math.round(step)); /* 小值域（天数）保整数刻度 */
+  const top = Math.ceil(maxV / step) * step;
+  const n = Math.round(top / step);
+  const arr = [];
+  for (let i = 0; i <= n; i++) arr.push(step * i);
+  return { values: arr, top };
+}
+/* 日期序列：2026-10-16 起连续 n 天 */
+function dayLabels(n, start = new Date(2026, 9, 16), stepDays = 1) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(start.getTime() + i * stepDays * 86400000);
+    const label = (d.getMonth() + 1) + "-" + String(d.getDate()).padStart(2, "0");
+    const wk = "日一二三四五六"[d.getDay()];
+    out.push({ label, detail: (d.getMonth() + 1) + "月" + d.getDate() + "日 周" + wk });
+  }
+  return out;
+}
+/* 数字滚动（尊重系统减弱动态） */
+function tweenText(el, from, to, fmt, dur = 320) {
+  if (reduceMotion || from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  (function frame(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(frame);
+  })(t0);
+}
+
+/* ══════════ 柱状图（复刻 HoloBarChart 布局规则） ══════════ */
+function barChart(host, cfg) {
+  const H = cfg.height || 160, axisPad = 22, gutter = 34;
+  let W = host.clientWidth || 358;
+  const plotW = W - gutter, plotH = H - 12, y0 = 6;
+  const n = cfg.buckets.length;
+  const allVals = [];
+  cfg.series.forEach((s, si) => cfg.buckets.forEach(b => { const v = b.values[si]; if (v != null) allVals.push(v); }));
+  if (cfg.ghost) cfg.ghost.forEach(v => { if (v != null) allVals.push(v * 1.05); });
+  if (cfg.rules) cfg.rules.forEach(r => allVals.push(r.value));
+  const ticks = yTicks(Math.max(...allVals, 1) * 1.02);
+  const yTop = cfg.yMax || ticks.top;
+  const yOf = v => y0 + plotH - (v / yTop) * plotH;
+  const slot = plotW / n, center = i => i * slot + slot / 2;
+  const barW = cfg.series.length === 1 ? Math.min(18, slot * 0.62) : Math.min(10, slot * 0.34);
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + axisPad}`, width: W, height: H + axisPad });
+  host.appendChild(svg);
+
+  /* 网格 + 右轴刻度（11pt 次要色，4 档） */
+  ticks.values.forEach(v => {
+    const y = yOf(v * (yTop / ticks.top));
+    if (v > 0) svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: "stroke:var(--grid);stroke-width:1" }));
+    svg.appendChild(svgEl("text", { x: plotW + 6, y: y + 3.5, style: "fill:var(--text-2);font-size:11px", text: cfg.axisFmt ? cfg.axisFmt(v) : axisNum(v) }));
+  });
+
+  /* 触感示意（方案 4）：常驻小橙点标注 + 交互时的脉冲 */
+  if (cfg.tick) {
+    svg.appendChild(svgEl("circle", { cx: plotW - 36, cy: 10, r: 3, style: "fill:var(--action)" }));
+    svg.appendChild(svgEl("text", { x: plotW - 28, y: 13.5, style: "fill:var(--action);font-size:10px;font-weight:600", text: "轻嗒" }));
+  }
+  /* 参考线（预算 / 均值） */
+  (cfg.rules || []).forEach(r => {
+    const y = yOf(r.value);
+    svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: `stroke:${r.color};stroke-width:1.2;stroke-dasharray:4 3` }));
+    const right = r.side !== "left";
+    svg.appendChild(svgEl("text", {
+      x: right ? plotW - 4 : 4, y: y - 5, "text-anchor": right ? "end" : "start",
+      style: `fill:${r.color};font-size:10.5px;font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:3px`, text: r.label
+    }));
+  });
+
+  const layers = {};
+  if (cfg.ghost) {
+    layers.ghost = svgEl("g", {});
+    cfg.ghost.forEach((v, i) => {
+      if (v == null || v <= 0) return;
+      const h = (v / yTop) * plotH;
+      layers.ghost.appendChild(svgEl("rect", { x: center(i) - barW * 0.72 / 2 - (cfg.series.length === 1 ? 0 : barW / 2 + 1), y: y0 + plotH - h, width: barW * 0.72, height: h, rx: 2.5, style: "fill:var(--ghost)" }));
+    });
+    svg.appendChild(layers.ghost);
+  }
+  layers.bars = svgEl("g", {});
+  cfg.buckets.forEach((b, i) => {
+    cfg.series.forEach((s, si) => {
+      if (cfg.hidden && cfg.hidden[si]) return;
+      const v = b.values[si];
+      if (v == null) return;
+      const h = (v / yTop) * plotH;
+      if (h <= 0) return;
+      const off = cfg.series.length === 1 ? 0 : (si === 0 ? -barW / 2 - 1 : barW / 2 + 1);
+      layers.bars.appendChild(svgEl("rect", {
+        x: center(i) + off - barW / 2, y: y0 + plotH - h, width: barW, height: h, rx: 3,
+        style: `fill:${s.color}`, "data-i": i, "data-s": si
+      }));
+    });
+  });
+  svg.appendChild(layers.bars);
+
+  /* 选中虚线（3-3 · 次要色 45%） */
+  const selLine = svgEl("line", { y1: y0, y2: y0 + plotH, style: "stroke:var(--text-2);stroke-opacity:0.45;stroke-width:1;stroke-dasharray:3 3" });
+  svg.appendChild(selLine);
+
+  /* x 轴刻度：预算等分 + 首尾贴边（复刻 tickLabels 规则） */
+  const want = Math.max(2, Math.floor(plotW / 52));
+  const picked = [];
+  for (let k = 0; k < want; k++) picked.push(Math.round(k * (n - 1) / (want - 1)));
+  [...new Set(picked)].forEach(i => {
+    const anchor = i === picked[0] ? "start" : (i === picked[picked.length - 1] ? "end" : "middle");
+    svg.appendChild(svgEl("text", {
+      x: anchor === "start" ? 0 : anchor === "end" ? plotW : center(i),
+      y: H + 14, "text-anchor": anchor, style: "fill:var(--text-2);font-size:11px", text: cfg.buckets[i].label
+    }));
+  });
+
+  const state = { sel: null };
+  function setSel(i, user) {
+    if (i === state.sel) return;
+    state.sel = i;
+    selLine.setAttribute("x1", center(i)); selLine.setAttribute("x2", center(i));
+    selLine.style.display = "";
+    updateReadout(user);
+    if (cfg.onSelect) cfg.onSelect(i);
+  }
+  function updateReadout(user) {
+    const i = state.sel, b = i == null ? null : cfg.buckets[i];
+    dateEl.textContent = b ? (b.detail || b.label) : cfg.idleSummary;
+    detailBtn.style.visibility = b ? "visible" : "hidden";
+    cfg.series.forEach((s, si) => {
+      if (cfg.hidden && cfg.hidden[si]) { s._valEl.parentElement.style.display = "none"; return; }
+      s._valEl.parentElement.style.display = "";
+      const v = b ? b.values[si] : s._idle;
+      if (v == null) s._valEl.textContent = "无记录";
+      else if (user === "init" || s._valEl.textContent === "—") s._valEl.textContent = s.fmt(v);
+      else {
+        const from = parseFloat(s._valEl.dataset.v || "0");
+        if (cfg.tween) tweenText(s._valEl, from, v, s.fmt); else s._valEl.textContent = s.fmt(v);
+      }
+      s._valEl.dataset.v = v == null ? "" : v;
+      if (s._subEl) {
+        s._subEl.textContent = (b && cfg.ghost && cfg.ghost[i] != null && si === 0) ? (cfg.ghostPrefix || "上期同日") + " " + s.fmt(cfg.ghost[i]) : "";
+      }
+    });
+    if (badgeEl && cfg.delta) {
+      badgeEl.style.display = i == null ? "" : "none";  /* 选中具体某天时隐藏汇总徽标 */
+    }
+    if (cfg.tick) pulse(center(i));
+  }
+  /* 触感示意：选中身份一变，橙点冒一下 */
+  let pulseEl = null;
+  function pulse(cx) {
+    if (!pulseEl) { pulseEl = document.createElement("span"); pulseEl.className = "tick-pulse"; host.appendChild(pulseEl); }
+    pulseEl.style.left = (cx - 3) + "px"; pulseEl.style.top = "2px";
+    pulseEl.classList.remove("pulse"); void pulseEl.offsetWidth; pulseEl.classList.add("pulse");
+  }
+
+  /* 读数区 DOM */
+  const readout = document.createElement("div"); readout.className = "readout" + (cfg.series.length > 1 ? " multi" : "");
+  const top = document.createElement("div"); top.className = "readout-top";
+  const dateEl = document.createElement("span"); dateEl.className = "readout-date";
+  const detailBtn = document.createElement("button"); detailBtn.className = "readout-detail"; detailBtn.type = "button"; detailBtn.textContent = "查看明细";
+  top.append(dateEl, detailBtn);
+  const vals = document.createElement("div"); vals.className = "readout-values";
+  let badgeEl = null;
+  cfg.series.forEach((s, si) => {
+    s._idle = cfg.idleValues ? cfg.idleValues[si] : (cfg.series.length === 1 ? null : null);
+    const rv = document.createElement("span"); rv.className = "rv";
+    const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = s.color;
+    const nm = document.createElement("span"); nm.className = "name"; nm.textContent = s.title;
+    const val = document.createElement("span"); val.className = "val"; val.textContent = "—"; s._valEl = val;
+    rv.append(dot, nm, val);
+    if (cfg.ghost && si === 0) { const sub = document.createElement("span"); sub.className = "sub"; s._subEl = sub; rv.appendChild(sub); }
+    vals.appendChild(rv);
+  });
+  if (cfg.delta) {
+    badgeEl = document.createElement("span");
+    badgeEl.className = "badge " + (cfg.delta.pct >= 0 ? "up" : "down");
+    badgeEl.textContent = (cfg.delta.pct >= 0 ? "▲ " : "▼ ") + Math.abs(cfg.delta.pct).toFixed(1) + "% · " + cfg.delta.vs;
+    badgeEl.style.alignSelf = "center";
+    vals.appendChild(badgeEl);
+  }
+  readout.append(top, vals);
+  host.parentElement.insertBefore(readout, host);
+
+  /* 交互：按住横滑 / 点按（纵滑不拦截由真机手势层处理，网页里示意） */
+  let pressing = false;
+  svg.addEventListener("pointerdown", e => { pressing = true; svg.setPointerCapture(e.pointerId); hit(e); });
+  svg.addEventListener("pointermove", e => { if (pressing) hit(e); });
+  svg.addEventListener("pointerup", () => pressing = false);
+  svg.addEventListener("pointercancel", () => pressing = false);
+  function hit(e) {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(n - 1, Math.floor(x / slot)));
+    setSel(i, "user");
+  }
+
+  updateReadout("init");
+  if (cfg.selectLast !== false) {
+    let li = n - 1;
+    while (li > 0 && cfg.buckets[li].values.every(v => v == null)) li--;
+    setSel(li, "init");
+  } else selLine.style.display = "none";
+  return { setSel, layers, svg, rehide() { /* 图例开关后重画柱层 */ layers.bars.innerHTML = ""; cfg.buckets.forEach((b, i) => { cfg.series.forEach((s, si) => { if (cfg.hidden && cfg.hidden[si]) return; const v = b.values[si]; if (v == null) return; const h = (v / yTop) * plotH; if (h <= 0) return; const off = cfg.series.length === 1 ? 0 : (si === 0 ? -barW / 2 - 1 : barW / 2 + 1); layers.bars.appendChild(svgEl("rect", { x: center(i) + off - barW / 2, y: y0 + plotH - h, width: barW, height: h, rx: 3, style: `fill:${s.color}` })); }); }); updateReadout(); } };
+}
+
+/* ══════════ 折线图（复刻 HoloLineChart） ══════════ */
+function lineChart(host, cfg) {
+  const H = cfg.height || 160, axisPad = 22, gutter = 34;
+  const W = host.clientWidth || 358;
+  const plotW = W - gutter, plotH = H - 12, y0 = 6;
+  const n = cfg.points.length;
+  const vals = cfg.points.map(p => p.v);
+  const lo = Math.min(...vals, cfg.baseline || Infinity, cfg.band ? cfg.band.from : Infinity);
+  const hi = Math.max(...vals, cfg.baseline || -Infinity, cfg.band ? cfg.band.to : -Infinity);
+  const pad = (hi - lo) * 0.12 || 1;
+  const dom = [lo - pad, hi + pad];
+  const yOf = v => y0 + plotH - ((v - dom[0]) / (dom[1] - dom[0])) * plotH;
+  const xOf = i => cfg.evenX ? (i + 0.5) * plotW / n : 4 + i * (plotW - 8) / (n - 1);
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + axisPad}`, width: W, height: H + axisPad });
+  host.appendChild(svg);
+
+  /* 区间带（方案 8）：先垫底 */
+  if (cfg.band) {
+    const yT = yOf(cfg.band.to), yB = yOf(cfg.band.from);
+    svg.appendChild(svgEl("rect", { x: 0, y: yT, width: plotW, height: yB - yT, style: "fill:var(--band)" }));
+    svg.appendChild(svgEl("text", { x: plotW - 4, y: yT + 12, "text-anchor": "end", style: "fill:var(--text-2);font-size:10.5px;paint-order:stroke;stroke:var(--surface);stroke-width:3px", text: "正常区间 " + num1(cfg.band.from) + "–" + num1(cfg.band.to) }));
+  }
+  /* 网格（4 档） */
+  for (let k = 0; k <= 4; k++) {
+    const v = dom[0] + (dom[1] - dom[0]) * k / 4, y = yOf(v);
+    if (k > 0) svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: "stroke:var(--grid);stroke-width:1" }));
+    svg.appendChild(svgEl("text", { x: plotW + 6, y: y + 3.5, style: "fill:var(--text-2);font-size:11px", text: num1(v) }));
+  }
+  /* 基线（现状已有：4-3 虚线） */
+  if (cfg.baseline != null) {
+    const y = yOf(cfg.baseline);
+    svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: "stroke:var(--text-2);stroke-opacity:0.6;stroke-width:1;stroke-dasharray:4 3" }));
+    svg.appendChild(svgEl("text", { x: plotW - 4, y: y - 5, "text-anchor": "end", style: "fill:var(--text-2);font-size:10.5px;paint-order:stroke;stroke:var(--surface);stroke-width:3px", text: "基线 " + num1(cfg.baseline) }));
+  }
+  /* 折线：2pt 圆头，线性 */
+  const d = cfg.points.map((p, i) => (i ? "L" : "M") + xOf(i).toFixed(1) + " " + yOf(p.v).toFixed(1)).join(" ");
+  svg.appendChild(svgEl("path", { d, style: `fill:none;stroke:${cfg.color};stroke-width:2;stroke-linecap:round;stroke-linejoin:round` }));
+  /* 数据点：≤7 点全显；否则只显选中（现状规则）；方案可 alwaysShowPoints */
+  const showAll = n <= 7 || cfg.alwaysShowPoints;
+  const dotG = svgEl("g", {});
+  if (showAll) cfg.points.forEach((p, i) => dotG.appendChild(svgEl("circle", { cx: xOf(i), cy: yOf(p.v), r: 2.6, style: `fill:${cfg.color}` })));
+  svg.appendChild(dotG);
+  const selDot = svgEl("circle", { r: 4.6, style: `fill:${cfg.color};stroke:var(--surface);stroke-width:2` });
+  svg.appendChild(selDot);
+  const selLine = svgEl("line", { y1: y0, y2: y0 + plotH, style: "stroke:var(--text-2);stroke-opacity:0.45;stroke-width:1;stroke-dasharray:3 3" });
+  svg.appendChild(selLine);
+
+  /* 极值标注（方案 1）：峰/谷 小点 + 短引线 + 11pt 标签 */
+  if (cfg.annotateExtrema) {
+    let iMax = 0, iMin = 0;
+    vals.forEach((v, i) => { if (v > vals[iMax]) iMax = i; if (v < vals[iMin]) iMin = i; });
+    if (iMax !== iMin) {
+      [[iMax, "峰", -1], [iMin, "谷", 1]].forEach(([i, word, dir]) => {
+        const x = xOf(i), y = yOf(vals[i]);
+        svg.appendChild(svgEl("circle", { cx: x, cy: y, r: 3, style: `fill:${cfg.color}` }));
+        const lx = Math.max(30, Math.min(plotW - 30, x));
+        svg.appendChild(svgEl("line", { x1: x, x2: lx, y1: y + dir * 5, y2: y + dir * 12, style: `stroke:${cfg.color};stroke-width:1` }));
+        svg.appendChild(svgEl("text", {
+          x: lx, y: y + dir * (dir < 0 ? 15 : 24), "text-anchor": "middle",
+          style: `fill:var(--text);font-size:11px;font-weight:600;paint-order:stroke;stroke:var(--surface);stroke-width:3px`, text: word + " " + num1(vals[i]) + (cfg.unit || "")
+        }));
+      });
+    }
+  }
+  /* x 轴刻度 */
+  const want = Math.max(2, Math.floor(plotW / 56));
+  const picked = [];
+  for (let k = 0; k < want; k++) picked.push(Math.round(k * (n - 1) / (want - 1)));
+  [...new Set(picked)].forEach(i => {
+    const anchor = i === picked[0] ? "start" : (i === picked[picked.length - 1] ? "end" : "middle");
+    svg.appendChild(svgEl("text", {
+      x: anchor === "start" ? 0 : anchor === "end" ? plotW : xOf(i),
+      y: H + 14, "text-anchor": anchor, style: "fill:var(--text-2);font-size:11px", text: cfg.points[i].label
+    }));
+  });
+
+  const state = { sel: null };
+  const dateEl = document.createElement("span"); dateEl.className = "readout-date";
+  const detailBtn = document.createElement("button"); detailBtn.className = "readout-detail"; detailBtn.type = "button"; detailBtn.textContent = "查看明细";
+  const valEl = document.createElement("span"); valEl.className = "val"; valEl.textContent = "—";
+  const readout = document.createElement("div"); readout.className = "readout";
+  const top = document.createElement("div"); top.className = "readout-top"; top.append(dateEl, detailBtn);
+  const valsRow = document.createElement("div"); valsRow.className = "readout-values";
+  const rv = document.createElement("span"); rv.className = "rv";
+  const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = cfg.color;
+  const nm = document.createElement("span"); nm.className = "name"; nm.textContent = cfg.seriesTitle;
+  rv.append(dot, nm, valEl); valsRow.appendChild(rv);
+  readout.append(top, valsRow);
+  host.parentElement.insertBefore(readout, host);
+  function setSel(i, src) {
+    if (i === state.sel) return;
+    state.sel = i;
+    const x = xOf(i);
+    selDot.setAttribute("cx", x); selDot.setAttribute("cy", yOf(vals[i])); selDot.style.display = "";
+    selLine.setAttribute("x1", x); selLine.setAttribute("x2", x); selLine.style.display = "";
+    dateEl.textContent = cfg.points[i].detail || cfg.points[i].label;
+    detailBtn.style.visibility = "visible";
+    const v = vals[i];
+    if (src === "init" || !cfg.tween) valEl.textContent = cfg.fmt(v);
+    else tweenText(valEl, parseFloat(valEl.dataset.v || "0"), v, cfg.fmt);
+    valEl.dataset.v = v;
+    if (cfg.tick && src === "user") {
+      if (!lineChart._p) { lineChart._p = document.createElement("span"); lineChart._p.className = "tick-pulse"; host.appendChild(lineChart._p); }
+      lineChart._p.style.left = (x - 3) + "px"; lineChart._p.style.top = "2px";
+      lineChart._p.classList.remove("pulse"); void lineChart._p.offsetWidth; lineChart._p.classList.add("pulse");
+    }
+  }
+  let pressing = false;
+  svg.addEventListener("pointerdown", e => { pressing = true; svg.setPointerCapture(e.pointerId); hit(e); });
+  svg.addEventListener("pointermove", e => { if (pressing) hit(e); });
+  svg.addEventListener("pointerup", () => pressing = false);
+  svg.addEventListener("pointercancel", () => pressing = false);
+  function hit(e) {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width);
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < n; i++) { const d0 = Math.abs(xOf(i) - x); if (d0 < bd) { bd = d0; best = i; } }
+    setSel(best, "user");
+  }
+  if (cfg.selectLast !== false) setSel(n - 1, "init");
+  else { dateEl.textContent = cfg.idleSummary || "最近记录 · 点按或横滑查看"; selDot.style.display = "none"; selLine.style.display = "none"; }
+}
+
+/* ══════════ 环形图（复刻 HoloDonutChart + 图例列表） ══════════ */
+function donutChart(host, cfg) {
+  const W = host.clientWidth || 358, Hc = 190, R = 74, IR = R * 0.68;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${Hc}`, width: W, height: Hc });
+  host.appendChild(svg);
+  const cx = W / 2, cy = Hc / 2, total = cfg.segments.reduce((a, s) => a + s.weight, 0);
+  let a0 = -Math.PI / 2;
+  cfg.segments.forEach(s => {
+    const sweep = s.weight / total * Math.PI * 2;
+    const g = 0.026; /* 1.5° 缝 */
+    const a1 = a0 + g / 2, a2 = a0 + sweep - g / 2;
+    const large = sweep > Math.PI ? 1 : 0;
+    const p = `M ${cx + IR * Math.cos(a1)} ${cy + IR * Math.sin(a1)} L ${cx + R * Math.cos(a1)} ${cy + R * Math.sin(a1)} A ${R} ${R} 0 ${large} 1 ${cx + R * Math.cos(a2)} ${cy + R * Math.sin(a2)} L ${cx + IR * Math.cos(a2)} ${cy + IR * Math.sin(a2)} A ${IR} ${IR} 0 ${large} 0 ${cx + IR * Math.cos(a1)} ${cy + IR * Math.sin(a1)} Z`;
+    svg.appendChild(svgEl("path", { d: p, style: `fill:${s.color}` }));
+    a0 += sweep;
+  });
+  const t1 = svgEl("text", { x: cx, y: cy - 7, "text-anchor": "middle", style: "fill:var(--text-2);font-size:12px", text: "本月支出" });
+  const t2 = svgEl("text", { x: cx, y: cy + 15, "text-anchor": "middle", style: "fill:var(--text);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums", text: cfg.centerText });
+  svg.append(t1, t2);
+  const list = document.createElement("div"); list.className = "donut-list";
+  cfg.segments.forEach(s => {
+    const row = document.createElement("div"); row.className = "donut-row";
+    row.innerHTML = `<span class="dot" style="background:${s.color}"></span><span class="nm">${s.name}</span><span class="vv">${s.valueText}</span><span class="pc">${(s.weight / total * 100).toFixed(1)}%</span>`;
+    list.appendChild(row);
+  });
+  host.parentElement.insertBefore(list, host.nextSibling);
+}
+
+/* ══════════ 堆叠面积（方案 6） ══════════ */
+function stackedArea(host, cfg) {
+  const H = 170, axisPad = 22, gutter = 34, W = host.clientWidth || 358;
+  const plotW = W - gutter, plotH = H - 12, y0 = 6;
+  const n = cfg.labels.length;
+  const totals = cfg.labels.map((_, i) => cfg.series.reduce((a, s) => a + s.values[i], 0));
+  const ticks = yTicks(Math.max(...totals) * 1.05);
+  const yOf = v => y0 + plotH - v / ticks.top * plotH;
+  const xOf = i => (i + 0.5) * plotW / n;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + axisPad}`, width: W, height: H + axisPad });
+  host.appendChild(svg);
+  ticks.values.forEach(v => {
+    const y = yOf(v);
+    if (v > 0) svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: "stroke:var(--grid);stroke-width:1" }));
+    svg.appendChild(svgEl("text", { x: plotW + 6, y: y + 3.5, style: "fill:var(--text-2);font-size:11px", text: axisNum(v) }));
+  });
+  let cum = cfg.labels.map(() => 0);
+  [...cfg.series].reverse().forEach(s => { /* 从底层往上画 */
+    const up = cfg.labels.map((_, i) => cum[i] + s.values[i]);
+    const d = "M" + up.map((v, i) => xOf(i).toFixed(1) + " " + yOf(v).toFixed(1)).join(" L") +
+      " L" + cum.map((v, i) => xOf(n - 1 - i).toFixed(1) + " " + yOf(cum[n - 1 - i]).toFixed(1)).join(" L") + " Z";
+    svg.appendChild(svgEl("path", { d, style: `fill:${s.color};fill-opacity:0.55` }));
+    svg.appendChild(svgEl("path", { d: "M" + up.map((v, i) => xOf(i).toFixed(1) + " " + yOf(v).toFixed(1)).join(" L"), style: `fill:none;stroke:${s.color};stroke-width:1.5` }));
+    cum = up;
+  });
+  cfg.labels.forEach((lb, i) => {
+    svg.appendChild(svgEl("text", { x: xOf(i), y: H + 14, "text-anchor": "middle", style: "fill:var(--text-2);font-size:11px", text: lb }));
+  });
+  /* 悬停月份 → 读数切构成 */
+  const hi = svgEl("rect", { y: y0, width: plotW / n, height: plotH, style: "fill:var(--text-2);fill-opacity:0.05" });
+  svg.insertBefore(hi, svg.querySelector("path"));
+  const readout = document.createElement("div"); readout.className = "readout";
+  const top = document.createElement("div"); top.className = "readout-top";
+  const dateEl = document.createElement("span"); dateEl.className = "readout-date"; top.appendChild(dateEl);
+  const vals = document.createElement("div"); vals.className = "readout-values multi";
+  readout.append(top, vals);
+  host.parentElement.insertBefore(readout, host);
+  function show(i) {
+    hi.setAttribute("x", xOf(i) - plotW / n / 2);
+    dateEl.textContent = cfg.labels[i] + " · 支出 " + money(totals[i]);
+    vals.innerHTML = "";
+    cfg.series.forEach(s => {
+      const rv = document.createElement("span"); rv.className = "rv";
+      rv.innerHTML = `<span class="dot" style="background:${s.color}"></span><span class="name">${s.title}</span><span class="val">${money(s.values[i])}</span>`;
+      vals.appendChild(rv);
+    });
+  }
+  svg.addEventListener("pointerdown", e => { hit(e); });
+  svg.addEventListener("pointermove", e => { hit(e); }); /* 桌面悬停即反馈 */
+  function hit(e) {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width);
+    show(Math.max(0, Math.min(n - 1, Math.floor(x / (plotW / n)))));
+  }
+  show(n - 1);
+}
+
+/* ══════════ 瀑布图（方案 7） ══════════ */
+function waterfall(host, cfg) {
+  const H = 185, axisPad = 22, W = host.clientWidth || 358;
+  const plotW = W, plotH = H - 14, y0 = 6;
+  const n = cfg.items.length;
+  let run = 0; const levels = [];
+  cfg.items.forEach(it => {
+    if (it.total != null) { levels.push({ ...it, from: 0, to: it.total }); run = it.total; }
+    else { const from = run; run += it.delta; levels.push({ ...it, from, to: run }); }
+  });
+  const yMax = Math.ceil(Math.max(...levels.map(l => Math.max(l.from, l.to))) * 1.05 / 4000) * 4000;
+  const yOf = v => y0 + plotH - v / yMax * plotH;
+  const slot = plotW / n, center = i => i * slot + slot / 2, barW = Math.min(34, slot * 0.52);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + axisPad}`, width: W, height: H + axisPad });
+  host.appendChild(svg);
+  for (let v = yMax; v >= 0; v -= 4000) {
+    const y = yOf(v);
+    if (v > 0) svg.appendChild(svgEl("line", { x1: 0, x2: plotW, y1: y, y2: y, style: "stroke:var(--grid);stroke-width:1" }));
+    if (v < yMax) { /* 顶格刻度不标——给期末柱的金额标签让位 */
+      svg.appendChild(svgEl("text", {
+        x: plotW - 2, y: y - 4, "text-anchor": "end",
+        style: "fill:var(--text-2);font-size:10.5px;paint-order:stroke;stroke:var(--surface);stroke-width:3px",
+        text: v === 0 ? "0" : num1(v / 10000) + "万"
+      }));
+    }
+  }
+  let prev = null;
+  levels.forEach((l, i) => {
+    const isTotal = l.total != null;
+    const up = l.to >= l.from;
+    const y = yOf(Math.max(l.from, l.to)), h = Math.abs(yOf(l.from) - yOf(l.to));
+    const color = isTotal ? "var(--text-2)" : (up ? "var(--c3)" : "var(--c2)");
+    if (h > 0.5) svg.appendChild(svgEl("rect", { x: center(i) - barW / 2, y, width: barW, height: h, rx: 3, style: `fill:${color};fill-opacity:${isTotal ? 0.35 : 0.9}` }));
+    else svg.appendChild(svgEl("line", { x1: center(i) - barW / 2, x2: center(i) + barW / 2, y1: yOf(l.to), y2: yOf(l.to), style: "stroke:var(--text-2);stroke-width:2" }));
+    /* 连接虚线到下一柱 */
+    if (i < n - 1) svg.appendChild(svgEl("line", { x1: center(i) + barW / 2, x2: center(i + 1) - barW / 2, y1: yOf(l.to), y2: yOf(l.to), style: "stroke:var(--text-2);stroke-opacity:0.4;stroke-width:1;stroke-dasharray:2 2" }));
+    const lab = isTotal ? money(l.to) : (up ? "+" : "−") + money(Math.abs(l.delta));
+    svg.appendChild(svgEl("text", { x: center(i), y: (up ? y - 6 : y + h + 13), "text-anchor": "middle", style: `fill:${isTotal ? "var(--text)" : (up ? "var(--c3)" : "var(--c2)")};font-size:10.5px;font-weight:600;font-variant-numeric:tabular-nums`, text: lab }));
+    svg.appendChild(svgEl("text", { x: center(i), y: H + 14, "text-anchor": "middle", style: "fill:var(--text-2);font-size:10.5px", text: l.label }));
+  });
+}
+
+/* ══════════ 双轴柱线（现状 7：收支与余额） ══════════ */
+function dualAxisChart(host, cfg) {
+  const H = 160, axisPad = 22, W = host.clientWidth || 358;
+  const padSide = 30, gutterR = 46, plotW = W - padSide - gutterR, plotH = H - 12, y0 = 6;
+  const n = cfg.labels.length, slot = plotW / n, center = i => padSide + i * slot + slot / 2;
+  const barW = Math.min(10, slot * 0.3);
+  const tR = yTicks(Math.max(...cfg.expense) * 1.05);   /* 右轴=支出 */
+  const tL = yTicks(Math.max(...cfg.income) * 1.05);    /* 左轴=收入 */
+  const bMin = Math.min(...cfg.balance), bMax = Math.max(...cfg.balance);
+  const bDom = [bMin - (bMax - bMin) * 0.15, bMax + (bMax - bMin) * 0.15];
+  const yOf = (v, t) => y0 + plotH - v / t * plotH;
+  const yOfB = v => y0 + plotH - (v - bDom[0]) / (bDom[1] - bDom[0]) * plotH;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H + axisPad}`, width: W, height: H + axisPad });
+  host.appendChild(svg);
+  /* 双轴三倍规则（图表规范 V3）：量级差三倍以上才分轴，否则共用一轴（同一比例，取整刻度） */
+  const split = Math.max(...cfg.income) / Math.max(...cfg.expense) >= 3;
+  const sharedTop = Math.ceil(Math.max(...cfg.income) * 1.05 / 4000) * 4000;
+  const eTop = split ? tR.top : sharedTop, iTop = split ? tL.top : sharedTop;
+  [0, 0.5, 1].forEach(f => {
+    const y = y0 + plotH - f * plotH;
+    if (f > 0) svg.appendChild(svgEl("line", { x1: padSide, x2: padSide + plotW, y1: y, y2: y, style: "stroke:var(--grid);stroke-width:1" }));
+    if (split) {
+      svg.appendChild(svgEl("text", { x: W - 2, y: y + 3.5, "text-anchor": "end", style: `fill:${cfg.expenseColor};font-size:10.5px`, text: axisNum(tR.top * f) }));
+      svg.appendChild(svgEl("text", { x: 2, y: y + 3.5, style: `fill:${cfg.incomeColor};font-size:10.5px`, text: axisNum(tL.top * f) }));
+    } else {
+      const v = sharedTop * f;
+      svg.appendChild(svgEl("text", { x: plotW + padSide + 4, y: y + 3.5, style: "fill:var(--text-2);font-size:10.5px", text: v === 0 ? "0" : num1(v / 10000) + "万" }));
+    }
+  });
+  cfg.labels.forEach((_, i) => {
+    const ve = cfg.expense[i] / eTop * plotH, vi = cfg.income[i] / iTop * plotH;
+    svg.appendChild(svgEl("rect", { x: center(i) - barW - 1, y: y0 + plotH - vi, width: barW, height: vi, rx: 3, style: `fill:${cfg.incomeColor}` }));
+    svg.appendChild(svgEl("rect", { x: center(i) + 1, y: y0 + plotH - ve, width: barW, height: ve, rx: 3, style: `fill:${cfg.expenseColor}` }));
+  });
+  const d = "M" + cfg.balance.map((v, i) => center(i).toFixed(1) + " " + yOfB(v).toFixed(1)).join(" L");
+  svg.appendChild(svgEl("path", { d, style: `fill:none;stroke:${cfg.balanceColor};stroke-width:2;stroke-linecap:round` }));
+  cfg.labels.forEach((lb, i) => svg.appendChild(svgEl("text", { x: center(i), y: H + 14, "text-anchor": "middle", style: "fill:var(--text-2);font-size:11px", text: lb })));
+  const readout = document.createElement("div"); readout.className = "readout multi";
+  const top = document.createElement("div"); top.className = "readout-top";
+  const dateEl = document.createElement("span"); dateEl.className = "readout-date"; dateEl.textContent = "近 6 月 · 点按或横滑查看";
+  top.appendChild(dateEl);
+  const vals = document.createElement("div"); vals.className = "readout-values";
+  [["收入", cfg.income, cfg.incomeColor, money], ["支出", cfg.expense, cfg.expenseColor, money], ["余额", cfg.balance, cfg.balanceColor, money]].forEach(([nm, arr, color, fmt]) => {
+    const rv = document.createElement("span"); rv.className = "rv";
+    rv.innerHTML = `<span class="dot" style="background:${color}"></span><span class="name">${nm}</span><span class="val">${fmt(arr[n - 1])}</span>`;
+    vals.appendChild(rv);
+  });
+  readout.append(top, vals);
+  host.parentElement.insertBefore(readout, host);
+}
+
+/* ══════════ 演示数据（内部自洽：合计/环比全部由代码算出） ══════════ */
+const D30 = dayLabels(30);
+const EXP30 = [132, 86, 356, 74, 58, 412, 96, 175, 128, 268, 332, 66, 88, 149, 520, 45, 96, 236, 178, 62, 344, 126, 58, 415, 288, 96, 72, 232, 148, 366];
+const GHOST30 = [118, 96, 302, 66, 74, 388, 102, 158, 96, 224, 286, 88, 72, 132, 448, 66, 88, 196, 154, 78, 302, 118, 96, 366, 242, 108, 84, 196, 132, 322];
+const SUM = a => a.reduce((x, y) => x + y, 0);
+const D15 = dayLabels(15, new Date(2026, 9, 17), 2);
+const WEIGHT = [76.6, 77.1, 76.8, 76.9, 76.4, 76.6, 76.0, 75.8, 76.1, 75.6, 75.3, 75.1, 74.8, 74.2, 74.5];
+const HR = [64, 63, 65, 62, 66, 63, 61, 64, 60, 62, 59, 61, 58, 60, 57];
+const MONTHS = ["6月", "7月", "8月", "9月", "10月", "11月"];
+const M_EXP = [5820, 5140, 4980, 5360, 5210, 5680];
+const M_MEAL = [1180, 1240, 1090, 1280, 1150, 1280];
+const M_HOME = [2200, 2200, 2200, 2200, 2200, 2200];
+const M_TRAN = [420, 380, 350, 460, 390, 420];
+const M_OTHR = [2020, 1320, 1340, 1420, 1470, 1780];
+const WEEK6 = ["10-12", "10-19", "10-26", "11-02", "11-09", "本周"];
+const W_MEAL = [720, 680, 810, 640, 760, 690];
+const W_TRAN = [180, 220, 150, 260, 200, 170];
+const H_WEEKS = [4, 5, 3, 5, 4, 5];
+const H_PREV = [3, 4, 4, 2, 5, 3];
+const MINI_PTS = [
+  { label: "10-02", offset: 0, v: 76.9 }, { label: "10-05", offset: 3, v: 76.4 },
+  { label: "10-09", offset: 7, v: 76.6 }, { label: "10-14", offset: 12, v: 76.0 },
+  { label: "10-18", offset: 16, v: 75.8 }, { label: "10-21", offset: 19, v: 76.1 },
+  { label: "10-26", offset: 24, v: 75.6 }, { label: "10-30", offset: 28, v: 75.3 },
+  { label: "11-06", offset: 35, v: 74.8 }, { label: "11-13", offset: 42, v: 74.5 }
+];
+const pctDelta = (cur, prev) => (cur / prev - 1) * 100;
+
+/* ══════════ 面板骨架 ══════════ */
+function panelShell(kind, title, sub) {
+  const panel = document.createElement("div"); panel.className = "panel";
+  const tag = document.createElement("div"); tag.className = "panel-tag " + kind;
+  tag.textContent = kind === "now" ? "现状 · 今天 App 里的样子" : "方案 · 增强后";
+  const phone = document.createElement("div"); phone.className = "phone";
+  if (title) {
+    const h = document.createElement("h3"); h.className = "card-title"; h.textContent = title; phone.appendChild(h);
+    if (sub) { const s2 = document.createElement("p"); s2.className = "card-sub"; s2.textContent = sub; phone.appendChild(s2); }
+  }
+  panel.append(tag, phone);
+  return { panel, phone };
+}
+function hostIn(phone) {
+  const host = document.createElement("div"); host.className = "chart-host";
+  phone.appendChild(host);
+  return host;
+}
+
+/* ══════════ 分段切换（方案 6/7） ══════════ */
+function segControl(phone, opts, defaultIndex) {
+  const row = document.createElement("div"); row.className = "seg-row";
+  const seg = document.createElement("div"); seg.className = "seg";
+  row.appendChild(seg);
+  phone.appendChild(row); /* 控件在卡右上，先入列再挂内容面板 */
+  const panes = opts.map(() => {
+    const p = document.createElement("div"); p.className = "seg-pane"; p.style.display = "none";
+    phone.appendChild(p); return p;
+  });
+  const rendered = opts.map(() => false);
+  opts.forEach((o, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = o.label;
+    b.addEventListener("click", () => {
+      seg.querySelectorAll("button").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      panes.forEach((p, j) => p.style.display = j === i ? "" : "none");
+      if (!rendered[i]) { rendered[i] = true; opts[i].render(panes[i]); }
+    });
+    seg.appendChild(b);
+  });
+  seg.children[defaultIndex].click();
+}
+
+/* ══════════ 迷你趋势线（第 11 条：现状手绘复刻 / 方案组件化） ══════════ */
+function miniTrend(phone, cfg) {
+  if (cfg.readout) {
+    const r = document.createElement("div"); r.className = "readout";
+    const top = document.createElement("div"); top.className = "readout-top";
+    const dateEl = document.createElement("span"); dateEl.className = "readout-date";
+    dateEl.textContent = cfg.readout.date; top.appendChild(dateEl);
+    const vals = document.createElement("div"); vals.className = "readout-values";
+    const rv = document.createElement("span"); rv.className = "rv";
+    rv.innerHTML = `<span class="dot" style="background:${cfg.color}"></span><span class="name">${cfg.readout.name}</span><span class="val">${cfg.readout.value}</span>`;
+    if (cfg.readout.delta != null) {
+      const b = document.createElement("span"); b.className = "badge " + (cfg.readout.delta >= 0 ? "up" : "down");
+      b.style.alignSelf = "center";
+      b.textContent = (cfg.readout.delta >= 0 ? "▲ " : "▼ ") + Math.abs(cfg.readout.delta).toFixed(1) + " 较上次";
+      rv.appendChild(b);
+    }
+    vals.appendChild(rv); r.append(top, vals);
+    phone.appendChild(r);
+  }
+  const host = document.createElement("div"); host.className = "chart-host"; host.style.height = "48px";
+  phone.appendChild(host);
+  const W = host.clientWidth || 406, H = 48;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+  host.appendChild(svg);
+  const vals2 = cfg.points.map(p => p.v);
+  const lo = Math.min(...vals2), hi = Math.max(...vals2), span = Math.max(hi - lo, 0.0001);
+  const xOf = i => 4 + (W - 8) * cfg.points[i].offset / cfg.span;
+  const yOf = v => H - 5 - (H - 10) * (v - lo) / span;
+  const d = cfg.points.map((p, i) => (i ? "L" : "M") + xOf(i).toFixed(1) + " " + yOf(p.v).toFixed(1)).join(" ");
+  svg.appendChild(svgEl("path", { d, style: `fill:none;stroke:${cfg.color};stroke-width:2;stroke-linecap:round;stroke-linejoin:round` }));
+  cfg.points.forEach((p, i) => {
+    const isLast = i === cfg.points.length - 1;
+    if (cfg.unifiedLast && isLast) {
+      svg.appendChild(svgEl("circle", { cx: xOf(i), cy: yOf(p.v), r: 4.6, style: `fill:${cfg.color};stroke:var(--surface);stroke-width:2` }));
+    } else {
+      svg.appendChild(svgEl("circle", { cx: xOf(i), cy: yOf(p.v), r: isLast ? 3 : 2.2, style: isLast ? `fill:var(--bg);stroke:${cfg.color};stroke-width:1.4` : `fill:${cfg.color}` }));
+    }
+  });
+  if (cfg.showDates) {
+    const row = document.createElement("div"); row.className = "mini-dates";
+    row.innerHTML = `<span>${cfg.points[0].label}</span><span>${cfg.points[cfg.points.length - 1].label}</span>`;
+    phone.appendChild(row);
+  }
+}
+
+/* ══════════ 十条方案 ══════════ */
+const PROPS = [
+{
+  id: "s1", no: 1, title: "极值自动标注", short: "极值标注",
+  line: "峰和谷是曲线最有故事的两点，现在要一根根滑出来；方案让它们自己开口（仅标注最高/最低，点太少时不标防拥挤）。",
+  now: p => lineChart(hostIn(panelTitle(p, "体重趋势")), {
+    points: D15.map((d, i) => ({ ...d, v: WEIGHT[i] })), color: "var(--c4)",
+    seriesTitle: "体重", fmt: v => num1(v) + " kg", evenX: true, selectLast: false,
+    idleSummary: "最近记录 · 点按或横滑查看"
+  }),
+  prop: p => lineChart(hostIn(panelTitle(p, "体重趋势")), {
+    points: D15.map((d, i) => ({ ...d, v: WEIGHT[i] })), color: "var(--c4)",
+    seriesTitle: "体重", fmt: v => num1(v) + " kg", evenX: true, selectLast: false,
+    idleSummary: "最近记录 · 点按或横滑查看", annotateExtrema: true, unit: " kg"
+  }),
+  markers: [["18%", "38%"], ["66%", "72%"]],
+  changes: ["最高点自动标注「峰 77.1 kg」，含数值", "最低点自动标注「谷 74.2 kg」", "点数少于阈值时自动不标，避免拥挤（规则进图表规范）"]
+},
+{
+  id: "s2", no: 2, title: "上期对照（淡影 + 环比徽标）", short: "上期对照",
+  line: "现在图表只画本期，上期只活在文字里；方案把上期画成淡影柱、合计旁挂环比徽标，选中某天还能看到上期同日值。",
+  now: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "近 30 天合计 · 点按或横滑查看", idleValues: [SUM(EXP30)], selectLast: false
+  }),
+  prop: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    ghost: GHOST30, delta: { pct: pctDelta(SUM(EXP30), SUM(GHOST30)), vs: "较上期同期" },
+    idleSummary: "近 30 天合计 · 点按或横滑查看", idleValues: [SUM(EXP30)], selectLast: false
+  }),
+  markers: [["18%", "58%"], ["70%", "17%"], ["92%", "19%"]],
+  changes: ["灰色淡影柱 = 上期同日支出，高度对比一眼可见", "合计读数旁挂环比徽标（▲9.7% 较上期同期，涨红跌绿随财务语义）", "选中某天时，读数行附带「上期同日 ¥xx」小字"]
+},
+{
+  id: "s3", no: 3, title: "参考线（预算线 + 均值线）", short: "参考线",
+  line: "组件早支持参考线，但财务页一条都没接。方案：月支出图上画预算上限与近 6 月均值，柱子越没越线不用文字解释。",
+  now: p => barChart(hostIn(panelTitle(p, "支出 · 近 6 月")), {
+    buckets: MONTHS.map((m, i) => ({ label: m, detail: m + "支出", values: [M_EXP[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "近 6 月合计 · 点按或横滑查看", idleValues: [SUM(M_EXP)], selectLast: false
+  }),
+  prop: p => {
+    const host = hostIn(panelTitle(p, "支出 · 近 6 月"));
+    barChart(host, {
+      buckets: MONTHS.map((m, i) => ({ label: m, detail: m + "支出", values: [M_EXP[i]] })),
+      series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+      rules: [
+        { value: 6000, color: "var(--action)", label: "月预算 ¥6,000", side: "right" },
+        { value: Math.round(SUM(M_EXP) / 6), color: "var(--text-2)", label: "近 6 月均值 ¥" + Math.round(SUM(M_EXP) / 6).toLocaleString(), side: "left" }
+      ],
+      idleSummary: "近 6 月合计 · 点按或横滑查看", idleValues: [SUM(M_EXP)], selectLast: false
+    });
+    const cap = document.createElement("div"); cap.className = "cap";
+    cap.style.textAlign = "left"; cap.style.color = "var(--text-2)";
+    cap.textContent = "11 月比近 6 月均值高 " + pctDelta(M_EXP[5], SUM(M_EXP) / 6).toFixed(1) + "%，未超月预算";
+    host.appendChild(cap);
+  },
+  markers: [["56%", "34%"], ["26%", "44%"], ["50%", "88%"]],
+  changes: ["品牌橙虚线 = 月预算上限（右标注）", "灰虚线 = 近 6 月均值（左标注）", "卡片底部一句对照结论，数值由数据算出，不手写"]
+},
+{
+  id: "s4", no: 4, title: "触感反馈", short: "触感反馈",
+  line: "现在横滑换天没有任何触觉反馈。方案：选中身份一变，轻「嗒」一下（系统选框触感，尊重系统触感开关）。网页里用橙点示意，真机是手指上的感觉。",
+  now: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "按住左右滑试试 · 现在没有反馈", idleValues: [SUM(EXP30)], selectLast: false, height: 140
+  }),
+  prop: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "按住左右滑试试 · 每换一天轻嗒一下", idleValues: [SUM(EXP30)], selectLast: false, height: 140, tick: true
+  }),
+  markers: [["84%", "30%"]],
+  changes: ["滑过每一根柱，选中身份变化时触发一次轻触感（一桶一响，不连响）", "走系统「轻触感」档位，用户关了触感就完全安静"]
+},
+{
+  id: "s5", no: 5, title: "读数数字滚动", short: "数字滚动",
+  line: "现在读数「¥366 → ¥148」是硬跳；方案用系统数字过渡，滑动时数值渐变滚动。两边都按住滑一下对比。",
+  now: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "按住左右滑，看读数硬跳", idleValues: [SUM(EXP30)], selectLast: false, height: 140
+  }),
+  prop: p => barChart(hostIn(panelTitle(p, "支出 · 近 30 天")), {
+    buckets: D30.map((d, i) => ({ label: d.label, detail: d.detail, values: [EXP30[i]] })),
+    series: [{ id: "exp", title: "支出", color: "var(--c2)", fmt: money }],
+    idleSummary: "按住左右滑，看读数滚动", idleValues: [SUM(EXP30)], selectLast: false, height: 140, tween: true
+  }),
+  markers: [["52%", "15%"]],
+  changes: ["读数数字用系统数字过渡效果滚动渐变（约 0.3 秒）", "开启「减弱动态」的用户保持硬切，不做动画"]
+},
+{
+  id: "s6", no: 6, title: "构成卡：环形 ⇄ 堆叠趋势", short: "构成切换",
+  line: "现在的环形图只能看「这个月花哪了」，看不到生活方式怎么变。方案：一张卡上分段切换「构成 / 趋势」——单月看占比，跨月看变化，不用二选一。",
+  now: p => donutChart(hostIn(panelTitle(p, "本月支出构成")), {
+    segments: [
+      { name: "居住", weight: M_HOME[5], valueText: money(M_HOME[5]), color: "var(--c1)" },
+      { name: "餐饮", weight: M_MEAL[5], valueText: money(M_MEAL[5]), color: "var(--c2)" },
+      { name: "其他", weight: M_OTHR[5], valueText: money(M_OTHR[5]), color: "var(--c5)" },
+      { name: "交通", weight: M_TRAN[5], valueText: money(M_TRAN[5]), color: "var(--c6)" }
+    ],
+    centerText: money(M_EXP[5])
+  }),
+  prop: p => segControl(p, [
+    { label: "构成", render: pane => donutChart(hostIn(panelTitle(pane, "本月支出构成")), {
+      segments: [
+        { name: "居住", weight: M_HOME[5], valueText: money(M_HOME[5]), color: "var(--c1)" },
+        { name: "餐饮", weight: M_MEAL[5], valueText: money(M_MEAL[5]), color: "var(--c2)" },
+        { name: "其他", weight: M_OTHR[5], valueText: money(M_OTHR[5]), color: "var(--c5)" },
+        { name: "交通", weight: M_TRAN[5], valueText: money(M_TRAN[5]), color: "var(--c6)" }
+      ],
+      centerText: money(M_EXP[5])
+    }) },
+    { label: "趋势", render: pane => stackedArea(hostIn(panelTitle(pane, "支出构成 · 近 6 月")), {
+      labels: MONTHS,
+      series: [
+        { title: "餐饮", color: "var(--c2)", values: M_MEAL },
+        { title: "居住", color: "var(--c1)", values: M_HOME },
+        { title: "交通", color: "var(--c6)", values: M_TRAN },
+        { title: "其他", color: "var(--c5)", values: M_OTHR }
+      ]
+    }) }
+  ], 1),
+  markers: [["88%", "7%"], ["58%", "55%"], ["30%", "42%"]],
+  changes: ["卡右上分段切换「构成 / 趋势」——App 里已有的灰轨白块控件，同一语言", "构成 = 本月环形图（原样保留，含图例与中心读数）", "趋势 = 近 6 月堆叠面积：点住任一月份，读数区显示当月四类构成；「其他」在 11 月明显增厚这类变化一眼可读"]
+},
+{
+  id: "s7", no: 7, title: "收支卡：趋势 ⇄ 现金流", short: "收支切换",
+  line: "「收支与余额」要脑内换算钱去哪了。方案：同一张卡分段切换「趋势 / 现金流」——趋势看半年走势，现金流用瀑布从期初走到期末。",
+  now: p => dualAxisChart(hostIn(panelTitle(p, "收支与余额 · 近 6 月")), {
+    labels: MONTHS,
+    income: [12000, 12000, 12000, 14200, 12000, 12000], incomeColor: "var(--c1)",
+    expense: M_EXP, expenseColor: "var(--c2)",
+    balance: [9460, 16320, 23340, 32180, 38970, 45290], balanceColor: "var(--c5)"
+  }),
+  prop: p => segControl(p, [
+    { label: "趋势", render: pane => dualAxisChart(hostIn(panelTitle(pane, "收支与余额 · 近 6 月")), {
+      labels: MONTHS,
+      income: [12000, 12000, 12000, 14200, 12000, 12000], incomeColor: "var(--c1)",
+      expense: M_EXP, expenseColor: "var(--c2)",
+      balance: [9460, 16320, 23340, 32180, 38970, 45290], balanceColor: "var(--c5)"
+    }) },
+    { label: "现金流", render: pane => waterfall(hostIn(panelTitle(pane, "11 月现金流 · 去向")), {
+      items: [
+        { label: "期初", total: 3240 },
+        { label: "工资", delta: 12000 },
+        { label: "房租", delta: -2200 },
+        { label: "餐饮", delta: -1280 },
+        { label: "交通", delta: -420 },
+        { label: "日常", delta: -1180 },
+        { label: "期末", total: 3240 + 12000 - 2200 - 1280 - 420 - 1180 }
+      ]
+    }) }
+  ], 1),
+  markers: [["88%", "7%"], ["38%", "60%"], ["82%", "32%"]],
+  changes: ["卡右上分段切换「趋势 / 现金流」，卡片标题跟着换口径（近 6 月 ⇄ 当月）", "现金流 = 当月瀑布：期初→工资→各类支出→期末，每段涨跌就是「钱去哪了」的答案，期末 ¥10,160 自动算出", "趋势 = 收支与余额（原画法保留，切过去即见）"]
+},
+{
+  id: "s8", no: 8, title: "健康正常区间带", short: "区间带",
+  line: "现在只有一条基线虚线；方案在测量值后面垫一条浅色「正常区间」带，在不在正常区，不用读数字。",
+  now: p => lineChart(hostIn(panelTitle(p, "静息心率 · 近 30 天")), {
+    points: D15.map((d, i) => ({ ...d, v: HR[i] })), color: "var(--c6)",
+    seriesTitle: "静息心率", fmt: v => num1(v) + " bpm", evenX: true, selectLast: false,
+    idleSummary: "最近记录 · 点按或横滑查看", baseline: 62
+  }),
+  prop: p => lineChart(hostIn(panelTitle(p, "静息心率 · 近 30 天")), {
+    points: D15.map((d, i) => ({ ...d, v: HR[i] })), color: "var(--c6)",
+    seriesTitle: "静息心率", fmt: v => num1(v) + " bpm", evenX: true, selectLast: false,
+    idleSummary: "最近记录 · 点按或横滑查看", baseline: 62, band: { from: 60, to: 80 }
+  }),
+  markers: [["64%", "46%"], ["30%", "70%"]],
+  changes: ["浅蓝带 = 静息心率正常区间（60–80 bpm），垫在曲线下层", "最近三次低于 60，点落在带外，「偏低」自己浮出来", "区间值由健康模块提供（不同指标不同区间），不是写死的"]
+},
+{
+  id: "s9", no: 9, title: "空态引导（动作跟随数据源）", short: "空态引导",
+  line: "现在的空态只有一句「暂无可用数据」。原则：文案给盼头；动作按钮不乱放——数据源有明确入口的（习惯打卡、记一笔）给直达按钮；像体重这种来源不唯一的，只指路不塞按钮。",
+  now: p => {
+    panelTitle(p, "体重趋势");
+    const e = document.createElement("div"); e.className = "empty-now"; e.textContent = "暂无可用数据";
+    p.appendChild(e);
+  },
+  prop: p => {
+    panelTitle(p, "体重趋势");
+    const e = document.createElement("div"); e.className = "empty-new";
+    e.innerHTML = `<div class="et">还没有可看的曲线</div><div class="ed">记满 3 次体重，这里会出现第一条趋势线</div><div class="ed" style="margin-top:10px">体重来自健康同步，或你的「体重」习惯——哪边顺手哪边记</div>`;
+    p.appendChild(e);
+  },
+  markers: [["14%", "49%"], ["82%", "70%"]],
+  changes: ["文案给盼头（差 3 次），不给压力", "动作跟随数据源：有明确入口的模块给直达按钮（习惯→去打卡、记账→记一笔）；来源不唯一的（如体重）只指路，不硬塞按钮", "按钮由业务页传入，组件只留插槽；每个模块的空态文案单独定制"]
+},
+{
+  id: "s10", no: 10, title: "图例点选开关", short: "图例开关",
+  line: "系列一多就互相干扰。方案：点图例暂时藏起一个系列，图和读数一起收干净；再点回来。",
+  now: p => barChart(hostIn(panelTitle(p, "分类支出 · 近 6 周")), {
+    buckets: WEEK6.map((w, i) => ({ label: w, detail: w + "当周", values: [W_MEAL[i], W_TRAN[i]] })),
+    series: [
+      { id: "meal", title: "餐饮", color: "var(--c2)", fmt: money },
+      { id: "tran", title: "交通", color: "var(--c6)", fmt: money }
+    ],
+    idleSummary: "近 6 周合计 · 点按或横滑查看",
+    idleValues: [SUM(W_MEAL), SUM(W_TRAN)], selectLast: false
+  }),
+  prop: p => {
+    const host = hostIn(panelTitle(p, "分类支出 · 近 6 周"));
+    const cfg = {
+      buckets: WEEK6.map((w, i) => ({ label: w, detail: w + "当周", values: [W_MEAL[i], W_TRAN[i]] })),
+      series: [
+        { id: "meal", title: "餐饮", color: "var(--c2)", fmt: money },
+        { id: "tran", title: "交通", color: "var(--c6)", fmt: money }
+      ],
+      hidden: [false, false],
+      idleSummary: "近 6 周合计 · 点按或横滑查看",
+      idleValues: [SUM(W_MEAL), SUM(W_TRAN)], selectLast: false
+    };
+    const chart = barChart(host, cfg);
+    const legend = document.createElement("div"); legend.className = "legend";
+    cfg.series.forEach((s, si) => {
+      const chip = document.createElement("button"); chip.type = "button"; chip.className = "legend-chip";
+      chip.innerHTML = `<span class="dot" style="background:${s.color}"></span>${s.title}`;
+      chip.addEventListener("click", () => {
+        if (cfg.hidden[si] && cfg.hidden.every(Boolean)) return; /* 至少留一个 */
+        cfg.hidden[si] = !cfg.hidden[si];
+        chip.classList.toggle("off", cfg.hidden[si]);
+        chart.rehide();
+      });
+      legend.appendChild(chip);
+    });
+    host.appendChild(legend);
+  },
+  markers: [["88%", "7%"]],
+  changes: ["图例从「只能看」变成「能点」，藏起交通后餐饮的走势干净了", "读数区跟着收起被藏系列的数值", "至少保留一个系列，不会藏空"]
+},
+{
+  id: "s11", no: 11, title: "习惯趋势图 · 统一图表语言", short: "习惯趋势",
+  line: "打卡弹层里的迷你折线是手绘 Path（绕过图表组件，无读数无轴）；回顾页趋势柱的闲置读数是空行、标题是另一套小字——跟财务/健康图表放一起就不和谐。方案：收进同一套图表语言。",
+  now: p => {
+    panelTitle(p, "习惯 · 两个现场");
+    const c1 = document.createElement("div"); c1.className = "scene-cap";
+    c1.textContent = "现场一 · 打卡弹层的迷你折线（手绘，无读数无轴）"; p.appendChild(c1);
+    miniTrend(p, { points: MINI_PTS, span: 42, color: "var(--c3)" });
+    const c2 = document.createElement("div"); c2.className = "scene-cap";
+    c2.textContent = "现场二 · 回顾页趋势柱（闲置读数是空行 + 裸小标题）"; p.appendChild(c2);
+    const t = document.createElement("div"); t.className = "bare-title"; t.textContent = "每周记录天数"; p.appendChild(t);
+    barChart(hostIn(p), {
+      buckets: WEEK6.map((w, i) => ({ label: w, detail: w + "当周 · " + H_WEEKS[i] + "/7 天", values: [H_WEEKS[i]] })),
+      series: [{ id: "h", title: "记录天数", color: "var(--c3)", fmt: v => Math.round(v) + " 天" }],
+      idleSummary: "", idleValues: [SUM(H_WEEKS)], selectLast: false, height: 130
+    });
+  },
+  prop: p => {
+    panelTitle(p, "习惯 · 统一语言后");
+    const c1 = document.createElement("div"); c1.className = "scene-cap";
+    c1.textContent = "现场一 · 迷你趋势（组件迷你档：读数 + 日期）"; p.appendChild(c1);
+    miniTrend(p, {
+      points: MINI_PTS, span: 42, color: "var(--c3)",
+      readout: { date: "最新 11-13", name: "体重", value: "74.5 kg", delta: MINI_PTS[9].v - MINI_PTS[8].v },
+      showDates: true, unifiedLast: true
+    });
+    const c2 = document.createElement("div"); c2.className = "scene-cap";
+    c2.textContent = "现场二 · 回顾趋势柱（读数补齐 + 目标线 + 上期影）"; p.appendChild(c2);
+    const t = document.createElement("div"); t.className = "bare-title"; t.textContent = "每周记录天数"; p.appendChild(t);
+    barChart(hostIn(p), {
+      buckets: WEEK6.map((w, i) => ({ label: w, detail: w + "当周 · " + H_WEEKS[i] + "/7 天", values: [H_WEEKS[i]] })),
+      series: [{ id: "h", title: "记录天数", color: "var(--c3)", fmt: v => Math.round(v) + " 天" }],
+      ghost: H_PREV, ghostPrefix: "上周同期",
+      rules: [{ value: 5, color: "var(--text-2)", label: "每周目标 5 天", side: "right" }],
+      idleSummary: "近 6 周 · 平均 " + (SUM(H_WEEKS) / 6).toFixed(1) + " 天 · 点按或横滑查看",
+      idleValues: [SUM(H_WEEKS)], selectLast: false, height: 130
+    });
+  },
+  markers: [["20%", "15%"], ["60%", "68%"], ["43%", "73%"]],
+  changes: ["迷你折线收编进组件「迷你档」：补读数行（最新值 + 较上次涨跌）、首尾日期；末点统一成组件的选中点样式（白描边实心）；真实时间横轴、断档拉开的既有语义保留", "手绘 Path 退役，画法归公共组件，弹层只传数据——「唯一实现」规范补上最后一个漏网", "回顾趋势柱：闲置读数补齐（近 6 周均值 + 操作提示），不再是空行", "每周目标参考线 + 上期淡影（上周同期），与财务同一语言；习惯自己的颜色保留（业务语义）"]
+}
+];
+
+function panelTitle(phone, title) {
+  const h = document.createElement("h3"); h.className = "card-title"; h.textContent = title;
+  phone.appendChild(h);
+  return phone;
+}
+
+/* ══════════ 组装页面 ══════════ */
+const main = document.getElementById("main");
+const nav = document.getElementById("secnav");
+const renderJobs = [];
+const adoptApply = {}, navChips = [];
+PROPS.forEach(pr => {
+  const sec = document.createElement("section");
+  sec.className = "prop"; sec.id = pr.id;
+  const head = document.createElement("div"); head.className = "prop-head";
+  head.innerHTML = `<span class="prop-no">${String(pr.no).padStart(2, "0")}</span><span class="prop-title">${pr.title}</span>`;
+  const adopt = document.createElement("div"); adopt.className = "adopt";
+  const bA = document.createElement("button"); bA.type = "button"; bA.textContent = "采纳";
+  const bS = document.createElement("button"); bS.type = "button"; bS.textContent = "跳过";
+  adopt.append(bA, bS);
+  head.appendChild(adopt);
+  const line = document.createElement("p"); line.className = "prop-line"; line.textContent = pr.line;
+  const panels = document.createElement("div"); panels.className = "panels";
+  const now = panelShell("now"); const neu = panelShell("new");
+  renderJobs.push(() => pr.now(now.phone), () => pr.prop(neu.phone));
+  panels.append(now.panel, neu.panel);
+  sec.append(head, line, panels);
+  /* 变化点清单：整行放双卡之下，不撑右列（两卡等高对齐） */
+  if (pr.changes) {
+    const ul = document.createElement("ul"); ul.className = "changes";
+    pr.changes.forEach((c, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="mk">${i + 1}</span><span>${c}</span>`;
+      ul.appendChild(li);
+    });
+    sec.appendChild(ul);
+  }
+  main.appendChild(sec);
+  /* 红点别针（方案卡上） */
+  (pr.markers || []).forEach((m, i) => {
+    renderJobs.push(() => {
+      const pin = document.createElement("span"); pin.className = "mk-pin"; pin.textContent = i + 1;
+      pin.style.left = m[0]; pin.style.top = m[1];
+      neu.phone.appendChild(pin);
+    });
+  });
+  /* 采纳 / 跳过 */
+  const key = "holo-chart-adopt:" + pr.id;
+  const apply = v => {
+    sec.dataset.adopt = v;
+    bA.className = v === "adopt" ? "on-adopt" : "";
+    bS.className = v === "skip" ? "on-skip" : "";
+    if (v) localStorage.setItem(key, v); else localStorage.removeItem(key);
+    refreshSummary();
+  };
+  bA.addEventListener("click", () => apply(sec.dataset.adopt === "adopt" ? "" : "adopt"));
+  bS.addEventListener("click", () => apply("skip"));
+  adoptApply[pr.id] = () => apply(localStorage.getItem(key) || "");
+  navChips.push(`<a href="#${pr.id}"><b>${pr.no}</b>${pr.short}</a>`);
+});
+
+/* ══════════ 汇总 / 主题 / 启动 ══════════ */
+function refreshSummary() {
+  const box = document.getElementById("summary"); box.hidden = false;
+  const adopted = [], skipped = [];
+  PROPS.forEach(pr => {
+    const el = document.getElementById(pr.id);
+    (el.dataset.adopt === "skip" ? skipped : adopted).push(pr);
+  });
+  document.getElementById("summaryCnt").innerHTML =
+    `已采纳 <b>${adopted.length}</b> / ${PROPS.length}${skipped.length ? " · 跳过 " + skipped.length : ""}${(adopted.length + skipped.length) < PROPS.length ? " · 其余未表态" : ""}`;
+  document.getElementById("summaryList").innerHTML =
+    adopted.map(pr => `<li><b>${pr.no}. ${pr.title}</b> — 已采纳</li>`).join("") +
+    skipped.map(pr => `<li>${pr.no}. ${pr.title} — 跳过</li>`).join("");
+}
+nav.innerHTML = navChips.join("");
+const themeBtn = document.getElementById("themeToggle");
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  themeBtn.textContent = t === "dark" ? "切回浅色" : "切换深色";
+  localStorage.setItem("holo-chart-theme", t);
+}
+themeBtn.addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+setTheme(new URLSearchParams(location.search).get("theme") || localStorage.getItem("holo-chart-theme") || "light");
+Object.values(adoptApply).forEach(f => f());
+requestAnimationFrame(() => renderJobs.forEach(f => f()));
+/* 单区预览参数：?only=s3 只看第 3 条（截图/走查用） */
+{
+  const only = new URLSearchParams(location.search).get("only");
+  if (only) PROPS.forEach(pr => {
+    const el = document.getElementById(pr.id);
+    if (el && pr.id !== only) el.style.display = "none";
+  });
+}
+</script>
+</script>
+</body>
+</html>

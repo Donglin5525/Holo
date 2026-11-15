@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo iPad · 个人与会员 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台，非 App 界面） ============ */
+:root{
+  /* Holo Tool 色板（来源 docs/standards/设计规范.md，Light/Dark 两套） */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA; --divider:#F1F5F9;
+  --action:#EA580C; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#B91C1C; --ai:#6D28D9;
+  --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+  /* Holo Plus 主题（真源：Holo/Holo APP/Holo/Holo/Utils/DesignSystem.swift enum HoloPlusTheme）
+     Plus 相关页面配色只从这里取，禁止内联其他金色 hex（设计规范 §1.8） */
+  --plus-deep-1:#1C1614; --plus-deep-2:#2A1B15; --plus-deep-3:#321E18;
+  --plus-stroke:rgba(254,215,170,.45);
+  --plus-accent:#FFE8D5;
+  --plus-subtle:rgba(240,201,168,.82);
+  --plus-faint:rgba(240,201,168,.55);
+  --plus-glow:rgba(244,109,56,.28);
+  --plus-badge-bg:#FED7AA; --plus-badge-tx:#EA580C;
+  --gold-a:#FFE7AE; --gold-b:#F2C063; --gold-c:#D8992B; --gold-tx:#5C3A08;
+  --silver-a:#C9BFB4; --silver-b:#8F857A;
+  --free-bg:#453D36; --free-bd:#9A8E82;
+  --plus-col-tint:rgba(244,109,56,.06);
+  /* 画布 */
+  --canvas:#141416; --rail:#1D1D20; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --amber:#D97706;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A; --divider:#38383A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FCA5A5; --ai:#C4B5FD;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh; overflow:hidden;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;align-self:flex-start;max-height:calc(100vh - 56px);overflow-y:auto}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:12px;color:var(--rail-sub);line-height:1.6;margin-top:4px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px;margin-bottom:6px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-direction:column;gap:6px}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.7;border-top:1px solid var(--rail-line);padding-top:12px}
+.rail .foot b{color:var(--rail-text)}
+.ptag{display:inline-block;font-size:10px;font-weight:700;color:#FBBF24;background:rgba(217,119,6,.16);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px}
+/* ---- 舞台与 iPad 机身 ---- */
+.stage{flex:1;display:grid;place-items:center;min-width:0;min-height:0;position:relative}
+.frameWrap{transform-origin:center center}
+.ipad{background:#3A3A3C;border-radius:38px;padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.screen{width:1194px;height:834px;background:var(--bg-page);border-radius:26px;overflow:hidden;position:relative;color:var(--text);display:flex;flex-direction:column;transition:background .25s}
+.screen.pt{width:834px;height:1194px}
+/* 状态栏 */
+.sbar{flex:none;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text);opacity:.9}
+.sbar .ic{font-size:12px}
+/* ---- App 壳层 ---- */
+.app{flex:1;display:flex;min-height:0;position:relative}
+/* 侧边栏 */
+.sidebar{width:232px;flex:none;background:var(--inset);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 10px 12px;transition:width .2s}
+.screen.minisb .sidebar{width:68px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:4px 8px 10px}
+.sb-btn{width:32px;height:32px;border:none;background:transparent;color:var(--text-2);border-radius:8px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.sb-btn:hover{background:rgba(120,120,128,.12)}
+.sb-title{font-size:17px;font-weight:700;color:var(--text)}
+.screen.minisb .sb-title{display:none}
+.sb-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.sb-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:none;background:transparent;border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;position:relative}
+.sb-item svg.ic{font-size:17px;color:var(--text-2)}
+.sb-item .k{margin-left:auto;font-size:10.5px;color:var(--text-2);opacity:.7;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sb-item:hover{background:rgba(120,120,128,.10)}
+.sb-item.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.sb-item.on svg.ic{color:var(--action)}
+.screen.minisb .sb-item{justify-content:center;padding:0}
+.screen.minisb .sb-item span,.screen.minisb .sb-item .k{display:none}
+.sb-div{height:1px;background:var(--border);margin:8px 10px}
+.screen.minisb .sb-div{margin:8px 6px}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.sb-quick{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:none;background:var(--action);color:var(--on-action);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sb-quick:active{transform:scale(.97);opacity:.9}
+.sb-quick .k{margin-left:auto;font-size:10.5px;opacity:.8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.screen.minisb .sb-quick{justify-content:center;padding:0}
+.screen.minisb .sb-quick span,.screen.minisb .sb-quick .k{display:none}
+/* 竖屏覆盖式侧边栏 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.sbov{position:absolute;top:0;bottom:0;left:0;width:232px;background:var(--inset);border-right:1px solid var(--border);z-index:41;padding:10px 10px 12px;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.12)}
+.screen.sbov-open .scrim{opacity:1;pointer-events:auto}
+.screen.sbov-open .sbov{transform:translateX(0)}
+/* ---- 内容区 ---- */
+.content{flex:1;min-width:0;position:relative;overflow:hidden}
+.scene{position:absolute;inset:0;display:none;flex-direction:column}
+.screen .scene-personal{display:flex}
+/* ---- 通用控件 ---- */
+.btn-ghost{height:34px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn-ghost:active{transform:scale(.97);opacity:.85}
+.btn-primary{height:36px;padding:0 16px;border:none;background:var(--action);color:var(--on-action);border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{width:0}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text-2);white-space:nowrap}
+/* 底表标注：画布层（机身下方），随场景切换文案，不压 App 内容（同 05 口径） */
+.canvas-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:11px;letter-spacing:.3px;color:#9A9AA0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ---- toast ---- */
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ============ 个人页：宽档双栏 / 竖屏单列推入 ============ */
+.page{flex:1;display:flex;min-height:0;position:relative}
+.plist{width:360px;flex:none;border-right:1px solid var(--border);overflow-y:auto;padding:12px 14px 44px;background:color-mix(in srgb,var(--inset) 46%,transparent)}
+.plist::-webkit-scrollbar{width:0}
+.plist-inner{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.pdetail{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-page)}
+.screen.pt .page{position:relative}
+.screen.pt .plist{width:auto;flex:1;border-right:none}
+.screen.pt .pdetail{position:absolute;inset:0;z-index:20;transform:translateX(103%);transition:transform .24s cubic-bezier(.32,.72,.35,1);box-shadow:-14px 0 44px rgba(0,0,0,.10)}
+.screen.pt.detail-open .pdetail{transform:translateX(0)}
+/* 身份头 */
+.idhead{display:flex;align-items:center;gap:14px;padding:10px 8px 4px}
+.avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#FDBA74,var(--brand-dark));display:grid;place-items:center;font-size:26px;font-weight:700;color:#fff;flex:none}
+.avatar-lg{width:84px;height:84px;font-size:34px}
+.screen.empty .avatar{background:linear-gradient(135deg,var(--silver-a),var(--silver-b))}
+.id-main{flex:1;min-width:0}
+.id-name{font-size:20px;font-weight:700;letter-spacing:.2px}
+.id-sub{font-size:12px;color:var(--text-2);margin-top:3px}
+.id-edit{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:15px;flex:none}
+.id-edit:hover{color:var(--action);border-color:color-mix(in srgb,var(--action) 40%,transparent)}
+.ealt{display:none!important}
+.screen.empty .ealt{display:inline!important}
+.screen.empty .has-data{display:none!important}
+.empty-only{display:none!important}
+.screen.empty .empty-only{display:flex!important}
+/* 分组小标 */
+.slabel{font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:.5px;margin:6px 8px 0}
+/* 通用行 */
+.row{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;cursor:pointer;width:100%;text-align:left;font-family:inherit;color:var(--text)}
+.row:active{transform:scale(.985)}
+.row.on{border-color:color-mix(in srgb,var(--action) 55%,transparent);background:color-mix(in srgb,var(--action) 7%,var(--surface))}
+.row .ric{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;flex:none}
+.row .rt{flex:1;min-width:0}
+.row .rt b{font-size:14.5px;font-weight:600;display:block}
+.row .rt .sub{font-size:12px;color:var(--text-2);display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .chev{color:var(--text-2);opacity:.6;font-size:14px;flex:none;display:grid;place-items:center}
+/* 会员卡（深底，HoloPlusTheme.darkGradient + stroke） */
+.member-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:linear-gradient(120deg,var(--plus-deep-1),var(--plus-deep-2) 55%,var(--plus-deep-3));border:1px solid var(--plus-stroke);cursor:pointer;position:relative;overflow:hidden;width:100%;text-align:left;font-family:inherit;color:var(--text)}
+.member-card:active{transform:scale(.985)}
+.member-card::after{content:"";position:absolute;top:-42px;right:-34px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,var(--plus-glow),transparent 70%);pointer-events:none}
+.mc-word{font-size:16px;font-weight:800;background:linear-gradient(180deg,#FFF4E2,var(--gold-b));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.2px}
+.mc-sub{font-size:12px;color:var(--plus-subtle);margin-top:3px}
+.member-card .chev{color:var(--plus-faint);margin-left:auto;flex:none;display:grid;place-items:center;font-size:14px;position:relative;z-index:1}
+/* 免费版横条（空态） */
+.member-free{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--border);cursor:pointer;width:100%;text-align:left;font-family:inherit;color:var(--text)}
+.mf-name{font-size:15px;font-weight:700}
+.mf-sub{font-size:12px;color:var(--text-2);margin-top:2px}
+.mf-go{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--action);display:inline-flex;align-items:center;gap:4px;flex:none}
+/* 记忆收件胶囊 */
+.memcap{display:flex;align-items:center;gap:9px;background:color-mix(in srgb,var(--brand) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--brand) 35%,transparent);border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:600;color:var(--action);cursor:pointer;font-family:inherit;text-align:left;width:100%}
+.memcap:active{transform:scale(.98)}
+/* 空态教练卡 */
+.empty-coach{display:none;background:var(--surface);border:1px dashed color-mix(in srgb,var(--action) 45%,transparent);border-radius:16px;padding:18px;align-items:flex-start;gap:14px;position:relative}
+.screen.empty .empty-coach{display:flex!important}
+.empty-coach .eic{width:40px;height:40px;border-radius:13px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);display:grid;place-items:center;font-size:19px;flex:none}
+.empty-coach .et b{font-size:14.5px;font-weight:700;display:block}
+.empty-coach .et span{font-size:12.5px;color:var(--text-2);display:block;margin-top:4px;line-height:1.7}
+.empty-coach .btn-primary{margin-top:10px}
+/* 右栏：详情视图 */
+.dt-top{flex:none;height:50px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--divider)}
+.dt-title{font-size:20px;font-weight:700}
+.dt-back{display:none}
+.screen.pt .dt-back{display:grid}
+.dt-sp{flex:1}
+.dt-share{display:none}
+.screen[data-detail="weeklyFull"] .dt-share{display:inline-flex}
+.dt-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.dt-scroll::-webkit-scrollbar{width:0}
+.dt-view{display:none;position:relative;min-height:100%;padding:14px 26px 40px}
+.screen[data-detail="intro"] .dv-intro{display:block}
+.screen[data-detail="weekly"] .dv-weekly{display:block}
+.screen[data-detail="goals"] .dv-goals{display:block}
+.screen[data-detail="memories"] .dv-memories{display:block}
+.screen[data-detail="growth"] .dv-growth{display:block}
+.screen[data-detail="member"] .dv-member{display:block}
+.screen[data-detail="weeklyFull"] .dv-weeklyFull{display:block}
+.dv-wrap{max-width:640px}
+.eyebrow{font-size:11.5px;font-weight:600;color:var(--text-2);letter-spacing:.4px}
+.dv-h{font-size:19px;font-weight:700;margin:6px 0 10px;letter-spacing:.2px}
+.narr{font-size:13.5px;line-height:1.9;color:var(--text)}
+.narr + .narr{margin-top:10px}
+.dstats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.dstats.d4{grid-template-columns:repeat(2,1fr)}
+.dstat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.dstat b{font-size:20px;font-weight:700;display:block;letter-spacing:.2px}
+.dstat .dl{font-size:11.5px;color:var(--text-2);display:block;margin-top:2px}
+.delta{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;margin-top:8px}
+.delta svg.ic{font-size:11px}
+.delta.up{color:var(--success)}
+.delta.good-down{color:var(--success)}
+.delta.down{color:var(--text-2)}
+.cardrow{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+.dcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.dcard h4{font-size:12px;font-weight:600;color:var(--text-2);letter-spacing:.4px}
+.conf{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.75}
+.conf + .conf{margin-top:8px}
+.sech{font-size:12px;font-weight:600;color:var(--text-2);letter-spacing:.4px;margin:18px 0 8px}
+.footline{margin-top:22px;font-size:12px;color:var(--text-2);text-align:center}
+.linkrow{margin-top:14px;font-size:13px;font-weight:600;color:var(--action);background:none;border:none;cursor:pointer;font-family:inherit;display:inline-flex;gap:5px;align-items:center;padding:6px 2px}
+/* 目标行（复用壳层语言） */
+.goal-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--divider)}
+.goal-row:last-of-type{border-bottom:none}
+.goal-ring{width:52px;height:52px;flex:none;border-radius:50%;background:conic-gradient(var(--action) 0 var(--pct,68%),var(--border) var(--pct,68%) 100%);display:grid;place-items:center}
+.goal-ring i{width:40px;height:40px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700}
+.goal-txt{flex:1;min-width:0}
+.goal-txt b{font-size:14px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.goal-txt span{font-size:12px;color:var(--text-2);display:block;margin-top:2px}
+/* 记忆条目 */
+.memrow{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--divider)}
+.memrow:last-child{border-bottom:none}
+.memrow .mic{width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--ai) 10%,transparent);color:var(--ai);display:grid;place-items:center;font-size:14px;flex:none}
+.memrow .mtx{flex:1;font-size:13px;line-height:1.65}
+.memrow .mtag{font-size:10.5px;color:var(--text-2);margin-top:3px;display:block}
+.memrow .mact{display:flex;gap:6px;flex:none}
+.mpill{font-size:11px;font-weight:600;border-radius:999px;padding:4px 10px;cursor:pointer;font-family:inherit;border:1px solid var(--border);background:var(--surface);color:var(--text-2)}
+.mpill.pri{border-color:color-mix(in srgb,var(--action) 50%,transparent);color:var(--action)}
+/* ============ 会员中心（右栏视图） ============ */
+.mc-hero{background:linear-gradient(125deg,var(--plus-deep-1),var(--plus-deep-2) 55%,var(--plus-deep-3));border:1px solid var(--plus-stroke);border-radius:18px;padding:16px 18px;display:flex;gap:16px;align-items:center;position:relative;overflow:hidden}
+.mc-hero::after{content:"";position:absolute;top:-52px;right:-40px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,var(--plus-glow),transparent 70%);pointer-events:none}
+.mc-word-big{font-size:22px;font-weight:800;background:linear-gradient(180deg,#FFF4E2,var(--gold-b));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.3px}
+.mc-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(242,192,99,.16);border:1px solid rgba(242,192,99,.45);color:var(--gold-b);border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:700;margin-top:8px}
+.mc-date{font-size:12px;color:var(--plus-subtle);margin-top:6px}
+.qcard,.tcard,.scard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 15px;margin-top:10px}
+.qcard h4,.tcard h4,.scard h4{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.qcard h4 .sub,.scard h4 .sub{font-size:11px;color:var(--text-2);font-weight:500;margin-left:auto}
+.qrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--divider)}
+.qrow:last-child{border-bottom:none}
+.qname{flex:1;min-width:0}
+.qname b{font-size:13.5px;font-weight:600;display:block}
+.qname span{font-size:11.5px;color:var(--text-2);display:block;margin-top:2px}
+.qval{display:flex;align-items:center;gap:7px;flex:none}
+.qfree{font-size:12px;color:var(--text-2)}
+.qarr{font-size:11px;color:var(--text-2);opacity:.7}
+.qplus{font-size:13.5px;font-weight:700;color:var(--action)}
+.btable{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+.btable th{font-size:11px;color:var(--text-2);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+.btable td{padding:6px 8px;border-bottom:1px solid var(--divider);color:var(--text)}
+.btable tr:last-child td{border-bottom:none}
+.btable td.plus{color:var(--action);font-weight:600;background:var(--plus-col-tint)}
+.btable td.cur{font-weight:600}
+.btable .fn{color:var(--text-2)}
+.tfoot{font-size:11px;color:var(--text-2);line-height:1.7;margin-top:10px}
+.kv{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--divider);font-size:13px}
+.kv:last-of-type{border-bottom:none}
+.kv .k{color:var(--text-2);width:88px;flex:none;font-size:12px}
+.kv .v{font-weight:600}
+.planopts{display:flex;gap:10px;margin-top:10px}
+.planopt{flex:1;border:1.5px solid var(--border);background:var(--surface);border-radius:13px;padding:10px 12px;cursor:pointer;font-family:inherit;color:var(--text);text-align:left}
+.planopt .pot{font-size:12px;color:var(--text-2)}
+.planopt .pp{font-size:15px;font-weight:700;margin-top:2px;display:block}
+.planopt.sel{border-color:var(--action);background:color-mix(in srgb,var(--action) 6%,var(--surface))}
+.planopt.sel .pot{color:var(--action);font-weight:600}
+.scfoot{display:flex;align-items:center;gap:10px;margin-top:12px}
+.scfoot .fine{font-size:10.5px;color:var(--text-2);line-height:1.6;flex:1}
+/* ============ 付费墙（居中大卡，P22） ============ */
+.pw-scrim{position:absolute;inset:0;background:rgba(12,9,7,.55);z-index:70;display:none;align-items:center;justify-content:center}
+.screen[data-scene="paywall"] .pw-scrim{display:flex}
+.pw-card{width:720px;max-width:calc(100% - 48px);max-height:90%;background:linear-gradient(135deg,var(--plus-deep-1),var(--plus-deep-2) 55%,var(--plus-deep-3));border:1px solid var(--plus-stroke);border-radius:24px;box-shadow:0 40px 100px rgba(0,0,0,.5);color:var(--plus-accent);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.pw-glow{position:absolute;top:-70px;right:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,var(--plus-glow),transparent 70%);pointer-events:none}
+/* 关闭钮：统一款 inset 圆钮（同 04/05：30×30 · 无边框 · var(--inset) 底 · text-2 · 14px），左上；Esc 提示右上 */
+.pw-xrow{position:absolute;top:14px;left:16px;z-index:2}
+.pw-krow{position:absolute;top:14px;right:16px;z-index:2}
+.pw-krow kbd{background:rgba(255,255,255,.08);border-color:rgba(255,232,213,.25);color:var(--plus-subtle)}
+.pw-x{width:30px;height:30px;border:none;border-radius:50%;background:var(--inset);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:14px;flex:none}
+.pw-body{padding:26px 32px 8px;overflow-y:auto;position:relative;z-index:1}
+.pw-body::-webkit-scrollbar{width:0}
+.pw-head{display:flex;align-items:center;gap:18px}
+.pw-word{font-size:26px;font-weight:800;background:linear-gradient(180deg,#FFF4E2,var(--gold-b) 70%,var(--gold-c));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.4px}
+.pw-tagline{font-size:12.5px;color:var(--plus-subtle);margin-top:5px}
+.pw-plans{display:flex;gap:12px;margin-top:22px}
+.pw-plan{flex:1;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,232,213,.2);border-radius:16px;padding:14px 16px;color:var(--plus-accent);text-align:left;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:6px;position:relative}
+.pw-plan.sel{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 13%,transparent)}
+.pw-plan .ppt{font-size:12.5px;font-weight:600;color:var(--plus-subtle)}
+.pw-plan .pprow{display:flex;align-items:center;gap:8px}
+.pw-plan .ppp{font-size:21px;font-weight:800;letter-spacing:.2px}
+.pw-plan .ppu{font-size:12px;font-weight:500;color:var(--plus-faint)}
+.pw-plan .pps{font-size:11.5px;color:var(--plus-faint)}
+.pw-best{background:linear-gradient(120deg,var(--gold-b),var(--gold-c));color:var(--gold-tx);font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 9px;letter-spacing:.3px}
+.pw-deal{border:1px solid rgba(242,192,99,.6);color:var(--gold-b);font-size:10.5px;font-weight:700;border-radius:999px;padding:3px 9px}
+.pw-trial{display:flex;gap:9px;align-items:center;font-size:12.5px;color:var(--plus-subtle);background:rgba(255,255,255,.04);border:1px dashed rgba(255,232,213,.28);border-radius:12px;padding:10px 13px;margin-top:14px}
+.pw-trial svg.ic{color:var(--gold-b);font-size:15px}
+.pw-cta{margin-top:16px;height:48px;border-radius:14px;border:none;background:linear-gradient(180deg,var(--brand),var(--brand-dark));color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;width:100%}
+.pw-cta:active{transform:scale(.98);opacity:.92}
+.pw-restore{margin:12px auto 0;display:block;background:none;border:none;color:var(--plus-subtle);font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:underline;text-underline-offset:3px}
+.pw-foot{flex:none;padding:12px 32px 16px;border-top:1px solid rgba(255,232,213,.14);font-size:10.5px;color:var(--plus-faint);line-height:1.7;display:flex;align-items:flex-end;gap:10px}
+.pw-foot .ft{flex:1}
+/* ============ 弹层：sheet 560（个人资料 / Holo 档案） ============ */
+.scrim-c{position:absolute;inset:0;background:rgba(0,0,0,.36);z-index:50;display:none;align-items:center;justify-content:center}
+.screen[data-scene="editProfile"] .profile-scrim{display:flex}
+.screen[data-scene="editHolo"] .holo-scrim{display:flex}
+.sheet{width:560px;background:var(--bg-page);border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;max-height:80%}
+.sheet-grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:10px auto 0}
+.sheet-headrow{padding:12px 20px 0;display:flex;align-items:center;gap:10px}
+.sheet-headrow h2{font-size:19px;font-weight:700}
+.sheet-headrow .sp{flex:1}
+.sheet-x{width:30px;height:30px;border:none;border-radius:50%;background:var(--inset);color:var(--text-2);display:grid;place-items:center;cursor:pointer;font-size:14px;flex:none}
+.sheet-body{padding:16px 24px;overflow-y:auto;flex:1}
+.sheet-body::-webkit-scrollbar{width:0}
+.sheet-foot{padding:14px 24px 20px;border-top:1px solid var(--divider)}
+.sheet-foot .btn-primary{width:100%;height:46px;justify-content:center;font-size:15px;border-radius:13px}
+/* 个人资料 sheet */
+.prof-ava{display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 0 14px}
+.field{display:block;margin-top:6px}
+.field > span{font-size:12px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px}
+.field input{width:100%;height:42px;border:1px solid var(--border);background:var(--surface);border-radius:11px;padding:0 13px;font-size:14.5px;font-family:inherit;color:var(--text);outline:none}
+.field input:focus{border-color:var(--action)}
+.field-note{font-size:11.5px;color:var(--text-2);line-height:1.7;margin-top:12px}
+/* Holo 档案 sheet */
+.holo-note{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--ai) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--ai) 25%,transparent);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--text);line-height:1.7;margin-bottom:14px}
+.holo-note svg.ic{color:var(--ai);font-size:15px;margin-top:2px}
+.seclabel{font-size:11.5px;font-weight:600;color:var(--text-2);letter-spacing:.4px;margin:12px 0 8px}
+.echips{display:flex;flex-wrap:wrap;gap:8px}
+.echip{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 8px 7px 13px;font-size:13px;color:var(--text)}
+.echip .x{width:18px;height:18px;border:none;background:transparent;color:var(--text-2);cursor:pointer;display:grid;place-items:center;border-radius:50%;font-size:11px;padding:0}
+.echip .x:hover{background:rgba(120,120,128,.15);color:var(--danger)}
+.addchip{border:1.5px dashed color-mix(in srgb,var(--action) 50%,transparent);color:var(--action);background:transparent;border-radius:999px;padding:7px 13px;font-size:13px;cursor:pointer;font-family:inherit}
+/* 徽章容器 */
+.emblem{position:relative;flex:none;display:inline-block}
+.emblem svg{display:block;width:100%;height:100%}
+.emblem-56{width:56px;height:56px}
+.emblem-72{width:72px;height:72px}
+/* 竖屏紧凑 */
+.screen.pt .plist{padding:10px 12px 44px}
+.screen.pt .dt-view{padding:12px 20px 34px}
+.screen.pt .pw-plans{flex-direction:column}
+/* 无选中默认态 */
+.intro{min-height:58%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:40px 20px}
+.intro .iic{width:52px;height:52px;border-radius:16px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);display:grid;place-items:center;font-size:24px}
+.intro b{font-size:16px;font-weight:700}
+.intro span{font-size:12.5px;color:var(--text-2);line-height:1.8;max-width:320px}
+</style>
+</head>
+<body>
+
+<!-- ============ 控制栏 ============ -->
+<aside class="rail">
+  <div>
+    <h1>Holo iPad · 个人与会员</h1>
+    <div class="sub">个人页宽档双栏 / Holo Plus 全链（会员中心 · 付费墙）· 每周回顾 · 资料·档案编辑 · 空态。底表 L + 易遗漏角落 2。</div>
+  </div>
+  <div>
+    <div class="rlabel">朝向</div>
+    <div class="rseg" id="segOri">
+      <button data-v="lsz" aria-pressed="true">横屏 1194×834</button>
+      <button data-v="pt" aria-pressed="false">竖屏 834×1194</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">深浅色</div>
+    <div class="rseg" id="segTheme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">场景</div>
+    <div class="rchips" id="sceneChips">
+      <button data-v="main" aria-pressed="true">个人页 · 宽档双栏（默认）</button>
+      <button data-v="member" aria-pressed="false">Holo Plus 会员中心</button>
+      <button data-v="paywall" aria-pressed="false">付费墙 · 居中大卡 <span class="ptag">P22</span></button>
+      <button data-v="weekly" aria-pressed="false">每周回顾 · 完整版</button>
+      <button data-v="editProfile" aria-pressed="false">个人资料编辑 · sheet 560</button>
+      <button data-v="editHolo" aria-pressed="false">Holo 档案编辑 · sheet 560</button>
+      <button data-v="empty" aria-pressed="false">新用户最惨空态 <span class="ptag">P23</span></button>
+    </div>
+  </div>
+  <div class="foot">
+    可操作：点「我的内容」四行，右栏跟随换预览 / 点会员卡进会员中心 / 预览里「查看完整回顾」进完整版 / 每周回顾可分享 / 身份头「编辑」开资料 sheet / 「个人档案」行开档案 sheet / Esc 关弹层与返回 / <b>⌘N</b> 快速记录。<br>
+    竖屏同一套 DOM：右栏变推入详情，返回回列表原位；旋转保留选中。<br>
+    <span class="ptag">P22</span> 付费墙 iPad 用居中卡 720（非全屏铺满）；<span class="ptag">P23</span> 免费新用户保留「我的内容」四行框架、计数为 0。
+  </div>
+</aside>
+
+<!-- ============ 舞台 ============ -->
+<div class="stage" id="stage">
+  <div class="frameWrap" id="frameWrap">
+    <div class="ipad">
+      <div class="screen" id="screen" data-scene="main" data-detail="weekly">
+
+        <div class="sbar">
+          <span class="tnum">23:47</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M7.8 15.6a6 6 0 0 1 8.4 0M10.6 18.4a2.2 2.2 0 0 1 2.8 0"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="8" rx="2.5"/><path d="M21.5 11v2"/><rect x="4.5" y="10" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </div>
+
+        <div class="app">
+          <!-- 侧边栏（常驻 232 / 图标条 68），「个人」选中 -->
+          <nav class="sidebar" id="sidebar">
+            <div class="sb-top">
+              <button class="sb-btn" id="sbToggle" title="收起/展开侧边栏（⌘⌥S）"><svg class="ic" viewBox="0 0 24 24" id="sbToggleIc"><path d="M9.5 6.5 5 12l4.5 5.5M14.5 6.5 19 12l-4.5 5.5" opacity=".35"/><rect x="3" y="4.5" width="18" height="15" rx="3"/></svg></button>
+              <span class="sb-title">Holo</span>
+            </div>
+            <div class="sb-list">
+              <button class="sb-item" data-goto="home"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg><span>今天</span><span class="k">⌘1</span></button>
+              <button class="sb-item" data-module="thoughts"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg><span>想法</span><span class="k">⌘2</span></button>
+              <button class="sb-item" data-module="finance"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg><span>财务</span><span class="k">⌘3</span></button>
+              <button class="sb-item" data-module="tasks"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg><span>任务</span><span class="k">⌘4</span></button>
+              <button class="sb-item" data-module="habits"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span>习惯</span><span class="k">⌘5</span></button>
+              <button class="sb-item" data-module="gallery"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg><span>记忆长廊</span><span class="k">⌘6</span></button>
+              <button class="sb-item" data-module="health"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span>健康</span><span class="k">⌘7</span></button>
+              <button class="sb-item" data-module="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span>AI 对话</span><span class="k">⌘8</span></button>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-list">
+              <button class="sb-item on" data-goto="personal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg><span>个人</span><span class="k">⌘9</span></button>
+              <button class="sb-item" data-module="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg><span>设置</span><span class="k">⌘,</span></button>
+            </div>
+            <div class="sb-bottom">
+              <button class="sb-quick" id="quickAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button>
+            </div>
+          </nav>
+
+          <!-- 竖屏覆盖式侧边栏 -->
+          <div class="scrim" id="sbovScrim"></div>
+          <nav class="sbov" id="sbov">
+            <div class="sb-top"><span class="sb-title">Holo</span></div>
+            <div class="sb-list" id="sbovList"></div>
+          </nav>
+
+          <!-- 内容区 -->
+          <main class="content">
+
+            <!-- 场景：个人页（唯一页面场景，member/weekly 只是右栏视图切换） -->
+            <section class="scene scene-personal">
+              <div class="page">
+
+                <!-- 左列 360：身份头 / 会员卡 / 我的内容 / 档案 / 记忆收件 / 设置 -->
+                <aside class="plist scroll">
+                  <div class="plist-inner">
+
+                    <div class="idhead">
+                      <span class="avatar"><span class="has-data">东</span><span class="ealt" style="color:rgba(255,255,255,.9)"><svg class="ic" viewBox="0 0 24 24" style="font-size:30px"><circle cx="12" cy="9" r="3.6"/><path d="M5.5 19c1.3-3.2 3.8-4.8 6.5-4.8s5.2 1.6 6.5 4.8"/></svg></span></span>
+                      <span class="id-main">
+                        <span class="id-name"><span class="has-data">东林</span><span class="ealt" style="color:var(--placeholder)">怎么称呼你？</span></span>
+                        <span class="id-sub"><span class="has-data">头像与称呼可随时修改</span><span class="ealt">轻点右侧「编辑」，先补个称呼</span></span>
+                      </span>
+                      <button class="id-edit" id="idEdit" title="编辑头像与昵称" aria-label="编辑头像与昵称"><svg class="ic" viewBox="0 0 24 24"><path d="M4.7 19.3l.9-3.7L16.2 5a2.1 2.1 0 0 1 3 3L8.6 18.4l-3.9.9z"/><path d="M14.5 6.7l2.8 2.8"/></svg></button>
+                    </div>
+
+                    <!-- 会员卡（会员态：金麦穗肖像徽章 56 + 深底渐变） -->
+                    <button class="member-card has-data" id="memberCard">
+                      <span class="emblem emblem-56" data-emblem="gold"></span>
+                      <span style="position:relative;z-index:1">
+                        <span class="mc-word">Holo Plus</span>
+                        <span class="mc-sub tnum" style="display:block">会员至 2027年1月13日</span>
+                      </span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+                    <!-- 免费版横条（空态）：银灰肖像徽章 -->
+                    <button class="member-free empty-only" id="freeCard">
+                      <span class="emblem emblem-56" data-emblem="silver"></span>
+                      <span>
+                        <span class="mf-name">免费版</span>
+                        <span class="mf-sub" style="display:block">记账、待办、想法全功能可用</span>
+                      </span>
+                      <span class="mf-go">了解 Holo Plus<svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+
+                    <div class="slabel">我的内容</div>
+
+                    <button class="row" data-detail="goals">
+                      <span class="ric" style="background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></svg></span>
+                      <span class="rt"><b>我的目标</b><span class="sub tnum has-data">3 个进行中</span><span class="sub tnum ealt">0 个进行中</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+                    <button class="row" data-detail="memories">
+                      <span class="ric" style="background:color-mix(in srgb,var(--ai) 10%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4l1.4 3.8L17.2 9.2l-3.8 1.4L12 14.4l-1.4-3.8L6.8 9.2l3.8-1.4z"/><path d="M18.4 15.6l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></span>
+                      <span class="rt"><b>Holo 记住的你</b><span class="sub tnum has-data">251 条 · 2 条待确认</span><span class="sub tnum ealt">0 条</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+                    <button class="row" data-detail="growth">
+                      <span class="ric" style="background:color-mix(in srgb,var(--success) 12%,transparent);color:var(--success)"><svg class="ic" viewBox="0 0 24 24"><path d="M5.5 18.5C5.5 11 11 5.5 19 4.5c-.6 8-5.5 13.5-13.5 14z"/><path d="M6.5 17.5C9 13 13 9 17 6.5"/></svg></span>
+                      <span class="rt"><b>我的积累</b><span class="sub tnum has-data">已记录 486 天 · 12 个里程碑</span><span class="sub ealt">还没有记录</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+                    <button class="row on" data-detail="weekly">
+                      <span class="ric" style="background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8 3.5v3M16 3.5v3"/></svg></span>
+                      <span class="rt"><b>每周回顾</b><span class="sub has-data">本周足迹与上周对比</span><span class="sub ealt">本周还没有足迹</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+
+                    <!-- 记忆收件胶囊 -->
+                    <button class="memcap has-data" id="memcap">
+                      <svg class="ic" viewBox="0 0 24 24" style="font-size:15px"><path d="M4 13.5 7.5 6.5h9L20 13.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20"/></svg>
+                      2 条新记忆待确认
+                    </button>
+
+                    <div class="slabel">让 Holo 了解你</div>
+                    <button class="row" id="profileRow">
+                      <span class="ric" style="background:color-mix(in srgb,var(--ai) 10%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.7" cy="10.7" r="1.9"/><path d="M5.8 16.2c.7-1.7 1.9-2.4 2.9-2.4s2.2.7 2.9 2.4M14.5 9.5h4M14.5 13h4"/></svg></span>
+                      <span class="rt"><b>个人档案</b><span class="sub has-data">已填写 · 让回复更贴合你</span><span class="sub ealt">填写角色与偏好，让回复更贴合你</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+
+                    <button class="row" data-say="「设置」原型见对应分文件（index.html 可跳转）">
+                      <span class="ric" style="background:color-mix(in srgb,var(--text-2) 12%,transparent);color:var(--text-2)"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg></span>
+                      <span class="rt"><b>设置</b><span class="sub">外观 · 通知 · 同步 · 数据</span></span>
+                      <span class="chev"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></span>
+                    </button>
+
+                    <!-- 新用户空态教练卡 -->
+                    <div class="empty-coach empty-only" style="margin-top:6px">
+                      <span class="ptag" style="position:absolute;top:10px;right:10px;margin:0">P23</span>
+                      <span class="eic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                      <span class="et">
+                        <b>跟 Holo 说说话，它就开始认识你</b>
+                        <span>记下第一笔、第一件事，或者只是聊聊天——Holo 的记忆就会开始生长，这一页也会慢慢长出内容。</span>
+                        <button class="btn-primary" data-say="AI 对话原型见对应分文件（index.html 可跳转）">去和 Holo 聊聊</button>
+                      </span>
+                    </div>
+
+                  </div>
+                </aside>
+
+                <!-- 右栏：详情 -->
+                <main class="pdetail">
+                  <div class="dt-top">
+                    <button class="sb-btn dt-back" id="dtBack" title="返回列表"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                    <span class="dt-title" id="dtTitle">每周回顾</span>
+                    <span class="dt-sp"></span>
+                    <button class="btn-ghost dt-share" id="shareWeekly"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5v10M8.5 6.5 12 3l3.5 3.5"/><path d="M5.5 11v8A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-8"/></svg>分享</button>
+                  </div>
+                  <div class="dt-scroll">
+
+                    <!-- 无选中默认态 -->
+                    <div class="dt-view dv-intro">
+                      <div class="dv-wrap intro">
+                        <span class="iic"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="5" width="7.5" height="14" rx="2"/><rect x="13.5" y="5" width="7" height="9" rx="2"/></svg></span>
+                        <b>选一行，看看里面有什么</b>
+                        <span>左边是你的内容与档案。点开任意一行，这里就跟着换。</span>
+                      </div>
+                    </div>
+
+                    <!-- 每周回顾 · 预览 -->
+                    <div class="dt-view dv-weekly">
+                      <div class="dv-wrap">
+                        <div class="eyebrow tnum">本周足迹 · 11月9日 – 11月15日</div>
+                        <h3 class="dv-h">这周的主旋律，是装修记账</h3>
+                        <p class="narr">周六一天你就记了 21 笔，票据、尾款，还有顺手写下的三条想法。习惯比上周勤快了两天；晚上 11 点后才睡的日子，只有一次。</p>
+                        <div class="dstats">
+                          <div class="dstat"><b class="tnum">96 笔</b><span class="dl">这周记了</span><span class="delta up"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14.5l6-6 6 6"/></svg>比上周多 14</span></div>
+                          <div class="dstat"><b class="tnum">11 次</b><span class="dl">习惯打卡</span><span class="delta up"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14.5l6-6 6 6"/></svg>比上周多 2</span></div>
+                          <div class="dstat"><b class="tnum">7,102</b><span class="dl">步数均值</span><span class="delta down"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg>比上周少 480</span></div>
+                        </div>
+                        <button class="btn-primary" id="openWeeklyFull" style="margin-top:16px">查看完整回顾<svg class="ic" viewBox="0 0 24 24"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- 我的目标 · 预览 -->
+                    <div class="dt-view dv-goals">
+                      <div class="dv-wrap">
+                        <div class="eyebrow">进行中 · 3 个</div>
+                        <h3 class="dv-h">都在往前走</h3>
+                        <div class="cardrow" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px 16px;margin-top:12px">
+                          <div class="goal-row" style="border-bottom:1px solid var(--divider)">
+                            <span class="goal-ring" style="--pct:68%"><i class="tnum">68%</i></span>
+                            <span class="goal-txt"><b>11 月底存下 ¥8,000</b><span>按这个节奏，预计 11 月 27 日达成 · 由「存钱罐」习惯带动</span></span>
+                          </div>
+                          <div class="goal-row">
+                            <span class="goal-ring" style="--pct:42%"><i class="tnum">42%</i></span>
+                            <span class="goal-txt"><b>装修总预算不超 ¥60,000</b><span>已记 23 笔 · 「装修记账」进行中的事带动中</span></span>
+                          </div>
+                          <div class="goal-row">
+                            <span class="goal-ring" style="--pct:100%"><i class="tnum">5周</i></span>
+                            <span class="goal-txt"><b>每周给家里打一次电话</b><span>已连续 5 周 · 这周日 21:00 前还有一次</span></span>
+                          </div>
+                        </div>
+                        <button class="linkrow" data-say="目标列表与详情原型见对应分文件">查看全部目标<svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- Holo 记住的你 · 预览 -->
+                    <div class="dt-view dv-memories">
+                      <div class="dv-wrap">
+                        <div class="eyebrow tnum">已记住 251 条 · 2 条待确认</div>
+                        <h3 class="dv-h">先看看这两条，对不对？</h3>
+                        <div class="cardrow" style="margin-top:12px">
+                          <div class="conf" style="display:flex;gap:12px;align-items:flex-start">
+                            <span style="flex:1">「东林的装修预算上限是 ¥60,000，超了会先停下问一句。」</span>
+                            <span class="mact"><button class="mpill pri" data-say="已记住（原型示意）">保留</button><button class="mpill" data-say="纠错弹层见记忆中心分文件">纠正</button></span>
+                          </div>
+                          <div class="conf" style="display:flex;gap:12px;align-items:flex-start">
+                            <span style="flex:1">「周四下雨的日子，你通常在家办公，安排会自动靠前。」</span>
+                            <span class="mact"><button class="mpill pri" data-say="已记住（原型示意）">保留</button><button class="mpill" data-say="纠错弹层见记忆中心分文件">纠正</button></span>
+                          </div>
+                        </div>
+                        <div class="sech">最近记住的</div>
+                        <div class="dcard">
+                          <div class="memrow"><span class="mic"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><span class="mtx">你习惯在晚上 11 点后写想法，那段时间的回复会更轻、更短。<span class="mtag tnum">昨天 · 来自想法</span></span></div>
+                          <div class="memrow"><span class="mic"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8.5C4 6 6 4.5 8.2 4.5c1.6 0 3 .9 3.8 2.2.8-1.3 2.2-2.2 3.8-2.2C18 4.5 20 6 20 8.5c0 4-8 11-8 11s-8-7-8-11z"/></svg></span><span class="mtx">妈妈更喜欢视频通话，而不是文字消息。<span class="mtag tnum">11月2日 · 来自对话</span></span></div>
+                          <div class="memrow"><span class="mic"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg></span><span class="mtx">每月 10 日交房租，交完那天你会顺手核对预算。<span class="mtag tnum">10月10日 · 来自账本</span></span></div>
+                        </div>
+                        <button class="linkrow" data-say="记忆中心原型见对应分文件">查看全部记忆<svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- 我的积累 · 预览 -->
+                    <div class="dt-view dv-growth">
+                      <div class="dv-wrap">
+                        <div class="eyebrow">成长总览</div>
+                        <h3 class="dv-h">一点点攒起来的家底</h3>
+                        <div class="dstats">
+                          <div class="dstat"><b class="tnum">486 天</b><span class="dl">已记录</span></div>
+                          <div class="dstat"><b class="tnum">3,214 笔</b><span class="dl">累计记录</span></div>
+                          <div class="dstat"><b class="tnum">12 个</b><span class="dl">里程碑</span></div>
+                        </div>
+                        <div class="sech">最近的里程碑</div>
+                        <div class="cardrow">
+                          <div class="dcard" style="display:flex;gap:12px;align-items:center"><span class="ric" style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--success) 12%,transparent);color:var(--success)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 13l4 4 10-10"/></svg></span><span><b style="font-size:14px">连续记录 100 天</b><span style="display:block;font-size:12px;color:var(--text-2);margin-top:2px" class="tnum">11月2日 达成 · 第 7 个里程碑</span></span></div>
+                          <div class="dcard" style="display:flex;gap:12px;align-items:center"><span class="ric" style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--brand) 12%,transparent);color:var(--brand)"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/></svg></span><span><b style="font-size:14px">第一笔识图记账</b><span style="display:block;font-size:12px;color:var(--text-2);margin-top:2px" class="tnum">9月18日 · 从一张小票开始</span></span></div>
+                          <div class="dcard" style="display:flex;gap:12px;align-items:center"><span class="ric" style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--ai) 10%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M8 3.5v3M16 3.5v3"/></svg></span><span><b style="font-size:14px">第一份周回顾</b><span style="display:block;font-size:12px;color:var(--text-2);margin-top:2px" class="tnum">2024年11月18日 · Holo 第一次替你收好一周</span></span></div>
+                        </div>
+                        <button class="linkrow" data-say="积累指标与里程碑详情见对应分文件">查看积累详情<svg class="ic" viewBox="0 0 24 24" style="font-size:12px"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- Holo Plus 会员中心 -->
+                    <div class="dt-view dv-member">
+                      <div class="dv-wrap">
+                        <div class="mc-hero">
+                          <span class="emblem emblem-72" data-emblem="gold"></span>
+                          <span style="position:relative;z-index:1">
+                            <span class="mc-word-big">Holo Plus</span><br>
+                            <span class="mc-pill">会员中</span>
+                            <span class="mc-date tnum" style="display:block">会员至 2027年1月13日 · 年订阅</span>
+                          </span>
+                        </div>
+
+                        <div class="qcard">
+                          <h4>当前使用情况 <span class="sub">免费版 → Plus</span></h4>
+                          <div class="qrow">
+                            <span class="qname"><b>单条语音时长</b><span>本周已说 14 段语音</span></span>
+                            <span class="qval"><span class="qfree tnum">60 秒</span><span class="qarr">→</span><span class="qplus tnum">5 分钟</span></span>
+                          </div>
+                          <div class="qrow">
+                            <span class="qname"><b>深度分析次数</b><span>今天已用 3 次</span></span>
+                            <span class="qval"><span class="qfree tnum">2 次/天</span><span class="qarr">→</span><span class="qplus tnum">10 次/天</span></span>
+                          </div>
+                          <div class="qrow">
+                            <span class="qname"><b>信用卡提醒张数</b><span>已添加 2 张 · 已设 4 个提醒</span></span>
+                            <span class="qval"><span class="qfree tnum">3 张</span><span class="qarr">→</span><span class="qplus">不限</span></span>
+                          </div>
+                          <div class="qrow">
+                            <span class="qname"><b>周期回放</b><span>本周还可生成 1 次</span></span>
+                            <span class="qval"><span class="qfree tnum">1 次/周</span><span class="qarr">→</span><span class="qplus tnum">2 次/周</span></span>
+                          </div>
+                        </div>
+
+                        <div class="scard">
+                          <h4>订阅管理 <span class="sub">Apple ID 内可随时取消</span></h4>
+                          <div class="kv"><span class="k">当前方案</span><span class="v">年订阅 · <span class="tnum">¥128.00/年</span></span></div>
+                          <div class="kv"><span class="k">下次续费日</span><span class="v tnum">2027年1月13日</span></div>
+                          <div class="planopts">
+                            <button class="planopt" data-say="切换月订阅（原型示意）：¥18.00/月，次月生效"><span class="pot">切换到月订阅</span><span class="pp tnum">¥18.00/月</span></button>
+                            <button class="planopt sel"><span class="pot">年订阅 · 当前方案</span><span class="pp tnum">¥128.00/年</span></button>
+                          </div>
+                          <div class="scfoot">
+                            <span class="fine">订阅会自动续费，除非在到期前至少 24 小时关闭自动续订。可在「系统设置 › Apple ID › 订阅」中管理或取消。</span>
+                            <button class="btn-ghost" data-say="正在恢复购买…（原型示意）"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 1 2.2 5.3M4.5 12V7.5M4.5 12H9"/></svg>恢复购买</button>
+                          </div>
+                        </div>
+
+                        <div class="tcard">
+                          <h4>完整权益对比</h4>
+                          <table class="btable">
+                            <thead><tr><th>功能</th><th>免费版</th><th class="plus">Plus</th><th>当前</th></tr></thead>
+                            <tbody>
+                              <tr><td>HoloAI 对话</td><td class="fn tnum">15 次/天</td><td class="plus tnum">30 次/天</td><td class="cur tnum">30</td></tr>
+                              <tr><td>深度洞察</td><td class="fn tnum">2 次/天</td><td class="plus tnum">10 次/天</td><td class="cur tnum">10</td></tr>
+                              <tr><td>语音识别</td><td class="fn tnum">20 次/天</td><td class="plus tnum">50 次/天</td><td class="cur tnum">50</td></tr>
+                              <tr><td>单条语音时长</td><td class="fn tnum">60 秒</td><td class="plus tnum">5 分钟</td><td class="cur tnum">5 分钟</td></tr>
+                              <tr><td>智能记账</td><td class="fn tnum">20 次/天</td><td class="plus tnum">50 次/天</td><td class="cur tnum">50</td></tr>
+                              <tr><td>智能任务</td><td class="fn tnum">20 次/天</td><td class="plus tnum">50 次/天</td><td class="cur tnum">50</td></tr>
+                              <tr><td>AI 任务拆解</td><td class="fn tnum">5 次/月</td><td class="plus tnum">100 次/月</td><td class="cur tnum">100</td></tr>
+                              <tr><td>每周生活计划</td><td class="fn tnum">1 次/周</td><td class="plus tnum">2 次/周</td><td class="cur tnum">2</td></tr>
+                              <tr><td>记忆洞察刷新</td><td class="fn tnum">1 次/周</td><td class="plus tnum">1 次/天</td><td class="cur tnum">1 次/天</td></tr>
+                              <tr><td>桌面小组件（4 张）</td><td class="fn">—</td><td class="plus" style="font-weight:700">✓</td><td class="cur" style="color:var(--success)">已开启</td></tr>
+                              <tr><td>习惯暂停</td><td class="fn">—</td><td class="plus" style="font-weight:700">✓</td><td class="cur" style="color:var(--success)">可用</td></tr>
+                            </tbody>
+                          </table>
+                          <div class="tfoot">所有记账、待办、想法等本地功能，免费版与 Plus 版完全一致，不受会员限制。</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 每周回顾 · 完整版 -->
+                    <div class="dt-view dv-weeklyFull">
+                      <div class="dv-wrap">
+                        <div class="eyebrow tnum">本周足迹 · 11月9日 – 11月15日 · 第 52 份周回顾</div>
+                        <h3 class="dv-h">这周，你把家当成了项目来管</h3>
+                        <p class="narr">一共留下 96 笔记录，比上周多 14 笔。周六最热闹——装修的票据一口气进了账本，你那天还写了三条想法，其中一条后来变成了任务「确认瓷砖尾款」。</p>
+                        <p class="narr">习惯打卡 11 次，比上周多 2 天：「拉伸 10 分钟」全勤，「早睡」还欠两次。步数均值 7,102，比上周少 480 步——周四那场雨，Holo 记得你没出门。</p>
+                        <p class="narr">支出 ¥1,829，比上周少 ¥212。11 月预算还剩 ¥2,171，照这个节奏，月底不用勒紧裤腰带。</p>
+                        <div class="dstats d4">
+                          <div class="dstat"><b class="tnum">¥1,829</b><span class="dl">支出 · 96 笔流水</span><span class="delta good-down"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg>比上周少 ¥212</span></div>
+                          <div class="dstat"><b class="tnum">23 个</b><span class="dl">完成任务</span><span class="delta up"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14.5l6-6 6 6"/></svg>比上周多 4 个</span></div>
+                          <div class="dstat"><b class="tnum">11 天</b><span class="dl">习惯打卡</span><span class="delta up"><svg class="ic" viewBox="0 0 24 24"><path d="M6 14.5l6-6 6 6"/></svg>比上周多 2 天</span></div>
+                          <div class="dstat"><b class="tnum">7,102</b><span class="dl">步数均值</span><span class="delta down"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></svg>比上周少 480 步</span></div>
+                        </div>
+                        <div class="sech">这段时间你确认过的理解</div>
+                        <div class="conf">「大额支出你会先记成草案，第二天再确认进账本。」</div>
+                        <div class="conf" style="margin-top:8px">「妈妈更喜欢视频通话，而不是文字消息。」</div>
+                        <div class="footline">你写下的一笔一画，Holo 都替你收着。</div>
+                      </div>
+                    </div>
+
+                  </div>
+                </main>
+              </div>
+            </section>
+
+            <!-- 付费墙（fullScreenCover iPad 形态：居中大卡 720，P22） -->
+            <div class="pw-scrim">
+              <div class="pw-card" role="dialog" aria-label="Holo Plus 付费墙">
+                <div class="pw-glow"></div>
+                <div class="pw-xrow"><button class="pw-x" id="pwClose" aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+                <div class="pw-krow"><kbd>Esc</kbd></div>
+                <div class="pw-body">
+                  <div class="pw-head">
+                    <span class="emblem emblem-72" data-emblem="gold"></span>
+                    <div>
+                      <div class="pw-word">Holo Plus</div>
+                      <div class="pw-tagline">2 倍 AI 额度 · 5 分钟语音 · 全部小组件 <span class="ptag">P22</span></div>
+                    </div>
+                  </div>
+                  <div class="pw-plans">
+                    <button class="pw-plan" data-plan="month">
+                      <span class="ppt">月订阅</span>
+                      <span class="pprow"><span class="ppp tnum">¥18.00</span><span class="ppu">/月</span><span class="pw-deal">首月 ¥6.00</span></span>
+                      <span class="pps">按月自动续费 · 随时取消</span>
+                    </button>
+                    <button class="pw-plan sel" data-plan="year">
+                      <span class="ppt">年订阅</span>
+                      <span class="pprow"><span class="ppp tnum">¥128.00</span><span class="ppu">/年</span><span class="pw-best">最划算</span></span>
+                      <span class="pps tnum">合 ¥10.67/月 · 比月付省 41%</span>
+                    </button>
+                  </div>
+                  <div class="pw-trial">
+                    <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg>
+                    符合 7 天免费试用资格 · 到期前 24 小时会提醒你，不悄悄扣费
+                  </div>
+                  <button class="pw-cta" id="pwCta">开始 7 天免费试用</button>
+                  <button class="pw-restore" id="pwRestore">恢复购买</button>
+                </div>
+                <div class="pw-foot">
+                  <span class="ft">随时可取消。订阅会自动续费，除非在当前订阅期结束前至少 24 小时关闭自动续订；可在「系统设置 › Apple ID › 订阅」中管理或取消。</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 个人资料编辑（sheet 560） -->
+            <div class="scrim-c profile-scrim">
+              <div class="sheet" role="dialog" aria-label="个人资料">
+                <div class="sheet-grab"></div>
+                <div class="sheet-headrow">
+                  <button class="sheet-x" data-close-sheet aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <h2>个人资料</h2>
+                  <span class="sp"></span><kbd>Esc</kbd>
+                </div>
+                <div class="sheet-body">
+                  <div class="prof-ava">
+                    <span class="avatar avatar-lg">东</span>
+                    <button class="btn-ghost" data-say="原型示意：从相册选择 / 拍照 / 移除当前头像（裁剪后仅存本机与 iCloud）"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 7.5A2 2 0 0 1 6.5 5.5h2l1.5-2h4l1.5 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z"/><circle cx="12" cy="12" r="3.4"/></svg>换头像</button>
+                  </div>
+                  <label class="field">
+                    <span>昵称</span>
+                    <input id="nickInput" value="东林" placeholder="怎么称呼你">
+                  </label>
+                  <p class="field-note">头像与称呼会随你的私人 iCloud 同步。Holo 只保存裁剪后的头像，不保存原图，也不会把头像发送给 AI 或后端。</p>
+                </div>
+                <div class="sheet-foot"><button class="btn-primary" id="profSave">保存</button></div>
+              </div>
+            </div>
+
+            <!-- Holo 档案编辑（sheet 560） -->
+            <div class="scrim-c holo-scrim">
+              <div class="sheet" role="dialog" aria-label="Holo 档案">
+                <div class="sheet-grab"></div>
+                <div class="sheet-headrow">
+                  <button class="sheet-x" data-close-sheet aria-label="关闭"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <h2>Holo 档案</h2>
+                  <span class="sp"></span><kbd>Esc</kbd>
+                </div>
+                <div class="sheet-body">
+                  <div class="holo-note">
+                    <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></svg>
+                    档案帮 Holo 更懂你——回答会更贴合你的角色与偏好。它只存在本机与你的 iCloud。
+                  </div>
+                  <div class="seclabel">我是谁</div>
+                  <div class="echips">
+                    <span class="echip">产品经理<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <span class="echip">叫我东林<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <button class="addchip" data-add>＋ 加一条</button>
+                  </div>
+                  <div class="seclabel">我在乎什么</div>
+                  <div class="echips">
+                    <span class="echip">家人<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <span class="echip">预算和存钱<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <span class="echip">晚上不加班<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <button class="addchip" data-add>＋ 加一条</button>
+                  </div>
+                  <div class="seclabel">我的习惯</div>
+                  <div class="echips">
+                    <span class="echip">晚上写想法<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <span class="echip">周一排一周计划<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <span class="echip">每天咖啡<button class="x" aria-label="删除"><svg class="ic" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg></button></span>
+                    <button class="addchip" data-add>＋ 加一条</button>
+                  </div>
+                </div>
+                <div class="sheet-foot"><button class="btn-primary" id="holoSave">保存</button></div>
+              </div>
+            </div>
+
+            <div class="toast" id="toast"></div>
+          </main>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="canvas-cap" id="canvasCap">底表 L · 个人主页 · 宽档双栏 / 竖屏单列推入</div>
+</div>
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var stage  = document.getElementById('stage');
+  var wrap   = document.getElementById('frameWrap');
+  var toast  = document.getElementById('toast');
+  var toastTimer = null;
+  var dtTitle = document.getElementById('dtTitle');
+  var chips = document.getElementById('sceneChips');
+
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+
+  /* ---- HoloPlusEmblem（A2 口径：流畅肖像 + 两侧麦穗 + PLUS 右上角，免费态仅银灰肖像） ---- */
+  function emblemSVG(kind, uid){
+    var u = kind + uid;
+    if(kind === 'gold'){
+      return '<svg viewBox="0 0 72 72" aria-hidden="true">'
+        +'<defs><linearGradient id="gd'+u+'" x1="0" y1="0" x2="1" y2="1">'
+        +'<stop offset="0" stop-color="#FFE7AE"/><stop offset=".52" stop-color="#F2C063"/><stop offset="1" stop-color="#D8992B"/></linearGradient></defs>'
+        +'<rect x="1.5" y="1.5" width="69" height="69" rx="17" fill="url(#gd'+u+')"/>'
+        +'<rect x="1.5" y="1.5" width="69" height="69" rx="17" fill="none" stroke="rgba(255,246,223,.5)" stroke-width="1"/>'
+        /* 两侧麦穗 */
+        +'<g stroke="#7A5210" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8">'
+        +'<path d="M15 22.5c-1.4 8-1.4 17 .3 25.5"/>'
+        +'<path d="M14.8 27.2l-4.4-2.6M14.8 27.2l3.9-2.2"/>'
+        +'<path d="M14.4 33.6l-4.7-2.3M14.4 33.6l4.2-2"/>'
+        +'<path d="M14.3 40l-4.9-2M14.3 40l4.4-1.8"/>'
+        +'<path d="M14.7 46.2l-4.6-1.5M14.7 46.2l4-1.4"/>'
+        +'<path d="M57 22.5c1.4 8 1.4 17-.3 25.5"/>'
+        +'<path d="M57.2 27.2l4.4-2.6M57.2 27.2l-3.9-2.2"/>'
+        +'<path d="M57.6 33.6l4.7-2.3M57.6 33.6l-4.2-2"/>'
+        +'<path d="M57.7 40l4.9-2M57.7 40l-4.4-1.8"/>'
+        +'<path d="M57.3 46.2l4.6-1.5M57.3 46.2l-4-1.4"/>'
+        +'</g>'
+        /* 流畅肖像（亮度蒙版口径：深金剪影 + 高光流线） */
+        +'<path d="M36 15.8c6.1 0 10.3 4.5 10.3 10.7 0 4.2-1.9 7.4-4.7 9.5 6.3 2.3 11 7 12.6 14.5H17.8c1.6-7.5 6.3-12.2 12.6-14.5-2.8-2.1-4.7-5.3-4.7-9.5 0-6.2 4.2-10.7 10.3-10.7z" fill="#7A5210" opacity=".32"/>'
+        +'<path d="M27.2 27c0-5.4 4-9.1 8.8-9.1" stroke="#FFF6DF" stroke-width="2.2" stroke-linecap="round" fill="none" opacity=".9"/>'
+        +'<path d="M20.5 50.5c2.2-5 6.3-8.5 11.2-10.1" stroke="#FFF6DF" stroke-width="1.7" stroke-linecap="round" fill="none" opacity=".5"/>'
+        /* PLUS 右上角 */
+        +'<rect x="41.5" y="7" width="23.5" height="11" rx="5.5" fill="rgba(255,255,255,.32)"/>'
+        +'<text x="53.2" y="15" text-anchor="middle" font-size="8" font-weight="800" letter-spacing=".5" fill="#5C3A08" font-family="inherit">PLUS</text>'
+        +'</svg>';
+    }
+    return '<svg viewBox="0 0 72 72" aria-hidden="true">'
+      +'<defs><linearGradient id="sd'+u+'" x1="0" y1="0" x2="0" y2="1">'
+      +'<stop offset="0" stop-color="#C9BFB4"/><stop offset="1" stop-color="#8F857A"/></linearGradient></defs>'
+      +'<rect x="1.5" y="1.5" width="69" height="69" rx="17" fill="#453D36" fill-opacity=".5"/>'
+      +'<rect x="1.5" y="1.5" width="69" height="69" rx="17" fill="none" stroke="#9A8E82" stroke-opacity=".5" stroke-width="1"/>'
+      +'<path d="M36 15.8c6.1 0 10.3 4.5 10.3 10.7 0 4.2-1.9 7.4-4.7 9.5 6.3 2.3 11 7 12.6 14.5H17.8c1.6-7.5 6.3-12.2 12.6-14.5-2.8-2.1-4.7-5.3-4.7-9.5 0-6.2 4.2-10.7 10.3-10.7z" fill="url(#sd'+u+')" opacity=".9"/>'
+      +'<path d="M27.2 27c0-5.4 4-9.1 8.8-9.1" stroke="rgba(255,255,255,.4)" stroke-width="2.2" stroke-linecap="round" fill="none"/>'
+      +'</svg>';
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-emblem]'), function(el, i){
+    el.innerHTML = emblemSVG(el.getAttribute('data-emblem'), i);
+  });
+
+  /* ---- 场景配置：chips → 页面状态 ---- */
+  var SCN = {
+    main:        { scene:'main',        detail:'weekly',    open:false, empty:false },
+    member:      { scene:'member',      detail:'member',    open:true,  empty:false },
+    paywall:     { scene:'paywall',     detail:'member',    open:true,  empty:false },
+    weekly:      { scene:'weekly',      detail:'weeklyFull',open:true,  empty:false },
+    editProfile: { scene:'editProfile', detail:'weekly',    open:false, empty:false },
+    editHolo:    { scene:'editHolo',    detail:'weekly',    open:false, empty:false },
+    empty:       { scene:'main',        detail:'intro',     open:false, empty:true  }
+  };
+  var TITLES = { intro:'个人', weekly:'每周回顾', goals:'我的目标', memories:'Holo 记住的你', growth:'我的积累', member:'Holo Plus 会员中心', weeklyFull:'每周回顾' };
+  var curChip = 'main';
+
+  /* 底表标注：画布层（机身下方），随场景切换文案，不压 App 内容 */
+  var BTAGS = {
+    main:'底表 L · 个人主页 · 宽档双栏 / 竖屏单列推入',
+    intro:'底表 L · 个人主页 · 无选中默认态',
+    weekly:'底表 L · 个人主页 · 每周回顾（预览）',
+    goals:'底表 K/L · 我的目标（预览）',
+    memories:'底表 J/L · Holo 记住的你（预览）',
+    growth:'底表 H/L · 我的积累（预览）',
+    member:'底表 L · 会员中心：72pt 徽章 + 额度对比 4 行 + 订阅管理/恢复购买 + 权益对比表（可滚动）',
+    weeklyFull:'底表 L · 每周回顾（完整版 · 深链 weeklyReview 落点）',
+    paywall:'底表 L · 付费墙 · 居中大卡 720 · P22',
+    editProfile:'底表 L · 个人资料编辑 · 居中 sheet 560',
+    editHolo:'底表 L · Holo 档案编辑 · 居中 sheet 560',
+    empty:'底表 L · 个人主页 · 新用户空态 · P23'
+  };
+  function updateCap(){
+    var cap = document.getElementById('canvasCap'); if(!cap) return;
+    var sc = screen.getAttribute('data-scene');
+    var key = (sc === 'paywall' || sc === 'editProfile' || sc === 'editHolo') ? sc
+            : (screen.classList.contains('empty') ? 'empty' : screen.getAttribute('data-detail'));
+    cap.textContent = BTAGS[key] || BTAGS.main;
+  }
+
+  function syncChips(key){
+    curChip = key;
+    chips.querySelectorAll('button').forEach(function(x){
+      x.setAttribute('aria-pressed', x.dataset.v === key ? 'true' : 'false');
+    });
+  }
+  function syncRows(d){
+    document.querySelectorAll('.row[data-detail]').forEach(function(r){
+      r.classList.toggle('on', r.dataset.detail === d);
+    });
+  }
+  function setDetail(d, open){
+    screen.setAttribute('data-detail', d);
+    dtTitle.textContent = TITLES[d] || '个人';
+    syncRows(d);
+    if(open !== undefined){ screen.classList.toggle('detail-open', !!open); }
+    updateCap();
+  }
+  function applyScene(v){
+    var c = SCN[v]; if(!c) return;
+    syncChips(v);
+    screen.setAttribute('data-scene', c.scene);
+    screen.classList.toggle('empty', !!c.empty);
+    setDetail(c.detail, c.open);
+  }
+  function snapshot(){
+    return { chip:curChip, scene:screen.getAttribute('data-scene'), empty:screen.classList.contains('empty'), detail:screen.getAttribute('data-detail') };
+  }
+  function chipFor(st){
+    var keys = Object.keys(SCN), best = null;
+    keys.forEach(function(k){ var c=SCN[k]; if(!best && c.scene===st.scene && !!c.empty===!!st.empty && c.detail===st.detail) best=k; });
+    if(!best){ keys.forEach(function(k){ var c=SCN[k]; if(!best && c.scene===st.scene && !!c.empty===!!st.empty) best=k; }); }
+    return best || 'main';
+  }
+  function restore(st){
+    if(!st) st = { chip:'main', scene:'main', empty:false, detail:'weekly' };
+    screen.setAttribute('data-scene', st.scene);
+    screen.classList.toggle('empty', !!st.empty);
+    setDetail(st.detail);
+    syncChips(st.chip || chipFor(st));
+  }
+
+  /* 付费墙与 sheet 都是覆盖层：打开时不改底层页面的选中与空态，关闭即回原位 */
+  var pwBack = null, sheetBack = null;
+  function openOverlay(v){
+    var back = snapshot();
+    syncChips(v);
+    screen.setAttribute('data-scene', v);
+    updateCap();
+    return back;
+  }
+  function openPaywall(){ pwBack = openOverlay('paywall'); }
+  function closePaywall(){ restore(pwBack); pwBack = null; }
+  function openSheet(v){ sheetBack = openOverlay(v); }
+  function closeSheet(){ restore(sheetBack); sheetBack = null; }
+
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    var v = b.dataset.v;
+    if(v === 'paywall'){ openPaywall(); return; }
+    if(v === 'editProfile' || v === 'editHolo'){ openSheet(v); return; }
+    applyScene(v);
+  });
+
+  /* 我的内容四行 → 右栏跟随 */
+  document.querySelectorAll('.row[data-detail]').forEach(function(r){
+    r.addEventListener('click', function(){
+      if(screen.classList.contains('empty')){ say('空态演示：这里还没有内容'); return; }
+      setDetail(r.dataset.detail, true);
+    });
+  });
+
+  /* 会员卡 / 免费横条 / 各入口 */
+  document.getElementById('memberCard').addEventListener('click', function(){ setDetail('member', true); });
+  document.getElementById('freeCard').addEventListener('click', function(){ openPaywall(); });
+  document.getElementById('idEdit').addEventListener('click', function(){ openSheet('editProfile'); });
+  document.getElementById('profileRow').addEventListener('click', function(){ openSheet('editHolo'); });
+  document.getElementById('memcap').addEventListener('click', function(){
+    say('记忆确认队列在「记忆中心」，原型见对应分文件');
+  });
+  document.getElementById('openWeeklyFull').addEventListener('click', function(){ setDetail('weeklyFull', true); });
+  document.getElementById('shareWeekly').addEventListener('click', function(){ say('分享卡已生成（原型示意）'); });
+
+  /* 付费墙内交互 */
+  document.getElementById('pwClose').addEventListener('click', closePaywall);
+  document.getElementById('pwRestore').addEventListener('click', function(){ say('正在恢复购买…（原型示意）'); });
+  document.getElementById('pwCta').addEventListener('click', function(){
+    say(this.textContent.indexOf('试用') > -1 ? '已开始 7 天免费试用（原型示意）' : '已开通月订阅（原型示意）');
+    closePaywall();
+  });
+  document.querySelectorAll('.pw-plan').forEach(function(p){
+    p.addEventListener('click', function(){
+      document.querySelectorAll('.pw-plan').forEach(function(x){ x.classList.toggle('sel', x === p); });
+      document.getElementById('pwCta').textContent = p.dataset.plan === 'year' ? '开始 7 天免费试用' : '开通月订阅 · ¥18.00/月';
+    });
+  });
+
+  /* sheet 内交互 */
+  document.querySelectorAll('[data-close-sheet]').forEach(function(b){
+    b.addEventListener('click', closeSheet);
+  });
+  document.getElementById('profSave').addEventListener('click', function(){
+    say('已保存「' + (document.getElementById('nickInput').value || '未命名') + '」');
+    closeSheet();
+  });
+  document.getElementById('holoSave').addEventListener('click', function(){
+    say('档案已保存（原型示意）'); closeSheet();
+  });
+  document.querySelectorAll('.echip .x').forEach(function(b){
+    b.addEventListener('click', function(){
+      b.closest('.echip').remove();
+      say('已删除这条，点「保存」后生效');
+    });
+  });
+  document.querySelectorAll('[data-add]').forEach(function(b){
+    b.addEventListener('click', function(){ say('在键盘上直接输入即可补一条（原型示意）'); });
+  });
+
+  /* 竖屏推入详情 → 返回列表原位（保留选中，旋转回来右栏还在） */
+  document.getElementById('dtBack').addEventListener('click', function(){
+    screen.classList.remove('detail-open');
+  });
+
+  /* 朝向：横竖同一 DOM；旋转保留状态（宽→窄右栏转推入详情） */
+  var segOri = document.getElementById('segOri');
+  segOri.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    if(b.dataset.v === 'pt'){
+      screen.classList.add('pt','minisb');
+      if(screen.getAttribute('data-detail') !== 'intro'){ screen.classList.add('detail-open'); }
+    } else {
+      screen.classList.remove('pt','minisb','sbov-open','detail-open');
+    }
+    fit();
+  });
+
+  /* 深浅色 */
+  var segTheme = document.getElementById('segTheme');
+  segTheme.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    document.documentElement.setAttribute('data-theme', b.dataset.v);
+  });
+
+  /* 侧边栏收起/展开（横屏）；竖屏左上开关展开覆盖侧边栏 */
+  document.getElementById('sbToggle').addEventListener('click', function(){
+    if(screen.classList.contains('pt')){ screen.classList.add('sbov-open'); }
+    else { screen.classList.toggle('minisb'); fit(); }
+  });
+
+  /* 竖屏：图标条双击展开覆盖侧边栏（同样板件） */
+  document.getElementById('sidebar').addEventListener('dblclick', function(e){
+    if(screen.classList.contains('pt') && !screen.classList.contains('sbov-open')){ screen.classList.add('sbov-open'); }
+  });
+  document.getElementById('sbovScrim').addEventListener('click', function(){
+    screen.classList.remove('sbov-open');
+  });
+  /* 覆盖侧边栏内容（复用主导航，含「个人」选中态） */
+  var lists = document.querySelectorAll('.sidebar .sb-list');
+  document.getElementById('sbovList').innerHTML = lists[0].outerHTML + '<div class="sb-div"></div>' + lists[1].outerHTML;
+
+  /* 占位模块点击：提示对应分文件 */
+  document.addEventListener('click', function(e){
+    var m = e.target.closest('[data-module]');
+    if(m){ say('「' + labelOf(m.dataset.module) + '」模块原型见对应分文件（index.html 可跳转）'); return; }
+    var g = e.target.closest('[data-goto]');
+    if(g){
+      if(g.dataset.goto === 'personal'){ screen.classList.remove('sbov-open'); applyScene('main'); }
+      else { say('「今天」原型见「00-壳层与今天」分文件'); }
+      return;
+    }
+    var s = e.target.closest('[data-say]');
+    if(s){ say(s.dataset.say); }
+  });
+  function labelOf(key){
+    return ({thoughts:'想法',finance:'财务',tasks:'任务',habits:'习惯',gallery:'记忆长廊',health:'健康',ai:'AI 对话',settings:'设置'})[key] || key;
+  }
+
+  /* 键盘：Esc 按优先级关弹层/返回 */
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      if(screen.classList.contains('sbov-open')){ screen.classList.remove('sbov-open'); return; }
+      var sc = screen.getAttribute('data-scene');
+      if(sc === 'paywall'){ closePaywall(); return; }
+      if(sc === 'editProfile' || sc === 'editHolo'){ closeSheet(); return; }
+      if(screen.classList.contains('pt') && screen.classList.contains('detail-open')){ screen.classList.remove('detail-open'); }
+    }
+  });
+
+  /* 快速记录 */
+  document.getElementById('quickAdd').addEventListener('click', function(){
+    say('⌘N 快速记录：按当前模块分流（个人 → 新建任务）');
+  });
+
+  /* 自适应缩放：整台 iPad 永远在舞台里看得全 */
+  function fit(){
+    var r = screen.getBoundingClientRect();
+    var w = r.width, h = r.height;
+    var availW = stage.clientWidth - 16, availH = stage.clientHeight - 16;
+    var s = Math.min(1, availW / w, availH / h);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  /* URL hash 初始化（渲染截图用）：#scene=main|member|paywall|weekly|editProfile|editHolo|empty&detail=...&ori=lsz|pt&theme=light|dark&sb=mini */
+  (function(){
+    var q = {};
+    location.hash.replace(/^#/, '').split('&').forEach(function(kv){
+      var p = kv.split('='); if(p[0]) q[p[0]] = p[1];
+    });
+    if(q.theme || q.ori || q.scene || q.sb || q.detail){ document.documentElement.classList.add('instant'); }
+    if(q.theme === 'dark'){
+      document.documentElement.setAttribute('data-theme','dark');
+      segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='dark' ? 'true':'false'); });
+    }
+    if(q.ori === 'pt'){
+      screen.classList.add('pt','minisb');
+      segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='pt' ? 'true':'false'); });
+    }
+    if(q.sb === 'mini'){ screen.classList.add('minisb'); }
+    if(q.scene && SCN[q.scene]){
+      if(q.scene === 'paywall'){ openPaywall(); }
+      else if(q.scene === 'editProfile' || q.scene === 'editHolo'){ openSheet(q.scene); }
+      else { applyScene(q.scene); }
+    }
+    if(q.detail && TITLES[q.detail]){ setDetail(q.detail); }
+    if(q.debug === '1'){
+      var sbar = document.querySelector('.sbar');
+      document.title = 'DBG screen=' + getComputedStyle(screen).backgroundColor +
+        ' sbar=' + getComputedStyle(sbar).backgroundColor +
+        ' sbarColor=' + getComputedStyle(sbar).color +
+        ' theme=' + document.documentElement.getAttribute('data-theme');
+    }
+    fit();
+  })();
+})();
+</script>
+
+<!--
+  ============ 本文件新增拍板点（批次编号：P22 · P23） ============
+  P22 付费墙 iPad 形态：居中大卡 720（本稿口径）vs 全屏铺满。
+      推荐：居中卡。符合 iPad fullScreenCover 的 sheet 化惯例，付费墙是全局协调器触发的
+      临时决策层，居中卡保留上下文、关闭成本低；手机版 fullScreenCover 全屏不变。
+      本稿按居中卡绘制：深底渐变大卡 + 双套餐卡 + 试用资格行 + 恢复购买 + 右上关闭 + 底部「随时可取消」。
+  P23 免费新用户个人页：保留「我的内容」四行框架、计数为 0（本稿口径）vs 收起框架换引导卡。
+      推荐：保留框架。结构与「有数据后」完全一致，避免首笔记录落地时整页跳动；
+      空态表达交给行内计数（0）+ 底部教练卡「跟 Holo 说说话，它就开始认识你」。
+-->
+</body>
+</html>

@@ -259,6 +259,7 @@ struct ThoughtTaskSettingsCard: View {
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

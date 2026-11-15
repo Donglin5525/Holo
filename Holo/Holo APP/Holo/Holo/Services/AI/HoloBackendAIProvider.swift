@@ -761,15 +761,15 @@ enum HoloBackendPurpose: String {
     /// 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：
     /// 「用户直接阅读输出」的 purpose 随请求携带 profileBrief（用户亲写档案原文），
     /// 由后端 serverPromptPolicy 统一注入成指令级 system 消息。
-    /// 结构化解析/萃取/核验类不带——那些链路明文「用户数据不可执行」，档案进不去也不该进。
+    /// 结构化解析、核验和原文编辑类任务仅依据本轮输入，不带个人档案。
     /// 与后端 PROFILE_CHANNEL_PURPOSES（tests/profileChannel.test.js）保持同步。
     var carriesProfileBrief: Bool {
         switch self {
         case .chat, .analysis, .insight, .agentLoop, .healthInsightGeneration, .weeklyPlanGeneration,
-             .thoughtVoiceSummary, .personalContextPlanning, .matterReconciliation, .matterExecutionPlan,
+             .personalContextPlanning, .matterReconciliation, .matterExecutionPlan,
              .goalWorkshop, .todayReliefPlan:
             return true
-        case .intent, .flexibleQueryPlanner, .replayDigest, .memoryObserver, .memoryDomainExtraction,
+        case .intent, .flexibleQueryPlanner, .replayDigest, .thoughtVoiceSummary, .memoryObserver, .memoryDomainExtraction,
              .memoryCrossDomainFusion, .financeActionParser, .taskActionParser, .thoughtOrganization,
              .thoughtTaskExtraction, .thoughtTagConvergence, .categoryPatternInduction,
              .personalContextExtraction, .personalContextVerification, .understandingProposal,

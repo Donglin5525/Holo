@@ -36,6 +36,12 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
     /// 主按钮上方的固定前置区（如「我了解并同意」勾选行）——必须始终可见可点的
     /// 提交前置条件放这里，不放进滚动内容流（同上教训：视口外的前置条件=流程断裂）
     var primaryAccessory: () -> PrimaryAccessory
+    /// 主按钮实底色（默认全 App holoToolAction；目标模块传 GoalJourneyAction，
+    /// 规格 A12「全页只有一个橙」，2026-11-14 R4——不改共享默认）
+    var primaryActionColor: Color = .holoToolAction
+    /// 底栏衬底；nil=默认 ultraThinMaterial。传色时改用该色实底并在顶部加 0.5 发丝线
+    /// （目标模块表单奶油同源底，2026-11-14 R6——不改共享默认）
+    var footerBackground: Color? = nil
     /// 内容区
     let content: () -> Content
 
@@ -48,6 +54,8 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         primaryAction: (() -> Void)? = nil,
         primaryDisabled: Bool = false,
         primaryHint: String? = nil,
+        primaryActionColor: Color = .holoToolAction,
+        footerBackground: Color? = nil,
         @ViewBuilder primaryAccessory: @escaping () -> PrimaryAccessory = { EmptyView() },
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -59,6 +67,8 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         self.primaryAction = primaryAction
         self.primaryDisabled = primaryDisabled
         self.primaryHint = primaryHint
+        self.primaryActionColor = primaryActionColor
+        self.footerBackground = footerBackground
         self.primaryAccessory = primaryAccessory
         self.content = content
     }
@@ -162,7 +172,7 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .foregroundStyle(primaryDisabled ? Color.holoToolTextSecondary : Color.holoToolOnAction)
                         .background(
-                            Capsule().fill(primaryDisabled ? Color.holoToolInset : Color.holoToolAction)
+                            Capsule().fill(primaryDisabled ? Color.holoToolInset : primaryActionColor)
                         )
                         .contentShape(Rectangle())
                 }
@@ -173,7 +183,20 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, HoloSpacing.sm)
             .frame(maxWidth: .infinity)
-            .background(.ultraThinMaterial)
+            .background { footerBackdrop }
+        }
+    }
+
+    /// 底栏衬底：默认 ultraThinMaterial；传 footerBackground 时为实底 + 顶部 0.5 发丝线
+    @ViewBuilder
+    private var footerBackdrop: some View {
+        if let footerBackground {
+            ZStack(alignment: .top) {
+                Rectangle().fill(footerBackground)
+                Rectangle().fill(Color.holoToolBorder).frame(height: 0.5)
+            }
+        } else {
+            Rectangle().fill(.ultraThinMaterial)
         }
     }
 }

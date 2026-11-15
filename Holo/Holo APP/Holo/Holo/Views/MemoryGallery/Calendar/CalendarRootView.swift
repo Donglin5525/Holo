@@ -12,12 +12,18 @@ import SwiftUI
 
 struct CalendarRootView: View {
 
+    /// 「找日期」共享模型（MemoryGalleryView 持有）：面板在这里挂 sheet，
+    /// 日期定位/续载/事件详情直接复用本页 viewModel 与既有路由。
+    @ObservedObject var findDate: MemoryGalleryFindDateModel
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 宽屏档章节大时间放大，与章节头排印同口径
     @Environment(\.holoContentWidth) private var scaleWindowWidth
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
+    /// 长廊时间线/漫步共用的想法全文阅读事件（2026-11-14 动线自审：看想法不离开长廊）。
+    @State private var timelineThoughtEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
     @State private var showWeekNarrative = false
     @State private var showScaleDatePicker = false
@@ -39,21 +45,28 @@ struct CalendarRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navRow
-            if viewModel.hasFailure { failureBanner }
+            // 长廊时间线是唯一主视图：档位切换行按减法设计撤出（日回放并入长廊展开、
+            // 七天网格退役；2026-11-14 东林拍板 1:1）。旧档位代码保留但无界面入口。
+            if viewModel.scale != .gallery {
+                navRow
+                if viewModel.hasFailure { failureBanner }
+            }
             content
         }
-        .background(Color.holoToolBackground)
+        .background(viewModel.scale == .gallery ? Color.galleryPaper : Color.holoToolBackground)
         .task {
             await viewModel.loadInitial()
         }
+        .sheet(item: $timelineThoughtEvent) { event in
+            MemoryWalkThoughtReader(event: event) {
+                timelineThoughtEvent = nil
+                openThoughtInThoughtsModule(event)
+            }
+        }
         .sheet(item: $selectedEvent) { event in
-            CalendarEventDetailSheet(event: event, onShowInTimeline: {
-                withAnimation(HoloAnimation.quick) {
-                    viewModel.focusDay(event.date)
-                    viewModel.scale = .timeline
-                }
-            })
+            // 2026-11-14 对抗审查必改3：撤「在轴上查看排布」——它会复活整排退役档位；
+            // 轴档排布按减法设计归任务模块。
+            CalendarEventDetailSheet(event: event, onShowInTimeline: nil)
         }
         .sheet(item: $selectedEventGroup) { group in
             CalendarEventGroupDetailSheet(group: group)
@@ -78,17 +91,52 @@ struct CalendarRootView: View {
                 onCommit: { viewModel.focusDay(pickerDate) }
             )
         }
+        .sheet(isPresented: $findDate.isPresented, onDismiss: {
+            // 下拉手势关闭同样结束当前取数/动效（§2：关闭或下拉收起）。
+            findDate.handleSheetDismissed()
+        }) {
+            MemoryGalleryFindDateSheet(
+                model: findDate,
+                calendar: .current,
+                focusedDate: viewModel.focusedDate,
+                recordCount: { viewModel.dayEventCounts[$0] },
+                ensureData: { viewModel.ensureTimelineData(around: $0) },
+                onSelectDay: { day in
+                    // 找日期/在长廊看这天：回到长廊时间线并定位到该天（多条自动展开）。
+                    viewModel.focusDay(day)
+                    viewModel.switchScale(.gallery)
+                    findDate.requestJump(to: day)
+                    findDate.dismiss()
+                },
+                onBackToLatest: {
+                    // 回到最近：统一交时间线处理（远跳后先回今天补窗口再定位）。
+                    viewModel.goToToday()
+                    viewModel.switchScale(.gallery)
+                    findDate.requestBackToRecent()
+                    findDate.dismiss()
+                },
+                onOpenEvent: { event in
+                    handleEventSelect(event)
+                }
+            )
+        }
     }
 
-    // MARK: - 事件点击（想法直跳详情，其余弹层）
+    // MARK: - 事件点击（想法面板内读全文，其余弹层）
 
-    /// 想法事件点击直达想法详情页（长廊不再为想法设详情弹层，与册页卡/组弹层行为一致）；
+    /// 想法点击改为长廊内全文阅读（设计文档 J4「关掉详情回到原日期和原展开状态」；
+    /// 2026-11-14 动线自审定谳：不再跳出长廊切想法模块），「在想法中打开」才显式深链；
     /// 记账 / 习惯 / 待办维持原有详情弹层。
     private func handleEventSelect(_ event: CalendarEvent) {
         guard event.module == .thought else {
             selectedEvent = event
             return
         }
+        timelineThoughtEvent = event
+    }
+
+    /// 想法全文阅读页内「在想法中打开」：面板收起后走既有 resolver+深链。
+    private func openThoughtInThoughtsModule(_ event: CalendarEvent) {
         CalendarEventOriginResolver.resolve(event) { target in
             guard let target else {
                 // 卡片文案承诺「轻点查看全文」，回查失败必须有反馈（与组弹层 alert 同口径）
@@ -108,6 +156,7 @@ struct CalendarRootView: View {
     private var content: some View {
         Group {
             switch viewModel.scale {
+            case .gallery: galleryContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .day:   dayContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .week:  weekContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .month: monthlyContent.holoScaleTransition(edge: scaleInsertionEdge)
@@ -116,8 +165,31 @@ struct CalendarRootView: View {
         }
         .onAppear { lastScale = viewModel.scale }
         .onChange(of: viewModel.scale) { _, newScale in
+            // 从长廊时间线切旧档位：落在当前阅读位置（走查缺陷1：切「周」落到旧聚焦周）。
+            if lastScale == .gallery, newScale != .gallery,
+               let readingDay = findDate.readingDay {
+                viewModel.focusDay(readingDay)
+            }
             lastScale = newScale
         }
+    }
+
+    /// 长廊默认页：按日期排列的时间线（长廊减法设计 P2）。
+    private var galleryContent: some View {
+        MemoryGalleryTimelineView(
+            eventsByDay: viewModel.eventsByDay,
+            dataRevision: viewModel.presentationSnapshot.revision,
+            isInitialLoading: viewModel.isInitialLoading,
+            failedModules: viewModel.timelineResult.failedModules,
+            findDate: findDate,
+            onSelect: { handleEventSelect($0) },
+            onEnsureData: { viewModel.ensureTimelineData(around: $0) },
+            onRetry: { Task { await viewModel.refreshForCurrentScale() } },
+            onBackToLatestReload: {
+                viewModel.goToToday()
+                Task { await viewModel.refreshForCurrentScale() }
+            }
+        )
     }
 
     /// 轴档：0–24 纵向时间轴，任务时间段与系统日程同轴；历史日程按需拉取不受活跃窗口限制。
@@ -238,6 +310,7 @@ struct CalendarRootView: View {
     private var chapterPrimaryFont: Font {
         let s = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: scaleWindowWidth)
         switch viewModel.scale {
+        case .gallery: return .system(size: 48 * s, weight: .medium, design: .serif)
         case .day: return .system(size: 48 * s, weight: .medium, design: .serif)
         case .week: return .system(size: 36 * s, weight: .medium, design: .serif)
         case .month: return .system(size: 42 * s, weight: .medium, design: .serif)
@@ -259,18 +332,22 @@ struct CalendarRootView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: HoloSpacing.xs) {
                     scaleSwitch
-                    HStack(spacing: HoloSpacing.sm) {
-                        periodNavigation
-                        Spacer(minLength: 0)
-                        todayButton
-                        if viewModel.scale == .timeline { datePickerButton }
+                    if viewModel.scale != .gallery {
+                        HStack(spacing: HoloSpacing.sm) {
+                            periodNavigation
+                            Spacer(minLength: 0)
+                            todayButton
+                            if viewModel.scale == .timeline { datePickerButton }
+                        }
                     }
                 }
             } else {
                 HStack(spacing: 6) {
                     scaleSwitch
-                    periodNavigation
-                    todayButton
+                    if viewModel.scale != .gallery {
+                        periodNavigation
+                        todayButton
+                    }
                     if viewModel.scale == .timeline { datePickerButton }
                 }
             }
@@ -281,7 +358,7 @@ struct CalendarRootView: View {
 
     @ViewBuilder
     private var periodNavigation: some View {
-        if viewModel.scale != .day {
+        if viewModel.scale != .day && viewModel.scale != .gallery {
             chevronButton(systemName: "chevron.left") { viewModel.step(by: -1) }
             chevronButton(systemName: "chevron.right") { viewModel.step(by: 1) }
                 .disabled(!viewModel.canStepForward)

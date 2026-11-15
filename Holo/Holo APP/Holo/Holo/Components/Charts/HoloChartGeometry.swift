@@ -140,4 +140,25 @@ enum HoloChartGeometry {
         }
         return dates
     }
+
+    /// 峰/谷下标（只在非 nil 值里找）。有效点不足 minimumCount、或峰谷同一点时返回 nil
+    /// ——点太少时标注只会拥挤，峰谷同点说明没有可讲的故事。
+    static func extremaIndices(values: [Double?], minimumCount: Int = 6) -> (max: Int, min: Int)? {
+        var iMax: Int?, iMin: Int?, validCount = 0
+        var vMax = Double.nan, vMin = Double.nan
+        for (index, value) in values.enumerated() {
+            guard let value, value.isFinite else { continue }
+            validCount += 1
+            if iMax == nil || value > vMax { iMax = index; vMax = value }
+            if iMin == nil || value < vMin { iMin = index; vMin = value }
+        }
+        guard validCount >= minimumCount, let m = iMax, let n = iMin, m != n else { return nil }
+        return (m, n)
+    }
+
+    /// 合计环比百分比（上期 ≤ 0 或非有限值无基准 → nil，不显示徽标）
+    static func deltaPercent(current: Double, previous: Double) -> Double? {
+        guard previous.isFinite, previous > 0, current.isFinite else { return nil }
+        return (current / previous - 1) * 100
+    }
 }

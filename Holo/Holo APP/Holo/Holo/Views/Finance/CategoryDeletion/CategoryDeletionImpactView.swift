@@ -270,6 +270,7 @@ struct CategoryDeletionImpactView: View {
                     .font(.system(size: 20))
                     .foregroundColor(option == value ? .holoPrimary : .holoTextPlaceholder)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

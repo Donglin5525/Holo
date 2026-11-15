@@ -80,7 +80,8 @@ struct GoalPlanConfirmation: Equatable {
                 baselineValue: draft.goalKind == .target ? draft.metricBaselineValue : nil,
                 baselineObservedAt: now,
                 freshnessDays: aggregation == .latest ? 14 : nil,
-                ledgerScope: nil,
+                // 表单选定的账本范围随草案进计划（2026-11-14）：全账本/指定账户净结余增加/账户余额
+                ledgerScope: kind == .ledger ? draft.ledgerScope : nil,
                 isPending: kind == .habit && draft.sourceHabitId == nil
             )
         }
@@ -117,12 +118,12 @@ struct GoalPlanConfirmation: Equatable {
                 }
             case .ledger:
                 let scopeKind = source.ledgerScope.flatMap(GoalLedgerScopeKind.init(rawValue:)) ?? .wholeLedgerDelta
-                if scopeKind == .accountBalance {
+                if scopeKind == .accountBalance || scopeKind == .accountDelta {
                     if let ref = source.candidateRef, let account = candidates.account(ref: ref), !account.isCreditLiability {
-                        ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id)
+                        ledgerScope = GoalLedgerScopePayload(kind: scopeKind, accountID: account.id)
                     } else {
-                        // 没有可靠账户：范围保留 account_balance 待用户选定，结果待补齐
-                        ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: nil)
+                        // 没有可靠账户：范围保留账户口径待用户选定，结果待补齐
+                        ledgerScope = GoalLedgerScopePayload(kind: scopeKind, accountID: nil)
                         pending = true
                     }
                 } else {

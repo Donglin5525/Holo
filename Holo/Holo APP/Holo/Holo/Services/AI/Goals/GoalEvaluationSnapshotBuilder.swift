@@ -250,6 +250,51 @@ final class GoalEvaluationSnapshotBuilder {
             observation.progressFraction = Self.progressFraction(value: NSDecimalNumber(decimal: delta).doubleValue, source: source)
             known.append(String(localized: "全账本净结余自 \(Self.dayText(since)) 起的变化"))
             return observation
+        case .accountDelta:
+            // 指定账户净结余增加（2026-11-14 表单暴露）：当前余额 − 基线日余额，两次 observation 相减；
+            // 任一侧账户缺失/删除/查询失败都是 unavailable，不折算 0
+            guard let accountID = source.ledgerScope?.accountID else {
+                unknown.append(String(localized: "尚未选定资金账户"))
+                return GoalResultObservation(status: .pendingSource, sourceKind: .ledger,
+                                             sourceLabel: GoalLedgerScopeKind.accountDelta.displayName,
+                                             unit: source.unit ?? "元", targetValue: source.targetValue)
+            }
+            let since = source.baselineObservedAt ?? goal.createdAt
+            let nowObservation = financeRepository.accountBalanceObservation(accountId: accountID, before: window.cutoff)
+            let startObservation = financeRepository.accountBalanceObservation(accountId: accountID, before: since)
+            if case .observed(let current, let asOf, let accountName, _) = nowObservation,
+               case .observed(let start, _, _, _) = startObservation {
+                let delta = current - start
+                var observation = GoalResultObservation(status: .observed, sourceKind: .ledger,
+                                                        sourceLabel: String(localized: "账户「\(accountName)」净结余增加"),
+                                                        moneyValue: delta, unit: source.unit ?? "元",
+                                                        observedAt: asOf,
+                                                        targetValue: source.targetValue, baselineValue: source.baselineValue,
+                                                        baselineObservedAt: since)
+                observation.progressFraction = Self.progressFraction(value: NSDecimalNumber(decimal: delta).doubleValue, source: source)
+                known.append(String(localized: "账户「\(accountName)」净结余自 \(Self.dayText(since)) 起的变化"))
+                return observation
+            }
+            switch (nowObservation, startObservation) {
+            case (.accountMissing, _), (_, .accountMissing):
+                unknown.append(String(localized: "资金账户不存在"))
+                return GoalResultObservation(status: .unavailable, sourceKind: .ledger,
+                                             sourceLabel: GoalLedgerScopeKind.accountDelta.displayName,
+                                             unit: source.unit ?? "元", targetValue: source.targetValue,
+                                             unavailableReason: String(localized: "账户不存在，请重新选择来源"))
+            case (.accountDeleted, _), (_, .accountDeleted):
+                unknown.append(String(localized: "资金账户已删除"))
+                return GoalResultObservation(status: .unavailable, sourceKind: .ledger,
+                                             sourceLabel: GoalLedgerScopeKind.accountDelta.displayName,
+                                             unit: source.unit ?? "元", targetValue: source.targetValue,
+                                             unavailableReason: String(localized: "账户已删除，请重新选择来源"))
+            default:
+                unknown.append(String(localized: "资金账户查询失败"))
+                return GoalResultObservation(status: .unavailable, sourceKind: .ledger,
+                                             sourceLabel: GoalLedgerScopeKind.accountDelta.displayName,
+                                             unit: source.unit ?? "元", targetValue: source.targetValue,
+                                             unavailableReason: String(localized: "余额查询失败，稍后重试"))
+            }
         case .accountBalance:
             guard let accountID = source.ledgerScope?.accountID else {
                 unknown.append(String(localized: "尚未选定资金账户"))
