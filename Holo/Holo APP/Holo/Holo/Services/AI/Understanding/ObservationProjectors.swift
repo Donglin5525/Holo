@@ -80,8 +80,11 @@ nonisolated enum FinanceObservationProjector {
         return result
     }
 
-    /// 归属：显式代办词法（「帮/替 + 带买购」「代购」）→ proxy；其余不猜（M1.6 教训）。
+    /// 归属：组织支出词法（「垫付/报销/公付」）→ organization——垫付是公司事务，
+    /// 不参与个人偏好类理解（垫付报销 miss 挂账）；显式代办词法（「帮/替 + 带买购」
+    /// 「代购」）→ proxy；其余不猜（M1.6 教训）。
     static func attribution(fromNote note: String) -> ObservationAttribution {
+        if note.contains("垫付") || note.contains("报销") || note.contains("公付") { return .organization }
         if note.contains("代购") { return .proxy }
         for verb in ["带的", "带点", "帮忙带", "帮带", "带一份", "帮买", "替买", "帮购", "帮拿"] where note.contains(verb) {
             return .proxy

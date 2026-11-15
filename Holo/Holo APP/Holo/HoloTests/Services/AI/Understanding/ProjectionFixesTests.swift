@@ -10,6 +10,9 @@
 //  ② 暂停习惯不投影：用户暂停习惯后，暂停期缺卡被引擎当成「中断/反复」证据
 //     ——「暂停被当中断」措辞风险。Habit 实体有 isPaused 字段，取数带标记、
 //     投影层整组排除；
+//  ③ 归属枚举加组织维度：「帮公司垫付」「报销」类备注原被词法归到 unknown，
+//     垫付是组织支出，不该参与个人偏好类理解——organization 归属不算本人证据
+//     （核验闸 selfOwned 只认 .self_，无需改闸，此处锁住不回退）；
 //
 
 import Foundation
@@ -28,6 +31,7 @@ struct ProjectionFixesTests {
         setvbuf(stdout, nil, _IONBF, 0)
         testHabitNameTruncation()
         testPausedHabitExcluded()
+        testOrganizationAttribution()
         print("ProjectionFixesTests: \(assertions) assertions passed")
     }
 
@@ -95,5 +99,60 @@ struct ProjectionFixesTests {
         let proposals = HabitPhaseProposer().propose(themeKey: "戒烟", members: pausedObs,
                                                      now: at.addingTimeInterval(16 * 86_400))
         expect(proposals.isEmpty, "暂停中习惯零提案——引擎不对暂停期产出任何理解")
+    }
+
+    // MARK: 3. 垫付/报销/公付 → organization（组织支出不进个人偏好理解）
+
+    static func testOrganizationAttribution() {
+        // 词法：三个组织支出关键词都归 organization（此前落 unknown）
+        expect(FinanceObservationProjector.attribution(fromNote: "帮公司垫付机票") == .organization,
+               "垫付→organization")
+        expect(FinanceObservationProjector.attribution(fromNote: "差旅报销") == .organization,
+               "报销→organization")
+        expect(FinanceObservationProjector.attribution(fromNote: "公付团建餐费") == .organization,
+               "公付→organization")
+
+        // 旧词法不回退：代办仍 proxy、普通备注仍 unknown
+        expect(FinanceObservationProjector.attribution(fromNote: "帮同事带的猫粮") == .proxy,
+               "代办词法不回退（仍 proxy）")
+        expect(FinanceObservationProjector.attribution(fromNote: "猫粮") == .unknown,
+               "普通备注仍 unknown（不猜）")
+
+        // Codable 向后兼容：rawValue 互转，旧值不受影响
+        expect(ObservationAttribution(rawValue: "organization") == .organization,
+               "rawValue=organization 可解码")
+        expect(ObservationAttribution(rawValue: "self") == .self_
+               && ObservationAttribution(rawValue: "proxy") == .proxy
+               && ObservationAttribution(rawValue: "thirdParty") == .thirdParty
+               && ObservationAttribution(rawValue: "unknown") == .unknown,
+               "旧 rawValue 四值解码不变（旧观察索引不受影响）")
+
+        // 核验闸不回退：纯组织支出（3 笔 span 34 天，水位全足）仍缺本人归属 → 降级 observe。
+        // selfOwned 判定只认 .self_（SufficiencyPolicy 无需改），organization 自然不算本人证据。
+        let orgInputs = [
+            FinanceObservationInput(id: "o1", note: "帮公司垫付办公用品", occurredAt: epoch(2026, 9, 1),
+                                     recordedAt: epoch(2026, 9, 1), updatedAt: epoch(2026, 9, 1),
+                                     isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "o2", note: "垫付团建物资", occurredAt: epoch(2026, 9, 20),
+                                     recordedAt: epoch(2026, 9, 20), updatedAt: epoch(2026, 9, 20),
+                                     isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "o3", note: "报销打印费", occurredAt: epoch(2026, 10, 5),
+                                     recordedAt: epoch(2026, 10, 5), updatedAt: epoch(2026, 10, 5),
+                                     isRefund: false, categoryName: nil),
+        ]
+        let orgObs = FinanceObservationProjector.project(orgInputs)
+        expect(orgObs.allSatisfy { $0.attribution == .organization }, "投影后三条观察归属均为 organization")
+        let role = ProposalCandidate(claimType: "role", statement: "本人很可能长期采购。",
+                                     supportingRefs: orgObs.map(\.sourceRef), alternativeExplanations: [],
+                                     whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt")
+        let gate = ProposalGate.evaluate(candidate: role, observations: orgObs)
+        expect(gate.accepted && gate.action == "observe", "组织支出不算本人证据：水位全足仍缺本人归属→降级")
+        expect(gate.reasons.contains { $0.contains("缺本人归属证据") }, "降级理由点名归属缺口")
+    }
+
+    static func epoch(_ y: Int, _ mo: Int, _ d: Int, _ h: Int = 12) -> Date {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        return c.date(from: DateComponents(year: y, month: mo, day: d, hour: h))!
     }
 }

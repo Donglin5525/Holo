@@ -40,6 +40,7 @@ nonisolated enum ObservationTimePrecision: String, Codable, Sendable, Equatable 
 nonisolated enum ObservationAttribution: String, Codable, Sendable, Equatable {
     case self_ = "self"   // 明确本人（备注/上下文/任务归属）
     case proxy            // 明确代办（「帮X带」「代购」）
+    case organization = "organization" // 明确组织支出（「垫付」「报销」「公付」）——公司事务，不算本人偏好证据
     case thirdParty       // 明确他人/第三方
     case unknown
 }

@@ -129,6 +129,9 @@ nonisolated struct EvidenceRouter {
             case .proxy: summary.proxyEvidenced.append(ref)
             case .thirdParty, .unknown:
                 if obs.businessState == .quote { summary.selfEvidenced.append(ref) } else { summary.unknown.append(ref) }
+            case .organization:
+                // 组织支出（垫付/报销）既非本人也非代办——不构成本人证据
+                summary.unknown.append(ref)
             }
         }
         if !summary.proxyEvidenced.isEmpty && summary.selfEvidenced.isEmpty {
