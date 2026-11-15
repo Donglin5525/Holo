@@ -58,6 +58,8 @@ import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateSer
 import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
 import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
 import { createThoughtInsightService } from "./thoughts/thoughtInsightService.js";
+import { createThoughtFollowupService } from "./thoughts/followupService.js";
+import { FOLLOWUP_LIMITS, organizationCapabilities } from "./thoughts/followupSchema.js";
 import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { BRIEF_LIMITS } from "./thoughts/categoryBriefSchema.js";
@@ -392,6 +394,16 @@ export function createApp(overrides = {}) {
   });
 
   const thoughtTopicInsightService = createThoughtTopicInsightService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
+  // 想法脉络核对（2026-11-16 方案 §6 C2）：无状态核对服务；预算挂整理记账类（operationId
+  // UUID 幂等），开关/试点白名单/隐私闸/限流独立配置（thoughtFollowup，默认全关）。
+  const thoughtFollowupService = createThoughtFollowupService({
     config,
     providers,
     adminLogStore,
@@ -1473,6 +1485,88 @@ export function createApp(overrides = {}) {
       }
     });
   }
+
+  // 想法组织能力口（2026-11-16 方案 §6 C2 / §2 A13）：只传状态不传正文。按既有设备
+  // 鉴权 + 可信主体解析（backgroundSubject 与后台入口同口径）；试点白名单只认服务端
+  // 解析的主体，客户端自报设备 ID 不算数。错误不回显配置或主体标识。
+  // 旧后端无此路由 404 = 不支持；本路由永远 200（关闭态以版本 0 表达），加 no-store。
+  app.get("/v1/thoughts/organization-capabilities", async (context) => {
+    try {
+      const deviceId = await getDeviceId(context, config);
+      const subject = backgroundSubject(deviceId, entitlementStore.get(deviceId));
+      context.header("Cache-Control", "no-store");
+      return context.json(organizationCapabilities(config, { pilotSubject: subject }));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 想法脉络核对（2026-11-16 方案 §6 C2）：锚点 × ≤4 候选的独立关系判断，无状态端点。
+  // 闸门顺序：功能开关 → 隐私闸（供应商留存未核实不发送，mock 本地链路不设闸）→
+  // 设备鉴权/可信主体 → 试点白名单（非试点与关闭态同一稳定错误码，不回显配置）→
+  // 实际字节数检查（先于 JSON 解析与供应商调用，覆盖无 Content-Length 与分块传输）→
+  // 设备限流 → 后台预算试探 + 预算主体域（供应商调用经 wrapProviders 记账）。
+  // 不经 /v1/ai/chat/completions 兜底；能力失败/隐私闸关闭直接拒绝。
+  app.post("/v1/thoughts/verify-followup", async (context) => {
+    try {
+      if (!config.thoughtFollowup?.enabled) {
+        throw new GatewayError("THOUGHT_FOLLOWUP_DISABLED", "Thought followup is disabled", 503);
+      }
+      const followupRoute = config.routes.thought_followup_v1;
+      const usesMockProvider = followupRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtFollowup.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!followupRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "thought_followup_v1 route is not configured", 503);
+      }
+
+      const deviceId = await getDeviceId(context, config);
+      const subject = backgroundSubject(deviceId, entitlementStore.get(deviceId));
+      if (!config.thoughtFollowup.pilotSubjects.includes(subject)) {
+        throw new GatewayError("THOUGHT_FOLLOWUP_DISABLED", "Thought followup is disabled", 503);
+      }
+
+      const raw = await context.req.text();
+      if (Buffer.byteLength(raw, "utf8") > FOLLOWUP_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${FOLLOWUP_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        throw new GatewayError("INVALID_JSON", "Request body must be valid JSON", 400);
+      }
+
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_followup",
+        minuteLimit: config.thoughtFollowup.requestLimits.perMinute,
+        dailyLimit: config.thoughtFollowup.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
+      }
+
+      backgroundCostGuard.checkIngress({ subject, userAgent: context.req.header("user-agent"), body });
+      const result = await backgroundCostGuard.run(subject, () =>
+        thoughtFollowupService.verify({
+          deviceId,
+          subjectId: entitlement.usageSubjectId,
+          body,
+          clientSignal: context.req.raw.signal,
+        }));
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
 
   // 想法按需洞察（2026-09-24 方案 §5.1「帮我想想」）：用户主动触发、
   // 独立小额预算；隐私闸门与整理/relate 同口径（供应商留存未核实不发送真实数据）

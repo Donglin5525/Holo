@@ -160,6 +160,10 @@ export function validateRelateRequest(body) {
     // definitionSource 只在 schema 4 的归一化产物上出现：schema 1/2/3 的模型入参
     // JSON 逐字节保持原样（行为零变化的硬约束）。
     if (body.schemaVersion === 4) normalized.definitionSource = candidate.definitionSource;
+    // schema 4 类别候选不传 AI 主题摘要作为默认证据（2026-11-16 方案 A1.4/§4 表格）：
+    // brief summary 一律剥离，类别判据只剩用户定义（user 档）或标题+合规纳入例（none 档），
+    // 模型入参与证据回源两侧同时生效。schema 1/2/3 与 schema 4 的 thread 候选不受影响。
+    if (body.schemaVersion === 4 && normalized.kind === "category") normalized.summary = null;
     return normalized;
   });
 
@@ -265,9 +269,13 @@ export function validateRelateModelOutput(output, parsedRequest) {
       const candidate = parsedRequest.candidates.find(c => c.ref === item.candidateRef);
       // schema 3 起类别定义是独立字段（与 AI 摘要 summary 分开）；"definition" 依据
       // 的回源基准=类别定义优先，其次摘要，最后标题。
-      const definitionBasis = isV3
-        ? (candidate.definition ?? candidate.summary ?? candidate.title)
-        : (candidate.summary ?? candidate.title);
+      // schema 4 类别候选（2026-11-16 方案 A1.4 收紧）一律不把 brief summary 当证据回源：
+      // user 档只回源用户定义，none 档只回源标题（合规纳入例走 representatives 各自文本）。
+      const definitionBasis = isV4 && candidate.kind === "category"
+        ? (candidate.definitionSource === "user" ? candidate.definition : candidate.title)
+        : isV3
+          ? (candidate.definition ?? candidate.summary ?? candidate.title)
+          : (candidate.summary ?? candidate.title);
       const basis = item.representativeRef === "definition"
         ? definitionBasis
         : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;

@@ -37,6 +37,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_semantic_relate_v2: "thought_semantic_relate_v2",
   // schema 4 类别规则层（2026-11-16）：用户定义优先 + excludes_category 排除判定
   thought_semantic_relate_v3: "thought_semantic_relate_v3",
+  // 想法脉络核对（2026-11-16 方案 §6 C2）：锚点×候选独立关系判断，专用无状态端点
+  thought_followup_v1: "thought_followup_v1",
   // 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界
   thought_category_brief_v1: "thought_category_brief_v1",
   thought_topic_name_v1: "thought_topic_name_v1",

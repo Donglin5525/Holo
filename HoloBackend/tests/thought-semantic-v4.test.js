@@ -466,6 +466,63 @@ test("端到端：excludes_category 证据不全返回 502，不生成空结果�
   assert.equal(JSON.parse(log.error_message).code, "MODEL_OUTPUT_INVALID/excludes_category_evidence_incomplete");
 });
 
+// ─────────────────────────── schema 4 类别 summary 证据收紧（A1.4/§4 表格，2026-11-16 W2 遗留收口） ───────────────────────────
+
+test("schema4 收紧：类别候选的 AI 摘要 summary 一律剥离，不进模型入参；thread 候选不受影响", () => {
+  const parsed = validateRelateRequest(relateBodyV4({
+    candidates: [
+      { ref: "P0", title: "会议纪要", kind: "category", definitionSource: "user",
+        definition: "收录全部会议纪要。", summary: "AI 生成的类别摘要。", representatives: [] },
+      { ref: "P1", title: "产品思考", kind: "thread", definitionSource: "none",
+        summary: "AI 生成的主题摘要。", representatives: [{ ref: "R0", text: "片段" }] },
+    ],
+  }));
+  assert.equal(parsed.candidates[0].summary, null, "类别候选的 brief summary 被剥离（模型入参即归一化产物）");
+  assert.equal(parsed.candidates[1].summary, "AI 生成的主题摘要。", "thread 候选的摘要原样保留（§4 表格只收紧类别）");
+});
+
+test("schema4 收紧：类别证据回源不用 summary——user 档只用用户定义，none 档只用标题", () => {
+  // user 档：representativeQuote 引用 summary 独有文本无法回源 → 降为依据不足，不判 fits_category
+  const withSummary = validateRelateRequest(relateBodyV4({
+    candidates: [{ ref: "P0", title: "会议纪要", kind: "category", definitionSource: "user",
+      definition: "收录全部会议纪要。", summary: "AI 摘要里的一句独有文本", representatives: [] }],
+  }));
+  const summaryQuote = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "今天的评审会纪要都记录在案",
+        rangeUTF16: [0, 12], representativeRef: "definition", representativeQuote: "AI 摘要里的一句独有文本" },
+    ],
+  }, withSummary);
+  assert.equal(summaryQuote.decisions[0].relation, "insufficient", "summary 文本不可回源");
+  const definitionQuote = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "今天的评审会纪要都记录在案",
+        rangeUTF16: [0, 12], representativeRef: "definition", representativeQuote: "收录全部会议纪要" },
+    ],
+  }, withSummary);
+  assert.equal(definitionQuote.decisions[0].relation, "fits_category", "用户定义可回源");
+
+  // none 档：definition 依据回源到标题（不含 AI 摘要）
+  const noRule = validateRelateRequest(relateBodyV4({
+    candidates: [{ ref: "P0", title: "会议纪要", kind: "category", definitionSource: "none",
+      summary: "AI 摘要里的一句独有文本", representatives: [{ ref: "R0", text: "上周例会纪要。" }] }],
+  }));
+  const titleQuote = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "今天的评审会纪要都记录在案",
+        rangeUTF16: [0, 12], representativeRef: "definition", representativeQuote: "会议纪要" },
+    ],
+  }, noRule);
+  assert.equal(titleQuote.decisions[0].relation, "fits_category", "none 档可回源标题");
+  const summaryQuote2 = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "今天的评审会纪要都记录在案",
+        rangeUTF16: [0, 12], representativeRef: "definition", representativeQuote: "AI 摘要里的一句独有文本" },
+    ],
+  }, noRule);
+  assert.equal(summaryQuote2.decisions[0].relation, "insufficient", "none 档 summary 同样不可回源");
+});
+
 // ─────────────────────────── Prompt 登记 ───────────────────────────
 
 test("thought_semantic_relate_v3 已登记：purpose 映射正确，路由与费用归属不变", () => {

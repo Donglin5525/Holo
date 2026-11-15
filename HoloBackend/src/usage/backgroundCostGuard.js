@@ -15,6 +15,9 @@ export const BACKGROUND_PURPOSES = new Set([
   "thought_organize_a", "thought_organize_r", "thought_organize_b",
   "thought_semantic_relate_v1", "thought_category_brief_v1",
   "thought_topic_name_v1", "thought_topic_summary_v1",
+  // 想法脉络核对（2026-11-16 想法方案 §5 B1/§6 C2）：供应商调用经 wrapProviders
+  // 记入后台总预算；路由内自建入口闸后显式 run(subject) 建域（见 app.js verify-followup）。
+  "thought_followup_v1",
   "replayDigest",
   "discovery_candidate_v1", "discovery_verify_v1",
   // v3 选题（2026-11-08）：一次调用级厘级成本，与旧发现两阶段共发现池。
