@@ -24,6 +24,9 @@ nonisolated struct HabitObservationInput: Sendable, Equatable {
     var isNumeric: Bool
     var isCompleted: Bool
     var note: String?
+    /// 所属习惯当前处于暂停态（Habit.isPaused）：暂停期的打卡不构成行为证据
+    ///——用户主动暂停后，缺卡不是「中断/反复」，投影时整组排除。
+    var isPaused: Bool = false
     var occurredAt: Date
     var updatedAt: Date
 
@@ -43,8 +46,10 @@ nonisolated enum HabitObservationProjector {
 
     /// 打卡 → 观察：概念=习惯名（用户自建语义实体，超长句截断）、行为=打卡、
     /// 归属=本人、完成态。未完成的打卡（坏习惯/中断）同样入观察——「不再做」也是信号。
+    /// 暂停中的习惯整组排除：暂停期的缺卡不是「中断/反复」，入了观察会被
+    /// HabitPhaseProposer 措辞成「期间有反复」（暂停被当中断的挂账本体）。
     static func project(_ inputs: [HabitObservationInput]) -> [LifeObservation] {
-        inputs.map { record in
+        inputs.filter { !$0.isPaused }.map { record in
             let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return LifeObservation(
                 domain: .habit,

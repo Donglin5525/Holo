@@ -81,6 +81,7 @@ nonisolated enum UnderstandingDataSource {
 
 extension UnderstandingDataSource {
     /// 习惯打卡真实取数：近 90 天、活跃习惯（排除归档/软删）、完成与未完成都取。
+    /// 暂停习惯照取并带 isPaused 标记，投影层整组排除（暂停期缺卡不是中断证据）。
     /// 数值型习惯的 value 不取（数据边界：数值留本机）。
     @MainActor
     static func habitInputs(now: Date = Date()) async -> [HabitObservationInput] {
@@ -111,6 +112,7 @@ extension UnderstandingDataSource {
                         isNumeric: habit.type == HabitType.numeric.rawValue,
                         isCompleted: record.isCompleted,
                         note: record.note,
+                        isPaused: habit.isPaused,
                         occurredAt: date,
                         updatedAt: record.createdAt ?? date
                     ))
