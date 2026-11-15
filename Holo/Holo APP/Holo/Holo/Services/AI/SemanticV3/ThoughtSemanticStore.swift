@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import CryptoKit
 import SQLite3
 import os
 
@@ -308,8 +309,23 @@ actor ThoughtSemanticStore {
 
     /// 该想法此正文版本是否已有 relate 记录。传入目录版本后统一补齐类别理解版本，
     /// 与执行器的回执保持同一口径，避免有 brief 的笔记成功后仍反复入队。
+    /// W1（2026-11-16 方案 §4 A2）：类别规则层激活（同一策略函数 categoryRulesCoverage
+    /// 裁决）时按 v4 版本键判重——v4 回执与 v3 回执两个版本空间互不可见，
+    /// 同版本持久化的空结果（哨兵行）同样算完成态，不重复入队。
     func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
         let currentVersion = try evaluationVersion.map { try relationEvaluationVersion(catalogVersion: $0) }
+        if let catalogVersion = currentVersion,
+           let mode = ThoughtSemanticFeatureFlags.categoryRulesCoverage(thoughtID: thoughtID) {
+            let v4Version = Self.schema4EvaluationVersionKey(
+                catalogVersion: catalogVersion, mode: mode.rawValue, contentHash: contentHash)
+            let v4Stmt = try prepare("""
+                SELECT COUNT(*) FROM relation_candidate
+                WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3 AND engine_version=?4
+                """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(v4Version))
+            defer { sqlite3_finalize(v4Stmt) }
+            guard sqlite3_step(v4Stmt) == SQLITE_ROW else { return false }
+            return sqlite3_column_int64(v4Stmt, 0) > 0
+        }
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
             WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3
@@ -318,6 +334,19 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0
+    }
+
+    /// W1 统一评估版本键（规范编码）：schema + policy + effective candidate scope + contentHash。
+    /// · schema/policy：固定前缀 thought_semantic_v4:<mode>（shadow 与 live 版本空间分隔）；
+    /// · effective candidate scope：catalogVersion（目录指纹 + brief 版本键）参与哈希，
+    ///   它枚举了召回与判据的全部输入；
+    /// · contentHash：目标正文版本参与哈希。
+    /// v3 的 relationEvaluationVersion 语义不动：键前缀天然分隔两个空间，v4 回执
+    /// 绝不污染 v3 判重，反之亦然。队列（hasRelationRecord）、评估回执与去重共用本函数。
+    nonisolated static func schema4EvaluationVersionKey(catalogVersion: String, mode: String, contentHash: String) -> String {
+        let digest = SHA256.hash(data: Data((catalogVersion + "\u{1f}" + mode + "\u{1f}" + contentHash).utf8))
+            .prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "thought_semantic_v4:" + mode + ":" + digest
     }
 
     /// tombstone 删除（物理清理由 compact）。
@@ -437,6 +466,42 @@ actor ThoughtSemanticStore {
         try bindExec("DELETE FROM category_brief WHERE topic_id=?1", .uuid(topicID))
     }
 
+    // MARK: - category_rules_diagnostic（W1 类别规则层诊断，只存 id 与原因码，不含正文）
+
+    /// 影子评测诊断（W1，2026-11-16 方案 §4 A2/W1）：schema 4 路径的可观测产物，
+    /// 仅记录稳定 ID、正文哈希与原因码（category_definition_too_long /
+    /// category_definition_unreadable / schema4_server_rejected 等），shadow 与 live
+    /// 模式共用；不写任何正式关系。同 (thought, topic, reason) 幂等覆盖。
+    func recordCategoryRulesDiagnostic(thoughtID: UUID,
+                                       topicID: UUID,
+                                       contentHash: String,
+                                       reason: String,
+                                       mode: String) throws {
+        try bindExec("""
+            INSERT INTO category_rules_diagnostic(thought_id, topic_id, content_hash, reason, mode, created_at)
+            VALUES(?1,?2,?3,?4,?5,?6)
+            ON CONFLICT(thought_id, topic_id, reason) DO UPDATE SET content_hash=?3, mode=?5, created_at=?6
+            """,
+            .uuid(thoughtID), .uuid(topicID), .text(contentHash), .text(reason), .text(mode), .date(Date()))
+    }
+
+    /// 读回一条想法的全部类别规则层诊断（测试与设置诊断用）。
+    func categoryRulesDiagnostics(thoughtID: UUID) throws -> [(topicID: UUID, reason: String, mode: String, createdAt: Date)] {
+        let stmt = try prepare("""
+            SELECT topic_id, reason, mode, created_at FROM category_rules_diagnostic
+            WHERE thought_id=?1 ORDER BY created_at DESC
+            """, .uuid(thoughtID))
+        defer { sqlite3_finalize(stmt) }
+        var rows: [(UUID, String, String, Date)] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let topicID = uuidCol(stmt, 0),
+                  let reason = textCol(stmt, 1),
+                  let mode = textCol(stmt, 2) else { continue }
+            rows.append((topicID, reason, mode, dateCol(stmt, 3) ?? Date()))
+        }
+        return rows
+    }
+
     /// 类别理解统计（设置页状态卡）：已代写主题数 + 最近更新时间。
     func categoryBriefStats() throws -> (count: Int, lastUpdatedAt: Date?) {
         let stmt = try prepare("SELECT COUNT(*), MAX(updated_at) FROM category_brief")
@@ -457,6 +522,22 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         return (String(cString: sqlite3_column_text(stmt, 0)), textCol(stmt, 1), textCol(stmt, 2))
+    }
+
+    /// 单对候选记录回读（W1 类别规则层测试与设置诊断）：最近一行的完整状态口径。
+    func relationCandidateState(thoughtID: UUID, topicID: UUID) throws -> (verifierResult: String, state: String, scoreFeatures: String?, engineVersion: String?)? {
+        let stmt = try prepare("""
+            SELECT verifier_result, state, score_features, engine_version
+            FROM relation_candidate
+            WHERE thought_id=?1 AND topic_id=?2
+            ORDER BY expires_at DESC LIMIT 1
+            """, .uuid(thoughtID), .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return (String(cString: sqlite3_column_text(stmt, 0)),
+                String(cString: sqlite3_column_text(stmt, 1)),
+                textCol(stmt, 2),
+                textCol(stmt, 3))
     }
 
     // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
@@ -899,6 +980,18 @@ actor ThoughtSemanticStore {
         try? exec("ALTER TABLE semantic_job ADD COLUMN finished_at REAL")
         // P0-B（2026-09-27）：证据原文片段随决策记录落库，供 P1「为什么归在这里」回源展示
         try? exec("ALTER TABLE relation_candidate ADD COLUMN verifier_quote TEXT")
+        // W1 类别规则层诊断（2026-11-16 方案 §4 A2）：schema 4 影子评测的可观测产物，
+        // 只存稳定 ID、正文哈希与原因码，不进 CloudKit。
+        try exec("""
+            CREATE TABLE IF NOT EXISTS category_rules_diagnostic(
+                thought_id BLOB NOT NULL,
+                topic_id BLOB NOT NULL,
+                content_hash TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                PRIMARY KEY(thought_id, topic_id, reason))
+            """)
         // 相关旧想法反馈墓碑（方案 §5.2：同正文版本「不相关」后不重复推荐）
         try exec("""
             CREATE TABLE IF NOT EXISTS related_feedback(

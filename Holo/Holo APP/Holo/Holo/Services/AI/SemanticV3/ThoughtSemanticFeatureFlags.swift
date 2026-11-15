@@ -1,5 +1,25 @@
 import Foundation
 
+/// 进程内服务端闸（W1 类别规则层）：schema 4 请求被服务端拒后停发新版请求，
+/// 本次进程内所有样本回落 legacy；恢复旧策略的定向回滚归 W4，不在闸上自动探测。
+/// nonisolated：工程默认 MainActor 隔离，闸要被 nonisolated 的策略函数同步读取。
+nonisolated private final class ThoughtCategoryRulesServerGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var rejected = false
+    var available: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return !rejected
+    }
+    func markRejected() {
+        lock.lock(); defer { lock.unlock() }
+        rejected = true
+    }
+    func reset() {
+        lock.lock(); defer { lock.unlock() }
+        rejected = false
+    }
+}
+
 /// 用户设置是唯一启用依据；开发灰度开关保留供诊断，缺省全部启用。
 nonisolated enum ThoughtSemanticFeatureFlags {
     static let automaticKey = "thoughts.automaticOrganization.enabled"
@@ -45,6 +65,62 @@ nonisolated enum ThoughtSemanticFeatureFlags {
         get { Int64(UserDefaults.standard.integer(forKey: prefix + "consent_generation")) }
         set { UserDefaults.standard.set(Int(newValue), forKey: prefix + "consent_generation") }
     }
+
+    // MARK: - 类别规则层三模式（W1，2026-11-16 方案 §4 A2）
+
+    /// schema 4 客户端模式：legacy 运行旧逻辑（schema 3，默认）；shadow 只在隔离
+    /// 评测样本保存诊断、不写任何正式关系；live 才提交新版差量结果。
+    enum CategoryRulesMode: String { case legacy, shadow, live }
+
+    private static let categoryRulesModeKey = prefix + "category_rules_mode"
+    private static let categoryRulesPilotKey = prefix + "category_rules_pilot_samples"
+    private static let categoryRulesServerGate = ThoughtCategoryRulesServerGate()
+
+    /// 当前类别规则层模式；未配置一律 legacy（生产默认不开新版）。
+    static func categoryRulesMode(in defaults: UserDefaults = .standard) -> CategoryRulesMode {
+        CategoryRulesMode(rawValue: defaults.string(forKey: categoryRulesModeKey) ?? "") ?? .legacy
+    }
+    /// 模式切换按设置变化处理：递增授权代数并在途任务作废，禁止旧模式的迟到结果落库。
+    static func setCategoryRulesMode(_ mode: CategoryRulesMode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: categoryRulesModeKey)
+        settingsChanged()
+    }
+
+    /// W1 隔离评测样本（固定笔记 ID 清单 + 角色标注，仅供诊断归类）：只有这组
+    /// 笔记在 shadow/live 模式下使用 schema 4，其余一律按 schema 3。生产默认为空。
+    struct CategoryRulesPilotSample: Equatable {
+        let thoughtID: UUID
+        let role: String
+    }
+    static func categoryRulesPilotSamples(in defaults: UserDefaults = .standard) -> [CategoryRulesPilotSample] {
+        (defaults.stringArray(forKey: categoryRulesPilotKey) ?? []).compactMap { raw in
+            guard let separator = raw.firstIndex(of: "|"),
+                  let id = UUID(uuidString: String(raw[raw.startIndex..<separator])) else { return nil }
+            return CategoryRulesPilotSample(thoughtID: id, role: String(raw[raw.index(after: separator)...]))
+        }
+    }
+    static func setCategoryRulesPilotSamples(_ samples: [CategoryRulesPilotSample]) {
+        UserDefaults.standard.set(samples.map { "\($0.thoughtID.uuidString)|\($0.role)" },
+                                  forKey: categoryRulesPilotKey)
+    }
+
+    /// 服务端闸：schema 4 被服务端拒（协议错误/灰度关闭）后进程内停发新版请求。
+    /// 已选样本不立即补发旧协议、不重写已有关系；后续任务经闸回落 legacy。
+    static var schema4ServerAvailable: Bool { categoryRulesServerGate.available }
+    static func markSchema4ServerRejected() { categoryRulesServerGate.markRejected() }
+    /// 仅测试复位用：生产不存在自动恢复路径（恢复旧策略走 W4 定向回滚）。
+    static func resetSchema4ServerGateForTesting() { categoryRulesServerGate.reset() }
+
+    /// 模式与能力检查用同一策略函数（队列去重 hasRelationRecord 与验证器共用）：
+    /// 返回该想法当前应使用的 schema 4 模式；nil = legacy（schema 3 旧逻辑）。
+    static func categoryRulesCoverage(thoughtID: UUID, in defaults: UserDefaults = .standard) -> CategoryRulesMode? {
+        guard schema4ServerAvailable else { return nil }
+        let mode = categoryRulesMode(in: defaults)
+        guard mode != .legacy,
+              categoryRulesPilotSamples(in: defaults).contains(where: { $0.thoughtID == thoughtID }) else { return nil }
+        return mode
+    }
+
     static func settingsChanged() {
         consentGeneration += 1
         NotificationCenter.default.post(name: settingsDidChange, object: nil)

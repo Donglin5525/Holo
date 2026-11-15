@@ -181,11 +181,52 @@ final class TopicRepository {
         try context.save()
     }
 
-    /// 更新用户类别定义（主题双通道 2026-10-12）：定义随关联请求传给模型并进
-    /// 目录指纹——改动后受影响笔记按指纹变化自然重评，不需要额外触发器。
-    func updateCategoryDefinition(_ topic: Topic, definition: String?) throws {
+    /// 用户类别规则长度上限（W1 A1.3）：新输入裁剪首尾空白后按 UTF-16 计。
+    /// 历史超限定义保持原文，只在编辑器里缩短后重存；后台遇超限跳过评判，不静默截断。
+    static let categoryDefinitionMaxUTF16 = 240
+
+    /// 类别规则保存被拒的具体原因（A1.2 乐观核对：编辑器据此分别提示）
+    enum CategoryDefinitionError: Error, Equatable {
+        /// 主题已删除（硬删或远端同步清库）
+        case topicDeleted
+        /// 主题已隐藏或已合并，不再参与归类
+        case topicInactive
+        /// 定义已被其他设备改动（与编辑时基线不一致），拒绝覆盖
+        case definitionChanged
+        /// 新输入裁剪空白后超过 240 UTF-16
+        case tooLong(utf16Count: Int)
+    }
+
+    /// 更新用户类别规则（主题双通道 2026-10-12；W1 A1.2/A1.3 保存语义收口）：
+    /// 调用方在打开编辑器时抓当前有效分类 ID 与编辑前定义作基线；本方法保存前按
+    /// topicID 重读核对——远端已改、已隐藏、已合并、已删一律拒绝覆盖，由调用方提示
+    /// 重新打开。定义随关联请求传给模型并进目录指纹，改动后受影响笔记按指纹变化
+    /// 自然重评，不需要额外触发器；与库内值无变化时跳过写库。
+    func updateCategoryDefinition(
+        topicID: UUID,
+        definition: String?,
+        expectedPreviousDefinition: String?
+    ) throws {
+        guard let topic = try fetchTopicById(topicID), topic.deletedAt == nil else {
+            throw CategoryDefinitionError.topicDeleted
+        }
+        guard topic.statusEnum != .hidden, topic.statusEnum != .merged else {
+            throw CategoryDefinitionError.topicInactive
+        }
+        guard (topic.categoryDefinition ?? "") == (expectedPreviousDefinition ?? "") else {
+            throw CategoryDefinitionError.definitionChanged
+        }
         let normalized = definition?.trimmingCharacters(in: .whitespacesAndNewlines)
-        topic.categoryDefinition = (normalized?.isEmpty ?? true) ? nil : normalized
+        let trimmed = (normalized?.isEmpty ?? true) ? nil : normalized
+        if let trimmed {
+            let count = trimmed.utf16.count
+            if count > Self.categoryDefinitionMaxUTF16 {
+                throw CategoryDefinitionError.tooLong(utf16Count: count)
+            }
+        }
+        // 无变化（含双双为空）跳过写库；清空输入等于撤回规则（nil 落库）
+        guard trimmed != topic.categoryDefinition else { return }
+        topic.categoryDefinition = trimmed
         topic.updatedAt = Date()
         try context.save()
     }

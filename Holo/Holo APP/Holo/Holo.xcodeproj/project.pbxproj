@@ -485,6 +485,7 @@
 		RLSG8T0000000000000002B /* ReleaseGateFiveEntryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RLSG8T0000000000000001B /* ReleaseGateFiveEntryUITests.swift */; };
 		TPEDIT020000000000000002 /* TaskPendingEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TPEDIT010000000000000001 /* TaskPendingEditTests.swift */; };
 		TSAFE0B000000000000000001 /* ThoughtSemanticSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */; };
+		CA7E6B0000000000000000B1 /* ThoughtCategoryRulesEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7E6A0000000000000000A1 /* ThoughtCategoryRulesEngineTests.swift */; };
 		WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A1 /* WarmLightModelTests.swift */; };
 		WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */; };
 		WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */; };
@@ -1007,6 +1008,7 @@
 		RLSG8T0000000000000001B /* ReleaseGateFiveEntryUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReleaseGateFiveEntryUITests.swift; sourceTree = "<group>"; };
 		TPEDIT010000000000000001 /* TaskPendingEditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskPendingEditTests.swift; sourceTree = "<group>"; };
 		TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtSemanticSafetyTests.swift; sourceTree = "<group>"; };
+		CA7E6A0000000000000000A1 /* ThoughtCategoryRulesEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtCategoryRulesEngineTests.swift; sourceTree = "<group>"; };
 		WLGT000000000000000000A1 /* WarmLightModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightModelTests.swift; sourceTree = "<group>"; };
 		WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightFrameRenderTests.swift; sourceTree = "<group>"; };
 		WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryRandomWalkCoreTests.swift; sourceTree = "<group>"; };
@@ -1941,6 +1943,7 @@
 			isa = PBXGroup;
 			children = (
 				TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */,
+				CA7E6A0000000000000000A1 /* ThoughtCategoryRulesEngineTests.swift */,
 			);
 			path = SemanticV3;
 			sourceTree = "<group>";
@@ -2265,6 +2268,7 @@
 				95619DFF0EBA0EEF490770AA /* ChatCardDataTests.swift in Sources */,
 				TPEDIT020000000000000002 /* TaskPendingEditTests.swift in Sources */,
 				TSAFE0B000000000000000001 /* ThoughtSemanticSafetyTests.swift in Sources */,
+				CA7E6B0000000000000000B1 /* ThoughtCategoryRulesEngineTests.swift in Sources */,
 				93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */,
 				7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */,
 				7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */,

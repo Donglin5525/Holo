@@ -14306,6 +14306,22 @@
         }
       }
     },
+    "不想要这个归属：长按徽章「从这条移除」，移出后，Holo 不会再自动把这条归到这里；想让它以后少收这类内容，到主题的「这个主题收什么」写一句规则。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't want this here? Long-press the badge and choose “Remove from this”. After removal, Holo won't automatically file this note here again. To shape what this topic collects going forward, write a rule in “What belongs here” on the topic page."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不想要這個歸屬：長按徽章「從這條移除」，移出後，Holo 不會再自動把這條歸到這裡；想讓它以後少收這類內容，到主題的「這個主題收什麼」寫一句規則。"
+          }
+        }
+      }
+    },
     "不挂项目" : {
       "localizations" : {
         "en" : {
@@ -22650,6 +22666,22 @@
         }
       }
     },
+    "例如：收录我对产品的判断。纯会议纪要不收，有自己的反思可以收。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Collect my own judgments about products. Plain meeting notes don't belong; notes with my own reflections do."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：收錄我對產品的判斷。純會議紀要不收，有自己的反思可以收。"
+          }
+        }
+      }
+    },
     "例如：连续四周在周会至少发言一次" : {
       "localizations" : {
         "en" : {
@@ -22995,6 +23027,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存失敗，請重試"
+          }
+        }
+      }
+    },
+    "保存失败，请重试；当前输入已保留。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't save. Please try again — your input is kept."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗，請重試；目前輸入已保留。"
           }
         }
       }
@@ -44010,6 +44058,22 @@
         }
       }
     },
+    "已从这条想法移除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed from this thought"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已從這條想法移除"
+          }
+        }
+      }
+    },
     "已保存" : {
       "localizations" : {
         "en" : {
@@ -47942,6 +48006,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已貼滿 %lld 張 · 長按票根可撕掉"
+          }
+        }
+      }
+    },
+    "已超出 %lld 字，需缩短到 240 字以内才能保存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld characters over — shorten to 240 or fewer to save"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已超出 %lld 字，需縮短到 240 字以內才能儲存"
           }
         }
       }
@@ -91728,6 +91808,22 @@
         }
       }
     },
+    "规则已被其他设备修改，或主题已隐藏、合并、删除。当前输入已保留，可全选复制；关闭后重新打开主题可查看最新规则。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This rule was changed on another device, or the topic was hidden, merged, or deleted. Your input is kept — copy it if needed, then reopen the topic to see the latest rule."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規則已被其他裝置修改，或主題已隱藏、合併、刪除。目前輸入已保留，可全選複製；關閉後重新開啟主題可查看最新規則。"
+          }
+        }
+      }
+    },
     "规则说明" : {
       "localizations" : {
         "en" : {
@@ -100513,6 +100609,22 @@
     },
     "还剩 %lld 步" : {
 
+    },
+    "还可输入 %lld 字" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld characters left"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還可輸入 %lld 字"
+          }
+        }
+      }
     },
     "还原总结" : {
       "localizations" : {

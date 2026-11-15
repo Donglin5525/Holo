@@ -1823,6 +1823,7 @@ struct ThoughtListView: View {
     private func removeThoughtLocally(_ thought: Thought, topic: Topic) {
         do {
             try topicRepository.remove(thoughtId: thought.id, fromTopic: topic.id)
+            HoloToastCenter.shared.show(String(localized: "已从这条想法移除"), type: .success)
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             if case .topic(let id) = drawerSelection, id == topic.id {
                 // 正按该主题筛选时移除，就地从列表消失
