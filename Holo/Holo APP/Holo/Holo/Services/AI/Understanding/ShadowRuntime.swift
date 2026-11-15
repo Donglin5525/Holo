@@ -69,6 +69,10 @@ nonisolated struct ShadowCandidate: Codable, Sendable, Equatable {
     var validity: EpistemicValidity?
     /// 可以怎样使用：internalOnly / explicitBackground（proactive 发现通道专属）。
     var usage: EpistemicUsage?
+    /// 命题原文（M3.1 晋升材料）：adoptable 条目上岗翻译时回读；降级/拒绝条目留 nil。
+    var statement: String?
+    /// 命题类型（role/preference/…，M3.1 晋升映射用）。
+    var claimType: String?
 
     init(id: String, themeKey: String, now: Date) {
         self.id = id
@@ -166,6 +170,8 @@ nonisolated struct ShadowLedger: Codable, Sendable, Equatable {
                          gateResult: (accepted: Bool, action: String, reasons: [String]),
                          provenance: EpistemicProvenance? = nil,
                          validity: EpistemicValidity? = nil,
+                         statement: String? = nil,
+                         claimType: String? = nil,
                          now: Date) -> ShadowCandidate? {
         let stage: ShadowStage
         let reason: String?
@@ -187,6 +193,8 @@ nonisolated struct ShadowLedger: Codable, Sendable, Equatable {
             candidates[id]?.provenance = provenance
             candidates[id]?.validity = validity
             candidates[id]?.usage = EpistemicUsage.forStage(stage)
+            candidates[id]?.statement = statement
+            candidates[id]?.claimType = claimType
         }
         return candidates[id] ?? settled
     }

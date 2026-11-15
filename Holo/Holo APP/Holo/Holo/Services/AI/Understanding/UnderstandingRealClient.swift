@@ -38,9 +38,11 @@ struct RealUnderstandingProposeClient: UnderstandingProposeClient {
 
 @MainActor
 enum UnderstandingRealEntry {
-    /// 实验室「跑一轮影子理解」入口装配：真数据 + 真模型通道 + 本机影子目录。
+    /// 影子理解入口装配：真数据 + 真模型通道 + 本机影子目录。
+    /// M3.1（2026-11-15）：轮终态后接晋升——adoptable 且 explicitBackground 的候选
+    /// 翻译进正式记忆（applyObservationBatch 正门，灰度 DEBUG 开/Release 关）。
     static func runShadowOnce(now: Date = Date()) async -> ShadowRunReport {
-        await UnderstandingShadowRunner.runOnce(
+        let report = await UnderstandingShadowRunner.runOnce(
             now: now,
             maxTopics: 3,
             loadInputs: {
@@ -51,5 +53,18 @@ enum UnderstandingRealEntry {
             },
             proposeClient: RealUnderstandingProposeClient()
         )
+        guard UnderstandingPromotion.isEnabled else { return report }
+        let storage = UnderstandingShadowRunner.storageDirectory()
+        let ledger = ShadowLedger.load(directory: storage)
+        let index = ObservationIndex.load(directory: storage)
+        let themes = UnderstandingShadowRunner.loadThemeSnapshot(directory: storage)
+        _ = await UnderstandingPromotion.promoteEligible(
+            ledger: ledger,
+            resolveEvidence: { candidate in
+                guard let theme = themes.first(where: { $0.key == candidate.themeKey }) else { return [] }
+                return theme.memberIDs.compactMap { index.observations[$0] }
+            },
+            now: now)
+        return report
     }
 }

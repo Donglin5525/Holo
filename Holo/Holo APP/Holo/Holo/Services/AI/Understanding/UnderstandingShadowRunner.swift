@@ -177,7 +177,9 @@ enum UnderstandingShadowRunner {
                 let provenance = EpistemicTags.provenance(cited: cited)
                 let validity = EpistemicTags.validity(kind: resolved.kind)
                 var settled = ledger.settle(id: candidateID, gateResult: result,
-                                            provenance: provenance, validity: validity, now: now)
+                                            provenance: provenance, validity: validity,
+                                            statement: resolved.statement,
+                                            claimType: resolved.claimType, now: now)
                 if candidateIndex > 0 {
                     let subID = candidateID + "#c\(candidateIndex + 1)"
                     if ledger.register(id: subID, themeKey: theme.key, now: now) != nil {
@@ -186,7 +188,9 @@ enum UnderstandingShadowRunner {
                         _ = ledger.advance(id: subID, to: .awaitingLocalEvidence, now: now)
                         _ = ledger.advance(id: subID, to: .verifying, now: now)
                         settled = ledger.settle(id: subID, gateResult: result,
-                                                provenance: provenance, validity: validity, now: now)
+                                                provenance: provenance, validity: validity,
+                                                statement: resolved.statement,
+                                                claimType: resolved.claimType, now: now)
                     }
                 }
                 if let stage = settled?.stage {
