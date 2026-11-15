@@ -29,6 +29,7 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/SufficiencyPolicyStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/UnderstandingConsentSweeperTests.swift" \
   "$APP/Services/AI/Understanding/UnderstandingConsentSweeper.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ProjectionFixesTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRunnerStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRuntimeStandaloneTests.swift" \
   "$APP/Services/AI/Understanding/ShadowReviewExporter.swift" \

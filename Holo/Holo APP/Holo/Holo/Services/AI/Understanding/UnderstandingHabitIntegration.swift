@@ -37,8 +37,12 @@ nonisolated struct HabitObservationInput: Sendable, Equatable {
 // MARK: - 投影器
 
 nonisolated enum HabitObservationProjector {
-    /// 打卡 → 观察：概念=习惯名（用户自建语义实体）、行为=打卡、归属=本人、
-    /// 完成态。未完成的打卡（坏习惯/中断）同样入观察——「不再做」也是信号。
+    /// 习惯名概念上限：用户可能把习惯名建成一句话，整句进 concepts 会污染
+    /// 主题聚类（ThemeIndex 以概念为聚类 key）——超 20 字截断加省略标记。
+    static let conceptNameLimit = 20
+
+    /// 打卡 → 观察：概念=习惯名（用户自建语义实体，超长句截断）、行为=打卡、
+    /// 归属=本人、完成态。未完成的打卡（坏习惯/中断）同样入观察——「不再做」也是信号。
     static func project(_ inputs: [HabitObservationInput]) -> [LifeObservation] {
         inputs.map { record in
             let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -50,7 +54,7 @@ nonisolated enum HabitObservationProjector {
                 occurredAt: record.occurredAt,
                 recordedAt: record.occurredAt,
                 timePrecision: .minute,
-                concepts: [record.habitName],
+                concepts: [Self.truncatedConcept(record.habitName)],
                 action: "打卡",
                 attribution: .self_,
                 businessState: record.isCompleted ? .done : .negation,
@@ -58,5 +62,12 @@ nonisolated enum HabitObservationProjector {
                 quote: note.isEmpty ? nil : note
             )
         }
+    }
+
+    /// 习惯名截断：超 20 字 → 前 20 字+省略标记（「…」）。只截概念通道，
+    /// quote（备注原文）不截——备注走授权门内上送，保留可回查原句。
+    static func truncatedConcept(_ name: String) -> String {
+        guard name.count > conceptNameLimit else { return name }
+        return String(name.prefix(conceptNameLimit)) + "…"
     }
 }
