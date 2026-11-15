@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import UIKit
 
 /// 原生样板向界面测试报告实际绘图区；不使用截图或轴带估算定位。
 struct HoloChartPlotFrameKey: PreferenceKey {
@@ -14,6 +15,24 @@ struct HoloChartSeries: Identifiable {
     let id: String
     let title: String
     let color: Color
+}
+
+/// 柱状参考线：预算上限、均值这类「一眼知好坏」的水平线，恒显标签。
+struct HoloChartRule {
+    let value: Double
+    let label: String
+    var color: Color = .holoToolTextSecondary
+}
+
+/// 上期对照：淡影柱 + 闲置态合计环比徽标 + 选中桶「上期同期」小字。
+/// 仅单系列柱状生效（对照语义给单一指标）。
+struct HoloChartComparison {
+    /// 与桶同位的上期值；nil 桶不画影
+    let ghostValues: [Double?]
+    var ghostLabel: String = "上期同期"
+    var deltaLabel: String = "较上期"
+    /// 涨=红（支出语义默认）；天数/完成率这类涨=好的传 false
+    var risingIsBad = true
 }
 
 struct HoloChartBucket: Identifiable, Equatable {
@@ -89,11 +108,17 @@ enum HoloChartState {
 }
 
 /// 卡片与内嵌图共用的外壳；图表内部自己承担轴带与读数空间。
+/// 空态引导（2026-11-15 拍板）：文案给盼头；动作按钮跟随数据源——有明确入口的模块传
+/// emptyActionTitle + onEmptyAction（习惯→去打卡、记账→记一笔），来源不唯一的只传
+/// emptyHint 指路，不硬塞按钮。
 struct HoloChartFrame<Content: View>: View {
     var title: String = ""
     var subtitle: String = ""
     var independent = false
     var state: HoloChartState = .ready
+    var emptyHint: String? = nil
+    var emptyActionTitle: String? = nil
+    var onEmptyAction: (() -> Void)? = nil
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -109,8 +134,19 @@ struct HoloChartFrame<Content: View>: View {
             case .loading:
                 ProgressView("正在读取数据…").frame(maxWidth: .infinity, minHeight: 120)
             case .empty(let message), .failure(let message):
-                Text(message).font(.subheadline).foregroundStyle(Color.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 120)
+                VStack(spacing: 8) {
+                    Text(message).font(.subheadline).foregroundStyle(Color.holoToolTextSecondary)
+                    if let emptyHint {
+                        Text(emptyHint).font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    if let emptyActionTitle, let onEmptyAction {
+                        Button(emptyActionTitle, action: onEmptyAction)
+                            .font(.subheadline.weight(.medium)).foregroundStyle(Color.holoToolAction)
+                            .frame(minHeight: 44)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 120)
             }
         }
         .padding(independent ? 16 : 0)
@@ -138,6 +174,9 @@ struct HoloBarChart: View {
     /// 等宽槽位的指定刻度（桶下标；如按天图的每周一同列）。走公共摆放规则（贴边/等宽/预算），
     /// 不在此之上叠私有画法
     var slotTicks: [Int]? = nil
+    var rules: [HoloChartRule] = []
+    var comparison: HoloChartComparison? = nil
+    var legendToggle = false
     var onInspect: ((HoloChartBucket) -> Void)? = nil
     var onOpenDetail: ((HoloChartBucket) -> Void)? = nil
 
@@ -150,6 +189,7 @@ struct HoloBarChart: View {
                            height: height, yDomain: yDomain, dualValueAxes: dualValueAxes,
                            summary: summary, summaryValues: summaryValues, valueText: valueText,
                            defaultSelectsLastBucket: defaultSelectsLastBucket, slotTicks: slotTicks,
+                           rules: rules, comparison: comparison, legendToggle: legendToggle,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
         }
     }
@@ -240,6 +280,12 @@ struct HoloLineChart: View {
     /// 连续时间轴的显式范围与刻度：横轴首尾 = 所选范围首尾，不随首末记录收缩（2026-11-02 轴即范围）
     var positionDomain: ClosedRange<Double>? = nil
     var positionTicks: [HoloChartTick]? = nil
+    /// 峰/谷自动标注（测量类曲线；有效点不足 6 个不标）
+    var annotateExtrema = false
+    var extremaUnit = ""
+    /// 正常区间带（健康测量）：浅色垫底 + 带缘标签，曲线在不在带内一眼可读
+    var band: ClosedRange<Double>? = nil
+    var legendToggle = false
     var onInspect: ((HoloChartBucket) -> Void)? = nil
     var onOpenDetail: ((HoloChartBucket) -> Void)? = nil
 
@@ -250,6 +296,8 @@ struct HoloLineChart: View {
                            defaultSelectsLastBucket: defaultSelectsLastBucket, showsReadout: showsReadout,
                            hidesIdleValues: hidesIdleValues, alwaysShowPoints: alwaysShowPoints,
                            positionDomain: positionDomain, positionTicks: positionTicks,
+                           annotateExtrema: annotateExtrema, extremaUnit: extremaUnit,
+                           band: band, legendToggle: legendToggle,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
     }
 }
@@ -275,10 +323,19 @@ private struct HoloCartesianChart: View {
     var alwaysShowPoints = false
     var positionDomain: ClosedRange<Double>? = nil
     var positionTicks: [HoloChartTick]? = nil
+    var rules: [HoloChartRule] = []
+    var comparison: HoloChartComparison? = nil
+    var annotateExtrema = false
+    var extremaUnit = ""
+    var band: ClosedRange<Double>? = nil
+    var legendToggle = false
     var onInspect: ((HoloChartBucket) -> Void)?
     var onOpenDetail: ((HoloChartBucket) -> Void)?
     @State private var plotWidth: CGFloat = 300
     @ScaledMetric(relativeTo: .caption2) private var axisSize: CGFloat = 11
+    @State private var hiddenSeries: Set<Int> = []
+    @State private var haptic = UISelectionFeedbackGenerator()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var selected: HoloChartBucket? { buckets.first { $0.id == selection } }
     private func x(_ index: Int) -> Double { buckets[index].position ?? Double(index) }
@@ -293,11 +350,14 @@ private struct HoloCartesianChart: View {
         return -0.5...(Double(buckets.count) - 0.5)
     }
     private var domain: ClosedRange<Double> {
-        yDomain ?? HoloChartGeometry.niceDomain(
-            values: buckets.indices.flatMap { index in series.indices.compactMap { value(at: index, series: $0) } }
-                + (baseline.map { [$0] } ?? []),
-            includesZero: style == .bar)
+        let plotted = buckets.indices.flatMap { index in series.indices.compactMap { value(at: index, series: $0) } }
+        let extras = (baseline.map { [$0] } ?? [])
+            + (comparison?.ghostValues.compactMap { $0 } ?? [])
+            + rules.map { $0.value }
+            + (band.map { [$0.lowerBound, $0.upperBound] } ?? [])
+        return yDomain ?? HoloChartGeometry.niceDomain(values: plotted + extras, includesZero: style == .bar)
     }
+    private var visibleSeriesIndices: [Int] { series.indices.filter { !hiddenSeries.contains($0) } }
     /// 双轴生效时两个系列的独立坐标域；nil = 未生效回落共轴（非柱状/非双系列/有系列无正数/量级接近）。
     private var splitDomains: [ClosedRange<Double>]? {
         guard dualValueAxes, style == .bar, series.count == 2, yDomain == nil else { return nil }
@@ -318,11 +378,38 @@ private struct HoloCartesianChart: View {
     }
     private var dataSignature: [HoloChartBucket] { buckets }
     private var idleValues: [Double?] {
-        summaryValues ?? series.indices.map { index in
+        if let summaryValues { return summaryValues }
+        return series.indices.map { index in
+            guard !hiddenSeries.contains(index) else { return nil }
             let values = buckets.indices.compactMap { value(at: $0, series: index) }
             guard !values.isEmpty else { return nil }
             return style == .bar ? values.reduce(0, +) : values.last
         }
+    }
+    /// 闲置态合计环比徽标（选中具体桶后让位给桶内「上期同期」小字）
+    private var idleBadge: (text: String, color: Color)? {
+        guard style == .bar, let comparison, selected == nil else { return nil }
+        let current = buckets.indices.compactMap { value(at: $0, series: 0) }.reduce(0, +)
+        let previous = comparison.ghostValues.compactMap { $0 }.reduce(0, +)
+        guard let pct = HoloChartGeometry.deltaPercent(current: current, previous: previous) else { return nil }
+        let rising = pct >= 0
+        let color: Color = (rising == comparison.risingIsBad) ? .holoChartOutflow : .holoChartInflow
+        let arrow = rising ? "▲" : "▼"
+        return ("\(arrow) \(String(format: "%.1f", abs(pct)))% · \(comparison.deltaLabel)", color)
+    }
+    private var selectedComparisonSub: String? {
+        guard let comparison, let selectedID = selection,
+              let index = buckets.firstIndex(where: { $0.id == selectedID }),
+              comparison.ghostValues.indices.contains(index),
+              let ghost = comparison.ghostValues[index], ghost.isFinite else { return nil }
+        return "\(comparison.ghostLabel) \(valueText(ghost))"
+    }
+    /// 峰/谷标注位（首个系列；有效点不足 6 个、峰谷同点、或系列被图例藏起时不标）
+    private var extremaAnnotations: [(index: Int, isMax: Bool)] {
+        guard annotateExtrema, !hiddenSeries.contains(0) || series.count == 1,
+              let pair = HoloChartGeometry.extremaIndices(values: buckets.indices.map { value(at: $0, series: 0) }),
+              pair.max != pair.min else { return [] }
+        return [(pair.max, true), (pair.min, false)]
     }
 
     var body: some View {
@@ -330,13 +417,18 @@ private struct HoloCartesianChart: View {
             if showsReadout {
                 HoloChartReadout(bucket: selected, series: series, summary: summary,
                                  valueText: valueText, idleValues: idleValues,
-                                 hidesIdleValues: hidesIdleValues, onOpenDetail: onOpenDetail)
+                                 hidesIdleValues: hidesIdleValues,
+                                 badge: idleBadge, comparisonSub: selectedComparisonSub,
+                                 hiddenSeries: hiddenSeries, onOpenDetail: onOpenDetail)
             }
             if buckets.isEmpty {
                 Text("暂无可用数据").font(.caption).foregroundStyle(Color.holoToolTextSecondary)
                     .frame(maxWidth: .infinity).frame(height: height)
             } else {
                 chart
+                if legendToggle, series.count >= 2 {
+                    legendRow
+                }
             }
         }
         .onChange(of: dataSignature) { _, buckets in
@@ -349,7 +441,10 @@ private struct HoloCartesianChart: View {
                 selection = nil
             }
         }
-        .onChange(of: series.map(\.id)) { _, _ in selection = nil }
+        .onChange(of: series.map(\.id)) { _, _ in
+            selection = nil
+            hiddenSeries.removeAll()
+        }
         .onAppear {
             guard defaultSelectsLastBucket, selection == nil else { return }
             let candidates = buckets.filter { !$0.isFuture }
@@ -361,14 +456,40 @@ private struct HoloCartesianChart: View {
 
     private var chart: some View {
         Chart {
-            ForEach(series.indices, id: \.self) { seriesIndex in
+            // 区间带垫底（线状）：先画，曲线压在带上
+            if let band, style == .line {
+                RectangleMark(xStart: .value("带起", xDomain.lowerBound), xEnd: .value("带止", xDomain.upperBound),
+                              yStart: .value("带下", band.lowerBound), yEnd: .value("带上", band.upperBound))
+                    .foregroundStyle(Color.holoChart1.opacity(0.08))
+                    .accessibilityHidden(true)
+            }
+            // 上期淡影柱（柱状、单系列对照）：显式 yStart=0 并微错位，避免 Swift Charts 把主柱堆叠在淡影柱顶冲出坐标轴
+            if style == .bar, let comparison, series.count == 1 {
+                ForEach(buckets.indices, id: \.self) { index in
+                    if !buckets[index].isFuture,
+                       comparison.ghostValues.indices.contains(index),
+                       let ghost = comparison.ghostValues[index], ghost.isFinite, ghost > 0 {
+                        BarMark(x: .value("时间", x(index) - comparisonBarOffset),
+                                yStart: .value("底", 0),
+                                yEnd: .value("数值", ghost),
+                                width: .fixed(max(barWidth * 0.72, 2)))
+                            .foregroundStyle(Color.holoChartStone.opacity(0.38))
+                            .cornerRadius(2.5)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            ForEach(visibleSeriesIndices, id: \.self) { seriesIndex in
                 if style == .bar {
                     ForEach(buckets.indices, id: \.self) { index in
                         if !buckets[index].isFuture, let value = value(at: index, series: seriesIndex) {
-                            BarMark(x: .value("时间", x(index) + barXOffset(series: seriesIndex)),
-                                    y: .value("数值", plotValue(value, series: seriesIndex)),
+                            let dimmed = selection != nil && buckets[index].id != selection
+                            let xShift = (comparison != nil && series.count == 1) ? comparisonBarOffset : barXOffset(series: seriesIndex)
+                            BarMark(x: .value("时间", x(index) + xShift),
+                                    yStart: .value("底", 0),
+                                    yEnd: .value("数值", plotValue(value, series: seriesIndex)),
                                     width: .fixed(barWidth))
-                                .foregroundStyle(series[seriesIndex].color)
+                                .foregroundStyle(series[seriesIndex].color.opacity(dimmed ? 0.42 : 1))
                                 .cornerRadius(3)
                                 .accessibilityLabel(buckets[index].detail ?? buckets[index].label)
                                 .accessibilityValue("\(series[seriesIndex].title) \(valueText(value))")
@@ -376,6 +497,25 @@ private struct HoloCartesianChart: View {
                     }
                 } else {
                     ForEach(lineSegments(series: seriesIndex), id: \.self) { segment in
+                        if series.count == 1, band == nil, segment.count >= 2 {
+                            ForEach(segment, id: \.self) { index in
+                                if let value = value(at: index, series: seriesIndex) {
+                                    AreaMark(x: .value("时间", x(index)),
+                                             yStart: .value("底", plotDomain.lowerBound),
+                                             yEnd: .value("数值", value),
+                                             series: .value("面积分段", "\(seriesIndex)-\(segment[0])"))
+                                        .foregroundStyle(
+                                            .linearGradient(
+                                                colors: [series[seriesIndex].color.opacity(0.14),
+                                                         series[seriesIndex].color.opacity(0.0)],
+                                                startPoint: .top, endPoint: .bottom
+                                            )
+                                        )
+                                        .interpolationMethod(.linear)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                        }
                         ForEach(segment, id: \.self) { index in
                             if let value = value(at: index, series: seriesIndex) {
                                 LineMark(x: .value("时间", x(index)), y: .value("数值", value),
@@ -393,6 +533,22 @@ private struct HoloCartesianChart: View {
                     }
                 }
             }
+            // 峰/谷自动标注（线状、首个系列）：小点 + 带底标签，防网格线穿字
+            ForEach(extremaAnnotations, id: \.index) { item in
+                if let value = value(at: item.index, series: 0) {
+                    PointMark(x: .value("时间", x(item.index)), y: .value("数值", value))
+                        .foregroundStyle(series[0].color)
+                        .annotation(position: item.isMax ? .top : .bottom, spacing: 4) {
+                            Text("\(item.isMax ? "峰" : "谷") \(valueText(value))\(extremaUnit)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.holoToolText)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(Capsule().fill(Color.holoToolSurface.opacity(0.92)))
+                                .accessibilityHidden(true)
+                        }
+                        .accessibilityLabel("\(item.isMax ? "最高" : "最低") \(valueText(value))\(extremaUnit)")
+                }
+            }
             if let baseline {
                 RuleMark(y: .value("参考值", baseline))
                     .foregroundStyle(Color.holoToolTextSecondary.opacity(0.6))
@@ -402,6 +558,23 @@ private struct HoloCartesianChart: View {
                 RuleMark(x: .value("选中位置", x(index)))
                     .foregroundStyle(Color.holoToolTextSecondary.opacity(0.45))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+            // 柱状参考线（预算上限/均值）：恒显标签，带底色防压字
+            if style == .bar {
+                ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
+                    RuleMark(y: .value("参考线", rule.value))
+                        .foregroundStyle(rule.color.opacity(0.9))
+                        .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
+                        .annotation(position: .top, alignment: .trailing, spacing: 2) {
+                            Text(rule.label)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(rule.color)
+                                .padding(.horizontal, 4)
+                                .background(Capsule().fill(Color.holoToolSurface.opacity(0.92)))
+                                .accessibilityHidden(true)
+                        }
+                        .accessibilityLabel(rule.label)
+                }
             }
         }
         .chartXScale(domain: xDomain)
@@ -431,6 +604,15 @@ private struct HoloCartesianChart: View {
                         .allowsHitTesting(false)
                     // 装饰层不接收触摸；轴带的高度由本组件预留。
                     tickLabels(proxy: proxy, plot: plot).allowsHitTesting(false)
+                    if let band, style == .line, let yTop = proxy.position(forY: band.upperBound) {
+                        Text("正常区间 \(HoloChartFormat.number(band.lowerBound))–\(HoloChartFormat.number(band.upperBound))")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.holoToolSurface.opacity(0.88)))
+                            .position(x: plot.maxX - 72, y: min(max(yTop + 12, plot.minY + 10), plot.maxY - 8))
+                            .allowsHitTesting(false)
+                    }
                     if isSplitAxes {
                         dualAxisStrips(plot: plot).allowsHitTesting(false)
                     }
@@ -469,6 +651,12 @@ private struct HoloCartesianChart: View {
         HoloChartGeometry.barWidth(plotWidth: plotWidth, count: buckets.count, seriesCount: series.count)
     }
 
+    /// 单系列带上期淡影时，淡影与主柱各向左右错开约 1/3 柱宽，既不完全遮挡也不被 Swift Charts 当同 x 堆叠
+    private var comparisonBarOffset: Double {
+        let points = barWidth * 0.32
+        return Double(points) * (xDomain.upperBound - xDomain.lowerBound) / Double(max(plotWidth, 1))
+    }
+
     /// 多系列柱并排：组内 pt 偏移换算成 x 数据单位（x 轴无内边距，域宽 ÷ 绘图区宽即换算比）。
     /// position(by:) 在数值轴上不分组、退回堆叠，并排只能自行错开 x
     private func barXOffset(series seriesIndex: Int) -> Double {
@@ -487,13 +675,42 @@ private struct HoloCartesianChart: View {
         let positions = buckets.indices.map { proxy.position(forX: x($0)) ?? .infinity }
         guard let index = HoloChartGeometry.nearestIndex(x: min(max(point.x, 0), plot.width), positions: positions),
               !buckets[index].isFuture else { return }
-        select(index)
+        select(index, userDriven: true)
     }
 
-    private func select(_ index: Int) {
+    /// 选中身份一变轻嗒一次（仅用户驱动；程序性初始选中不出声）
+    private func select(_ index: Int, userDriven: Bool = false) {
         guard selection != buckets[index].id else { return }
         selection = buckets[index].id
+        if userDriven { haptic.selectionChanged() }
         onInspect?(buckets[index])
+    }
+
+    /// 图例开关胶囊：点选暂时藏起一个系列（至少留一个）
+    private var legendRow: some View {
+        HStack(spacing: 8) {
+            ForEach(series.indices, id: \.self) { index in
+                let hidden = hiddenSeries.contains(index)
+                Button {
+                    guard !(hidden && visibleSeriesIndices.count <= 1) else { return }
+                    if hidden { hiddenSeries.remove(index) } else { hiddenSeries.insert(index) }
+                    haptic.selectionChanged()
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(hidden ? Color.holoToolTextSecondary : series[index].color)
+                            .frame(width: 8, height: 8)
+                        Text(series[index].title).font(.caption)
+                    }
+                    .foregroundStyle(Color.holoToolText)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Capsule().fill(Color.holoToolInset).opacity(hidden ? 0.5 : 1))
+                    .opacity(hidden ? 0.55 : 1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(series[index].title)\(hidden ? "（已隐藏）" : "")")
+                .accessibilityAddTraits(.isButton)
+            }
+        }
     }
 
     private struct TickLabel: Identifiable {
@@ -556,6 +773,10 @@ private struct HoloCartesianChart: View {
         let picked: [Int]
         if buckets.first?.position != nil {
             picked = HoloChartGeometry.tickIndicesForPositions(pixelPositions: pixelX, minSpacing: labelWidth)
+        } else if buckets.count <= 8, plot.width >= CGFloat(buckets.count) * 36,
+                  buckets.allSatisfy({ $0.label.count <= 3 }) {
+            // ≤8 桶且全是「1日」「8月」这类短标签时全显，不抽掉中间日/月（修复画廊与周/半年视图缺 3日/8月）
+            picked = Array(buckets.indices)
         } else {
             picked = HoloChartGeometry.tickIndices(count: buckets.count, width: plot.width)
         }
@@ -620,14 +841,18 @@ private struct HoloCartesianChart: View {
     }
 }
 
-private struct HoloChartReadout: View {
+struct HoloChartReadout: View {
     let bucket: HoloChartBucket?
     let series: [HoloChartSeries]
     let summary: String
     let valueText: (Double) -> String
     let idleValues: [Double?]
     var hidesIdleValues = false
+    var badge: (text: String, color: Color)? = nil
+    var comparisonSub: String? = nil
+    var hiddenSeries: Set<Int> = []
     let onOpenDetail: ((HoloChartBucket) -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -657,12 +882,26 @@ private struct HoloChartReadout: View {
 
     @ViewBuilder private var values: some View {
         ForEach(series.indices, id: \.self) { index in
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Circle().fill(series[index].color).frame(width: 6, height: 6).accessibilityHidden(true)
-                Text(series[index].title).font(.caption).foregroundStyle(Color.holoToolTextSecondary)
-                Text(text(index)).font(series.count == 1 ? .title2.weight(.semibold) : .headline)
-                    .foregroundStyle(Color.holoToolText).monospacedDigit()
+            if !hiddenSeries.contains(index) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Circle().fill(series[index].color).frame(width: 6, height: 6).accessibilityHidden(true)
+                    Text(series[index].title).font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                    Text(text(index)).font(series.count == 1 ? .title2.weight(.semibold) : .headline)
+                        .foregroundStyle(Color.holoToolText).monospacedDigit()
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: text(index))
+                    if index == 0, bucket != nil, let comparisonSub {
+                        Text(comparisonSub).font(.caption2).foregroundStyle(Color.holoToolTextSecondary)
+                    }
+                }
             }
+        }
+        if bucket == nil, let badge {
+            Text(badge.text)
+                .font(.caption.weight(.semibold)).monospacedDigit()
+                .foregroundStyle(badge.color)
+                .padding(.horizontal, 7).padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 6).fill(badge.color.opacity(0.10)))
         }
     }
 

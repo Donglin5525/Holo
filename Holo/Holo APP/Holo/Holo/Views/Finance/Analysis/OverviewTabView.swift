@@ -44,7 +44,8 @@ struct OverviewTabView: View {
                 }
 
                 // 收支趋势：收支柱（下层）+ 余额线（上层）同画布分区
-                TrendChartView(dataPoints: state.chartDataPoints)
+                TrendChartView(dataPoints: state.chartDataPoints,
+                               waterfallItems: state.cashflowItems.isEmpty ? nil : state.cashflowItems)
 
                 // 年档 + 自然年口径 + 设有「每年」预算：年预算进度卡
                 //（预算周期自身管理起止，一期只挂自然年口径，记账年视图下不显示）
@@ -108,7 +109,7 @@ struct OverviewTabView: View {
                     title: String(localized: "总支出"),
                     amount: state.periodSummary.formattedExpense,
                     subtitle: averageSubtitle(expense: true),
-                    color: .holoError,
+                    color: .holoChartOutflow,
                     badge: yoyBadge(
                         current: state.periodSummary.totalExpense,
                         previous: state.previousPeriodSummary.totalExpense,
@@ -124,7 +125,7 @@ struct OverviewTabView: View {
                     title: String(localized: "总收入"),
                     amount: state.periodSummary.formattedIncome,
                     subtitle: averageSubtitle(expense: false),
-                    color: .holoSuccess,
+                    color: .holoChartInflow,
                     badge: yoyBadge(
                         current: state.periodSummary.totalIncome,
                         previous: state.previousPeriodSummary.totalIncome,
@@ -140,7 +141,7 @@ struct OverviewTabView: View {
                     title: String(localized: "净收入"),
                     amount: state.periodSummary.formattedNetIncome,
                     subtitle: "",
-                    color: state.periodSummary.netIncome >= 0 ? .holoSuccess : .holoError,
+                    color: state.periodSummary.netIncome >= 0 ? .holoChartInflow : .holoChartOutflow,
                     badge: netIncomeBadge
                 )
             }
@@ -166,7 +167,7 @@ struct OverviewTabView: View {
         guard state.isYearView, previous > 0 else { return nil }
         let percentage = Double(truncating: ((current - previous) / previous * 100) as NSDecimalNumber)
         let arrow = percentage >= 0 ? "▲" : "▼"
-        let color: Color = (percentage >= 0) == increaseIsNegative ? .holoSuccess : .holoError
+        let color: Color = (percentage >= 0) == increaseIsNegative ? .holoChartInflow : .holoChartOutflow
         return ("\(arrow) \(String(format: "%.1f", abs(percentage)))%", color)
     }
 
@@ -175,7 +176,7 @@ struct OverviewTabView: View {
         guard state.isYearView else { return nil }
         let current = state.periodSummary.netIncome
         let previous = state.previousPeriodSummary.netIncome
-        let color: Color = current >= previous ? .holoSuccess : .holoError
+        let color: Color = current >= previous ? .holoChartInflow : .holoChartOutflow
         let diff = current - previous
         let amount = NumberFormatter.compactCurrency(abs(diff))
         return (String(localized: "较\(yearLabels.previous) \(diff >= 0 ? "+" : "-")\(amount)"), color)
@@ -272,7 +273,7 @@ struct YearOverYearSummaryCard: View {
                 if previousAmount > 0 {
                     let percentage = Double(truncating: ((currentAmount - previousAmount) / previousAmount * 100) as NSDecimalNumber)
                     let arrow = percentage >= 0 ? "▲" : "▼"
-                    let color: Color = (percentage >= 0) == upIsBad ? .holoError : .holoSuccess
+                    let color: Color = (percentage >= 0) == upIsBad ? .holoChartOutflow : .holoChartInflow
                     Text("\(arrow) \(String(format: "%.1f", abs(percentage)))%")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(color)
@@ -340,6 +341,25 @@ struct YearComparisonChartView: View {
     var previousLabel: String = String(localized: "上年")
     @State private var selection: String?
 
+    /// 参考线（2026-11-15 图表增强）：当前年月均支出，真实值算出
+    private var meanRule: HoloChartRule? {
+        let values = points.compactMap { $0.isFuture ? nil : Double(truncating: $0.current as NSDecimalNumber) }
+        guard !values.isEmpty else { return nil }
+        let mean = values.reduce(0, +) / Double(values.count)
+        return HoloChartRule(value: mean,
+                             label: "\(currentLabel)月均 \(NumberFormatter.compactCurrency(Decimal(mean)))")
+    }
+
+    /// 底部对照句：两年月均一比，好坏不用读图也能懂
+    private var meanCaption: String? {
+        let current = points.compactMap { $0.isFuture ? nil : Double(truncating: $0.current as NSDecimalNumber) }
+        let previous = points.map { Double(truncating: $0.previous as NSDecimalNumber) }
+        guard !current.isEmpty, !previous.isEmpty else { return nil }
+        let currentMean = current.reduce(0, +) / Double(current.count)
+        let previousMean = previous.reduce(0, +) / Double(previous.count)
+        return "\(currentLabel)月均 \(NumberFormatter.compactCurrency(Decimal(currentMean))) · \(previousLabel)同期月均 \(NumberFormatter.compactCurrency(Decimal(previousMean)))"
+    }
+
     var body: some View {
         HoloChartFrame(title: "支出同比", independent: true) {
             HoloBarChart(buckets: points.enumerated().map { index, point in
@@ -347,10 +367,14 @@ struct YearComparisonChartView: View {
                                 values: [point.isFuture ? nil : Double(truncating: point.current as NSDecimalNumber),
                                          Double(truncating: point.previous as NSDecimalNumber)],
                                 futureSeries: point.isFuture ? [0] : [])
-            }, series: [.init(id: "current", title: currentLabel, color: .holoError),
-                        .init(id: "previous", title: previousLabel, color: .holoToolTextSecondary)],
+            }, series: [.init(id: "current", title: currentLabel, color: .holoChartOutflow),
+                        .init(id: "previous", title: previousLabel, color: .holoChartStone)],
                selection: $selection, height: 160,
-               valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" })
+               valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" },
+               rules: meanRule.map { [$0] } ?? [])
+            if let meanCaption {
+                Text(meanCaption).font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+            }
         }
         .onChange(of: currentLabel) { _, _ in selection = nil }
     }

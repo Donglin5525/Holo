@@ -550,13 +550,20 @@ struct HabitTodayRecordSheet: View {
                 Text(String(localized: "还没有记录。"))
                     .font(.system(size: 12))
                     .foregroundColor(.holoToolTextSecondary)
+                Text(String(localized: "记一次，下次打开就能看到走势。"))
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.8))
             } else {
-                HabitMiniTrendLine(
-                    values: snapshot.dailyValues.map { ($0.date, $0.value) },
+                HoloMiniTrendChart(
+                    points: snapshot.dailyValues.map { .init(date: $0.date, value: $0.value) },
                     color: Color(hex: row.colorHex),
-                    today: model.projectionNow
+                    title: row.name,
+                    valueText: { value in
+                        HabitPresentationProjector.formatValue(value)
+                            + (snapshot.info.unit.isEmpty ? "" : " \(snapshot.info.unit)")
+                    },
+                    deltaRisingIsBad: row.kind == .count ? false : nil
                 )
-                .frame(height: 52)
                 Text(String(localized: "最近 10 个记录日；断档期如实拉开。走势与对比都在长期回顾里看。"))
                     .font(.system(size: 10.5))
                     .foregroundColor(.holoToolTextSecondary)
@@ -931,57 +938,6 @@ struct HabitTodayRecordSheet: View {
     }
 }
 
-// MARK: - 最近记录迷你折线（数值型弹层；x 按真实时间定位，断档如实拉开；
-// 末点空心=今天/最新游标。旧实现按序数等分，一个月断档被画成相邻点，2026-10-27 拍板改）
-
-struct HabitMiniTrendLine: View {
-
-    let values: [(date: Date, value: Double)]
-    let color: Color
-    let today: Date
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            if values.count >= 2 {
-                let lo = values.map(\.value).min() ?? 0
-                let hi = values.map(\.value).max() ?? 1
-                let span = max(hi - lo, 0.0001)
-                let calendar = Calendar.current
-                let startDay = calendar.startOfDay(for: values[0].date)
-                let endDay = calendar.startOfDay(for: values[values.count - 1].date)
-                let totalDays = max(calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0, 1)
-                let points = values.map { item -> CGPoint in
-                    let offset = max(calendar.dateComponents([.day], from: startDay, to: item.date).day ?? 0, 0)
-                    let x = 3 + (w - 6) * CGFloat(offset) / CGFloat(totalDays)
-                    let y = h - 4 - (h - 8) * CGFloat((item.value - lo) / span)
-                    return CGPoint(x: x, y: y)
-                }
-                ZStack {
-                    Path { path in
-                        path.move(to: points[0])
-                        for point in points.dropFirst() { path.addLine(to: point) }
-                    }
-                    .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    ForEach(points.indices, id: \.self) { index in
-                        let isLast = index == points.count - 1
-                        Circle()
-                            .fill(isLast ? Color.holoToolBackground : color)
-                            .frame(width: isLast ? 6 : 4.4)
-                            .overlay(Circle().strokeBorder(color, lineWidth: 1.4)
-                                .frame(width: 6, height: 6)
-                                .opacity(isLast ? 1 : 0))
-                            .position(points[index])
-                    }
-                }
-            } else if values.count == 1 {
-                Circle()
-                    .strokeBorder(color, lineWidth: 1.6)
-                    .frame(width: 6, height: 6)
-                    .position(x: w / 2, y: h / 2)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
+// MARK: - 最近记录迷你趋势
+// 2026-11-15 图表语言统一：旧手绘 HabitMiniTrendLine 退役，画法归公共组件
+// HoloMiniTrendChart（读数行 + 真实时间轴 + 末点选中样式）。

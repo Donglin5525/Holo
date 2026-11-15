@@ -20,10 +20,14 @@ struct CategoryLegendRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: HoloSpacing.md) {
+                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+
                 // 分类图标
                 ZStack {
                     Circle()
-                        .fill(aggregation.category.swiftUIColor.opacity(0.1))
+                        .fill(color.opacity(0.12))
                         .frame(width: 32, height: 32)
 
                     transactionCategoryIcon(aggregation.category, size: 16)

@@ -16,25 +16,24 @@ struct CategoryTabView: View {
 
     @State private var selectedCategory: Category?
     @State private var showIncomeView: Bool = false
+    /// 构成卡视图档：false = 环形（当期构成），true = 趋势（近 6 月堆叠面积）
+    @State private var showsCompositionTrend: Bool = false
+    @State private var trendSelection: String? = nil
 
     // 交易明细弹窗状态
     @State private var transactionSheetData: TransactionSheetData?
 
-    // 图表颜色（饼图和图例共享）
-    // 扇区色取分类自身颜色，与下方列表行图标底色一一对应（扇区色 == 行图标色）；
-    // 两种情况按序回退图表色板，避免无法区分相邻扇区：
-    // 1) 分类是灰系默认色（导入/未设置颜色，shouldUseChartPalette）；
-    // 2) 多个分类共享同一科目色（下钻时子分类继承父科目色），整图会塌缩成单色饼。
+    // 图表颜色（比例条和下方分类列表共享，视觉 V4「纸本调性」）：
+    // 统一走 V4 分类色板（赭橙 / 墨蓝 / 麦金 / 藕紫 / 青瓷 / 砖粉，不含流入绿），
+    // 「其他」或第 6 类之后退石灰色，与趋势堆叠面积图保持同一色板语言。
     private var chartColors: [Color] {
-        let palette = Color.holoChartColors(count: currentAggregations.count)
-        let ownColors = currentAggregations.map { aggregation -> Color? in
-            FinanceCategoryChartColor.shouldUseChartPalette(hex: aggregation.category.color)
-                ? nil
-                : aggregation.category.swiftUIColor
+        let palette = Color.holoChartCategoryPalette
+        return currentAggregations.enumerated().map { index, aggregation in
+            if aggregation.category.name == "其他" && currentAggregations.count > 1 {
+                return .holoChartStone
+            }
+            return palette.indices.contains(index) ? palette[index] : .holoChartStone
         }
-        let present = ownColors.compactMap { $0 }
-        guard Set(present).count == present.count else { return palette }
-        return ownColors.enumerated().map { $1 ?? palette[$0] }
     }
 
     var body: some View {
@@ -56,15 +55,24 @@ struct CategoryTabView: View {
                     drillDownHeader
                 }
 
-                // 饼图
-                PieChartView(
-                    aggregations: currentAggregations,
-                    selectedCategory: selectedCategory,
-                    colors: chartColors,
-                    onSelectCategory: { category in
-                        selectedCategory = category
+                // 构成卡：构成（环形）⇄ 趋势（近 6 月堆叠面积）分段切换（2026-11-15 图表增强）
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    HStack {
+                        Text(showIncomeView ? "收入构成" : "支出构成")
+                            .font(.headline)
+                            .foregroundColor(.holoToolText)
+                        Spacer()
+                        compositionSwitch
                     }
-                )
+                    if showsCompositionTrend {
+                        compositionTrendPane
+                            .task(id: "\(showIncomeView ? "income" : "expense")-\(state.categoryProjectFilter?.id.uuidString ?? "all")") {
+                                await state.loadCategoryTrend(type: showIncomeView ? .income : .expense)
+                            }
+                    } else {
+                        compositionBarPane
+                    }
+                }
                 .padding(HoloSpacing.md)
                 .holoSurface()
 
@@ -174,6 +182,114 @@ struct CategoryTabView: View {
                         )
                     )
             )
+        }
+    }
+
+    // MARK: - 构成卡分段切换（灰轨白块，与习惯回顾「趋势/日历」同一语言）
+
+    private var compositionSwitch: some View {
+        HStack(spacing: 0) {
+            compositionSegment(String(localized: "构成"), active: !showsCompositionTrend) {
+                if !showsCompositionTrend { return }
+                showsCompositionTrend = false
+            }
+            compositionSegment(String(localized: "趋势"), active: showsCompositionTrend) {
+                if showsCompositionTrend { return }
+                showsCompositionTrend = true
+            }
+        }
+        .padding(2.5)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.holoToolInset))
+    }
+
+    private func compositionSegment(_ text: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 13, weight: active ? .semibold : .regular))
+                .foregroundColor(active ? .holoToolText : .holoToolTextSecondary)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(active ? Color.holoToolSurface : .clear)
+                        .shadow(color: .black.opacity(active ? 0.08 : 0), radius: 1.5, y: 1)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? [.isSelected, .isButton] : .isButton)
+    }
+
+    /// 当期构成（视觉 V4 §3：结论大数字 + 一句话 + 全宽交互比例条；告别 6+ 分类环形引线打架）
+    @ViewBuilder private var compositionBarPane: some View {
+        let positive = Array(currentAggregations.enumerated()).filter { $0.element.amount > 0 }
+        if positive.isEmpty {
+            Text(String(localized: "暂无数据，这就开始记一笔吧！"))
+                .font(.caption)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 120)
+        } else {
+            let total = positive.reduce(Decimal(0)) { $0 + $1.element.amount }
+            let totalDouble = max(Double(truncating: total as NSDecimalNumber), 0.0001)
+            let totalCount = positive.reduce(0) { $0 + $1.element.transactionCount }
+            let focusedAgg = selectedCategory.flatMap { sel in positive.first { $0.element.category.id == sel.id }?.element }
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(focusedAgg?.category.name ?? (showIncomeView ? String(localized: "本期收入") : String(localized: "本期支出")))
+                        .font(.caption)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                    Text(NumberFormatter.currency.string(from: (focusedAgg?.amount ?? total) as NSDecimalNumber) ?? "¥0.00")
+                        .font(.system(.title, design: .default).weight(.bold)).monospacedDigit()
+                        .foregroundStyle(Color.holoToolText)
+                        .contentTransition(.numericText())
+                    if let focusedAgg {
+                        Text("占 \(focusedAgg.formattedPercentage) · \(focusedAgg.transactionCount) 笔")
+                            .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                    } else if let top = positive.first?.element {
+                        Text("\(top.category.name)占 \(top.formattedPercentage) · 共 \(totalCount) 笔")
+                            .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                    }
+                }
+                GeometryReader { geo in
+                    let gap: CGFloat = 2
+                    let usable = max(geo.size.width - gap * CGFloat(max(positive.count - 1, 0)), 0)
+                    HStack(spacing: gap) {
+                        ForEach(positive, id: \.element.id) { index, agg in
+                            let weight = Double(truncating: agg.amount as NSDecimalNumber)
+                            let width = max(usable * CGFloat(weight / totalDouble), 3)
+                            let color = chartColors.indices.contains(index) ? chartColors[index] : .holoChartStone
+                            let dimmed = selectedCategory != nil && selectedCategory?.id != agg.category.id
+                            Rectangle()
+                                .fill(color)
+                                .opacity(dimmed ? 0.28 : 1)
+                                .frame(width: width, height: 14)
+                                .onTapGesture {
+                                    withAnimation(.easeOut(duration: 0.18)) {
+                                        selectedCategory = (selectedCategory?.id == agg.category.id) ? nil : agg.category
+                                    }
+                                }
+                        }
+                    }
+                    .clipShape(Capsule())
+                }
+                .frame(height: 14)
+            }
+        }
+    }
+
+    /// 趋势档内容：近 6 月堆叠面积（数据随类型/项目口径在 state 侧装载）
+    @ViewBuilder private var compositionTrendPane: some View {
+        if let trend = state.categoryTrend, !trend.series.isEmpty {
+            HoloStackedAreaChart(
+                buckets: trend.buckets,
+                series: trend.series,
+                selection: $trendSelection,
+                summary: "近 6 月",
+                valueText: { NumberFormatter.compactCurrency(Decimal($0)) })
+        } else {
+            ProgressView()
+                .frame(maxWidth: .infinity, minHeight: 160)
         }
     }
 

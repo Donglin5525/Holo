@@ -209,27 +209,52 @@ extension Color {
     /// AI 专属色 - 紫色，用于 AI 自动整理等智能功能入口标识，与品牌橙色区分
     static let holoAI = Color(red: 124/255, green: 92/255, blue: 252/255)  // #7C5CFC
     
-    // MARK: - 图表颜色
-    /// 图表颜色系列（12 色调色板，色相均匀分布，保证视觉可区分）
-    static let holoChart1  = Color(red: 59/255,  green: 130/255, blue: 246/255)  // #3B82F6 蓝
-    static let holoChart2  = Color(red: 249/255, green: 115/255, blue: 22/255)   // #F97316 橙
-    static let holoChart3  = Color(red: 34/255,  green: 197/255, blue: 94/255)   // #22C55E 绿
-    static let holoChart4  = Color(red: 239/255, green: 68/255,  blue: 68/255)   // #EF4444 红
-    static let holoChart5  = Color(red: 139/255, green: 92/255,  blue: 246/255)  // #8B5CF6 紫
-    static let holoChart6  = Color(red: 20/255,  green: 184/255, blue: 166/255)  // #14B8A6 青
-    static let holoChart7  = Color(red: 236/255, green: 72/255,  blue: 153/255)  // #EC4899 粉
-    static let holoChart8  = Color(red: 234/255, green: 179/255, blue: 8/255)    // #EAB308 黄
-    static let holoChart9  = Color(red: 99/255,  green: 102/255, blue: 241/255)  // #6366F1 靛
-    static let holoChart10 = Color(red: 6/255,   green: 182/255, blue: 212/255)  // #06B6D4 天蓝
-    static let holoChart11 = Color(red: 244/255, green: 63/255,  blue: 94/255)   // #F43F5E 玫红
-    static let holoChart12 = Color(red: 132/255, green: 204/255, blue: 22/255)   // #84CC16 黄绿
+    // MARK: - 图表颜色（视觉 V4「纸本调性」，2026-11-15 东林拍板）
+    // 原型契约：docs/design-prototypes/Holo图表视觉V4-纸本调性.html
+    // 从品牌橙与 #FDFCF8 纸底推导的降饱和语义色；同屏最多两种语义色，其余退石灰。
+    // 分类色板前六色刻意不含绿：绿只表达流入 / 达成。
 
-    /// 预定义调色板（12 色，按最大色相间距排列，相邻色相差 ≥107°）
-    /// 排列逻辑：蓝→黄→紫→绿→橙→天蓝→玫红→青→红→靛→黄绿→粉
+    private static func v4(_ light: UInt32, _ dark: UInt32) -> Color {
+        func make(_ hex: UInt32) -> HoloDynamicColor {
+            HoloDynamicColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                             green: CGFloat((hex >> 8) & 0xFF) / 255,
+                             blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color.holoDynamic(light: make(light), dark: make(dark))
+    }
+
+    static let holoChart1  = v4(0x40546B, 0x8FA8C4)   // 墨蓝（存量 / 测量 / 分类 2）
+    static let holoChart2  = v4(0xDB6A3A, 0xF08A5B)   // 赭橙（流出 / 支出 / 分类 1）
+    static let holoChart3  = v4(0x4E8C64, 0x7DBF92)   // 苔绿（流入 / 收入 / 达成）
+    static let holoChart4  = v4(0xB84A3E, 0xE57A6E)   // 印泥红
+    static let holoChart5  = v4(0x93799F, 0xB9A0C6)   // 藕紫（分类 4）
+    static let holoChart6  = v4(0x5E9C98, 0x86C2BE)   // 青瓷（分类 5）
+    static let holoChart7  = v4(0xC2847A, 0xD9A39A)   // 砖粉（分类 6）
+    static let holoChart8  = v4(0xCF9F45, 0xE2B866)   // 麦金（分类 3）
+    static let holoChart9  = v4(0x5B6488, 0x9CA4C4)   // 靛灰
+    static let holoChart10 = v4(0x4A8294, 0x82B6C6)   // 湖青
+    static let holoChart11 = v4(0xB55B6E, 0xD98B9B)   // 暗玫
+    static let holoChart12 = v4(0x7E9653, 0xA8C07A)   // 橄榄
+
+    /// 流入 / 收入 / 达成 · 苔绿
+    static let holoChartInflow = holoChart3
+    /// 流出 / 支出 · 赭橙（品牌橙同族）
+    static let holoChartOutflow = holoChart2
+    /// 余额 / 存量 / 测量值 · 墨蓝
+    static let holoChartInk = holoChart1
+    /// 其余 / 上期 / 非主角 · 石灰
+    static let holoChartStone = v4(0xBDB5A8, 0x7A746C)
+    /// 分类色板（赭橙 / 墨蓝 / 麦金 / 藕紫 / 青瓷 / 砖粉）；「其余」恒用 holoChartStone
+    static let holoChartCategoryPalette: [Color] = [
+        .holoChart2, .holoChart1, .holoChart8,
+        .holoChart5, .holoChart6, .holoChart7
+    ]
+
+    /// 预定义调色板（前六色即 V4 分类色板，不含流入绿，避免分类与收入语义撞色）
     private static let chartPalette: [Color] = [
-        .holoChart1, .holoChart8, .holoChart5, .holoChart3,
-        .holoChart2, .holoChart10, .holoChart11, .holoChart6,
-        .holoChart4, .holoChart9, .holoChart12, .holoChart7
+        .holoChart2, .holoChart1, .holoChart8, .holoChart5,
+        .holoChart6, .holoChart7, .holoChart10, .holoChart9,
+        .holoChart4, .holoChart11, .holoChart12, .holoChart3
     ]
 
     /// 生成指定数量的图表颜色（12 色内用预定义调色板，超出用黄金角度补充）
