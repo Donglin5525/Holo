@@ -87,7 +87,10 @@ enum UnderstandingShadowLaunchRunner {
             lines.append("拒绝理由：\n" + report.rejections.joined(separator: "\n"))
         }
         if !report.modelFailures.isEmpty {
-            lines.append("提案失败主题：\(report.modelFailures.joined(separator: "、"))（不重试）")
+            lines.append("提案失败主题：\n" + report.modelFailures.joined(separator: "\n") + "（不重试）")
+        }
+        if let promotion = report.promotionSummary {
+            lines.append("晋升（写入正式记忆）：" + promotion)
         }
         // 评审包导出（M2.8）
         let storage = UnderstandingShadowRunner.storageDirectory()

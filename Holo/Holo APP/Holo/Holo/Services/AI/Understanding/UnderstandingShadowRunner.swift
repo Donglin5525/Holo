@@ -41,6 +41,8 @@ nonisolated struct ShadowRunReport: Codable, Equatable, Sendable {
     var outcomes: [String: Int]     // 终态 → 数
     var rejections: [String]        // 拒绝理由（评审可追溯）
     var modelFailures: [String]     // 提案失败主题（不重试，留诊断）
+    /// M3.1 晋升摘要（灰度关/无候选为 nil）：「晋升N条/跳过M」+ 失败原因。
+    var promotionSummary: String?
 }
 
 // MARK: - 编排器

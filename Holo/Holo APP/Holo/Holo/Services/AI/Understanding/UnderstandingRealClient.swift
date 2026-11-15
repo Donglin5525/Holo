@@ -58,13 +58,16 @@ enum UnderstandingRealEntry {
         let ledger = ShadowLedger.load(directory: storage)
         let index = ObservationIndex.load(directory: storage)
         let themes = UnderstandingShadowRunner.loadThemeSnapshot(directory: storage)
-        _ = await UnderstandingPromotion.promoteEligible(
+        let promotion = await UnderstandingPromotion.promoteEligible(
             ledger: ledger,
             resolveEvidence: { candidate in
                 guard let theme = themes.first(where: { $0.key == candidate.themeKey }) else { return [] }
                 return theme.memberIDs.compactMap { index.observations[$0] }
             },
             now: now)
-        return report
+        var finalReport = report
+        finalReport.promotionSummary = "晋升\(promotion.promoted)条/跳过\(promotion.skipped)条"
+            + (promotion.failures.isEmpty ? "" : "｜失败: " + promotion.failures.joined(separator: "；"))
+        return finalReport
     }
 }
