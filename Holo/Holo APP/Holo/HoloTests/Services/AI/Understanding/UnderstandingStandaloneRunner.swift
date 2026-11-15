@@ -20,5 +20,6 @@ private struct UnderstandingStandaloneRunner {
         try await ShadowRunnerStandaloneTests.run()
         try await AdversarialRound2Tests.run()
         try await SufficiencyPolicyStandaloneTests.run()
+        try await UnderstandingConsentSweeperTests.run()
     }
 }

@@ -66,6 +66,9 @@ struct HoloApp: App {
         // 注册周期性支出自动补账任务
         SpendingProjectBackgroundService.shared.registerBackgroundTask()
 
+        // 理解引擎：授权撤销 → 影子残留全清（数据边界：影子产物只在授权内存留）
+        UnderstandingConsentSweeper.install(.holoAIDataProcessingConsentDidChange)
+
         // 长期记忆只保留严格语义 V2；先清理旧格式，再允许新洞察写入候选。
         HoloLongTermMemoryStore.performSemanticV2MigrationIfNeeded()
 
