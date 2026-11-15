@@ -825,6 +825,11 @@ const DEFAULT_CONFIG = {
       perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 0),
     },
   },
+  // 想法归类 schema 4（类别规则层，2026-11-16 方案 §4 A2/W1）：独立灰度闸，默认关闭。
+  // 关闭时 schema 4 请求按稳定错误码拒绝，schema 1/2/3 完全不读此开关。
+  thoughtScopeRules: {
+    enabled: process.env.HOLO_THOUGHT_SCOPE_RULES_ENABLED === "true",
+  },
   // 主题命名/摘要 V3：两端点共享预算池（Phase 5 低频事件），限流各自独立桶
   thoughtTopicInsight: {
     enabled: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_ENABLED !== "false",
@@ -996,6 +1001,10 @@ export function loadConfig(overrides = {}) {
         ...DEFAULT_CONFIG.thoughtSemanticRelate.requestLimits,
         ...(overrides.thoughtSemanticRelate?.requestLimits ?? {}),
       },
+    },
+    thoughtScopeRules: {
+      ...DEFAULT_CONFIG.thoughtScopeRules,
+      ...overrides.thoughtScopeRules,
     },
     thoughtTopicInsight: {
       ...DEFAULT_CONFIG.thoughtTopicInsight,
