@@ -28,6 +28,11 @@ final class ThoughtSemanticChangeFeed {
     private var wakeTask: Task<Void, Never>?
     /// 对账防重入：CloudKit 启动会连发多个 remoteChange，并发 reconcile 会竞态重复入队
     private var isReconciling = false
+    // MARK: 脉络派生定向清理状态（W3，§6 C3）
+    /// 同源变更防抖：窗口内的编辑/进出主题/排除/归档/删除/远端合并合并成一次定向清理
+    private var followupInvalidationTask: Task<Void, Never>?
+    private var pendingFollowupThoughtIDs: Set<UUID> = []
+    private var pendingFollowupScopeTouched = false
 
     /// 注入语义库（App 启动后异步装配；测试注入独立实例）。
     func attach(store: ThoughtSemanticStore) {
@@ -61,11 +66,15 @@ final class ThoughtSemanticChangeFeed {
               context.persistentStoreCoordinator === CoreDataStack.shared.persistentContainer.persistentStoreCoordinator
         else { return }
         // 通知由保存上下文同步发出，必须在其队列内读成值快照。
-        let events: [(id: UUID, hash: String?, deleted: Bool, needsExclusionReconcile: Bool)] = context.performAndWait {
+        let pilotScope = ThoughtSemanticFeatureFlags.followupPilotScope()
+        let harvested: (events: [(id: UUID, hash: String?, deleted: Bool, needsExclusionReconcile: Bool)],
+                        followupThoughtIDs: [UUID],
+                        followupScopeTouched: Bool) = context.performAndWait {
             let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
             let updated = (note.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>) ?? []
             let deleted = (note.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>) ?? []
-            return inserted.union(updated).union(deleted).compactMap { object -> (UUID, String?, Bool, Bool)? in
+            let allObjects = inserted.union(updated).union(deleted)
+            let events: [(id: UUID, hash: String?, deleted: Bool, needsExclusionReconcile: Bool)] = allObjects.compactMap { object -> (UUID, String?, Bool, Bool)? in
                 guard object.entity.name == "Thought", let id = object.value(forKey: "id") as? UUID else { return nil }
                 let unavailable = deleted.contains(object) || (object.value(forKey: "deletedAt") as? Date) != nil
                     || (object.value(forKey: "isArchived") as? Bool) == true
@@ -78,9 +87,33 @@ final class ThoughtSemanticChangeFeed {
                     || (!unavailable && status == ThoughtAIClassificationPolicy.excludedStatus)
                 return (id, content.isEmpty ? nil : ThoughtSemanticText.contentHash(content), unavailable, needsReconcile)
             }
+            // 脉络派生失效观察（W3，§6 C3）：Thought 的编辑/归档/删除（含远端合并的
+            // 保存，同一事件源）+ 试点范围的 ThoughtTopicLink 进出 + Topic 结构变化
+            //（改名由清理侧 resolveValid 仍有效自然跳过）。
+            var followupThoughtIDs = events.filter { $0.deleted || $0.hash != nil }.map(\.id)
+            var followupScopeTouched = false
+            if let pilotScope {
+                for object in allObjects {
+                    switch object.entity.name {
+                    case "ThoughtTopicLink":
+                        // 删除中的 link 关系可能已不可解析，取不到就交给读侧兜底（读时再验）
+                        if let thoughtID = (object.value(forKey: "thought") as? Thought)?.id,
+                           let topicID = (object.value(forKey: "topic") as? Topic)?.id,
+                           topicID == pilotScope {
+                            followupThoughtIDs.append(thoughtID)
+                        }
+                    case "Topic":
+                        if let topicID = object.value(forKey: "id") as? UUID, topicID == pilotScope {
+                            followupScopeTouched = true
+                        }
+                    default: break
+                    }
+                }
+            }
+            return (events, followupThoughtIDs, followupScopeTouched)
         }
         Task { @MainActor in
-            for event in events {
+            for event in harvested.events {
                 if event.deleted { await handleSoftDelete(thoughtID: event.id) }
                 else if event.needsExclusionReconcile {
                     // 双向收敛：新命中→excluded+清痕迹；标签事实已解除→回 pending 重新入队（其 save
@@ -89,6 +122,10 @@ final class ThoughtSemanticChangeFeed {
                 }
                 else if let hash = event.hash { _ = await enqueueEmbedIfNeeded(thoughtID: event.id, contentHash: hash, priority: 100) }
             }
+            if !harvested.followupThoughtIDs.isEmpty || harvested.followupScopeTouched {
+                invalidateFollowupDerived(thoughtIDs: harvested.followupThoughtIDs,
+                                          scopeTouched: harvested.followupScopeTouched)
+            }
             scheduleWake()
         }
     }
@@ -96,10 +133,65 @@ final class ThoughtSemanticChangeFeed {
     @objc private func handleSettingsChange(_ note: Notification) {
         Task {
             try? await store?.cancelAllJobs()
+            // 试点范围切换/关闭（setFollowupPilot → settingsDidChange 链路，W3）：
+            // 旧 scope 未终态行直接取消终态——不占日额度、不靠领取逐拍以
+            // anchor_unavailable 排干；cancelled 行由 upsertFollowupTask 复活，
+            // 重新启用后同键可重算
+            try? await store?.cancelFollowupTasksOutsideScope(
+                keep: ThoughtSemanticFeatureFlags.followupPilotScope())
             await ThoughtAutomaticTopicDiscovery.shared.retryNow()
             await reconcileAllThoughts()
             await ThoughtSemanticPipeline.shared.kickQueue()
+            // 开关/试点范围变化：打开中的脉络与相关视图立即撤掉旧证据（§2 A08；
+            // kickQueue 内的 followup process 同步对资格链断开的旧范围取消在途）
+            postFollowupDerivedDidChange()
         }
+    }
+
+    // MARK: - 脉络派生定向清理（W3，2026-11-16 方案 §6 C3「统一收口给 ChangeFeed」）
+
+    /// 变更汇聚入口：handleSave（编辑/归档/删除/进出主题/远端合并）与
+    /// ThoughtAIExclusionService（加「不参与 AI」）都汇到这里，同源变更防抖后
+    /// 一次定向清理；结束时广播失效事件让打开中的视图立即撤掉旧证据。
+    func invalidateFollowupDerived(thoughtIDs: [UUID], scopeTouched: Bool = false) {
+        guard !thoughtIDs.isEmpty || scopeTouched else { return }
+        pendingFollowupThoughtIDs.formUnion(thoughtIDs)
+        pendingFollowupScopeTouched = pendingFollowupScopeTouched || scopeTouched
+        followupInvalidationTask?.cancel()
+        followupInvalidationTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            followupInvalidationTask = nil
+            await runFollowupInvalidation()
+        }
+    }
+
+    private func runFollowupInvalidation() async {
+        guard let store else { return }
+        let affected = pendingFollowupThoughtIDs
+        pendingFollowupThoughtIDs = []
+        let scopeTouched = pendingFollowupScopeTouched
+        pendingFollowupScopeTouched = false
+        defer { postFollowupDerivedDidChange() }
+        // 无试点范围时无 scope 可清（已销毁范围由撤权/索引销毁/范围退出路径处理），
+        // 只广播事件让视图按统一资格收敛为空
+        guard let scopeID = ThoughtSemanticFeatureFlags.followupPilotScope(),
+              scopeTouched || !affected.isEmpty else { return }
+        do {
+            let cleared = try await ThoughtFollowupInvalidation.run(store: store,
+                                                                    scopeID: scopeID,
+                                                                    affectedThoughtIDs: affected)
+            if cleared > 0 {
+                logger.info("脉络派生定向清理：\(cleared) 批次失效")
+            }
+        } catch {
+            // 清理失败不影响主流程，读侧校验兜底（§6 C3「读时再验」）
+            logger.error("脉络派生定向清理失败（读侧校验兜底）：\(error.localizedDescription)")
+        }
+    }
+
+    private func postFollowupDerivedDidChange() {
+        NotificationCenter.default.post(name: ThoughtFollowupProjection.followupDerivedDidChange, object: nil)
     }
     /// 输入停止后再处理，保存本身不等待网络。
     private func scheduleWake() {
@@ -266,6 +358,15 @@ final class ThoughtSemanticChangeFeed {
         ThoughtSemanticFeatureFlags.consentGeneration += 1
         // pending/running 任务全部终态化（迟到结果由 generation 校验兜底）
         try? await store.cancelAllJobs()
+        // 脉络核对撤权收口（W3，§6 C3「撤授权时取消在途并清除新增派生 JSON」）：
+        // 取消在途核对、清能力缓存、当前试点范围整体退出清理（含 quotes 的判定
+        // JSON 不留设备；隐藏回执仅含稳定 ID，按规格保留——「清除设备索引」才清）
+        await ThoughtFollowupCoordinator.shared.cancelActiveRun()
+        await ThoughtFollowupCapabilityCache.shared.invalidate()
+        if let scopeID = ThoughtSemanticFeatureFlags.followupPilotScope() {
+            try? await store.destroyFollowupData(scopeID: scopeID)
+        }
+        postFollowupDerivedDidChange()
         logger.notice("授权已撤回，generation=\(ThoughtSemanticFeatureFlags.consentGeneration)")
     }
 
@@ -277,10 +378,13 @@ final class ThoughtSemanticChangeFeed {
     /// 「删除设备智能索引」（设置页）：先停管线节拍并释放内存索引
     /// （否则 30s 心跳继续用旧引用写入、checkpoint 可能把旧向量写回磁盘），
     /// 再销毁语义库与索引缓存。销毁后可重新 bootstrap 重建。
+    /// followup 三表（结果/来源/隐藏回执）随 semantic.sqlite 一并销毁
+    ///（§6 C3「清除设备索引按现有入口清掉本机反馈」）；shutdown 内已取消在途核对。
     func destroyIndex() async throws {
         await ThoughtSemanticPipeline.shared.shutdown()
         guard let store else { return }
         try await store.destroyAllData()
+        postFollowupDerivedDidChange()
         logger.notice("设备智能索引已销毁")
     }
 }

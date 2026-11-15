@@ -60,6 +60,12 @@ struct TopicDetailView: View {
     @State private var summaryRefreshing = false
     @State private var summaryFailedOnce = false
 
+    /// W3 脉络卡（试点，§5 B2）：已核对脉络的本机只读视图。全链资格（授权/
+    /// 整理开关/试点范围/服务器能力）内建于投影——视图只判空渲染，加载失败
+    /// 静默隐藏不弹错，空结果整块不渲染（§1 表第 4 行）。
+    @State private var threadCards: [FollowupThreadCard] = []
+    @State private var expandedThreadIDs: Set<UUID> = []
+
     /// 主题色（按主题在知识树中的稳定标识取色板色）
     private var themeColor: Color {
         Color.topicPalette(for: topic?.title ?? "")
@@ -201,6 +207,10 @@ struct TopicDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             Task { await loadData() }
         }
+        // W3：试点开关/整理设置变化即时生效——投影按当前资格返回，关闭试点即整块撤下
+        .onReceive(NotificationCenter.default.publisher(for: ThoughtSemanticFeatureFlags.settingsDidChange)) { _ in
+            Task { await loadThreadCards() }
+        }
         // 全屏阅读页：边缘右滑返回（fullScreenCover 无系统返回）
         .holoEdgeSwipeBack { dismiss() }
     }
@@ -213,6 +223,7 @@ struct TopicDetailView: View {
         guard topic != nil else { return }
         thoughts = (try? topicRepository.fetchThoughts(byTopic: topicId)) ?? []
         tagBuckets = (try? thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)) ?? []
+        await loadThreadCards()
         if ThoughtSemanticFeatureFlags.uiEnabled, let topic {
             await loadSummaryIfEligible(for: topic)
         }
@@ -265,6 +276,143 @@ struct TopicDetailView: View {
         return .init(summary: record.summary, viewpoints: viewpoints)
     }
 
+    // MARK: - W3 脉络卡（试点，§5 B2）
+
+    /// 读取本主题的已核对脉络。投影内置资格与范围（非试点主题返回空）；
+    /// 至多 2 条卡（§5 B2「每个主题至多两个」）。
+    @MainActor
+    private func loadThreadCards() async {
+        guard let cards = try? await ThoughtFollowupProjection.activeThreadCards(scopeID: topicId) else {
+            threadCards = []
+            return
+        }
+        threadCards = Array(cards.prefix(2))
+    }
+
+    /// 值得回看的脉络：区块标题 + 脉络卡。空结果整个区块不渲染（不留空壳）。
+    @ViewBuilder
+    private var threadCardsSection: some View {
+        if !threadCards.isEmpty {
+            VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
+                Text("值得回看的脉络")
+                    .font(ThoughtLayout.metadata)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+                ForEach(threadCards, id: \.localID) { card in
+                    threadCard(card)
+                }
+            }
+        }
+    }
+
+    /// 单张脉络卡：卡面=脉络标题（主题句）+ 支持笔记数；点按展开按时间排好的
+    /// 来源行（日期、锚点/成员角色、原文片段）；长按菜单可隐藏这张卡。
+    private func threadCard(_ card: FollowupThreadCard) -> some View {
+        let expanded = expandedThreadIDs.contains(card.localID)
+        // 关系按冻结的 createdAt 严格从早到晚（§6 C1）
+        let sources = card.sources.sorted { $0.createdAt < $1.createdAt }
+        return VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
+            Button {
+                withAnimation(HoloAnimation.smooth) {
+                    if expanded {
+                        expandedThreadIDs.remove(card.localID)
+                    } else {
+                        expandedThreadIDs.insert(card.localID)
+                    }
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(card.title)
+                        .font(ThoughtLayout.secondary)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(card.question)
+                            .font(ThoughtLayout.metadata)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Text("\(card.supportCount) 条来源")
+                            .font(ThoughtLayout.metadata)
+                            .foregroundColor(.holoTextPlaceholder)
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.6))
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button(role: .destructive) {
+                    hideThreadCard(card)
+                } label: {
+                    Label("隐藏这条脉络", systemImage: "eye.slash")
+                }
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(sources, id: \.thoughtID) { source in
+                        Button {
+                            // 复用本页现有阅读入口（fullScreenCover 编辑器）
+                            selectedThoughtId = source.thoughtID
+                        } label: {
+                            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                                Circle()
+                                    .fill(themeColor)
+                                    .frame(width: 6, height: 6)
+                                    .padding(.top, 6)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 5) {
+                                        Text(source.isAnchor ? String(localized: "锚点") : String(localized: "成员"))
+                                            .font(ThoughtLayout.metadata.weight(.medium))
+                                            .foregroundColor(source.isAnchor ? .holoToolAI : .holoTextPlaceholder)
+                                        Text(source.createdAt.formatted(date: .abbreviated, time: .omitted))
+                                            .font(ThoughtLayout.metadata)
+                                            .foregroundColor(.holoTextSecondary)
+                                    }
+                                    Text(source.excerpt)
+                                        .font(ThoughtLayout.secondary)
+                                        .foregroundColor(.holoTextPrimary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.holoTextSecondary)
+                                    .padding(.top, 5)
+                            }
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "查看来源想法"))
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+        )
+    }
+
+    /// 隐藏这条脉络：仅藏这张卡的独立本机操作（§6 C1），当设备立即生效；
+    /// 写投影失败不弹错（下次进页按投影重建，不构成用户负担）。
+    private func hideThreadCard(_ card: FollowupThreadCard) {
+        HapticManager.light()
+        withAnimation(HoloAnimation.quick) {
+            threadCards.removeAll { $0.localID == card.localID }
+        }
+        Task {
+            try? await ThoughtFollowupProjection.hideThread(localID: card.localID, scopeID: topicId)
+        }
+    }
+
     // MARK: - 构成行与交集标签（P1 §3.3，2026-09-27）
 
     /// 主题页主体区块（body 过重抽出的子表达式；区块顺序=方案 §3.3 首屏顺序）
@@ -277,6 +425,8 @@ struct TopicDetailView: View {
         if ThoughtSemanticFeatureFlags.uiEnabled, !thoughts.isEmpty {
             membershipSplitSection
         }
+        // W3 脉络卡（试点）：「你加入 / Holo 找到」之下、摘要卡之前（§1 表第 4 行）
+        threadCardsSection
         // V3 新 UI：AI 摘要卡（生成失败/离线静默隐藏，§4.5）
         if ThoughtSemanticFeatureFlags.uiEnabled {
             topicSummarySection(topic)

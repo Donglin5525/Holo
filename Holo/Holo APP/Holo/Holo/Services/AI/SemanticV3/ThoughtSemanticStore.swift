@@ -918,6 +918,8 @@ actor ThoughtSemanticStore {
 
     /// 幂等新建核对任务：taskKey 已存在（任何非 cancelled 状态）返回 false——
     /// 相同键 verified/no_result 皆终态不重算，重复开页与重启不重新入队（§5 B2）。
+    /// cancelled 行复位复活（W3）：重新启用试点/恢复授权后同键可重算——新生命
+    /// 周期 = 新 operationId、attempt 归零（日额度按新领取重新计，不绕上限）。
     @discardableResult
     func upsertFollowupTask(taskKey: String, scopeID: UUID, anchorID: UUID, policyVersion: String) throws -> Bool {
         try exec("BEGIN IMMEDIATE")
@@ -926,7 +928,14 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(existing) }
         if sqlite3_step(existing) == SQLITE_ROW {
             let state = String(cString: sqlite3_column_text(existing, 0))
-            return state == "cancelled"
+            guard state == "cancelled" else { return false }
+            try bindExec("""
+                UPDATE thought_followup_result
+                SET state='pending', next_attempt_at=NULL, run_deadline=NULL, last_error_code=NULL,
+                    attempt_count=0, started_day=NULL, verified_at=NULL, operation_id=?2
+                WHERE task_key=?1
+                """, .text(taskKey), .text(UUID().uuidString.lowercased()))
+            return true
         }
         try bindExec("""
             INSERT INTO thought_followup_result(task_key, scope_id, anchor_id, state, policy_version,
@@ -1072,6 +1081,85 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
         return Int(sqlite3_column_int64(stmt, 0))
+    }
+
+    // MARK: - 试点队列快照与手动重试（W3，2026-11-16 方案 §6 C3/§1 三档诊断）
+
+    /// 按状态的队列计数（设置页三档诊断与手动重试的判定依据）。
+    struct FollowupQueueStatus: Equatable {
+        var pending = 0
+        var running = 0
+        /// waiting 且已到重试时刻（含 next_attempt_at 为空的等待行，与领取口径一致）
+        var waitingDue = 0
+        /// waiting 且未到期
+        var waitingFuture = 0
+        var failed = 0
+        var verified = 0
+        var noResult = 0
+
+        /// 排队/处理中/等待中的在途键数
+        var inFlight: Int { pending + running + waitingDue + waitingFuture }
+        /// 完成终态（verified 含空结果终态 no_result）
+        var completed: Int { verified + noResult }
+    }
+
+    /// 某试点范围的队列快照（W3 pilotStatus：在途=等待整理，failed/到期=稍后重试）。
+    func followupQueueStatus(scopeID: UUID, now: Date = Date()) throws -> FollowupQueueStatus {
+        let stmt = try prepare("""
+            SELECT
+                COALESCE(SUM(state='pending'),0),
+                COALESCE(SUM(state='running'),0),
+                COALESCE(SUM(state='waiting' AND (next_attempt_at IS NULL OR next_attempt_at <= ?2)),0),
+                COALESCE(SUM(state='waiting' AND next_attempt_at > ?2),0),
+                COALESCE(SUM(state='failed'),0),
+                COALESCE(SUM(state='verified'),0),
+                COALESCE(SUM(state='no_result'),0)
+            FROM thought_followup_result WHERE scope_id=?1
+            """, .uuid(scopeID), .date(now))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return FollowupQueueStatus() }
+        return FollowupQueueStatus(
+            pending: Int(sqlite3_column_int64(stmt, 0)),
+            running: Int(sqlite3_column_int64(stmt, 1)),
+            waitingDue: Int(sqlite3_column_int64(stmt, 2)),
+            waitingFuture: Int(sqlite3_column_int64(stmt, 3)),
+            failed: Int(sqlite3_column_int64(stmt, 4)),
+            verified: Int(sqlite3_column_int64(stmt, 5)),
+            noResult: Int(sqlite3_column_int64(stmt, 6)))
+    }
+
+    /// 手动重试（W3 诊断页「稍后重试」定向人工复测的解冻口径，§6 C2 末条）：
+    /// failed 与未到期 waiting 有界复位为 pending 立即可领——attempt_count 不清零
+    /// （上限口径不变），日额度仍在领取处强制 ≤4；verified/no_result/cancelled/
+    /// running 不动。返回复位行数。
+    @discardableResult
+    func retryFollowupTasks(scopeID: UUID, now: Date = Date()) throws -> Int {
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='pending', next_attempt_at=NULL, run_deadline=NULL, last_error_code=NULL
+            WHERE scope_id=?1 AND (state='failed' OR (state='waiting' AND next_attempt_at > ?2))
+            """, .uuid(scopeID), .date(now))
+        return Int(sqlite3_changes(db))
+    }
+
+    /// 试点范围切换/关闭（W3，settingsDidChange 链路）：keep 之外所有 scope 的
+    /// 未终态行直接取消终态——不占日额度、不靠领取逐拍以 anchor_unavailable 排干；
+    /// cancelled 行可由 upsertFollowupTask 复活（重新启用后同键重算）。keep 为
+    /// nil（试点整体关闭）时取消全部在途。
+    func cancelFollowupTasksOutsideScope(keep scopeID: UUID?) throws {
+        if let scopeID {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code='scope_exited', run_deadline=NULL
+                WHERE state IN('pending','running','waiting') AND scope_id != ?1
+                """, .uuid(scopeID))
+        } else {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code='scope_exited', run_deadline=NULL
+                WHERE state IN('pending','running','waiting')
+                """)
+        }
     }
 
     /// 相同键终态判定（verified/no_result 皆终态，§5 B2）。
@@ -1281,14 +1369,15 @@ actor ThoughtSemanticStore {
         return rows
     }
 
-    /// 范围退出/切换试点主题的有界重建入口（§6 C3）：清该 scope 全部派生行
-    /// （结果、来源、隐藏回执）。相关 pair 拒绝走既有 related_feedback，不在此清。
+    /// 撤权/范围退出的有界清理入口（§6 C3）：清该 scope 的结果与来源行。
+    /// 隐藏回执保留（Dismissal 行「日常重算与回滚保留拒绝」，仅含稳定 ID 无内容，
+    /// 相关 pair 拒绝走既有 related_feedback）；「清除设备索引」走 destroyAllData
+    /// 整库销毁，本机反馈一并清掉。
     func destroyFollowupData(scopeID: UUID) throws {
         try exec("BEGIN IMMEDIATE")
         defer { try? exec("COMMIT") }
         try bindExec("DELETE FROM thought_followup_result WHERE scope_id=?1", .uuid(scopeID))
         try bindExec("DELETE FROM thought_followup_source WHERE scope_id=?1", .uuid(scopeID))
-        try bindExec("DELETE FROM thought_followup_dismissal WHERE scope_id=?1", .uuid(scopeID))
     }
 
     // MARK: - manifest

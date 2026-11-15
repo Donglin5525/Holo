@@ -5782,6 +5782,22 @@
         }
       }
     },
+    "%lld 条来源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sources"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 條來源"
+          }
+        }
+      }
+    },
     "%lld 条现有记录" : {
       "localizations" : {
         "en" : {
@@ -23851,6 +23867,22 @@
         }
       }
     },
+    "值得回看的脉络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Threads worth revisiting"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值得回看的脈絡"
+          }
+        }
+      }
+    },
     "值得留意的变化" : {
       "localizations" : {
         "en" : {
@@ -26352,6 +26384,22 @@
     "关注中的目标" : {
 
     },
+    "关系已按原文核对" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relations verified against the original notes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關係已按原文核對"
+          }
+        }
+      }
+    },
     "关联 %lld 条想法" : {
       "localizations" : {
         "en" : {
@@ -26813,6 +26861,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉智慧總結"
+          }
+        }
+      }
+    },
+    "关闭脉络试点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn off thread pilot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉脈絡試點"
           }
         }
       }
@@ -42098,6 +42162,22 @@
         }
       }
     },
+    "对同一问题给出了不同判断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Took a different view on the same question"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對同一問題給出了不同判斷"
+          }
+        }
+      }
+    },
     "对折" : {
       "localizations" : {
         "en" : {
@@ -46818,6 +46898,22 @@
         }
       }
     },
+    "已核对" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verified"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已核對"
+          }
+        }
+      }
+    },
     "已根据你的需求生成了目标计划「%@」%@" : {
       "localizations" : {
         "en" : {
@@ -49392,6 +49488,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "延期目標時間缺失"
+          }
+        }
+      }
+    },
+    "延续了这个问题" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continued this question"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延續了這個問題"
           }
         }
       }
@@ -54523,6 +54635,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成功返回"
+          }
+        }
+      }
+    },
+    "成员" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Member"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成員"
           }
         }
       }
@@ -85896,6 +86024,22 @@
         }
       }
     },
+    "稍后重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry later"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後重試"
+          }
+        }
+      }
+    },
     "稳定之中有自己的思考" : {
       "localizations" : {
         "en" : {
@@ -86955,6 +87099,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待完成"
+          }
+        }
+      }
+    },
+    "等待整理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to organize"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待整理"
           }
         }
       }
@@ -89840,6 +90000,22 @@
         }
       }
     },
+    "脉络核对试点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thread review pilot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "脈絡核對試點"
+          }
+        }
+      }
+    },
     "胶片" : {
       "localizations" : {
         "en" : {
@@ -90980,6 +91156,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補"
+          }
+        }
+      }
+    },
+    "补了一个新的例子" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added a new example"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "補了一個新的例子"
           }
         }
       }
@@ -94714,6 +94906,22 @@
         }
       }
     },
+    "试点主题" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pilot topic"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試點主題"
+          }
+        }
+      }
+    },
     "试用结束后自动按所选方案续订，可随时取消" : {
       "localizations" : {
         "en" : {
@@ -96416,6 +96624,22 @@
     },
     "调整习惯" : {
 
+    },
+    "调整了先前的判断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revised an earlier judgment"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整了先前的判斷"
+          }
+        }
+      }
     },
     "调整任务" : {
 
@@ -108953,6 +109177,22 @@
         }
       }
     },
+    "重试脉络核对" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry thread review"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試脈絡核對"
+          }
+        }
+      }
+    },
     "重试识别" : {
       "localizations" : {
         "en" : {
@@ -109477,6 +109717,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "錯誤記錄僅保存在本機，用於排查同步問題，最多保留最近 20 條。"
+          }
+        }
+      }
+    },
+    "锚点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anchor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錨點"
           }
         }
       }
@@ -110080,6 +110336,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏合集 %@"
+          }
+        }
+      }
+    },
+    "隐藏这条脉络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide this thread"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏這條脈絡"
           }
         }
       }

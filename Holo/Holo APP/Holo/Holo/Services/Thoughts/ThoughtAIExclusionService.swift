@@ -50,6 +50,9 @@ actor ThoughtAIExclusionService {
         }) ?? (excluded: [], restored: 0)
         if !outcome.excluded.isEmpty {
             await purgeSemanticArtifacts(for: outcome.excluded)
+            // 加「不参与 AI」→ 受影响脉络派生失效（W3，§6 C3 统一收口给
+            // ChangeFeed；防抖与定向清理由 feed 内完成）
+            await ThoughtSemanticChangeFeed.shared.invalidateFollowupDerived(thoughtIDs: outcome.excluded)
         }
         if outcome.excluded.count + outcome.restored > 0 {
             logger.info("AI 排除 reconcile：退出 \(outcome.excluded.count) 条，恢复 \(outcome.restored) 条")

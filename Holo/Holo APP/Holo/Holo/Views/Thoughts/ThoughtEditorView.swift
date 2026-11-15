@@ -250,9 +250,12 @@ struct ThoughtEditorView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             if !aiExcluded && ThoughtSemanticFeatureFlags.resurfacingEnabled {
+                                // W3（§6 C1）：正文有未保存修改时已核对关系立即隐藏；
+                                // 保存后经既有变化流自然恢复，视图不手动刷新。
                                 ThoughtRelatedSection(
                                     thoughtID: currentThoughtId,
                                     content: content,
+                                    hasUnsavedEdits: content != originalContent,
                                     onOpenThought: { targetId in
                                         NotificationCenter.default.post(
                                             name: .thoughtRequestOpenEditor, object: targetId)

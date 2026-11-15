@@ -34,6 +34,7 @@ struct ThoughtSemanticStoreStandaloneTests {
         try await destroySemantics(tmp)
         try await malformedVectorAndOpenContract(tmp)
         try await followupTableLifecycle(tmp.appendingPathComponent("followup"))
+        try await followupQueueAndRetrySemantics(tmp.appendingPathComponent("followup-retry"))
         followupSamplingAndTaskKey()
         try followupContractAgainstFixtures()
         try? FileManager.default.removeItem(at: tmp)
@@ -512,17 +513,141 @@ struct ThoughtSemanticStoreStandaloneTests {
         let dismissals = try await rolledBack.followupDismissals(scopeID: scope)
         check(dismissals.count == 1 && dismissals[0].memberIDs.count == 4, "dismissal 幂等覆盖")
 
-        // —— 范围退出清理：三表全清（相关 pair 拒绝走 related_feedback 不在此清）——
+        // —— 撤权/范围退出清理：结果与来源清空，隐藏回执保留（W3 口径，
+        //    §6 C3「日常重算与回滚保留拒绝」；「清除设备索引」走整库销毁才清）——
         let feedbackThought = UUID(), feedbackRelated = UUID()
         try await rolledBack.recordRelatedFeedback(thoughtID: feedbackThought, relatedID: feedbackRelated, basisHash: "h")
         try await rolledBack.destroyFollowupData(scopeID: scope)
         let scopeResultsCleared = try await rolledBack.followupResults(scopeID: scope).isEmpty
         let scopeSourcesCleared = try await rolledBack.followupSources(taskKey: taskKey).isEmpty
-        let scopeDismissalsCleared = try await rolledBack.followupDismissals(scopeID: scope).isEmpty
-        check(scopeResultsCleared && scopeSourcesCleared && scopeDismissalsCleared, "范围退出清空三表")
+        let scopeDismissalsKept = !(try await rolledBack.followupDismissals(scopeID: scope)).isEmpty
+        check(scopeResultsCleared && scopeSourcesCleared, "撤权/范围退出清空结果与来源")
+        check(scopeDismissalsKept, "隐藏回执保留（拒绝不复活，整库销毁才清本机反馈）")
         check(!(try await rolledBack.relatedFeedbackIDs(thoughtID: feedbackThought)).isEmpty,
               "related_feedback 独立于 followup 清理（相关 pair 拒绝保留）")
         await rolledBack.close()
+    }
+
+    /// W3 追加：队列快照/手动重试复位/取消复活/A→B 切换不烧额度/撤权保留 dismissal。
+    /// 时序注意：领取会把超时限的 running 行回收回队列（崩溃恢复语义），因此每个
+    /// 断言后把领取行终态化清场；「留在途」的行用远期领取时钟使运行时限不超时。
+    static func followupQueueAndRetrySemantics(_ root: URL) async throws {
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+        let base = Calendar.current.startOfDay(for: Date()).addingTimeInterval(3_600)
+        let d2 = base.addingTimeInterval(86_400), d3 = base.addingTimeInterval(2 * 86_400)
+        let d4 = base.addingTimeInterval(3 * 86_400), d5 = base.addingTimeInterval(4 * 86_400)
+        let farDay = base.addingTimeInterval(10 * 86_400)   // 留途行专用：运行时限不会被测试内时钟超时
+        let scopeS = UUID(), scopeO = UUID()
+
+        // —— 1. 队列快照：七种形态 + 范围隔离 ——
+        func enqueue(_ key: String, scope: UUID) async throws {
+            check(try await store.upsertFollowupTask(taskKey: key, scopeID: scope, anchorID: UUID(),
+                                                     policyVersion: "thought-followup-1"), "新键入队 \(key)")
+        }
+        try await enqueue("q-running", scope: scopeS)
+        check(try await store.claimNextFollowupTask(now: farDay)?.taskKey == "q-running", "留途行领取（远期时限不回收）")
+        try await enqueue("q-wait-future", scope: scopeS)
+        _ = try await store.claimNextFollowupTask(now: base)
+        try await store.finishFollowupWaiting(taskKey: "q-wait-future",
+                                              nextAttemptAt: base.addingTimeInterval(5 * 86_400),
+                                              errorCode: "RATE_LIMITED")           // waiting 未到期
+        try await enqueue("q-wait-due", scope: scopeS)
+        _ = try await store.claimNextFollowupTask(now: base)
+        try await store.finishFollowupWaiting(taskKey: "q-wait-due",
+                                              nextAttemptAt: d2.addingTimeInterval(3_600),
+                                              errorCode: "RATE_LIMITED")           // waiting：d2 各领取之后、d3 之前到期
+        try await enqueue("q-failed", scope: scopeS)
+        _ = try await store.claimNextFollowupTask(now: d2)
+        try await store.finishFollowupFailed(taskKey: "q-failed", errorCode: "MODEL_OUTPUT_INVALID")
+        try await enqueue("q-verified", scope: scopeS)
+        _ = try await store.claimNextFollowupTask(now: d2.addingTimeInterval(60))
+        try await store.finishFollowupVerified(taskKey: "q-verified", decisions: [], thread: nil)
+        try await enqueue("q-no-result", scope: scopeS)
+        _ = try await store.claimNextFollowupTask(now: d2.addingTimeInterval(120))
+        try await store.finishFollowupNoResult(taskKey: "q-no-result")
+        try await enqueue("q-pending", scope: scopeS)
+        try await enqueue("q-other-scope", scope: scopeO)
+
+        let statusS = try await store.followupQueueStatus(scopeID: scopeS, now: d3)
+        check(statusS.pending == 1 && statusS.running == 1 && statusS.waitingDue == 1
+              && statusS.waitingFuture == 1 && statusS.failed == 1 && statusS.verified == 1
+              && statusS.noResult == 1, "七形态计数（实测 \(statusS)）")
+        check(statusS.inFlight == 4 && statusS.completed == 2, "在途/完成聚合口径")
+        let statusO = try await store.followupQueueStatus(scopeID: scopeO, now: d3)
+        check(statusO.pending == 1 && statusO.inFlight == 1 && statusO.failed == 0, "快照按范围隔离")
+
+        // —— 2. 手动重试复位：failed + 未到期 waiting → pending；终态/在途不动；
+        //        attempt 口径不变（不清零、不占额外额度）——
+        let attemptsBefore = try await store.followupDailyAttempts(now: d3)
+        let reset = try await store.retryFollowupTasks(scopeID: scopeS, now: d3)
+        check(reset == 2, "仅复位 failed 与未到期 waiting（实测 \(reset)）")
+        let afterRetry = try await store.followupQueueStatus(scopeID: scopeS, now: d3)
+        check(afterRetry.pending == 3 && afterRetry.waitingDue == 1 && afterRetry.waitingFuture == 0
+              && afterRetry.failed == 0 && afterRetry.verified == 1 && afterRetry.noResult == 1
+              && afterRetry.running == 1, "复位后仅 pending 增、到期等待与终态/在途不动")
+        let revivedFailed = try await store.followupResult(taskKey: "q-failed")
+        check(revivedFailed?.attemptCount == 1 && revivedFailed?.lastErrorCode == nil,
+              "attempt_count 保留、错误码清空")
+        check(try await store.followupDailyAttempts(now: d3) == attemptsBefore,
+              "复位本身不消耗当日额度（领取处才计）")
+        let firstClaim = try await store.claimNextFollowupTask(now: d3)
+        check(firstClaim?.taskKey == "q-wait-future" && firstClaim?.attemptCount == 2,
+              "复位行立即按序领取，attempt 延续计数")
+        try await store.finishFollowupNoResult(taskKey: "q-wait-future")   // 清场
+        let dueClaim = try await store.claimNextFollowupTask(now: d3.addingTimeInterval(60))
+        check(dueClaim?.taskKey == "q-wait-due", "到期等待行不在复位范围、本就可领（按创建序）")
+        try await store.finishFollowupNoResult(taskKey: "q-wait-due")      // 清场
+
+        // —— 3. 取消复活：cancelled 行 upsert 复位回 pending（新 operationId/attempt 归零）——
+        try await store.cancelFollowupTasks(scopeID: scopeO, errorCode: "consent_revoked")
+        check(try await store.followupResult(taskKey: "q-other-scope")?.state == .cancelled, "取消终态")
+        let originalOperation = try await store.followupResult(taskKey: "q-other-scope")?.operationID
+        check(try await store.upsertFollowupTask(taskKey: "q-other-scope", scopeID: scopeO, anchorID: UUID(),
+                                                 policyVersion: "thought-followup-1"), "cancelled 键可复活")
+        let revived = try await store.followupResult(taskKey: "q-other-scope")
+        check(revived?.state == .pending && revived?.attemptCount == 0 && revived?.startedDay == nil
+              && revived?.operationID != originalOperation, "复活 = 新生命周期（pending/attempt 归零/新 operationId）")
+        // 追清剩余 pending（q-failed/q-pending/q-other-scope），验证复活行可被领取
+        let drain1 = try await store.claimNextFollowupTask(now: d4)
+        check(drain1?.taskKey == "q-failed", "复位 failed 行按创建序先领")
+        try await store.finishFollowupNoResult(taskKey: "q-failed")        // 清场
+        let drain2 = try await store.claimNextFollowupTask(now: d4.addingTimeInterval(60))
+        check(drain2?.taskKey == "q-pending", "未触碰的 pending 行照常领取")
+        try await store.finishFollowupNoResult(taskKey: "q-pending")       // 清场
+        let drain3 = try await store.claimNextFollowupTask(now: d4.addingTimeInterval(120))
+        check(drain3?.taskKey == "q-other-scope" && drain3?.attemptCount == 1,
+              "复活行进入正常领取（attempt 从 1 重新计）")
+        try await store.finishFollowupNoResult(taskKey: "q-other-scope")   // 清场
+
+        // —— 4. A→B 切换：旧 scope 未终态直接取消，不烧额度、不逐拍排干 ——
+        let scopeA = UUID(), scopeB = UUID()
+        try await store.upsertFollowupTask(taskKey: "qa-running", scopeID: scopeA, anchorID: UUID(), policyVersion: "p")
+        _ = try await store.claimNextFollowupTask(now: d4.addingTimeInterval(180))  // qa-running（唯一 pending，领走置 running）
+        try await store.upsertFollowupTask(taskKey: "qa-pending", scopeID: scopeA, anchorID: UUID(), policyVersion: "p")
+        try await store.upsertFollowupTask(taskKey: "qb-pending", scopeID: scopeB, anchorID: UUID(), policyVersion: "p")
+        try await store.cancelFollowupTasksOutsideScope(keep: scopeB)
+        let qaPending = try await store.followupResult(taskKey: "qa-pending")
+        let qaRunning = try await store.followupResult(taskKey: "qa-running")
+        check(qaPending?.state == .cancelled && qaRunning?.state == .cancelled
+              && qaPending?.attemptCount == 0 && qaRunning?.attemptCount == 1,
+              "旧 scope 未终态行取消终态且 attempt 不被额外消耗")
+        check(try await store.followupResult(taskKey: "qb-pending")?.state == .pending, "保留 scope 在途行不动")
+        check(try await store.claimNextFollowupTask(now: d5)?.taskKey == "qb-pending",
+              "旧 scope 行不再被逐拍领取（下一拍直接领新 scope）")
+
+        // —— 5. 撤权保留 dismissal；清除设备索引（整库销毁）才清本机反馈 ——
+        let threadID = UUID().uuidString
+        try await store.recordFollowupDismissal(scopeID: scopeA, threadID: threadID,
+                                                memberIDs: [UUID(), UUID(), UUID()])
+        try await store.destroyFollowupData(scopeID: scopeA)
+        let dismissalsKept = try await store.followupDismissals(scopeID: scopeA)
+        check((try await store.followupResults(scopeID: scopeA)).isEmpty && dismissalsKept.count == 1,
+              "撤权清结果/来源、隐藏回执保留")
+        try await store.destroyAllData()
+        check(try await store.followupDismissals(scopeID: scopeA).isEmpty, "整库销毁清掉本机反馈")
+        await store.close()
+        print("PASS: W3 队列快照/手动重试复位/取消复活/A→B 切换不烧额度/撤权保留 dismissal")
     }
 
     /// 保留淘汰场景（参数注入小阈值验证真实 SQL 语义）。

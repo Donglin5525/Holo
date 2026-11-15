@@ -24,6 +24,11 @@ struct ThoughtOrganizationSettingsView: View {
     /// 类别理解进度（2026-10-12 主题双通道 B4）：防「没做/没轮到」误判——
     /// 起草走慢速节拍，没有进度表达时装包数小时看不到定义会被当成没生效。
     @State private var briefStats: (count: Int, lastUpdatedAt: Date?)? = nil
+    /// W3 脉络核对试点诊断（§1 表第 6 行）：三档状态 + 试点范围透明。
+    /// 仅试点开启时展示这一组行，默认不可见（设置页不臃肿）。
+    @State private var pilotStatus: FollowupPilotStatus? = nil
+    @State private var pilotTopicName: String? = nil
+    @State private var pilotRetryBusy = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -108,6 +113,17 @@ struct ThoughtOrganizationSettingsView: View {
                         Text("处理完成的笔记不一定需要归类；只有原文支持具体主题时才会归入。")
                             .font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                     } else { Text("正在准备智能整理") }
+                    // W3 脉络核对试点诊断：三档状态 + 手动重试 + 范围透明可关闭。
+                    // 仅试点开启时可见（默认不占版面，遵守「设置页不臃肿」）。
+                    if ThoughtSemanticFeatureFlags.followupPilotEnabled() {
+                        LabeledContent("脉络核对试点", value: pilotStatusText)
+                        LabeledContent("试点主题", value: pilotTopicName ?? "—")
+                        Button("重试脉络核对") { retryFollowupPilot() }
+                            .disabled(pilotRetryBusy)
+                        Button("关闭脉络试点", role: .destructive) {
+                            ThoughtSemanticFeatureFlags.setFollowupPilot(enabled: false, topicID: nil)
+                        }
+                    }
                     // 未授权/已关闭时这个按钮永远不可用，藏掉而不是灰着占一行
                     if automatic && granted {
                         Button("核对全部笔记并重试失败项") {
@@ -165,7 +181,40 @@ struct ThoughtOrganizationSettingsView: View {
         }
         discoveryMessage = await ThoughtAutomaticTopicDiscovery.shared.statusMessage
         await refreshOutcomeCounts()
+        await refreshFollowupPilotDiagnostics()
         excludedTagCount = ThoughtRepository().countExcludedTags()
+    }
+
+    // MARK: - W3 脉络核对试点诊断（§1 表第 6 行）
+
+    private var pilotStatusText: String {
+        switch pilotStatus {
+        case .verified: return String(localized: "已核对")
+        case .retryLater: return String(localized: "稍后重试")
+        default: return String(localized: "等待整理")
+        }
+    }
+
+    /// 试点状态与范围名（透明展示）；读取失败按「等待整理」口径显示，不额外报错。
+    @MainActor private func refreshFollowupPilotDiagnostics() async {
+        guard let scopeID = ThoughtSemanticFeatureFlags.followupPilotScope() else {
+            pilotStatus = nil
+            pilotTopicName = nil
+            return
+        }
+        pilotStatus = try? await ThoughtFollowupProjection.pilotStatus(scopeID: scopeID)
+        pilotTopicName = (try? TopicRepository().fetchTopicById(scopeID))?.title
+    }
+
+    /// 手动重试（§1 表第 6 行）：交由投影重置可重试任务，仍受每日核对上限约束。
+    @MainActor private func retryFollowupPilot() {
+        guard let scopeID = ThoughtSemanticFeatureFlags.followupPilotScope() else { return }
+        pilotRetryBusy = true
+        Task {
+            try? await ThoughtFollowupProjection.requestRetry(scopeID: scopeID)
+            await refresh()
+            pilotRetryBusy = false
+        }
     }
 
     /// 成果计数（已归类笔记/可见主题）。数据量在数百条级，直接投影统计。
