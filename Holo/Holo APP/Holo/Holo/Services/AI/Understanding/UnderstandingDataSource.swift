@@ -17,7 +17,7 @@ import CoreData
 nonisolated enum UnderstandingDataSource {
 
     /// 财务真实取数：近 90 天支出、排除退款与对账调整、带备注与类目。
-    /// 取数口径与 MemorySignalDataAdapter.buildFinanceMemorySnapshotInput 同源
+    /// 取数口径与 MemorySignalDataAdapter.buildRecordedExpenseInputs 同源
     ///（真实消费、退款不参与、对账调整不混入）。
     @MainActor
     static func financeInputs(now: Date = Date()) async -> [FinanceObservationInput] {
@@ -25,14 +25,13 @@ nonisolated enum UnderstandingDataSource {
         let calendar = Calendar.current
         guard let windowStart = calendar.date(byAdding: .day, value: -90, to: now) else { return [] }
         let repository = FinanceRepository.shared
-        guard let transactions = try? await repository.getAllTransactions() else { return [] }
-        // 窗口过滤在内存做（getAllTransactions 无窗口参数；重度库 1.2 万笔量级
-        // 全量 fetch 百毫秒内，暂不加专用 predicate 通道——性能挂账观察项）。
+        // 90 天窗口下推 SQLite（getStatisticsTransactions 半开区间谓词，含
+        // 排对账调整/软删/未入账——重度库 1.2 万笔不再全量 fetch 后内存滤，
+        // 性能挂账由此消除）。支出类型与退款笔仍在内存滤（统计口径返回收支两类）。
+        guard let transactions = try? await repository.getStatisticsTransactions(from: windowStart, to: now) else { return [] }
         return transactions.compactMap { transaction in
             guard transaction.transactionType == .expense,
-                  !transaction.isRefund,
-                  !transaction.isReconciliationAdjustment,
-                  transaction.date >= windowStart else { return nil }
+                  !transaction.isRefund else { return nil }
             let note = transaction.note?.trimmingCharacters(in: .whitespacesAndNewlines)
             // 类目可选：无类目的账单只带备注概念（观察不强求类目）。
             let categoryNames: String? = transaction.category.map { category in
