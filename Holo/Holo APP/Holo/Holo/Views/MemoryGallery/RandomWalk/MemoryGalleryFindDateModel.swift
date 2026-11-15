@@ -557,25 +557,3 @@ struct MemoryWalkThoughtReader: View {
         }
     }
 }
-
-
-/// 附件缩略图（阅读页本地版；UIKit/AppKit 双端）。
-private struct MemoryGalleryThumbnail: View {
-    let data: Data
-
-    var body: some View {
-        #if canImport(UIKit)
-        if let image = UIImage(data: data) {
-            Image(uiImage: image).resizable()
-        } else {
-            Color.galleryInset
-        }
-        #else
-        if let image = NSImage(data: data) {
-            Image(nsImage: image).resizable()
-        } else {
-            Color.galleryInset
-        }
-        #endif
-    }
-}

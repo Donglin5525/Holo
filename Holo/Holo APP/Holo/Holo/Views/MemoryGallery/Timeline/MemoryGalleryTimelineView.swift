@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import ImageIO
 
 // MARK: - 主预览选取（纯函数，单测入口）
 
@@ -622,35 +623,75 @@ struct MemoryGalleryTimelineView: View {
 
 /// 解码缓存（在档坑：UIImage(data:) 在 body 里=每次求值重新解码，滚动卡顿主因之一；
 /// 与 AttachmentImageLoader 同思路，这里键取内容 hash）。
+/// 2026-11-15 真机三报定谳后升级：解码挪到后台线程并按显示需求降采样（ImageIO），
+/// 主线程只收已解码的小位图——此前全尺寸解码发生在暖光动画首帧的主线程上，
+/// 动画 1.45s 全程被解码堵死，东林看到的是「卡一下→结果直接出现」（11-15 东林实报）。
 enum MemoryGalleryThumbnailCache {
-    static let cache = NSCache<NSString, UIImage>()
+    static let cache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.countLimit = 48
+        c.totalCostLimit = 120 * 1024 * 1024
+        return c
+    }()
 
-    static func image(for data: Data) -> UIImage? {
-        let key = NSString(string: String(data.hashValue) + "-" + String(data.count))
-        if let cached = cache.object(forKey: key) { return cached }
-        guard let image = UIImage(data: data) else { return nil }
-        cache.setObject(image, forKey: key)
-        return image
+    /// 长廊图片最大显示宽≈345pt（3x=1035px）；横幅 fill 裁切只显示图的一部分，
+    /// 长边 2400 对常见手机照片/截图都保住显示区清晰度，同时把位图压回可缓存的大小。
+    static let maxPixelSize = 2400
+
+    private static func key(for data: Data) -> NSString {
+        NSString(string: String(data.hashValue) + "-" + String(data.count))
+    }
+
+    /// 已解码位图的同步查询（热路径：滚动复用/重排版零解码开销）。
+    static func cachedImage(for data: Data) -> UIImage? {
+        cache.object(forKey: key(for: data))
+    }
+
+    /// 查缓存 → 后台解码降采样 → 入缓存。首次显示走这条：解码不再堵主线程。
+    static func decodeImage(for data: Data) async -> UIImage? {
+        if let cached = cachedImage(for: data) { return cached }
+        let decoded: UIImage? = await Task.detached(priority: .userInitiated) {
+            // kCGImageSourceShouldCacheImmediately 在生成缩略图时立即解码像素，
+            // 后台线程把解码做完，主线程拿到的 UIImage 已是可绘制的解码位图。
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let cgImage = CGImageSourceCreateThumbnailAtIndex(
+                      source, 0,
+                      [kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+                       kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+            else { return nil }
+            return UIImage(cgImage: cgImage)
+        }.value
+        if let decoded {
+            let cost = decoded.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+            cache.setObject(decoded, forKey: key(for: data), cost: cost)
+        }
+        return decoded
     }
 }
 
 private struct MemoryGalleryThumbnail: View {
     let data: Data
 
+    /// init 同步吃缓存（热路径首帧即有图）；未命中给占位色，task 后台解码完回填——
+    /// 漫步首帧暖光盖着横幅，占位→回填的切换用户看不见。
+    @State private var image: UIImage?
+
+    init(data: Data) {
+        self.data = data
+        _image = State(initialValue: MemoryGalleryThumbnailCache.cachedImage(for: data))
+    }
+
     var body: some View {
-        #if canImport(UIKit)
-        if let image = MemoryGalleryThumbnailCache.image(for: data) {
-            Image(uiImage: image).resizable()
-        } else {
-            Color.galleryInset
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Color.galleryInset
+            }
         }
-        #else
-        if let image = NSImage(data: data) {
-            Image(nsImage: image).resizable()
-        } else {
-            Color.galleryInset
+        .task(id: data) {
+            image = await MemoryGalleryThumbnailCache.decodeImage(for: data)
         }
-        #endif
     }
 }
 

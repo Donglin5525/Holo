@@ -30,7 +30,10 @@ struct MemoryWarmLightTransition: View {
     let elapsed: () -> TimeInterval
 
     var body: some View {
-        TimelineView(.animation) { _ in
+        // 限 60fps：ProMotion 真机不限频会按 120Hz 全量求值+下发渲染，压力翻倍；
+        // 柔和光效 60fps 视觉无差（CSS 动画同基准）。11-15 东林真机实报「卡一下
+        // 动画不出」的配套减负——主线程每帧成本不变的前提下帧预算翻倍。
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
             GeometryReader { proxy in
                 let frame = timeline.frame(at: elapsed(), canvas: proxy.size)
                 WarmLightPlate(departure: departure,

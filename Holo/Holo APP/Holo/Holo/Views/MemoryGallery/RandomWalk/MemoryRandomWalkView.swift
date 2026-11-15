@@ -399,27 +399,6 @@ static func orderedPreviews(for events: [CalendarEvent]) -> [CalendarEvent] {
     MemoryRandomWalkSession.orderedPreviews(for: events)
 }
 
-/// 附件缩略图（UIKit/AppKit 双端；数据缺失时留空不占位）。
-private struct WarmWalkThumbnail: View {
-    let data: Data
-
-    var body: some View {
-        #if canImport(UIKit)
-        if let image = UIImage(data: data) {
-            Image(uiImage: image).resizable().scaledToFill()
-        } else {
-            Color.clear
-        }
-        #else
-        if let image = NSImage(data: data) {
-            Image(nsImage: image).resizable().scaledToFill()
-        } else {
-            Color.clear
-        }
-        #endif
-    }
-}
-
     // MARK: - 回看一句
 
     /// 原型 walk-reading 1:1：inset 底 + 左 2px 橙线 + 右侧 12pt 圆角；
