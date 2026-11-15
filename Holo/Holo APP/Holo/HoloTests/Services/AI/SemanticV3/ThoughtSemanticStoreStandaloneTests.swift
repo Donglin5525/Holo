@@ -33,8 +33,14 @@ struct ThoughtSemanticStoreStandaloneTests {
         vectorMath()
         try await destroySemantics(tmp)
         try await malformedVectorAndOpenContract(tmp)
+        try await followupTableLifecycle(tmp.appendingPathComponent("followup"))
+        followupSamplingAndTaskKey()
+        try followupContractAgainstFixtures()
         try? FileManager.default.removeItem(at: tmp)
         print("PASS: store生命周期+Float16往返+版本判定+job去重/领取/取消+flat检索正确性+销毁重建+向量数学+R03/R14异常契约")
+        print("PASS: 脉络核对三表生命周期（迁移/重启/终态不重算/日额度/保留淘汰/升级失败可回退）")
+        print("PASS: 采样/窗口/taskKey/脉络卡纯函数（分层等距/头尾窗口/Jaccard 选段/代理对边界/B2 压制排序）")
+        print("PASS: verify-followup 契约对齐真实 fixtures（成功/单对/空/错误封套 + 篡改反证）")
     }
 
     // MARK: - 1. store 生命周期与 CRUD
@@ -333,7 +339,553 @@ struct ThoughtSemanticStoreStandaloneTests {
         check(SemanticVectorMath.normalized([0, 0]) == [0, 0], "零向量原样返回")
     }
 
-    // MARK: - 6. R03/R14 异常输入契约（2026-10-04 体检回归）
+    // MARK: - 7. 脉络核对三表生命周期（W2，2026-11-16 方案 §6 C3）
+
+    /// 三表迁移/空库/旧库升级/重复 bootstrap/重启/升级失败可回退/终态不重算/保留淘汰。
+    static func followupTableLifecycle(_ root: URL) async throws {
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+
+        // —— 空库建表 + 重复 bootstrap 幂等 ——
+        let scope = UUID(), anchor = UUID()
+        let taskKey = "task-\(anchor.uuidString)"
+        check(try await store.upsertFollowupTask(taskKey: taskKey, scopeID: scope, anchorID: anchor,
+                                                 policyVersion: "thought-followup-1"), "新键入队")
+        check(!(try await store.upsertFollowupTask(taskKey: taskKey, scopeID: scope, anchorID: anchor,
+                                                   policyVersion: "thought-followup-1")), "在途任务不重复入队")
+        await store.close()
+        let reopened = await ThoughtSemanticStore(root: root)
+        try await reopened.open() // 重复 bootstrap 幂等
+        check(!(try await reopened.upsertFollowupTask(taskKey: taskKey, scopeID: scope, anchorID: anchor,
+                                                      policyVersion: "thought-followup-1")), "重启后同键仍不重复入队")
+
+        // —— 领取（调用前原子标记）：running + attempt_count+1 + started_day + 运行时限 ——
+        let claim1 = try await reopened.claimNextFollowupTask()
+        check(claim1?.taskKey == taskKey && claim1?.state == .running, "领取置 running")
+        check(claim1?.attemptCount == 1, "领取即计数（调用前原子标记）")
+        check(claim1?.startedDay == ThoughtSemanticStore.followupDeviceDay(Date()), "首次尝试落设备日")
+        check(claim1?.runDeadline != nil && claim1?.policyVersion == "thought-followup-1", "运行时限与策略版本")
+
+        // —— 输入映射（事务）：全部输入含未进卡片的成员 ——
+        let inputs = (0..<5).map { i in
+            ThoughtSemanticStore.FollowupSourceRecord(
+                taskKey: taskKey, thoughtID: UUID(), scopeID: scope,
+                contentHash: "hash\(i)", redactionVersion: "thought_index_v2.1",
+                frozenCreatedAt: Date(timeIntervalSince1970: Double(1_767_225_600 + i * 86_400)),
+                windows: [.init(ref: "W0", offsetUTF16: 0, lengthUTF16: 20),
+                          .init(ref: "W1", offsetUTF16: 600, lengthUTF16: 15)],
+                summary: "摘要\(i)")
+        }
+        try await reopened.recordFollowupSources(inputs)
+        let sources = try await reopened.followupSources(taskKey: taskKey)
+        check(sources.count == 5 && sources.allSatisfy { $0.scopeID == scope && $0.windows.count == 2 },
+              "source 记录全部输入（窗口起点/长度/冻结时间/摘要回读一致）")
+        check(sources.contains { $0.contentHash == "hash3" && $0.redactionVersion == "thought_index_v2.1" },
+              "正文 hash 与文本处理版本原样回读")
+
+        // —— 成功落库（事务）：verified 终态 + 有界判定数组 + thread ——
+        let decisions = [
+            ThoughtSemanticStore.FollowupDecisionRecord(
+                otherThoughtID: inputs[1].thoughtID, relation: "revises", reason: "把自动决策收紧为高影响时先确认",
+                anchorEvidence: .init(thoughtID: anchor, windowRef: "W0", windowOffsetUTF16: 0,
+                                      quote: "高影响决定要先确认。", rangeUTF16: [12, 22]),
+                otherEvidence: .init(thoughtID: inputs[1].thoughtID, windowRef: "W0", windowOffsetUTF16: 0,
+                                     quote: "我原先想让 AI 自动做决定。", rangeUTF16: [0, 15])),
+            ThoughtSemanticStore.FollowupDecisionRecord(
+                otherThoughtID: inputs[2].thoughtID, relation: "none", reason: nil,
+                anchorEvidence: nil, otherEvidence: nil),
+        ]
+        let threadID = UUID().uuidString
+        try await reopened.finishFollowupVerified(
+            taskKey: taskKey, decisions: decisions,
+            thread: (id: threadID, title: "AI 做决定的边界", question: "哪些决定可以交给 AI 自动执行？",
+                     memberIDs: [anchor, inputs[1].thoughtID, inputs[3].thoughtID]))
+        let verified = try await reopened.followupResult(taskKey: taskKey)
+        check(verified?.state == .verified && verified?.threadID == threadID
+              && verified?.decisions.count == 2 && verified?.threadMemberIDs.count == 3
+              && verified?.decisions[0].anchorEvidence?.rangeUTF16 == [12, 22], "verified 全字段往返")
+
+        // —— 终态不重算：verified 后同键不入队/不领取（§5 B2）——
+        check(try await reopened.hasTerminalFollowup(taskKey: taskKey), "verified 是终态")
+        check(!(try await reopened.upsertFollowupTask(taskKey: taskKey, scopeID: scope, anchorID: anchor,
+                                                      policyVersion: "thought-followup-1")), "终态键不重算")
+        // —— no_result 同为终态 ——
+        let scope2 = UUID(), anchor2 = UUID()
+        let key2 = "task-\(anchor2.uuidString)"
+        try await reopened.upsertFollowupTask(taskKey: key2, scopeID: scope2, anchorID: anchor2, policyVersion: "thought-followup-1")
+        _ = try await reopened.claimNextFollowupTask()
+        try await reopened.finishFollowupNoResult(taskKey: key2)
+        check(try await reopened.hasTerminalFollowup(taskKey: key2), "no_result 是终态")
+        check(!(try await reopened.upsertFollowupTask(taskKey: key2, scopeID: scope2, anchorID: anchor2,
+                                                      policyVersion: "thought-followup-1")), "no_result 不重算")
+
+        // —— waiting 有界重试：复用 operationId；重试后失败终态 ——
+        let anchor3 = UUID()
+        let key3 = "task-\(anchor3.uuidString)"
+        try await reopened.upsertFollowupTask(taskKey: key3, scopeID: scope, anchorID: anchor3, policyVersion: "thought-followup-1")
+        let waitClaim = try await reopened.claimNextFollowupTask()
+        check(waitClaim?.taskKey == key3)
+        let operationId = waitClaim?.operationID
+        try await reopened.finishFollowupWaiting(taskKey: key3, nextAttemptAt: Date().addingTimeInterval(60),
+                                                  errorCode: "RATE_LIMITED")
+        check(try await reopened.claimNextFollowupTask(now: Date().addingTimeInterval(30)) == nil, "退避未到不领取")
+        let retryClaim = try await reopened.claimNextFollowupTask(now: Date().addingTimeInterval(61))
+        check(retryClaim?.taskKey == key3 && retryClaim?.attemptCount == 2
+              && retryClaim?.operationID == operationId, "到期重试复用 operationId")
+        try await reopened.finishFollowupFailed(taskKey: key3, errorCode: "MODEL_OUTPUT_INVALID")
+        check(try await reopened.followupResult(taskKey: key3)?.state == .failed, "failed 终态（协议错不进 no_result）")
+
+        // —— 日额度（每日 ≤4 次含重试，§5 B1）：已耗 task=1 + key2=1 + key3=2 = 4 ——
+        let anchor4 = UUID()
+        let key4 = "task-\(anchor4.uuidString)"
+        try await reopened.upsertFollowupTask(taskKey: key4, scopeID: scope, anchorID: anchor4, policyVersion: "thought-followup-1")
+        check(try await reopened.followupDailyAttempts() == 4, "日额度按 attempt_count 求和")
+        check(try await reopened.claimNextFollowupTask() == nil, "当日额度（含重试）打满后不领取")
+        let nextDay = Calendar.current.startOfDay(for: Date()).addingTimeInterval(86_400 + 60)
+        check(try await reopened.claimNextFollowupTask(now: nextDay)?.taskKey == key4, "下个设备日恢复可领")
+        try await reopened.finishFollowupFailed(taskKey: key4, errorCode: "CANCEL_TEST")
+
+        // —— 重启恢复：running 回收 waiting（复用 operationId，§6 C2 末条）——
+        // （今日 4 次额度已满，用次日时钟领取 key6——额度与恢复语义互不掩盖）
+        let anchor6 = UUID()
+        let key6 = "task-\(anchor6.uuidString)"
+        try await reopened.upsertFollowupTask(taskKey: key6, scopeID: scope, anchorID: anchor6, policyVersion: "thought-followup-1")
+        let runningClaim = try await reopened.claimNextFollowupTask(now: nextDay.addingTimeInterval(120))
+        check(runningClaim?.taskKey == key6 && runningClaim?.state == .running)
+        await reopened.close()
+        let afterCrash = await ThoughtSemanticStore(root: root)
+        try await afterCrash.open()
+        let recovered = try await afterCrash.followupResult(taskKey: key6)
+        check(recovered?.state == .waiting && recovered?.operationID == runningClaim?.operationID,
+              "崩溃重启：running→waiting 且复用 operationId")
+        try await afterCrash.cancelFollowupTasks(scopeID: nil, errorCode: "test_teardown")
+
+        // —— 撤权/范围退出取消：pending/running/waiting 全终态化，cancelled 键可重建 ——
+        let anchor5 = UUID()
+        let key5 = "task-\(anchor5.uuidString)"
+        try await afterCrash.upsertFollowupTask(taskKey: key5, scopeID: scope, anchorID: anchor5, policyVersion: "thought-followup-1")
+        try await afterCrash.cancelFollowupTasks(scopeID: scope, errorCode: "consent_revoked")
+        check(try await afterCrash.followupResult(taskKey: key5)?.state == .cancelled, "取消终态")
+        check(try await afterCrash.claimNextFollowupTask(now: nextDay.addingTimeInterval(180)) == nil,
+              "取消后无可领任务（额度有余量时依然无可领行）")
+        check(try await afterCrash.upsertFollowupTask(taskKey: key5, scopeID: scope, anchorID: anchor5,
+                                                      policyVersion: "thought-followup-1"), "范围重进时 cancelled 键可重建")
+        try await afterCrash.cancelFollowupTasks(scopeID: nil, errorCode: "test_teardown")
+
+        // —— 旧库升级：老库（无三表）补建，既有数据不动 ——
+        try await afterCrash.close()
+        var db: OpaquePointer?
+        let dbPath = root.appendingPathComponent("ThoughtSemanticV3/semantic.sqlite")
+        check(sqlite3_open(dbPath.path, &db) == SQLITE_OK && db != nil)
+        check(sqlite3_exec(db, "DROP TABLE thought_followup_result; DROP TABLE thought_followup_source; DROP TABLE thought_followup_dismissal", nil, nil, nil) == SQLITE_OK, "模拟旧库无三表")
+        sqlite3_close(db)
+        let upgraded = await ThoughtSemanticStore(root: root)
+        try await upgraded.open()
+        let probeKey = "task-upgrade-probe"
+        check(try await upgraded.upsertFollowupTask(taskKey: probeKey, scopeID: scope, anchorID: UUID(),
+                                                    policyVersion: "thought-followup-1"), "升级补建三表且可写")
+        // 既有向量/回执不受迁移影响：category_brief 仍可读写
+        try await upgraded.saveCategoryBrief(.init(topicID: UUID(), version: 1, definition: "d", exclusions: [],
+                                                    basisMemberCount: 0, basisRemovalCount: 0, updatedAt: Date()))
+        check(try await upgraded.allCategoryBriefVersionKeys().count == 1, "旧表数据跨升级保留")
+
+        // —— 升级失败可回退：未来 schema 版本拒绝打开且不破坏数据 ——
+        await upgraded.close()
+        try injectManifestSchemaVersion(dbPath: dbPath, version: 9_999)
+        let future = await ThoughtSemanticStore(root: root)
+        var threwFuture = false
+        do { try await future.open() } catch { threwFuture = true }
+        check(threwFuture, "未来 schema 版本必须拒绝打开")
+        try injectManifestSchemaVersion(dbPath: dbPath, version: Int64(ThoughtSemanticStore.schemaVersion))
+        let rolledBack = await ThoughtSemanticStore(root: root)
+        try await rolledBack.open()
+        check(try await rolledBack.followupResult(taskKey: probeKey)?.state == .pending, "版本修回后数据无损（可回退）")
+
+        // —— 保留淘汰（§6 C3）：30 天过期清可重建内容、每锚点最新凭证、凭证上限 ——
+        try await retentionScenario(rolledBack, scope: scope)
+
+        // —— 隐藏回执：幂等覆盖 + 成员集回读 ——
+        let threadA = UUID().uuidString
+        let membersA = [UUID(), UUID(), UUID()]
+        try await rolledBack.recordFollowupDismissal(scopeID: scope, threadID: threadA, memberIDs: membersA)
+        try await rolledBack.recordFollowupDismissal(scopeID: scope, threadID: threadA, memberIDs: membersA + [UUID()])
+        let dismissals = try await rolledBack.followupDismissals(scopeID: scope)
+        check(dismissals.count == 1 && dismissals[0].memberIDs.count == 4, "dismissal 幂等覆盖")
+
+        // —— 范围退出清理：三表全清（相关 pair 拒绝走 related_feedback 不在此清）——
+        let feedbackThought = UUID(), feedbackRelated = UUID()
+        try await rolledBack.recordRelatedFeedback(thoughtID: feedbackThought, relatedID: feedbackRelated, basisHash: "h")
+        try await rolledBack.destroyFollowupData(scopeID: scope)
+        let scopeResultsCleared = try await rolledBack.followupResults(scopeID: scope).isEmpty
+        let scopeSourcesCleared = try await rolledBack.followupSources(taskKey: taskKey).isEmpty
+        let scopeDismissalsCleared = try await rolledBack.followupDismissals(scopeID: scope).isEmpty
+        check(scopeResultsCleared && scopeSourcesCleared && scopeDismissalsCleared, "范围退出清空三表")
+        check(!(try await rolledBack.relatedFeedbackIDs(thoughtID: feedbackThought)).isEmpty,
+              "related_feedback 独立于 followup 清理（相关 pair 拒绝保留）")
+        await rolledBack.close()
+    }
+
+    /// 保留淘汰场景（参数注入小阈值验证真实 SQL 语义）。
+    private static func retentionScenario(_ store: ThoughtSemanticStore, scope: UUID) async throws {
+        let now = Date()
+        // 锚点 A：两条终态（新旧行）。旧行超 30 天 → 内容清空后再按「每锚点最新」整行删除
+        let anchorA = UUID()
+        let oldKey = "ret-old-\(anchorA.uuidString)", newKey = "ret-new-\(anchorA.uuidString)"
+        for (key, verifiedAt) in [(oldKey, now.addingTimeInterval(-40 * 86_400)), (newKey, now)] {
+            try await store.upsertFollowupTask(taskKey: key, scopeID: scope, anchorID: anchorA, policyVersion: "p")
+            _ = try await store.claimNextFollowupTask()
+            try await store.finishFollowupVerified(
+                taskKey: key,
+                decisions: [ThoughtSemanticStore.FollowupDecisionRecord(
+                    otherThoughtID: UUID(), relation: "continues", reason: "r",
+                    anchorEvidence: nil, otherEvidence: nil)],
+                thread: (id: UUID().uuidString, title: "t", question: "q?", memberIDs: [UUID(), UUID(), UUID()]),
+                now: verifiedAt)
+        }
+        try await store.recordFollowupSources([.init(taskKey: oldKey, thoughtID: UUID(), scopeID: scope,
+                                                     contentHash: "h", redactionVersion: "r",
+                                                     frozenCreatedAt: now, windows: [], summary: "s")])
+        // 锚点 B/C：各一条近期终态；凭证上限注入 1 → 淘汰最旧锚点组（保留 anchorA 最新）
+        var staleAnchorKeys: [String] = []
+        for anchor in [UUID(), UUID()] {
+            let key = "ret-\(anchor.uuidString)"
+            staleAnchorKeys.append(key)
+            try await store.upsertFollowupTask(taskKey: key, scopeID: scope, anchorID: anchor, policyVersion: "p")
+            _ = try await store.claimNextFollowupTask()
+            try await store.finishFollowupNoResult(taskKey: key, now: now.addingTimeInterval(-3 * 86_400))
+        }
+        try await store.pruneFollowupRetention(scopeID: scope, now: now, maxAgeDays: 30,
+                                               maxBatchesPerScope: 200, maxAnchorReceipts: 1)
+        check(try await store.followupResult(taskKey: oldKey) == nil, "同锚点旧终态行删除（只留最新凭证）")
+        let kept = try await store.followupResult(taskKey: newKey)
+        check(kept?.state == .verified && kept?.decisions.count == 1 && kept?.threadTitle == "t",
+              "最新完成凭证保留（判定与 thread 未过期不清）")
+        for key in staleAnchorKeys {
+            check(try await store.followupResult(taskKey: key) == nil, "凭证上限淘汰最旧锚点组")
+        }
+        check(try await store.followupSources(taskKey: oldKey).isEmpty, "过期行的 source 窗口一并清理")
+
+        // 30 天过期但无同锚点新行：内容清空、凭证行保留（先隐藏再清可重建内容）
+        let anchorD = UUID()
+        let agedKey = "ret-aged-\(anchorD.uuidString)"
+        try await store.upsertFollowupTask(taskKey: agedKey, scopeID: scope, anchorID: anchorD, policyVersion: "p")
+        _ = try await store.claimNextFollowupTask()
+        try await store.finishFollowupVerified(
+            taskKey: agedKey,
+            decisions: [ThoughtSemanticStore.FollowupDecisionRecord(
+                otherThoughtID: UUID(), relation: "contrasts", reason: "r", anchorEvidence: nil, otherEvidence: nil)],
+            thread: (id: UUID().uuidString, title: "旧脉络", question: "q?", memberIDs: [UUID(), UUID(), UUID()]),
+            now: now.addingTimeInterval(-35 * 86_400))
+        try await store.recordFollowupSources([.init(taskKey: agedKey, thoughtID: UUID(), scopeID: scope,
+                                                     contentHash: "h2", redactionVersion: "r",
+                                                     frozenCreatedAt: now, windows: [], summary: "s2")])
+        try await store.pruneFollowupRetention(scopeID: scope, now: now, maxAgeDays: 30,
+                                               maxBatchesPerScope: 200, maxAnchorReceipts: 120)
+        let aged = try await store.followupResult(taskKey: agedKey)
+        check(aged?.state == .verified && aged?.threadTitle == nil && aged?.decisions.isEmpty == true,
+              "超龄先清可重建内容（凭证行保留防重调）")
+        check(try await store.followupSources(taskKey: agedKey).isEmpty, "超龄 source 同步清理")
+        // 凭证仍在：同键不入队（只因过期/清理不重试同一个键，§6 C3）
+        check(!(try await store.upsertFollowupTask(taskKey: agedKey, scopeID: scope, anchorID: anchorD,
+                                                   policyVersion: "p")), "过期凭证仍阻止重算同键")
+    }
+
+    /// 直接改 manifest 版本（模拟「升级失败/未来版本」的库）。
+    private static func injectManifestSchemaVersion(dbPath: URL, version: Int64) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK, let db else {
+            preconditionFailure("manifest 注入库打不开")
+        }
+        defer { sqlite3_close(db) }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "UPDATE semantic_manifest SET schema_version=?1 WHERE id=1", -1, &stmt, nil) == SQLITE_OK, let stmt else {
+            preconditionFailure("manifest 注入 prepare 失败")
+        }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, version)
+        guard sqlite3_step(stmt) == SQLITE_DONE else { preconditionFailure("manifest 注入失败") }
+    }
+
+    // MARK: - 8. 采样/窗口/taskKey/脉络卡纯函数（§5 B1/B2）
+
+    static func followupSamplingAndTaskKey() {
+        func note(_ id: Int, daysAgo: Double, text: String, hash: String? = nil, vector: [Float]? = nil) -> ThoughtFollowupSampling.NoteSnapshot {
+            .init(thoughtID: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", id))!,
+                  createdAt: Date(timeIntervalSinceNow: -daysAgo * 86_400),
+                  contentHash: hash ?? "h\(id)", redactedText: text, vector: vector)
+        }
+        let unit: [Float] = { var v = [Float](repeating: 0.5, count: 8); v[0] = 1; return v }()
+
+        // —— 分层等距：130 条 → 各段 ≤40、首尾保留 ——
+        let pool = (0..<130).map { note($0, daysAgo: Double($0), text: "成员正文\($0)") }
+        let segmented = ThoughtFollowupSampling.segmentedPool(pool)
+        check(segmented.early.count <= 40 && segmented.middle.count <= 40 && segmented.recent.count <= 40,
+              "三段各 ≤40（实测 \(segmented.early.count)/\(segmented.middle.count)/\(segmented.recent.count)）")
+        check(segmented.early.count + segmented.middle.count + segmented.recent.count <= 120, "入池 ≤120")
+        check(segmented.early.first?.thoughtID == pool.last?.thoughtID
+              && segmented.recent.last?.thoughtID == pool.first?.thoughtID,
+              "整池首尾成员保留（最早在 early 首、最新在 recent 尾）")
+        let slice = ThoughtFollowupSampling.sampleMemberSlice(pool.map { ($0.thoughtID, $0.createdAt) })
+        check(slice.recent.count == segmented.recent.count && slice.early.count == segmented.early.count,
+              "轻量分层与快照分层同规则")
+
+        // —— 窗口：短文单窗全文；长文锚点头尾两窗不重叠 ——
+        let shortText = "短想法，一整段就够。"
+        let shortNote = note(1, daysAgo: 0, text: shortText)
+        let shortWindows = ThoughtFollowupSampling.windows(for: shortNote, isAnchor: true)
+        check(shortWindows.count == 1 && shortWindows[0].text == shortText && shortWindows[0].offsetUTF16 == 0,
+              "短文取连续全文单窗口")
+        let longTail = String(repeating: "结论在末尾的旧证据。", count: 60)
+        let longText = String(repeating: "开头介绍背景。", count: 60) + longTail
+        check(longText.utf16.count > 1_000, "长文前提（实际 \(longText.utf16.count) UTF-16）")
+        let anchorNote = note(2, daysAgo: 1, text: longText)
+        let anchorWindows = ThoughtFollowupSampling.windows(for: anchorNote, isAnchor: true)
+        check(anchorWindows.count == 2 && anchorWindows[0].lengthUTF16 <= 600 && anchorWindows[1].lengthUTF16 <= 600,
+              "锚点头尾两窗各 ≤600")
+        check(anchorWindows[0].offsetUTF16 == 0
+              && anchorWindows[1].offsetUTF16 + anchorWindows[1].lengthUTF16 == longText.utf16.count,
+              "锚点尾窗贴到文末（不截断代理对）")
+        check(anchorWindows[1].offsetUTF16 >= anchorWindows[0].lengthUTF16, "两窗不重叠")
+
+        // —— 长文非锚点：头部固定 + Jaccard 选段；无命中用末段 ——
+        let matching = String(repeating: "结论在末尾的旧证据。", count: 50)
+        let nonAnchorText = String(repeating: "别的主题内容。", count: 50) + matching
+        let nonAnchor = note(3, daysAgo: 2, text: nonAnchorText)
+        let references = ThoughtFollowupSampling.anchorReferences(anchor: anchorNote)
+        let picked = ThoughtFollowupSampling.windows(for: nonAnchor, isAnchor: false,
+                                                     anchorHead: references.head, anchorTail: references.tail)
+        check(picked.count == 2 && picked[1].text.contains("结论在末尾的旧证据"), "Jaccard 命中选中有重叠的段落")
+        let noHit = note(4, daysAgo: 3, text: String(repeating: "完全不相关的内容甲乙丙。", count: 80))
+        let pickedNoHit = ThoughtFollowupSampling.windows(for: noHit, isAnchor: false,
+                                                          anchorHead: references.head, anchorTail: references.tail)
+        check(pickedNoHit.count == 2
+              && pickedNoHit[1].offsetUTF16 + pickedNoHit[1].lengthUTF16 == noHit.redactedText.utf16.count,
+              "无命中用末段且贴到文末")
+
+        // —— 代理对不截断：600 边界落在代理对中间（"X" + 305 emoji = 611 UTF-16）——
+        let emojiText = "X" + String(repeating: "😀", count: 305)
+        let emojiNote = note(5, daysAgo: 4, text: emojiText)
+        let emojiWindows = ThoughtFollowupSampling.windows(for: emojiNote, isAnchor: false,
+                                                           anchorHead: "😀", anchorTail: "😀")
+        check(emojiWindows.count == 2
+              && emojiWindows[0].offsetUTF16 + emojiWindows[0].lengthUTF16 <= emojiWindows[1].offsetUTF16,
+              "边界回退后两窗仍不重叠")
+        check(emojiWindows[1].offsetUTF16 + emojiWindows[1].lengthUTF16 == emojiText.utf16.count,
+              "尾段贴到文末")
+        check(emojiWindows[1].text.hasPrefix("😀") && emojiWindows[1].text.utf16.count % 2 == 0,
+              "第二窗口以完整代理对开始（不截断）")
+
+        // —— 召回：同 hash/拒绝 pair/低相似度过滤；较早+中段保底；≤4 ——
+        var near = unit; near[1] = 0.9
+        let anchorForRecall = note(10, daysAgo: 100, text: "锚点正文", vector: unit)
+        let earlyHit = note(11, daysAgo: 90, text: "较早的相似笔记", vector: near)
+        let middleHit = note(12, daysAgo: 50, text: "中段的相似笔记", vector: near)
+        let recentHits = (0..<5).map { note(20 + $0, daysAgo: Double($0), text: "较新的相似笔记\($0)", vector: near) }
+        let lowScore = note(30, daysAgo: 1, text: "不相似的笔记", vector: { var v = unit; v[0] = -1; return v }())
+        let sameHash = note(31, daysAgo: 2, text: "相同正文", hash: anchorForRecall.contentHash, vector: near)
+        let rejectedID = recentHits[4].thoughtID
+        let recalled = ThoughtFollowupSampling.recallCandidates(
+            anchor: anchorForRecall,
+            early: [earlyHit, lowScore, sameHash],
+            middle: [middleHit],
+            recent: recentHits,
+            rejectedPairIDs: [rejectedID],
+            minCosine: 0.55)
+        check(recalled.count == 4, "召回 ≤4（实测 \(recalled.count)）")
+        check(recalled.contains(where: { $0.thoughtID == earlyHit.thoughtID })
+              && recalled.contains(where: { $0.thoughtID == middleHit.thoughtID }), "较早与中段各保底一名")
+        check(!recalled.contains(where: { $0.thoughtID == lowScore.thoughtID })
+              && !recalled.contains(where: { $0.thoughtID == sameHash.thoughtID })
+              && !recalled.contains(where: { $0.thoughtID == rejectedID }), "低相似度/同 hash/拒绝 pair 全部排除")
+
+        // —— taskKey：输入决定、顺序无关、版本敏感 ——
+        let scopeID = UUID(), anchorID = UUID()
+        let entryA = (thoughtID: UUID(), contentHash: "ha", windows: [
+            ThoughtFollowupSampling.Window(ref: "W0", offsetUTF16: 0, text: "甲"),
+            ThoughtFollowupSampling.Window(ref: "W1", offsetUTF16: 600, text: "乙")])
+        let entryB = (thoughtID: UUID(), contentHash: "hb", windows: [
+            ThoughtFollowupSampling.Window(ref: "W0", offsetUTF16: 0, text: "丙")])
+        let key1 = ThoughtFollowupSampling.taskKey(scopeID: scopeID, anchorID: anchorID, notes: [entryA, entryB],
+                                                   policyVersion: "thought-followup-1",
+                                                   redactionVersion: "r1", embeddingModelVersion: "m1")
+        let key2 = ThoughtFollowupSampling.taskKey(scopeID: scopeID, anchorID: anchorID, notes: [entryB, entryA],
+                                                   policyVersion: "thought-followup-1",
+                                                   redactionVersion: "r1", embeddingModelVersion: "m1")
+        check(key1 == key2 && key1.count == 64, "taskKey 输入顺序无关（sorted 编码）")
+        let key3 = ThoughtFollowupSampling.taskKey(scopeID: scopeID, anchorID: anchorID, notes: [entryA, entryB],
+                                                   policyVersion: "thought-followup-2",
+                                                   redactionVersion: "r1", embeddingModelVersion: "m1")
+        check(key1 != key3, "policyVersion 变化另起新键")
+
+        // —— 脉络卡形成（B2）——
+        let m1 = [UUID(), UUID(), UUID()], m2 = [UUID(), UUID(), UUID(), UUID()], m3 = [UUID(), UUID(), UUID(), UUID(), UUID()]
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let cards = ThoughtFollowupSampling.formThreadCards(
+            candidates: [
+                .init(displayID: "d1", memberIDs: Set(m1), supportCount: 3, latestEvidenceAt: base),
+                // 完全相同成员集：共用展示 ID，保留最近版本
+                .init(displayID: "d1-old", memberIDs: Set(m1), supportCount: 3, latestEvidenceAt: base.addingTimeInterval(100)),
+                // 与 m2 交集 4、Jaccard=4/5=0.8 ≥0.6 → 疑似重复压制（m2 支持数更高排前）
+                .init(displayID: "d2", memberIDs: Set(m2), supportCount: 4, latestEvidenceAt: base.addingTimeInterval(50)),
+                .init(displayID: "d3", memberIDs: Set(m3), supportCount: 5, latestEvidenceAt: base.addingTimeInterval(50)),
+                // 支持数不足 3 → 不成卡
+                .init(displayID: "d4", memberIDs: [UUID(), UUID()], supportCount: 2, latestEvidenceAt: base),
+            ],
+            dismissals: [])
+        check(cards.count == 2, "每主题至多 2 张（实测 \(cards.count)）")
+        check(cards[0].displayID == "d3" && cards[1].displayID == "d2", "排序=支持数→证据时间→稳定 ID，疑似重复 d1-old 已压制")
+        check(!cards.contains { $0.displayID == "d1-old" }, "相同成员集共用展示 ID（取最近版本）")
+        // 隐藏压制：按展示 ID 与重叠条件（§5 B2）
+        let afterDismiss = ThoughtFollowupSampling.formThreadCards(
+            candidates: [.init(displayID: "d3", memberIDs: Set(m3), supportCount: 5, latestEvidenceAt: base)],
+            dismissals: [.init(displayID: "other-id", memberIDs: Set(m3))])
+        check(afterDismiss.isEmpty, "与已隐藏卡高重叠的新脉络被压制")
+    }
+
+    // MARK: - 9. verify-followup 契约对齐真实 fixtures（§6 C2 / R29）
+
+    /// fixtures 目录由源码路径推导（standalone 与主工程同源编译均可定位）。
+    static var fixturesDirectory: URL {
+        var url = URL(fileURLWithPath: #filePath)
+        while url.lastPathComponent != "HOLO" && url.pathComponents.count > 1 { url.deleteLastPathComponent() }
+        return url.appendingPathComponent("docs/thoughts/plans/2026-11-16-想法主题与脉络/fixtures")
+    }
+
+    /// 与后端 804a96c6b 提交的真实响应 fixture（spec C2 示例的三笔记输入）逐字段对齐。
+    static func followupContractAgainstFixtures() throws {
+        let decoder = JSONDecoder()
+        let idByRef = ["N0": UUID(), "N1": UUID(), "N2": UUID()]
+        let windowOffsets = ["N0": ["W0": 0], "N1": ["W0": 0], "N2": ["W0": 0]]
+
+        func specRequest(operationId: String) -> ThoughtFollowupRequestDTO {
+            // §6 C2 请求示例（与成功 fixture 的 evidence 逐字对应）
+            guard let request = ThoughtFollowupValidator.makeRequest(
+                operationId: operationId,
+                scopeTitle: "产品思考",
+                anchorRef: "N2",
+                notes: [
+                    ("N0", 1_767_225_600_000, [("W0", "我原先想让 AI 自动做决定。")]),
+                    ("N1", 1_769_904_000_000, [("W0", "我发现自动决定出了错难以纠正。")]),
+                    ("N2", 1_772_323_200_000, [("W0", "我修改了自动决定的原则。高影响决定要先确认。")]),
+                ]) else {
+                preconditionFailure("spec 请求组装失败")
+            }
+            return request
+        }
+
+        // —— 成功（thread）：verified，成员/证据/关系映射全对 ——
+        let threadData = try Data(contentsOf: fixturesDirectory.appendingPathComponent("verify-followup-success-thread.json"))
+        let threadResponse = try decoder.decode(ThoughtFollowupResponseDTO.self, from: threadData)
+        let request = specRequest(operationId: threadResponse.operationId)
+        guard case .verified(let content) = ThoughtFollowupValidator.validate(
+            response: threadResponse, request: request, noteIDByRef: idByRef, windowOffsetByNoteRef: windowOffsets) else {
+            preconditionFailure("success-thread fixture 必须通过校验")
+        }
+        check(content.decisions.count == 2
+              && content.decisions[0].relation == "revises" && content.decisions[1].relation == "continues",
+              "成立关系逐条核对（fixture 逐字回窗通过）")
+        check(content.decisions[1].anchorEvidence?.rangeUTF16 == [12, 22]
+              && content.decisions[1].anchorEvidence?.quote == "高影响决定要先确认。", "锚点窗口内子区间引用")
+        check(content.thread?.memberThoughtIDs == [idByRef["N2"]!, idByRef["N0"]!, idByRef["N1"]!],
+              "thread 成员 3–5 含锚点并映射回本机 ID")
+        check(content.hasEstablishedRelation, "成立关系存在")
+
+        // —— 成功（单对）：verified、thread 为 nil（相关区可用，脉络仍空）——
+        let singleData = try Data(contentsOf: fixturesDirectory.appendingPathComponent("verify-followup-success-single-pair.json"))
+        let singleResponse = try decoder.decode(ThoughtFollowupResponseDTO.self, from: singleData)
+        guard case .verified(let single) = ThoughtFollowupValidator.validate(
+            response: singleResponse, request: specRequest(operationId: singleResponse.operationId),
+            noteIDByRef: idByRef, windowOffsetByNoteRef: windowOffsets) else {
+            preconditionFailure("single-pair fixture 必须通过校验")
+        }
+        check(single.thread == nil && single.hasEstablishedRelation, "单对成立：相关区可用，主题脉络为空")
+
+        // —— 成功（空）：全部非命中 → no_result 终态 ——
+        let emptyData = try Data(contentsOf: fixturesDirectory.appendingPathComponent("verify-followup-success-empty.json"))
+        let emptyResponse = try decoder.decode(ThoughtFollowupResponseDTO.self, from: emptyData)
+        guard case .noResult = ThoughtFollowupValidator.validate(
+            response: emptyResponse, request: specRequest(operationId: emptyResponse.operationId),
+            noteIDByRef: idByRef, windowOffsetByNoteRef: windowOffsets) else {
+            preconditionFailure("empty fixture 必须判 no_result")
+        }
+
+        // —— 错误封套：decisions 缺失 → 客户端按错误路径处理（不进校验器）——
+        for errorFixture in ["verify-followup-disabled.json", "verify-followup-input-too-large.json",
+                             "verify-followup-model-output-invalid.json", "verify-followup-rate-limited.json"] {
+            let data = try Data(contentsOf: fixturesDirectory.appendingPathComponent(errorFixture))
+            check((try? decoder.decode(ThoughtFollowupResponseDTO.self, from: data)) == nil,
+                  "错误封套不是 200 形状（\(errorFixture)）")
+        }
+
+        // —— 篡改反证（R29：注入错字段必须失败）——
+        func stillVerified(_ copy: ThoughtFollowupResponseDTO) -> Bool {
+            if case .verified = ThoughtFollowupValidator.validate(
+                response: copy, request: request, noteIDByRef: idByRef, windowOffsetByNoteRef: windowOffsets) {
+                return true
+            }
+            return false
+        }
+        var tampered = threadResponse
+        tampered.operationId = UUID().uuidString
+        check(!stillVerified(tampered), "operationId 不一致必须拒绝")
+        tampered = threadResponse
+        tampered.policyVersion = "thought-followup-2"
+        check(!stillVerified(tampered), "policyVersion 不一致必须拒绝")
+        tampered = threadResponse
+        tampered.decisions[0].anchorEvidence?.quote = "我原先想让 AI 自动做决定。"
+        check(!stillVerified(tampered), "跨窗/错位引用必须拒绝")
+        tampered = threadResponse
+        tampered.decisions[0].anchorEvidence?.rangeUTF16 = [0, 999]
+        check(!stillVerified(tampered), "范围越窗必须拒绝")
+        tampered = threadResponse
+        tampered.decisions[1].relation = "none"
+        check(!stillVerified(tampered), "thread 成员失去成立关系必须拒绝")
+        tampered = threadResponse
+        tampered.decisions[0].reason = nil
+        check(!stillVerified(tampered), "成立关系缺 reason 必须拒绝")
+        tampered = threadResponse
+        tampered.decisions = Array(tampered.decisions.prefix(1))
+        check(!stillVerified(tampered), "决定不完整必须拒绝")
+        tampered = threadResponse
+        tampered.thread?.memberRefs = ["N0", "N1", "N9"]
+        check(!stillVerified(tampered), "自造 ref 必须拒绝")
+        // none/insufficient 三字段全 null 的负向判定合法
+        var negative = threadResponse
+        negative.thread = nil
+        negative.decisions[1].relation = "insufficient"
+        negative.decisions[1].reason = nil
+        negative.decisions[1].anchorEvidence = nil
+        negative.decisions[1].otherEvidence = nil
+        if case .verified(let mixed) = ThoughtFollowupValidator.validate(
+            response: negative, request: request, noteIDByRef: idByRef, windowOffsetByNoteRef: windowOffsets) {
+            check(mixed.decisions[1].relation == "insufficient" && mixed.thread == nil, "混合结果合法（一成立一不足）")
+        } else {
+            check(false, "合法混合结果不得误判协议错")
+        }
+
+        // —— 请求界限（本地自查，防白打）——
+        check(ThoughtFollowupValidator.makeRequest(
+            operationId: UUID().uuidString, scopeTitle: "产品思考", anchorRef: "N0",
+            notes: [("N0", 0, [("W0", String(repeating: "字", count: 601))])]) == nil, "窗口超 600 拒绝")
+        check(ThoughtFollowupValidator.makeRequest(
+            operationId: UUID().uuidString, scopeTitle: "产品思考", anchorRef: "N0",
+            notes: (0..<6).map { ("N\($0)", 0, [("W0", "文本\($0)")]) }) == nil, "notes 超 5 拒绝")
+        check(ThoughtFollowupValidator.makeRequest(
+            operationId: UUID().uuidString, scopeTitle: "产品思考", anchorRef: "N8",
+            notes: [("N0", 0, [("W0", "a")]), ("N9", 0, [("W0", "b")])]) == nil, "anchorRef 不在 notes 拒绝")
+        check(ThoughtFollowupValidator.makeRequest(
+            operationId: UUID().uuidString, scopeTitle: "产品思考", anchorRef: "N0",
+            notes: [("N0", 0, [("W0", String(repeating: "段", count: 600)), ("W1", String(repeating: "续", count: 600))]),
+                    ("N1", 0, [("W0", String(repeating: "乙", count: 600)), ("W1", String(repeating: "加", count: 600))]),
+                    ("N2", 0, [("W0", String(repeating: "丙", count: 600)), ("W1", String(repeating: "丁", count: 600))]),
+                    ("N3", 0, [("W0", String(repeating: "戊", count: 600)), ("W1", String(repeating: "己", count: 600))]),
+                    ("N4", 0, [("W0", String(repeating: "庚", count: 600)), ("W1", String(repeating: "辛", count: 600))])]) != nil,
+              "5×2×600=6000 恰在总量上限内（含等号，与后端 totalText > 6000 拒绝对齐）")
+        check(ThoughtFollowupValidator.makeRequest(
+            operationId: "not-a-uuid", scopeTitle: "产品思考", anchorRef: "N0",
+            notes: [("N0", 0, [("W0", "文本")]), ("N1", 0, [("W0", "文本")])]) != nil,
+              "operationId 非空字符串客户端不校验 UUID 形状（后端裁决）——本组输入合法")
+    }
 
     static func malformedVectorAndOpenContract(_ root: URL) async throws {
         // —— R03 写入契约：维度为正数且等于向量元素数，先校验后落库 ——

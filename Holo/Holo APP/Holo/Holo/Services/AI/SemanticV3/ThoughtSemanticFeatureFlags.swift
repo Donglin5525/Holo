@@ -111,6 +111,43 @@ nonisolated enum ThoughtSemanticFeatureFlags {
     /// 仅测试复位用：生产不存在自动恢复路径（恢复旧策略走 W4 定向回滚）。
     static func resetSchema4ServerGateForTesting() { categoryRulesServerGate.reset() }
 
+    // MARK: - 想法脉络核对试点（W2，2026-11-16 方案 §5 B1 / §6 C2）
+
+    private static let followupPilotKey = prefix + "followup_pilot_enabled"
+    private static let followupPilotTopicKey = prefix + "followup_pilot_topic_id"
+
+    /// 脉络核对试点开关：默认关（生产全静默，§5 B1「生产配置默认为空」）。
+    /// 与其他开关相反的缺省方向——未显式开启一律视为关。
+    static func followupPilotEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: followupPilotKey) == nil ? false : defaults.bool(forKey: followupPilotKey)
+    }
+
+    /// 唯一稳定试点主题 ID；默认空 = 全静默。主题改名继承同 ID；
+    /// 隐藏、合并或删除由协调器按主题有效性检查停止处理（§5 B1）。
+    static func followupPilotTopicID(in defaults: UserDefaults = .standard) -> UUID? {
+        defaults.string(forKey: followupPilotTopicKey).flatMap(UUID.init(uuidString:))
+    }
+
+    /// 设置/诊断切换试点范围。切换同样递增授权代数：旧范围的在途任务立即作废，
+    /// 迟到结果不得落库（§2 A08）；显式算法升级只重算受影响锚点。
+    static func setFollowupPilot(enabled: Bool, topicID: UUID?) {
+        UserDefaults.standard.set(enabled, forKey: followupPilotKey)
+        if let topicID {
+            UserDefaults.standard.set(topicID.uuidString, forKey: followupPilotTopicKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: followupPilotTopicKey)
+        }
+        settingsChanged()
+    }
+
+    /// 本机开关面的试点范围（§5 B1）：试点开关开启且 pilotTopicID 非空才返回范围 ID。
+    /// AI 处理授权、智能整理总开关、自动成主题开关与服务器能力由协调器在调用侧
+    /// 串联成全链资格（与刷新、投影共用同一函数，消费者读同一状态）。
+    static func followupPilotScope(in defaults: UserDefaults = .standard) -> UUID? {
+        guard followupPilotEnabled(in: defaults) else { return nil }
+        return followupPilotTopicID(in: defaults)
+    }
+
     /// 模式与能力检查用同一策略函数（队列去重 hasRelationRecord 与验证器共用）：
     /// 返回该想法当前应使用的 schema 4 模式；nil = legacy（schema 3 旧逻辑）。
     static func categoryRulesCoverage(thoughtID: UUID, in defaults: UserDefaults = .standard) -> CategoryRulesMode? {

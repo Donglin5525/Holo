@@ -14,12 +14,15 @@ mkdir -p "$OUT"
 
 BIN="$OUT/ThoughtSemanticStoreStandaloneTests"
 
-swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
+swiftc -module-cache-path "$OUT/module-cache" -DHOLO_FOLLOWUP_STANDALONE -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift" \
   "$APP/Services/AI/SemanticV3/LocalSemanticIndex.swift" \
   "$APP/Services/AI/SemanticV3/FlatSemanticIndex.swift" \
   "$APP/Services/AI/SemanticV3/ThoughtSemanticStore.swift" \
   "$APP/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift" \
+  "$APP/Services/AI/SemanticV3/ThoughtSemanticText.swift" \
+  "$APP/Services/AI/SemanticV3/ThoughtFollowupSampling.swift" \
+  "$APP/Services/AI/SemanticV3/ThoughtFollowupClient.swift" \
   2>&1
 
 "$BIN"
