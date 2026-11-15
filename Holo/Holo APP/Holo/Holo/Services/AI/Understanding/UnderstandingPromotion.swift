@@ -139,10 +139,9 @@ enum UnderstandingPromotion {
                 aggregateDefinition: nil, sampleCount: nil, summary: nil)
         }
 
-        // 观察窗=证据真实覆盖（G2-A03 同款：不用调度窗替代）。
+        // 观察窗起点=证据真实覆盖（G2-A03 同款：不用调度窗替代）。
         let observedDates = evidence.compactMap(\.occurredAt)
         let validFrom = observedDates.min()
-        let validTo = observedDates.max()
 
         // payload：epistemicStatus 驱动 formation，temporal 驱动 applicability。
         let basis: [HoloContextBasisRef] = evidence.map { obs in
@@ -166,8 +165,12 @@ enum UnderstandingPromotion {
                 kind: temporalKind(validity),
                 originalExpression: statement,
                 precision: .day,
+                // 进行中认识的适用期没有终点：validTo 语义=「适用到何时」而非
+                // 「证据观察到何时」——填最后证据时刻会把进行中阶段判过期
+                //（isExpired 首条 validTo<now 即弃；真数据实锤：断卡几日的戒烟
+                // 被 discard、当天打过卡的维生素侥幸通过）。起点保留=阶段开始。
                 validFrom: validFrom,
-                validTo: validTo,
+                validTo: nil,
                 recurrence: nil,
                 triggerText: nil),
             basis: basis,
@@ -201,7 +204,9 @@ enum UnderstandingPromotion {
                 upstreamMemoryIDs: [],
                 counterEvidenceRefs: [],
                 validFrom: validFrom,
-                validTo: validTo,
+                // 观察窗终点同款不填（isCurrentStateClaim 分支拿 record.validTo<now
+                // 判过期——每天打卡的习惯永远处在「最后一次在昨天」，填终点=必过期）。
+                validTo: nil,
                 lastSupportedAt: observedDates.max() ?? now,
                 expiresAt: nil,
                 confidenceScore: min(0.9, 0.55 + Double(evidenceRefs.count) * 0.1),
