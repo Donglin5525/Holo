@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-11-16] 统计明细页两优化——趋势图时间轴月界锚定 + 交易明细行降密度
+
+东林实报「趋势图下面的时间可以再缩短一点、交易明细密度非常高」，ios-design 出 A/B 两案、东林圈选 A 案后当日实施。纯 iOS 改动，免后端发版、免 CloudKit 改动。
+
+- **时间轴月界锚定（HoloCartesianChart + TrendChartView + DetailTabView）**：图表通用件新增 `HoloXAxisTickStyle`（默认 `.bucketLabel`，既有页面零变化）与 `HoloChartBucket.date`；明细页联动视图是唯一开启 `.dayWithMonthAnchor` 的调用方——被选刻度首根或跨月时显「11.1」，其余只显日数（`8/16/23/30`），触摸读数仍为全格式日期「11月8日 周六」，信息零丢失；总览/项目/账户/任务统计轴标签逐字不变。
+- **明细行降密度（TransactionRowView 紧凑变体 + DetailTabView）**：分类路径行改「标题为备注时才显示」——无备注行标题即分类名，恒显父级路径是重复信息（账本/搜索/双栏非紧凑变体恒显不动）；行内行距 2→4、上下留白 xs→sm；日组间距 10→16 让扫读有「天」的节拍；日头水平对齐与图标左缘同列（修旧版 4pt 顶格错位）、日头小计裸 `system(12)` 归一 `holoLabel` 修旧欠账；行点击热区由 `holoRowHitArea` 保底 ≥44pt 不受影响。
+- **验证**：构建绿 + 图表四套件 56 单测全绿（FinanceChartScaleTests 20 / HabitReviewTrendChartLayoutTests 22 / HoloChartEnhancementTests 13 / HoloChartRenderSmokeTests 1）；模拟器视觉走查被 idb companion 全瘫挡住（/tmp 坑复发，作战板挂账），转东林真机 30 秒清单验收。
+
 ## [2026-11-16] 随机漫步「一束暖光」过场动画 1:1 复刻原型——Core Animation Render-Server 直驱 + 交接零闪跳
 
 真机（iPhone 17 Pro / iOS 26.3.1）Build 57 实测通过：点「记忆长廊 → 随机漫步」后的 1.66 秒暖光过场与 HTML 原型（`holo-memory-gallery-random-walk.html`）保持 1:1 一致，120Hz 全程丝滑、交接无卡顿无跳变。纯客户端改动，免后端发版。

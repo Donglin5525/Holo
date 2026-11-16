@@ -140,7 +140,8 @@ struct DetailTabView: View {
                 dataPoints: dailyChartDataPoints,
                 showsBalanceLine: false,
                 selectedDate: state.selectedChartDate,
-                onScrubDate: selectChartDateAndScroll
+                onScrubDate: selectChartDateAndScroll,
+                usesDayTickAnchors: true
             )
         }
     }
@@ -277,7 +278,9 @@ struct DetailTabView: View {
             sortOrder == .timeAscending ? $0 < $1 : $0 > $1
         }
 
-        return VStack(alignment: .leading, spacing: 10) {
+        // 日组间距拉开到 md（2026-11-16 明细页降密度拍板）：扫读以「天」为节拍，
+        // 呼吸感来自层次而不是放大行高
+        return VStack(alignment: .leading, spacing: HoloSpacing.md) {
             ForEach(dates, id: \.self) { date in
                 let dayTransactions = sortedTransactions(grouped[date] ?? [])
 
@@ -313,17 +316,18 @@ struct DetailTabView: View {
 
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
-                    .font(.system(size: 12))
+                    .font(.holoLabel)
                     .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")
-                    .font(.system(size: 12))
+                    .font(.holoLabel)
                     .foregroundColor(.holoSuccess)
             }
         }
-        .padding(.horizontal, HoloSpacing.xs)
-        .padding(.vertical, 2)
+        // 水平与行内图标左缘同列（6pt，修旧版 xs 的顶格错位）；上下补一档呼吸
+        .padding(.horizontal, 6)
+        .padding(.vertical, HoloSpacing.xs)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.sm)
                 .fill(isSelectedDay(date) ? Color.holoPrimary.opacity(0.08) : Color.clear)

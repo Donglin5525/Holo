@@ -45,6 +45,9 @@ struct HoloChartBucket: Identifiable, Equatable {
     var futureSeries: Set<Int> = []
     /// nil 使用等宽自然桶；连续采样（如心率）传真实时间，保留时间比例。
     var position: Double? = nil
+    /// 桶对应的自然日；横轴刻度走 .dayWithMonthAnchor 时用于月界锚定判断
+    ///（2026-11-16 东林拍板「趋势图时间再缩短」），缺省不参与锚定逻辑。
+    var date: Date? = nil
 
     func value(forSeries index: Int) -> Double? {
         guard !isFuture, !futureSeries.contains(index), values.indices.contains(index),
@@ -53,8 +56,17 @@ struct HoloChartBucket: Identifiable, Equatable {
     }
 }
 
+/// 横轴刻度标签口径：.bucketLabel=沿用调用方给的 label（默认，既有页面零变化）；
+/// .dayWithMonthAnchor=日序列专用——被选刻度里首根或跨月时显「M.d」锚定月份，
+/// 其余只显日数（11.1 / 8 / 16 / 23 / 30），触摸读数仍是全格式日期，信息零丢失。
+enum HoloXAxisTickStyle {
+    case bucketLabel
+    case dayWithMonthAnchor
+}
+
 enum HoloChartFormat {
     private static let shortDate = formatter("Md")
+    private static let dayOnly = formatter("d")
     private static let fullDate = formatter("yMMMd")
     private static let clock = formatter("HHmm")
     private static let month = formatter("M月")
@@ -74,6 +86,7 @@ enum HoloChartFormat {
         let format: DateFormatter
         switch template {
         case "Md": format = shortDate
+        case "d": format = dayOnly
         case "yMMMd": format = fullDate
         case "HHmm": format = clock
         case "M月": format = month
@@ -174,6 +187,8 @@ struct HoloBarChart: View {
     /// 等宽槽位的指定刻度（桶下标；如按天图的每周一同列）。走公共摆放规则（贴边/等宽/预算），
     /// 不在此之上叠私有画法
     var slotTicks: [Int]? = nil
+    /// 横轴刻度标签口径（默认沿用 bucket.label；日序列可换月界锚定，见 HoloXAxisTickStyle）
+    var xAxisTickStyle: HoloXAxisTickStyle = .bucketLabel
     var rules: [HoloChartRule] = []
     var comparison: HoloChartComparison? = nil
     var legendToggle = false
@@ -189,6 +204,7 @@ struct HoloBarChart: View {
                            height: height, yDomain: yDomain, dualValueAxes: dualValueAxes,
                            summary: summary, summaryValues: summaryValues, valueText: valueText,
                            defaultSelectsLastBucket: defaultSelectsLastBucket, slotTicks: slotTicks,
+                           xAxisTickStyle: xAxisTickStyle,
                            rules: rules, comparison: comparison, legendToggle: legendToggle,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
         }
@@ -317,6 +333,7 @@ private struct HoloCartesianChart: View {
     var valueText: (Double) -> String
     var defaultSelectsLastBucket = false
     var slotTicks: [Int]? = nil
+    var xAxisTickStyle: HoloXAxisTickStyle = .bucketLabel
     var showsReadout = true
     var hidesIdleValues = false
     /// 折线每个数据点恒显（测量记录点视图：点即数据）
@@ -720,26 +737,46 @@ private struct HoloCartesianChart: View {
         let anchorX: CGFloat
     }
 
+    /// 月界锚定标签（.dayWithMonthAnchor）：被选刻度里首根或与前一被选刻度跨月时显「M.d」，
+    /// 其余只显日数。date 缺失的桶退回 bucket.label；非该口径返回空表，取值处 `?? label` 兜底。
+    private func monthAnchoredLabels(for indices: [Int]) -> [Int: String] {
+        guard xAxisTickStyle == .dayWithMonthAnchor else { return [:] }
+        var result: [Int: String] = [:]
+        var previousDate: Date?
+        for index in indices where buckets.indices.contains(index) {
+            guard let date = buckets[index].date else { continue }
+            if let previousDate,
+               Calendar.current.isDate(date, equalTo: previousDate, toGranularity: .month) {
+                result[index] = HoloChartFormat.date(date, template: "d")
+            } else {
+                result[index] = HoloChartFormat.date(date, template: "Md")
+            }
+            previousDate = date
+        }
+        return result
+    }
+
     private func tickLabels(proxy: ChartProxy, plot: CGRect) -> some View {
         let labelWidth = HoloChartGeometry.tickLabelWidth(plotWidth: plot.width)
         if let slotTicks {
             // 槽位标签一律对准柱中心；槽太窄导致首尾标签出血时才退回贴边
             let slotWidth = buckets.isEmpty ? plot.width : plot.width / CGFloat(buckets.count)
             let edgeSafe = slotWidth >= labelWidth
+            let anchored = monthAnchoredLabels(for: slotTicks)
             let labels = slotTicks.compactMap { index -> TickLabel? in
                 guard buckets.indices.contains(index) else { return nil }
                 let center = buckets.count > 1
                     ? plot.minX + plot.width * (CGFloat(index) + 0.5) / CGFloat(buckets.count)
                     : plot.midX
                 if !edgeSafe, slotTicks.count > 1, index == slotTicks.first {
-                    return TickLabel(id: index, text: buckets[index].label, alignment: .leading,
+                    return TickLabel(id: index, text: anchored[index] ?? buckets[index].label, alignment: .leading,
                                      anchorX: plot.minX + labelWidth / 2)
                 }
                 if !edgeSafe, slotTicks.count > 1, index == slotTicks.last {
-                    return TickLabel(id: index, text: buckets[index].label, alignment: .trailing,
+                    return TickLabel(id: index, text: anchored[index] ?? buckets[index].label, alignment: .trailing,
                                      anchorX: plot.maxX - labelWidth / 2)
                 }
-                return TickLabel(id: index, text: buckets[index].label, alignment: .center, anchorX: center)
+                return TickLabel(id: index, text: anchored[index] ?? buckets[index].label, alignment: .center, anchorX: center)
             }
             return AnyView(ForEach(labels) { label in
                 Text(label.text)
@@ -780,6 +817,7 @@ private struct HoloCartesianChart: View {
         } else {
             picked = HoloChartGeometry.tickIndices(count: buckets.count, width: plot.width)
         }
+        let anchored = monthAnchoredLabels(for: picked)
         let labels = picked.compactMap { index -> TickLabel? in
             guard pixelX.indices.contains(index), pixelX[index].isFinite else { return nil }
             let alignment: Alignment
@@ -795,7 +833,7 @@ private struct HoloCartesianChart: View {
                 alignment = .center
                 anchorX = plot.minX + pixelX[index]
             }
-            return TickLabel(id: index, text: buckets[index].label, alignment: alignment, anchorX: anchorX)
+            return TickLabel(id: index, text: anchored[index] ?? buckets[index].label, alignment: alignment, anchorX: anchorX)
         }
         return AnyView(ForEach(labels) { label in
             Text(label.text)

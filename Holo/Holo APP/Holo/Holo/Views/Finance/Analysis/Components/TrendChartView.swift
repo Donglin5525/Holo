@@ -15,6 +15,9 @@ struct TrendChartView: View {
     var onScrubDate: ((Date) -> Void)? = nil
     /// 收支卡「现金流」档（趋势 ⇄ 现金流分段切换）；nil = 无现金流可讲，不显示切换
     var waterfallItems: [HoloWaterfallItem]? = nil
+    /// 横轴刻度走月界锚定（首刻度/跨月显「M.d」，其余只显日数）；明细页联动视图开启，
+    /// 其余使用方默认关闭零变化（2026-11-16 东林拍板「趋势图时间再缩短」）
+    var usesDayTickAnchors = false
     @State private var selection: String?
     @State private var showsCashflow = false
 
@@ -24,7 +27,8 @@ struct TrendChartView: View {
                             detail: ChartTooltipDateLabel.string(for: point, points: dataPoints),
                             values: [Double(truncating: point.expense as NSDecimalNumber),
                                      Double(truncating: point.income as NSDecimalNumber)],
-                            isFuture: point.date > Date() && !point.hasTransactions)
+                            isFuture: point.date > Date() && !point.hasTransactions,
+                            date: point.date)
         }
     }
     private var balanceBuckets: [HoloChartBucket] {
@@ -85,10 +89,11 @@ struct TrendChartView: View {
                                        valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" })
                 } else {
                     HoloBarChart(buckets: flowBuckets,
-                                 series: [.init(id: "expense", title: "支出", color: .holoChartOutflow),
-                                          .init(id: "income", title: "收入", color: .holoChartInflow)],
+                                 series: [.init(id: "expense", title: "支出", color: .holoError),
+                                          .init(id: "income", title: "收入", color: .holoSuccess)],
                                  selection: $selection, height: 160, dualValueAxes: true,
                                  valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" },
+                                 xAxisTickStyle: usesDayTickAnchors ? .dayWithMonthAnchor : .bucketLabel,
                                  onInspect: { bucket in
                                      if let date = date(ofBucketID: bucket.id) { onScrubDate?(date) }
                                  })
