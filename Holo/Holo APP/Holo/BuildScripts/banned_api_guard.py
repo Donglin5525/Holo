@@ -57,7 +57,10 @@ def collect_findings():
             uk = sum(1 for ln in lines if unique_keys_pattern.search(ln.split("//", 1)[0]))
             if uk:
                 findings["uniqueKeysWithValues"][rel] = uk
-            if root in ENTRY_DIRS or fn in ENTRY_FILES:
+            # 入口范围=ENTRY_DIRS 及其全部子目录（2026-11-16 对抗自审修正：
+            # 原精确匹配 root in ENTRY_DIRS 漏扫 Chat/Analysis 等 5 个子目录）
+            in_entry = any(root == d or root.startswith(d + os.sep) for d in ENTRY_DIRS)
+            if in_entry or fn in ENTRY_FILES:
                 hits = []
                 for i, ln in enumerate(lines):
                     code = ln.split("//", 1)[0]

@@ -48,6 +48,7 @@ def main():
     for scan_dir, mode in SCAN:
         dirname = os.path.basename(scan_dir)
         total = 0
+        seen_names = {}
         try:
             entries = os.walk(scan_dir)
         except OSError:
@@ -58,6 +59,9 @@ def main():
                 if not fn.endswith(".swift"):
                     continue
                 total += 1
+                # 同名文件会让「文件名在 pbxproj 出现」互相掩护（2026-11-16 对抗自审加固：
+                # 挂载判定按 basename，两个同名文件一个挂了一个没挂=漏网）。重名直接拦，要求改名。
+                seen_names.setdefault(fn, []).append(os.path.join(root, fn))
                 path = os.path.join(root, fn)
                 try:
                     with open(path, encoding="utf-8") as fp:
@@ -74,6 +78,13 @@ def main():
                 "error: Test Mount Guard 在 %s 只见到 %d 个 .swift（预期数百），"
                 "疑似沙箱拦截读取——闸门失效按失败处理（fail-closed）" % (dirname, total)
             )
+        for fn, paths in seen_names.items():
+            if len(paths) > 1:
+                errors.append(
+                    "error: %s 下存在同名文件 %s ×%d：%s —— 挂载判定按文件名匹配，"
+                    "同名会互相掩护漏挂。请改名保证唯一（fail-closed）"
+                    % (dirname, fn, len(paths), "; ".join(paths))
+                )
 
     if update_baseline:
         with open(BASELINE_PATH, "w", encoding="utf-8") as fp:
