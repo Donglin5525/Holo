@@ -270,7 +270,9 @@ struct CalendarEventDetailSheet: View {
     // MARK: - P3 相关观点（仅想法事件）
 
     private func topicsCard(_ topics: [String]) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        // 主题 emoji 优先走徽章投影（与长廊胶囊同口径）；无徽章数据时回落纯标题
+        let badges = event.topicBadges
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: 5) {
                 Image(systemName: "tag.fill")
                     .font(.system(size: 12, weight: .semibold))
@@ -281,8 +283,15 @@ struct CalendarEventDetailSheet: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.xs) {
-                    ForEach(topics, id: \.self) { topic in
-                        Text(topic)
+                    if let badges, !badges.isEmpty {
+                        ForEach(badges, id: \.title) { badge in
+                            HStack(spacing: 4) {
+                                if let emoji = badge.emoji {
+                                    Text(emoji)
+                                        .font(.system(size: 12))
+                                }
+                                Text(badge.title)
+                            }
                             .font(.holoLabel)
                             .foregroundColor(.holoPurple)
                             .padding(.horizontal, HoloSpacing.sm)
@@ -291,6 +300,19 @@ struct CalendarEventDetailSheet: View {
                             .clipShape(Capsule())
                             // 观点名称来自数据，横向展示时保持胶囊完整宽度
                             .fixedSize(horizontal: true, vertical: false)
+                        }
+                    } else {
+                        ForEach(topics, id: \.self) { topic in
+                            Text(topic)
+                                .font(.holoLabel)
+                                .foregroundColor(.holoPurple)
+                                .padding(.horizontal, HoloSpacing.sm)
+                                .padding(.vertical, 4)
+                                .background(Color.holoPurple.opacity(0.10))
+                                .clipShape(Capsule())
+                                // 观点名称来自数据，横向展示时保持胶囊完整宽度
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
                     }
                 }
             }

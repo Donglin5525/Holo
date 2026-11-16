@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-11-16] 记忆长廊卡片信息密度升级——想法外显主题/tag、同日同习惯聚合求和、数值人性化、emoji 透出
+
+东林四点实报（想法的 tag 与主题没外显／戒烟一天多条平铺成 1.0 不求和／1.0 不是人话／源模块的 emoji 在长廊丢了）并成一个功能包，按 HTML 原型（`docs/design-prototypes/memory-gallery-card-upgrade-prototype.html`）1:1 实施。纯 iOS 改动，免后端发版、免 CloudKit 改动、历史数据零改写。
+
+- **想法主题/tag 胶囊外显（CalendarEvent + CalendarEventProvider + 两长廊 View）**：想法主预览卡正文下方新增胶囊行——主题胶囊（暖橙底，带主题 emoji，`TopicIconProvider` 同口径四层兜底）最多 2 个 + tag 胶囊（中性底带源色小圆点）最多 2 个，超出显示 +N；记录行内带迷你版（1 主题 + 1 tag）。主题数据原本已通到 `relatedTopics`（纯界面缺口），tag 新增投影（`Thought.tags` → `tagBadges`，已被合并重定向的概念不显示旧名）。详情弹层主题胶囊同步带 emoji。既有 `relatedTopics` 字段与日回放/拍立得消费点零改动。
+- **同日同习惯聚合（CalendarHabitDayMerger，纯函数）**：长廊时间线内同一天同一习惯的多条记录合并成一行——计数类求和（戒烟 3 次 → 「×3 · 3 支」）、测量类取当天最后一次（体重两条只显最新）、打卡类计次（喝水 → 「×8 · 8 次」），聚合行轻点展开逐条时刻与当次数值。口径与 `HabitNumericAggregator` 同源。只在展示层合并：月历热度、日回放与统计口径仍按原始 1:1 事件计算，当天记录计数随合并口径（6 条 → 4 条）。
+- **数值人性化（HabitValueText，单一真源）**：根治「1.0 支」——浮点数直接插值改为整数去小数点（1.0 → 1）、真小数保留（71.5 kg）、打卡聚合按次数说（「8 次」而非「已完成」）。旧 `MemoryItem` 同步修口径。
+- **emoji 透出**：习惯源图标为 emoji 时（图标选择器统一后大量存在）长廊与随机漫步原样显示彩色 emoji，SF Symbol 源保持既有线性图标——与习惯模块双轨渲染同口径，模块标识线性图标不变。
+- **验证**：构建绿；`CalendarEventProviderTests` 25（含 9 条新增：数值格式化 3 + 合并口径 6）+ `MemoryGalleryTimelineTests` 5 + `MemoryRandomWalkCoreTests` 11 全绿。新增词条「今天 %lld 次」三语齐（xcstrings 文本级手术提交，未卷带并行改动）。
+- **口径修订（东林验收质询后拍板）**：主题胶囊 emoji 只透出用户在主题详情页明确设置过的（`iconEmoji`），未设置的主题纯文字——与想法卡片「可见徽章只保留名称」同口径；不沿用 `TopicIconProvider` 的关键词/哈希自动兜底（那是主题管理页的口径，长廊初版误用，已改）。习惯 emoji 透出不受影响（那本来就是用户选的图标）。
+
+## [2026-11-16] 统计明细页两优化——趋势图时间轴月界锚定 + 交易明细行降密度
+
+东林实报「趋势图下面的时间可以再缩短一点、交易明细密度非常高」，ios-design 出 A/B 两案、东林圈选 A 案后当日实施。纯 iOS 改动，免后端发版、免 CloudKit 改动。
+
+- **时间轴月界锚定（HoloCartesianChart + TrendChartView + DetailTabView）**：图表通用件新增 `HoloXAxisTickStyle`（默认 `.bucketLabel`，既有页面零变化）与 `HoloChartBucket.date`；明细页联动视图是唯一开启 `.dayWithMonthAnchor` 的调用方——被选刻度首根或跨月时显「11.1」，其余只显日数（`8/16/23/30`），触摸读数仍为全格式日期「11月8日 周六」，信息零丢失；总览/项目/账户/任务统计轴标签逐字不变。
+- **明细行降密度（TransactionRowView 紧凑变体 + DetailTabView）**：分类路径行改「标题为备注时才显示」——无备注行标题即分类名，恒显父级路径是重复信息（账本/搜索/双栏非紧凑变体恒显不动）；行内行距 2→4、上下留白 xs→sm；日组间距 10→16 让扫读有「天」的节拍；日头水平对齐与图标左缘同列（修旧版 4pt 顶格错位）、日头小计裸 `system(12)` 归一 `holoLabel` 修旧欠账；行点击热区由 `holoRowHitArea` 保底 ≥44pt 不受影响。
+- **验证**：构建绿 + 图表四套件 56 单测全绿（FinanceChartScaleTests 20 / HabitReviewTrendChartLayoutTests 22 / HoloChartEnhancementTests 13 / HoloChartRenderSmokeTests 1）；模拟器视觉走查被 idb companion 全瘫挡住（/tmp 坑复发，作战板挂账），转东林真机 30 秒清单验收。
+
+## [2026-11-16] 随机漫步「一束暖光」过场动画 1:1 复刻原型——Core Animation Render-Server 直驱 + 交接零闪跳
+
+真机（iPhone 17 Pro / iOS 26.3.1）Build 57 实测通过：点「记忆长廊 → 随机漫步」后的 1.66 秒暖光过场与 HTML 原型（`holo-memory-gallery-random-walk.html`）保持 1:1 一致，120Hz 全程丝滑、交接无卡顿无跳变。纯客户端改动，免后端发版。
+
+- **Render-Server 直驱（MemoryWarmLightTransition / WarmLightHostUIView）**：放弃 SwiftUI `TimelineView` 逐帧重绘方案（每帧重建视图树 + 重算 49 色标 `RadialGradient` + `.compositingGroup()` 离屏渲染，且 `.periodic(1/60)` 与 120Hz ProMotion 不同步），改为 `UIViewRepresentable` + `CALayer`：将预乘插值椭圆光晕一次性预渲染为 `CGImage`，在单次 `CATransaction` 内提交 `CABasicAnimation` / `CAKeyframeAnimation`（`warm-memory-light` `cubic-bezier(0,0,0.58,1)`、`light-depart` `0→12→34%`、`light-arrive` `0→30→67%`、`is-landing` 1450ms 起 210ms 淡出），动画期间主线程零每帧开销；同时保留 `WarmLightPlate` 静态帧路径供 `WarmLightFrameRenderTests` 离屏对拍。
+- **交接零闪跳与 Sheet 稳高（MemoryRandomWalkView）**：移除与外层 `MemoryGalleryFindDateSheet` 冲突的 `.presentationDetents` 及动态测高；在 `traveling` / `landing` 期间预先保留底部动作区占位，并将暖光遮罩覆盖至 `divider` 以下整片区域（与原型 `.time-travel` 一致）；将记录与「回看一句」的上浮淡入（`walk-reveal`：`8pt` → `0`，250ms / +45ms 280ms）从 `arrived`（1660ms）提前到 `landing`（1450ms）与暖光淡出同步触发，消除 1660ms 瞬间的透明度闪回与 Sheet 高度跳变。
+- **验证**：`WarmLightModelTests`（19 项）+ `WarmLightFrameRenderTests`（7 项）+ `MemoryRandomWalkCoreTests`（11 项）共 37 项单测全绿；真机 Build 57 实测通过。
+
 ## [2026-11-15] 图表视觉 V4「纸本调性」与 11 项图表能力增强——横向现金流瀑布根治存量撑爆、全宽构成比例条、降饱和纸本色板
 
 真机验收反馈「现金流瀑布所有内容堆叠到一块儿、图表整体缺少审美与调性」后，重定图表视觉契约 V4「纸本调性」（`docs/design-prototypes/Holo图表视觉V4-纸本调性.html`）并连同 11 项图表能力增强一次性收口：图表像一页安静的手账，先给结论再给图，存量与流量分轴，标签各归其列永不相撞。纯客户端改动，免后端发版、免 CloudKit 改动。
@@ -13,6 +40,13 @@
 - **支出/收入构成卡升级（CategoryTabView + HoloStackedAreaChart）**：类别页构成卡支持「构成 ⇄ 趋势」同卡分段切换；「构成」档改为当期总额大数字 + 头部分类占比一句话 + 全宽交互比例条（点按比例条或下方分类行联动高亮、其余退淡，告别多分类环形图引线打架）；「趋势」档新增近 6 月堆叠面积图（`HoloStackedAreaChart`，走分类前景样式量表避免同型堆叠被压成单色）。
 - **柱线公共件与习惯趋势增强（HoloCartesianChart + HoloMiniTrendChart + HabitSingleReviewView）**：新增柱状参考线（`HoloChartRule`，年度同比月均线、习惯周目标线）、上期对照淡影柱与环比徽标（`HoloChartComparison`，显式 `yStart = 0` 并微错位并排，修复 Swift Charts 同 x 自动堆叠冲破坐标轴顶的缺陷）、折线峰/谷自动标注、正常区间带（胶囊白底防穿字）、图例胶囊开关、滑选触感反馈（程序性初选静音）、读数区 `.numericText()` 滚动过渡、选中某期时非选中柱退至 42% 透明度、单系列折线柔和渐变面积垫底，以及打卡弹层迷你趋势组件（`HoloMiniTrendChart`，替换旧手绘折线）。修复 `≤8` 桶短标签（如 `1日–6日`）被抽稀漏掉 `3日` 的刻度缺陷。
 - **验证**：独立几何回归 11,077 项断言通过；图表四套件 56 例单测与渲染对拍全绿（`FinanceChartScaleTests` 20 + `HabitReviewTrendChartLayoutTests` 22 + `HoloChartEnhancementTests` 13 + `HoloChartRenderSmokeTests` 1）；`HoloChartInteractionUITests` 4 例 + `ReleaseGateFiveEntryUITests` 五大入口闪退闸门全绿；只读子代理两轮浅/深色视觉判读全部 PASS。
+
+## [2026-11-15] 记一笔键盘默认弹出恢复——11-09 空间改版顺带翻转已定口径
+
+东林实报「打开记一笔键盘不弹了」。查实为 11-09 记一笔空间改版（d95972970）以「分类宫格全量可见」为由把数字键盘改为默认收起，未单独确认——这已是第二次同型事故（9-14 预填日期改动曾顺带收起、9-18 恢复过）。恢复打开弹层键盘先行：键盘此前已瘦身 350→240pt，弹出后分类宫格仍可滚动触达；`UITEST_NO_KEYPAD` 直通参数保留。纯 iOS 改动，免后端发版。
+
+- **口径固化**：「打开即弹键盘」写入代码注释与长期记忆，重设计不得顺带翻转既有交互口径；RefundEntryWalkthroughUITests 的「记账键盘默认弹出」断言即行为契约，改完必跑。
+- **验证**：构建绿 + 模拟器实测（弹层打开即见完整计算键盘、光标停金额框、金额框橙色焦点描边）。
 
 ## [2026-11-15] 口述整理只信转写原文——想法语音整理从档案通道摘除 + 服务端单源组装
 

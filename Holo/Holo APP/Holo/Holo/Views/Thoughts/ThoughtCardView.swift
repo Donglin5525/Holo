@@ -640,7 +640,9 @@ private struct TopicMembershipReasonSheet: View {
                         .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                 }
-                Text(String(localized: "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。"))
+                // A1.6：只承诺这条（pair 级）不复活，不再承诺「同类内容不收」；
+                // 长期规则引导进主题详情的「这个主题收什么」定义编辑器（「查看主题」直达）
+                Text(String(localized: "不想要这个归属：长按徽章「从这条移除」，移出后，Holo 不会再自动把这条归到这里；想让它以后少收这类内容，到主题的「这个主题收什么」写一句规则。"))
                     .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextPlaceholder)
                 Spacer(minLength: 0)

@@ -1,0 +1,86 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "成功响应：P0 excludes_category（四件证据齐备）、P1 fits_category（definition 依据）、P2 thread none",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-success",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "整理了今天的站会记录，没有别的想法。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "只收带我个人反思的记录，纯会议纪要一律排除。",
+        "representatives": []
+      },
+      {
+        "ref": "P1",
+        "title": "纯纪要归档",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "收录全部会议纪要；纯纪要也要。",
+        "representatives": []
+      },
+      {
+        "ref": "P2",
+        "title": "产品思考",
+        "kind": "thread",
+        "definitionSource": "none",
+        "representatives": [
+          {
+            "ref": "R0",
+            "text": "方案的裁剪标准要先对齐用户的真实场景。"
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-success",
+    "textRevision": "r-1",
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "excludes_category",
+        "quote": "整理了今天的站会记录",
+        "rangeUTF16": [
+          0,
+          10
+        ],
+        "representativeRef": "definition",
+        "representativeQuote": "纯会议纪要一律排除"
+      },
+      {
+        "candidateRef": "P1",
+        "relation": "fits_category",
+        "quote": "整理了今天的站会记录",
+        "rangeUTF16": [
+          0,
+          10
+        ],
+        "representativeRef": "definition",
+        "representativeQuote": "收录全部会议纪要"
+      },
+      {
+        "candidateRef": "P2",
+        "relation": "none",
+        "quote": null,
+        "rangeUTF16": null
+      }
+    ],
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 30,
+      "estimatedCostCNY": 0.00057,
+      "dailyBudgetCNY": 0
+    }
+  }
+}

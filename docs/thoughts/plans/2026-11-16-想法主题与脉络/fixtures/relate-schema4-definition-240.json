@@ -1,0 +1,44 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "definition 恰 240 UTF-16（118 BMP + 61 个 🏃 代理对）→ 后端接受；供 Swift 断言 schema4RulePayload 同口径放行",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-definition-boundary",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "整理了今天的站会记录，没有别的想法。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃",
+        "representatives": []
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-definition-boundary",
+    "textRevision": "r-1",
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "none",
+        "quote": null,
+        "rangeUTF16": null
+      }
+    ],
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 30,
+      "estimatedCostCNY": 0.00057,
+      "dailyBudgetCNY": 0
+    }
+  }
+}

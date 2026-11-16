@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import CryptoKit
 import SQLite3
 import os
 
@@ -92,6 +93,86 @@ actor ThoughtSemanticStore {
         var lastCompactedAt: Date?
     }
 
+    // MARK: - 脉络核对行类型（W2，2026-11-16 方案 §6 C3）
+
+    /// 核对成功的有界判定：双侧引用位置与简短说明。ref 在落库前已映射回本机
+    /// thoughtID——调用与显示句柄只从本机 source 映射绑定，不从模型响应字符串拼接（§6 C3）。
+    struct FollowupEvidenceRecord: Codable, Equatable {
+        var thoughtID: UUID
+        var windowRef: String        // 请求内窗口短编号（证据核对用）
+        var windowOffsetUTF16: Int   // 窗口在脱敏全文中的 UTF-16 起点（Source 行可重建）
+        var quote: String            // 1–120 UTF-16 逐字引用
+        var rangeUTF16: [Int]        // 窗口内半开区间 [start, end)
+    }
+
+    struct FollowupDecisionRecord: Codable, Equatable {
+        var otherThoughtID: UUID
+        var relation: String         // continues/adds_example/contrasts/revises/none/insufficient
+        var reason: String?          // 成立关系 1–100 UTF-16；none/insufficient 为 nil
+        var anchorEvidence: FollowupEvidenceRecord?
+        var otherEvidence: FollowupEvidenceRecord?
+    }
+
+    /// 脉络核对任务与结果行（主键 taskKey）。持久状态机：
+    /// pending → running → verified / no_result / waiting / failed（§6 C3）；
+    /// cancelled 为撤权/版本变更/范围退出的终态（不重试、不算凭证）。
+    struct FollowupResultRecord: Equatable {
+        enum State: String {
+            case pending, running
+            case verified, noResult = "no_result"
+            case waiting, failed, cancelled
+            var isTerminal: Bool { self == .verified || self == .noResult || self == .failed || self == .cancelled }
+            /// verified/no_result 皆终态不重算（§5 B2）；failed 仅在新策略版本下另起 taskKey。
+            var isCompletionReceipt: Bool { self == .verified || self == .noResult }
+        }
+        var taskKey: String
+        var scopeID: UUID
+        var anchorID: UUID
+        var state: State
+        var policyVersion: String
+        var operationID: String      // 重启重试复用同一 operationId（§6 C2 末条）
+        var runDeadline: Date?       // 运行时限：超时的 running 由下次领取回收
+        var nextAttemptAt: Date?
+        var attemptCount: Int
+        var startedDay: String?      // 首次尝试的设备日（yyyy-MM-dd，本地时区）
+        var createdAt: Date
+        var verifiedAt: Date?
+        var lastErrorCode: String?
+        var decisions: [FollowupDecisionRecord]   // 成功后有界判定数组
+        var threadID: String?                     // 独立 thread local ID（不拿标题当身份，§5 B2）
+        var threadTitle: String?
+        var threadQuestion: String?
+        var threadMemberIDs: [UUID]
+    }
+
+    /// 请求输入映射行（主键 taskKey × thoughtID）：记录该请求的**全部输入**
+    /// （含最终没进入卡片的输入）；结果有效性与清理以所有输入为准（§6 C3）。
+    struct FollowupWindowIndex: Codable, Equatable {
+        var ref: String
+        var offsetUTF16: Int
+        var lengthUTF16: Int
+    }
+
+    struct FollowupSourceRecord: Equatable {
+        var taskKey: String
+        var thoughtID: UUID
+        var scopeID: UUID
+        var contentHash: String       // 冻结的正文 hash（读侧按当前正文核对）
+        var redactionVersion: String  // 文本处理版本（窗口按此版本重建脱敏）
+        var frozenCreatedAt: Date     // 冻结创建时间（关系方向裁决用，§6 C1）
+        var windows: [FollowupWindowIndex]
+        var summary: String           // 窗口文本短摘要（卡片可核对片段的本地依据）
+    }
+
+    /// 脉络卡隐藏回执（本机 scope × thread local ID）：无内容，
+    /// 另存确认展示过的成员 ID 集合用于高重叠压制（§6 C3 / §5 B2）。
+    struct FollowupDismissalRecord: Equatable {
+        var scopeID: UUID
+        var threadID: String
+        var memberIDs: [UUID]
+        var createdAt: Date
+    }
+
     static let schemaVersion = 1
     static let defaultModelVersion = "text-embedding-v3-v1"   // 与现有 ThoughtEmbeddingStore 一致，迁移可复用
 
@@ -131,6 +212,9 @@ actor ThoughtSemanticStore {
         try migrateIfNeeded()
         // 上一次进程在网络请求中退出，running 没有执行者；冷启动统一回收到队列。
         try exec("UPDATE semantic_job SET state='pending', next_attempt_at=NULL, last_error_code='interrupted' WHERE state='running'")
+        // 脉络核对同理（§6 C2 末条）：重启识别未完成尝试置 waiting，复用原 operationId，
+        // 仅在既有退避与剩余日额度允许时由下次领取重试——中断的请求可能已在网关计费。
+        try exec("UPDATE thought_followup_result SET state='waiting', next_attempt_at=strftime('%s','now'), last_error_code='interrupted' WHERE state='running'")
         try repairLegacyQueue()
     }
 
@@ -312,8 +396,23 @@ actor ThoughtSemanticStore {
     /// 全库关联重新入队重评（实测重度用户 93% 后台费来自关联重算）。过期记录仍可
     /// 展示；重评只由目录/引擎版本（evaluationVersion、engine_version）与正文变化
     /// （contentHash）触发。
+    /// W1（2026-11-16 方案 §4 A2）：类别规则层激活（同一策略函数 categoryRulesCoverage
+    /// 裁决）时按 v4 版本键判重——v4 回执与 v3 回执两个版本空间互不可见，
+    /// 同版本持久化的空结果（哨兵行）同样算完成态，不重复入队。
     func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
         let currentVersion = try evaluationVersion.map { try relationEvaluationVersion(catalogVersion: $0) }
+        if let catalogVersion = currentVersion,
+           let mode = ThoughtSemanticFeatureFlags.categoryRulesCoverage(thoughtID: thoughtID) {
+            let v4Version = Self.schema4EvaluationVersionKey(
+                catalogVersion: catalogVersion, mode: mode.rawValue, contentHash: contentHash)
+            let v4Stmt = try prepare("""
+                SELECT COUNT(*) FROM relation_candidate
+                WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3 AND engine_version=?4
+                """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(v4Version))
+            defer { sqlite3_finalize(v4Stmt) }
+            guard sqlite3_step(v4Stmt) == SQLITE_ROW else { return false }
+            return sqlite3_column_int64(v4Stmt, 0) > 0
+        }
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
             WHERE thought_id=?1 AND content_hash=?2
@@ -322,6 +421,19 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0
+    }
+
+    /// W1 统一评估版本键（规范编码）：schema + policy + effective candidate scope + contentHash。
+    /// · schema/policy：固定前缀 thought_semantic_v4:<mode>（shadow 与 live 版本空间分隔）；
+    /// · effective candidate scope：catalogVersion（目录指纹 + brief 版本键）参与哈希，
+    ///   它枚举了召回与判据的全部输入；
+    /// · contentHash：目标正文版本参与哈希。
+    /// v3 的 relationEvaluationVersion 语义不动：键前缀天然分隔两个空间，v4 回执
+    /// 绝不污染 v3 判重，反之亦然。队列（hasRelationRecord）、评估回执与去重共用本函数。
+    nonisolated static func schema4EvaluationVersionKey(catalogVersion: String, mode: String, contentHash: String) -> String {
+        let digest = SHA256.hash(data: Data((catalogVersion + "\u{1f}" + mode + "\u{1f}" + contentHash).utf8))
+            .prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "thought_semantic_v4:" + mode + ":" + digest
     }
 
     /// tombstone 删除（物理清理由 compact）。
@@ -441,6 +553,42 @@ actor ThoughtSemanticStore {
         try bindExec("DELETE FROM category_brief WHERE topic_id=?1", .uuid(topicID))
     }
 
+    // MARK: - category_rules_diagnostic（W1 类别规则层诊断，只存 id 与原因码，不含正文）
+
+    /// 影子评测诊断（W1，2026-11-16 方案 §4 A2/W1）：schema 4 路径的可观测产物，
+    /// 仅记录稳定 ID、正文哈希与原因码（category_definition_too_long /
+    /// category_definition_unreadable / schema4_server_rejected 等），shadow 与 live
+    /// 模式共用；不写任何正式关系。同 (thought, topic, reason) 幂等覆盖。
+    func recordCategoryRulesDiagnostic(thoughtID: UUID,
+                                       topicID: UUID,
+                                       contentHash: String,
+                                       reason: String,
+                                       mode: String) throws {
+        try bindExec("""
+            INSERT INTO category_rules_diagnostic(thought_id, topic_id, content_hash, reason, mode, created_at)
+            VALUES(?1,?2,?3,?4,?5,?6)
+            ON CONFLICT(thought_id, topic_id, reason) DO UPDATE SET content_hash=?3, mode=?5, created_at=?6
+            """,
+            .uuid(thoughtID), .uuid(topicID), .text(contentHash), .text(reason), .text(mode), .date(Date()))
+    }
+
+    /// 读回一条想法的全部类别规则层诊断（测试与设置诊断用）。
+    func categoryRulesDiagnostics(thoughtID: UUID) throws -> [(topicID: UUID, reason: String, mode: String, createdAt: Date)] {
+        let stmt = try prepare("""
+            SELECT topic_id, reason, mode, created_at FROM category_rules_diagnostic
+            WHERE thought_id=?1 ORDER BY created_at DESC
+            """, .uuid(thoughtID))
+        defer { sqlite3_finalize(stmt) }
+        var rows: [(UUID, String, String, Date)] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let topicID = uuidCol(stmt, 0),
+                  let reason = textCol(stmt, 1),
+                  let mode = textCol(stmt, 2) else { continue }
+            rows.append((topicID, reason, mode, dateCol(stmt, 3) ?? Date()))
+        }
+        return rows
+    }
+
     /// 类别理解统计（设置页状态卡）：已代写主题数 + 最近更新时间。
     func categoryBriefStats() throws -> (count: Int, lastUpdatedAt: Date?) {
         let stmt = try prepare("SELECT COUNT(*), MAX(updated_at) FROM category_brief")
@@ -461,6 +609,22 @@ actor ThoughtSemanticStore {
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         return (String(cString: sqlite3_column_text(stmt, 0)), textCol(stmt, 1), textCol(stmt, 2))
+    }
+
+    /// 单对候选记录回读（W1 类别规则层测试与设置诊断）：最近一行的完整状态口径。
+    func relationCandidateState(thoughtID: UUID, topicID: UUID) throws -> (verifierResult: String, state: String, scoreFeatures: String?, engineVersion: String?)? {
+        let stmt = try prepare("""
+            SELECT verifier_result, state, score_features, engine_version
+            FROM relation_candidate
+            WHERE thought_id=?1 AND topic_id=?2
+            ORDER BY expires_at DESC LIMIT 1
+            """, .uuid(thoughtID), .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return (String(cString: sqlite3_column_text(stmt, 0)),
+                String(cString: sqlite3_column_text(stmt, 1)),
+                textCol(stmt, 2),
+                textCol(stmt, 3))
     }
 
     // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
@@ -745,6 +909,481 @@ actor ThoughtSemanticStore {
         return result
     }
 
+    // MARK: - thought_followup（W2 想法脉络核对，2026-11-16 方案 §6 C3）
+
+    /// 设备日键（本地自然日，§5 B1「按设备日」）。
+    nonisolated static func followupDeviceDay(_ date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// 每日新核对上限（含重试，§5 B1）：按 result 行 attempt_count 对当日 started_day 求和。
+    static let followupDailyAttemptLimit = 4
+
+    /// 幂等新建核对任务：taskKey 已存在（任何非 cancelled 状态）返回 false——
+    /// 相同键 verified/no_result 皆终态不重算，重复开页与重启不重新入队（§5 B2）。
+    /// cancelled 行复位复活（W3）：重新启用试点/恢复授权后同键可重算——新生命
+    /// 周期 = 新 operationId、attempt 归零（日额度按新领取重新计，不绕上限）。
+    @discardableResult
+    func upsertFollowupTask(taskKey: String, scopeID: UUID, anchorID: UUID, policyVersion: String) throws -> Bool {
+        try exec("BEGIN IMMEDIATE")
+        defer { try? exec("COMMIT") }
+        let existing = try prepare("SELECT state FROM thought_followup_result WHERE task_key=?1", .text(taskKey))
+        defer { sqlite3_finalize(existing) }
+        if sqlite3_step(existing) == SQLITE_ROW {
+            let state = String(cString: sqlite3_column_text(existing, 0))
+            guard state == "cancelled" else { return false }
+            try bindExec("""
+                UPDATE thought_followup_result
+                SET state='pending', next_attempt_at=NULL, run_deadline=NULL, last_error_code=NULL,
+                    attempt_count=0, started_day=NULL, verified_at=NULL, operation_id=?2
+                WHERE task_key=?1
+                """, .text(taskKey), .text(UUID().uuidString.lowercased()))
+            return true
+        }
+        try bindExec("""
+            INSERT INTO thought_followup_result(task_key, scope_id, anchor_id, state, policy_version,
+                                                operation_id, attempt_count, created_at)
+            VALUES(?1,?2,?3,'pending',?4,?5,0,?6)
+            """,
+            .text(taskKey), .uuid(scopeID), .uuid(anchorID), .text(policyVersion),
+            .text(UUID().uuidString.lowercased()), .date(Date()))
+        return true
+    }
+
+    /// 领取下一个到期任务（§6 C3「领取用 SQLite 事务」+ §6 C2 末条「调用前原子标记」）：
+    /// pending 或 waiting 且到期；先回收超时 running；当日额度（含重试 ≤4 次）未满才可领。
+    /// 领取即置 running、attempt_count+1、首次尝试落 started_day、写入运行时限。
+    func claimNextFollowupTask(now: Date = Date(),
+                               runTimeout: TimeInterval = 180) throws -> FollowupResultRecord? {
+        try exec("BEGIN IMMEDIATE")
+        defer { try? exec("COMMIT") }
+        // 上一轮超时/中断的 running 回收为 waiting，本拍可按余量重试（复用 operationId）
+        try bindExec("""
+            UPDATE thought_followup_result SET state='waiting', next_attempt_at=?1
+            WHERE state='running' AND (run_deadline IS NULL OR run_deadline < ?1)
+            """, .date(now), .date(now))
+        let day = Self.followupDeviceDay(now)
+        let usage = try prepare("""
+            SELECT COALESCE(SUM(attempt_count),0) FROM thought_followup_result
+            WHERE started_day=?1 AND state != 'cancelled'
+            """, .text(day))
+        defer { sqlite3_finalize(usage) }
+        guard sqlite3_step(usage) == SQLITE_ROW,
+              sqlite3_column_int64(usage, 0) < Self.followupDailyAttemptLimit else { return nil }
+        let claim = try prepare("""
+            SELECT task_key FROM thought_followup_result
+            WHERE (state='pending' OR (state='waiting' AND (next_attempt_at IS NULL OR next_attempt_at <= ?1)))
+            ORDER BY created_at ASC LIMIT 1
+            """, .date(now))
+        defer { sqlite3_finalize(claim) }
+        guard sqlite3_step(claim) == SQLITE_ROW else { return nil }
+        let taskKey = String(cString: sqlite3_column_text(claim, 0))
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='running', attempt_count=attempt_count+1,
+                started_day=COALESCE(started_day, ?2),
+                run_deadline=?3, next_attempt_at=NULL
+            WHERE task_key=?1
+            """, .text(taskKey), .text(day), .date(now.addingTimeInterval(runTimeout)))
+        return try followupResult(taskKey: taskKey)
+    }
+
+    /// 输入映射（§6 C3「输入映射用 SQLite 事务」）：一次请求的全部输入整批落 source 行。
+    func recordFollowupSources(_ records: [FollowupSourceRecord]) throws {
+        guard !records.isEmpty else { return }
+        try exec("BEGIN IMMEDIATE")
+        defer { try? exec("COMMIT") }
+        for record in records {
+            let windowsJSON = (try? JSONEncoder().encode(record.windows))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+            try bindExec("""
+                INSERT INTO thought_followup_source(task_key, thought_id, scope_id, content_hash,
+                                                    redaction_version, frozen_created_at, windows_json, summary)
+                VALUES(?1,?2,?3,?4,?5,?6,?7,?8)
+                ON CONFLICT(task_key, thought_id) DO UPDATE SET content_hash=?4, redaction_version=?5,
+                    frozen_created_at=?6, windows_json=?7, summary=?8
+                """,
+                .text(record.taskKey), .uuid(record.thoughtID), .uuid(record.scopeID),
+                .text(record.contentHash), .text(record.redactionVersion),
+                .date(record.frozenCreatedAt), .text(windowsJSON), .text(record.summary))
+        }
+    }
+
+    /// 成功落库（§6 C3「成功落库用 SQLite 事务」）：verified 终态 + 有界判定数组 + 可选 thread。
+    func finishFollowupVerified(taskKey: String,
+                                decisions: [FollowupDecisionRecord],
+                                thread: (id: String, title: String, question: String, memberIDs: [UUID])?,
+                                now: Date = Date()) throws {
+        let decisionsJSON = (try? JSONEncoder().encode(decisions))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        let membersJSON = (try? JSONEncoder().encode(thread.map { $0.memberIDs } ?? []))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='verified', verified_at=?2, next_attempt_at=NULL, last_error_code=NULL,
+                decisions_json=?3, thread_id=?4, thread_title=?5, thread_question=?6, thread_member_ids=?7
+            WHERE task_key=?1
+            """,
+            .text(taskKey), .date(now), .text(decisionsJSON), .text(thread?.id),
+            .text(thread?.title), .text(thread?.question), .text(membersJSON))
+    }
+
+    /// 空结果终态：没有任何可信关系时 200 全部非命中（§6 C2）；与 verified 同为终态不重算。
+    func finishFollowupNoResult(taskKey: String, now: Date = Date()) throws {
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='no_result', verified_at=?2, next_attempt_at=NULL, last_error_code=NULL,
+                decisions_json=NULL, thread_id=NULL, thread_title=NULL, thread_question=NULL, thread_member_ids=NULL
+            WHERE task_key=?1
+            """, .text(taskKey), .date(now))
+    }
+
+    /// 有界重试等待（§6 C3：网络/上游超时按退避，配额等下个设备日或后端重试时刻）。
+    func finishFollowupWaiting(taskKey: String, nextAttemptAt: Date, errorCode: String?) throws {
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='waiting', next_attempt_at=?2, last_error_code=?3, run_deadline=NULL
+            WHERE task_key=?1 AND state='running'
+            """, .text(taskKey), .date(nextAttemptAt), .text(errorCode))
+    }
+
+    /// 终态失败：协议错/重试耗尽（§6 C2：持续协议错误只在新策略版本下解冻——
+    /// policyVersion 参与 taskKey，新版本自然另起新键）。
+    func finishFollowupFailed(taskKey: String, errorCode: String?) throws {
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='failed', next_attempt_at=NULL, last_error_code=?2, run_deadline=NULL
+            WHERE task_key=?1 AND state='running'
+            """, .text(taskKey), .text(errorCode))
+    }
+
+    /// 撤权、版本变更或范围退出取消旧运行（§6 C3）：scope 传 nil 取消全部。
+    /// 取消是终态：不做网络调用、不占当日额度、迟到结果不得落库。
+    func cancelFollowupTasks(scopeID: UUID?, errorCode: String) throws {
+        if let scopeID {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code=?2, run_deadline=NULL
+                WHERE scope_id=?1 AND state IN('pending','running','waiting')
+                """, .uuid(scopeID), .text(errorCode))
+        } else {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code=?2, run_deadline=NULL
+                WHERE state IN('pending','running','waiting')
+                """, .text(errorCode))
+        }
+    }
+
+    /// 当日已消耗的新核对次数（含重试，§5 B1）。
+    func followupDailyAttempts(now: Date = Date()) throws -> Int {
+        let stmt = try prepare("""
+            SELECT COALESCE(SUM(attempt_count),0) FROM thought_followup_result
+            WHERE started_day=?1 AND state != 'cancelled'
+            """, .text(Self.followupDeviceDay(now)))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int64(stmt, 0))
+    }
+
+    // MARK: - 试点队列快照与手动重试（W3，2026-11-16 方案 §6 C3/§1 三档诊断）
+
+    /// 按状态的队列计数（设置页三档诊断与手动重试的判定依据）。
+    struct FollowupQueueStatus: Equatable {
+        var pending = 0
+        var running = 0
+        /// waiting 且已到重试时刻（含 next_attempt_at 为空的等待行，与领取口径一致）
+        var waitingDue = 0
+        /// waiting 且未到期
+        var waitingFuture = 0
+        var failed = 0
+        var verified = 0
+        var noResult = 0
+
+        /// 排队/处理中/等待中的在途键数
+        var inFlight: Int { pending + running + waitingDue + waitingFuture }
+        /// 完成终态（verified 含空结果终态 no_result）
+        var completed: Int { verified + noResult }
+    }
+
+    /// 某试点范围的队列快照（W3 pilotStatus：在途=等待整理，failed/到期=稍后重试）。
+    func followupQueueStatus(scopeID: UUID, now: Date = Date()) throws -> FollowupQueueStatus {
+        let stmt = try prepare("""
+            SELECT
+                COALESCE(SUM(state='pending'),0),
+                COALESCE(SUM(state='running'),0),
+                COALESCE(SUM(state='waiting' AND (next_attempt_at IS NULL OR next_attempt_at <= ?2)),0),
+                COALESCE(SUM(state='waiting' AND next_attempt_at > ?2),0),
+                COALESCE(SUM(state='failed'),0),
+                COALESCE(SUM(state='verified'),0),
+                COALESCE(SUM(state='no_result'),0)
+            FROM thought_followup_result WHERE scope_id=?1
+            """, .uuid(scopeID), .date(now))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return FollowupQueueStatus() }
+        return FollowupQueueStatus(
+            pending: Int(sqlite3_column_int64(stmt, 0)),
+            running: Int(sqlite3_column_int64(stmt, 1)),
+            waitingDue: Int(sqlite3_column_int64(stmt, 2)),
+            waitingFuture: Int(sqlite3_column_int64(stmt, 3)),
+            failed: Int(sqlite3_column_int64(stmt, 4)),
+            verified: Int(sqlite3_column_int64(stmt, 5)),
+            noResult: Int(sqlite3_column_int64(stmt, 6)))
+    }
+
+    /// 手动重试（W3 诊断页「稍后重试」定向人工复测的解冻口径，§6 C2 末条）：
+    /// failed 与未到期 waiting 有界复位为 pending 立即可领——attempt_count 不清零
+    /// （上限口径不变），日额度仍在领取处强制 ≤4；verified/no_result/cancelled/
+    /// running 不动。返回复位行数。
+    @discardableResult
+    func retryFollowupTasks(scopeID: UUID, now: Date = Date()) throws -> Int {
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET state='pending', next_attempt_at=NULL, run_deadline=NULL, last_error_code=NULL
+            WHERE scope_id=?1 AND (state='failed' OR (state='waiting' AND next_attempt_at > ?2))
+            """, .uuid(scopeID), .date(now))
+        return Int(sqlite3_changes(db))
+    }
+
+    /// 试点范围切换/关闭（W3，settingsDidChange 链路）：keep 之外所有 scope 的
+    /// 未终态行直接取消终态——不占日额度、不靠领取逐拍以 anchor_unavailable 排干；
+    /// cancelled 行可由 upsertFollowupTask 复活（重新启用后同键重算）。keep 为
+    /// nil（试点整体关闭）时取消全部在途。
+    func cancelFollowupTasksOutsideScope(keep scopeID: UUID?) throws {
+        if let scopeID {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code='scope_exited', run_deadline=NULL
+                WHERE state IN('pending','running','waiting') AND scope_id != ?1
+                """, .uuid(scopeID))
+        } else {
+            try bindExec("""
+                UPDATE thought_followup_result SET state='cancelled', next_attempt_at=NULL,
+                    last_error_code='scope_exited', run_deadline=NULL
+                WHERE state IN('pending','running','waiting')
+                """)
+        }
+    }
+
+    /// 相同键终态判定（verified/no_result 皆终态，§5 B2）。
+    func hasTerminalFollowup(taskKey: String) throws -> Bool {
+        let stmt = try prepare("""
+            SELECT COUNT(*) FROM thought_followup_result
+            WHERE task_key=?1 AND state IN('verified','no_result')
+            """, .text(taskKey))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
+        return sqlite3_column_int64(stmt, 0) > 0
+    }
+
+    /// 单行回读（领取后快照/测试）。
+    func followupResult(taskKey: String) throws -> FollowupResultRecord? {
+        let stmt = try prepare("""
+            SELECT task_key, scope_id, anchor_id, state, policy_version, operation_id, run_deadline,
+                   next_attempt_at, attempt_count, started_day, created_at, verified_at, last_error_code,
+                   decisions_json, thread_id, thread_title, thread_question, thread_member_ids
+            FROM thought_followup_result WHERE task_key=?1
+            """, .text(taskKey))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return followupRow(stmt)
+    }
+
+    /// 读侧展示：当前 scope 的 verified 结果（含 thread 为 nil 的相关区结果）。
+    /// 30 天过期隐藏由调用侧按 verifiedAt 判断（§6 C3「过期先隐藏」）。
+    func followupResults(scopeID: UUID) throws -> [FollowupResultRecord] {
+        let stmt = try prepare("""
+            SELECT task_key, scope_id, anchor_id, state, policy_version, operation_id, run_deadline,
+                   next_attempt_at, attempt_count, started_day, created_at, verified_at, last_error_code,
+                   decisions_json, thread_id, thread_title, thread_question, thread_member_ids
+            FROM thought_followup_result WHERE scope_id=?1 AND state='verified'
+            ORDER BY verified_at DESC
+            """, .uuid(scopeID))
+        defer { sqlite3_finalize(stmt) }
+        var rows: [FollowupResultRecord] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let row = followupRow(stmt) { rows.append(row) }
+        }
+        return rows
+    }
+
+    /// 一次请求的全部输入回读（结果有效性以所有输入为准，含最终没进入卡片的输入）。
+    func followupSources(taskKey: String) throws -> [FollowupSourceRecord] {
+        let stmt = try prepare("""
+            SELECT task_key, thought_id, scope_id, content_hash, redaction_version,
+                   frozen_created_at, windows_json, summary
+            FROM thought_followup_source WHERE task_key=?1 ORDER BY thought_id
+            """, .text(taskKey))
+        defer { sqlite3_finalize(stmt) }
+        var rows: [FollowupSourceRecord] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let thoughtID = uuidCol(stmt, 1), let scopeID = uuidCol(stmt, 2) else { continue }
+            let windowsData = Data(bytes: sqlite3_column_blob(stmt, 6), count: Int(sqlite3_column_bytes(stmt, 6)))
+            let windows = (try? JSONDecoder().decode([FollowupWindowIndex].self, from: windowsData)) ?? []
+            rows.append(FollowupSourceRecord(
+                taskKey: String(cString: sqlite3_column_text(stmt, 0)),
+                thoughtID: thoughtID,
+                scopeID: scopeID,
+                contentHash: String(cString: sqlite3_column_text(stmt, 3)),
+                redactionVersion: String(cString: sqlite3_column_text(stmt, 4)),
+                frozenCreatedAt: dateCol(stmt, 5) ?? Date(),
+                windows: windows,
+                summary: textCol(stmt, 7) ?? ""))
+        }
+        return rows
+    }
+
+    private func followupRow(_ stmt: OpaquePointer) -> FollowupResultRecord? {
+        guard let scopeID = uuidCol(stmt, 1), let anchorID = uuidCol(stmt, 2) else { return nil }
+        let decisionsData = sqlite3_column_blob(stmt, 13).map {
+            Data(bytes: $0, count: Int(sqlite3_column_bytes(stmt, 13)))
+        }
+        let decisions = decisionsData.flatMap { try? JSONDecoder().decode([FollowupDecisionRecord].self, from: $0) } ?? []
+        let membersData = sqlite3_column_blob(stmt, 17).map {
+            Data(bytes: $0, count: Int(sqlite3_column_bytes(stmt, 17)))
+        }
+        let members = membersData.flatMap { try? JSONDecoder().decode([UUID].self, from: $0) } ?? []
+        return FollowupResultRecord(
+            taskKey: String(cString: sqlite3_column_text(stmt, 0)),
+            scopeID: scopeID,
+            anchorID: anchorID,
+            state: FollowupResultRecord.State(rawValue: String(cString: sqlite3_column_text(stmt, 3))) ?? .failed,
+            policyVersion: String(cString: sqlite3_column_text(stmt, 4)),
+            operationID: String(cString: sqlite3_column_text(stmt, 5)),
+            runDeadline: dateCol(stmt, 6),
+            nextAttemptAt: dateCol(stmt, 7),
+            attemptCount: Int(sqlite3_column_int64(stmt, 8)),
+            startedDay: textCol(stmt, 9),
+            createdAt: dateCol(stmt, 10) ?? Date(),
+            verifiedAt: dateCol(stmt, 11),
+            lastErrorCode: textCol(stmt, 12),
+            decisions: decisions,
+            threadID: textCol(stmt, 14),
+            threadTitle: textCol(stmt, 15),
+            threadQuestion: textCol(stmt, 16),
+            threadMemberIDs: members)
+    }
+
+    /// 保留淘汰（§6 C3）：结果主体 ≤30 天或每主题 200 批次（取先触发，运行中的不强行淘汰）；
+    /// 过期先隐藏（读侧按 verifiedAt 判断）再清可重建内容（判定/thread 正文与 source 窗口），
+    /// 完成凭证行（taskKey+状态+时间）保留防重调；每锚点只留最新完成凭证、全 scope ≤120。
+    /// 只因过期、容量清理或重复开页不会重试同一个键——凭证行本身即防重入。
+    func pruneFollowupRetention(scopeID: UUID,
+                                now: Date = Date(),
+                                maxAgeDays: Double = 30,
+                                maxBatchesPerScope: Int = 200,
+                                maxAnchorReceipts: Int = 120) throws {
+        // 1) 超龄与超批次的完成行：清可重建内容 + 对应 source 窗口（凭证行保留）
+        let cutoff = now.addingTimeInterval(-maxAgeDays * 86_400)
+        try bindExec("""
+            UPDATE thought_followup_result
+            SET decisions_json=NULL, thread_id=NULL, thread_title=NULL, thread_question=NULL, thread_member_ids=NULL
+            WHERE scope_id=?1 AND state IN('verified','no_result')
+                  AND verified_at < ?2
+                  AND (decisions_json IS NOT NULL OR thread_title IS NOT NULL)
+            """, .uuid(scopeID), .date(cutoff))
+        let staleKeys = try prepare("""
+            SELECT task_key FROM thought_followup_result
+            WHERE scope_id=?1 AND state IN('verified','no_result')
+                  AND (decisions_json IS NOT NULL OR thread_title IS NOT NULL)
+            ORDER BY verified_at ASC LIMIT -1 OFFSET ?2
+            """, .uuid(scopeID), .int64(Int64(maxBatchesPerScope)))
+        var overflowKeys: [String] = []
+        while sqlite3_step(staleKeys) == SQLITE_ROW {
+            overflowKeys.append(String(cString: sqlite3_column_text(staleKeys, 0)))
+        }
+        sqlite3_finalize(staleKeys)
+        for key in overflowKeys {
+            try bindExec("""
+                UPDATE thought_followup_result
+                SET decisions_json=NULL, thread_id=NULL, thread_title=NULL, thread_question=NULL, thread_member_ids=NULL
+                WHERE task_key=?1
+                """, .text(key))
+        }
+        // 2) 每锚点只保留最新完成凭证：同锚点旧终态行删除
+        let anchors = try prepare("""
+            SELECT anchor_id, MAX(verified_at) FROM thought_followup_result
+            WHERE scope_id=?1 AND state IN('verified','no_result') GROUP BY anchor_id
+            """, .uuid(scopeID))
+        var anchorLatest: [(UUID, Date)] = []
+        while sqlite3_step(anchors) == SQLITE_ROW {
+            if let id = uuidCol(anchors, 0), let latest = dateCol(anchors, 1) {
+                anchorLatest.append((id, latest))
+            }
+        }
+        sqlite3_finalize(anchors)
+        for (anchorID, latest) in anchorLatest {
+            try bindExec("""
+                DELETE FROM thought_followup_result
+                WHERE scope_id=?1 AND anchor_id=?2 AND state IN('verified','no_result') AND verified_at < ?3
+                """, .uuid(scopeID), .uuid(anchorID), .date(latest))
+        }
+        // 3) 全 scope 完成凭证 ≤120：按锚点最旧完成时间淘汰整组凭证行
+        if anchorLatest.count > maxAnchorReceipts {
+            let evict = anchorLatest.sorted { $0.1 < $1.1 }.prefix(anchorLatest.count - maxAnchorReceipts)
+            for (anchorID, _) in evict {
+                try bindExec("""
+                    DELETE FROM thought_followup_result
+                    WHERE scope_id=?1 AND anchor_id=?2 AND state IN('verified','no_result')
+                    """, .uuid(scopeID), .uuid(anchorID))
+            }
+        }
+        // 4) source 窗口随可重建内容清理：终态且内容已空的行、以及 result 行已被
+        //    整行删除（每锚点最新/凭证上限）后的孤儿 source 一并清掉
+        try bindExec("""
+            DELETE FROM thought_followup_source
+            WHERE scope_id=?1 AND (
+                task_key NOT IN (SELECT task_key FROM thought_followup_result WHERE scope_id=?1)
+                OR task_key IN (SELECT task_key FROM thought_followup_result
+                                WHERE scope_id=?1 AND state IN('verified','no_result')
+                                  AND decisions_json IS NULL AND thread_title IS NULL))
+            """, .uuid(scopeID))
+    }
+
+    /// 隐藏一条脉络卡（本机独立操作，§6 C1/§5 B2）：scope × thread local ID +
+    /// 确认展示过的成员 ID 集（高重叠压制用）；幂等覆盖。
+    func recordFollowupDismissal(scopeID: UUID, threadID: String, memberIDs: [UUID]) throws {
+        let membersJSON = (try? JSONEncoder().encode(memberIDs))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        try bindExec("""
+            INSERT INTO thought_followup_dismissal(scope_id, thread_id, member_ids, created_at)
+            VALUES(?1,?2,?3,?4)
+            ON CONFLICT(scope_id, thread_id) DO UPDATE SET member_ids=?3, created_at=?4
+            """, .uuid(scopeID), .text(threadID), .text(membersJSON), .date(Date()))
+    }
+
+    func followupDismissals(scopeID: UUID) throws -> [FollowupDismissalRecord] {
+        let stmt = try prepare("""
+            SELECT scope_id, thread_id, member_ids, created_at
+            FROM thought_followup_dismissal WHERE scope_id=?1
+            """, .uuid(scopeID))
+        defer { sqlite3_finalize(stmt) }
+        var rows: [FollowupDismissalRecord] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let scope = uuidCol(stmt, 0) else { continue }
+            let membersData = Data(bytes: sqlite3_column_blob(stmt, 2), count: Int(sqlite3_column_bytes(stmt, 2)))
+            let members = (try? JSONDecoder().decode([UUID].self, from: membersData)) ?? []
+            rows.append(FollowupDismissalRecord(
+                scopeID: scope,
+                threadID: String(cString: sqlite3_column_text(stmt, 1)),
+                memberIDs: members,
+                createdAt: dateCol(stmt, 3) ?? Date()))
+        }
+        return rows
+    }
+
+    /// 撤权/范围退出的有界清理入口（§6 C3）：清该 scope 的结果与来源行。
+    /// 隐藏回执保留（Dismissal 行「日常重算与回滚保留拒绝」，仅含稳定 ID 无内容，
+    /// 相关 pair 拒绝走既有 related_feedback）；「清除设备索引」走 destroyAllData
+    /// 整库销毁，本机反馈一并清掉。
+    func destroyFollowupData(scopeID: UUID) throws {
+        try exec("BEGIN IMMEDIATE")
+        defer { try? exec("COMMIT") }
+        try bindExec("DELETE FROM thought_followup_result WHERE scope_id=?1", .uuid(scopeID))
+        try bindExec("DELETE FROM thought_followup_source WHERE scope_id=?1", .uuid(scopeID))
+    }
+
     // MARK: - manifest
 
     func manifest() throws -> Manifest {
@@ -903,6 +1542,18 @@ actor ThoughtSemanticStore {
         try? exec("ALTER TABLE semantic_job ADD COLUMN finished_at REAL")
         // P0-B（2026-09-27）：证据原文片段随决策记录落库，供 P1「为什么归在这里」回源展示
         try? exec("ALTER TABLE relation_candidate ADD COLUMN verifier_quote TEXT")
+        // W1 类别规则层诊断（2026-11-16 方案 §4 A2）：schema 4 影子评测的可观测产物，
+        // 只存稳定 ID、正文哈希与原因码，不进 CloudKit。
+        try exec("""
+            CREATE TABLE IF NOT EXISTS category_rules_diagnostic(
+                thought_id BLOB NOT NULL,
+                topic_id BLOB NOT NULL,
+                content_hash TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                PRIMARY KEY(thought_id, topic_id, reason))
+            """)
         // 相关旧想法反馈墓碑（方案 §5.2：同正文版本「不相关」后不重复推荐）
         try exec("""
             CREATE TABLE IF NOT EXISTS related_feedback(
@@ -911,6 +1562,53 @@ actor ThoughtSemanticStore {
                 basis_hash TEXT NOT NULL,
                 created_at REAL NOT NULL,
                 PRIMARY KEY(thought_id, related_id))
+            """)
+        // 脉络核对三表（W2，2026-11-16 方案 §6 C3）：result 主键 taskKey；
+        // source 记录请求全部输入（taskKey × thoughtID）；dismissal 本机隐藏回执。
+        // AI 派生只留本机语义库，不进 Core Data / CloudKit；随销毁入口整体清除。
+        try exec("""
+            CREATE TABLE IF NOT EXISTS thought_followup_result(
+                task_key TEXT PRIMARY KEY,
+                scope_id BLOB NOT NULL,
+                anchor_id BLOB NOT NULL,
+                state TEXT NOT NULL DEFAULT 'pending',
+                policy_version TEXT NOT NULL,
+                operation_id TEXT NOT NULL,
+                run_deadline REAL,
+                next_attempt_at REAL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                started_day TEXT,
+                created_at REAL NOT NULL,
+                verified_at REAL,
+                last_error_code TEXT,
+                decisions_json TEXT,
+                thread_id TEXT,
+                thread_title TEXT,
+                thread_question TEXT,
+                thread_member_ids TEXT)
+            """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_followup_result_scope ON thought_followup_result(scope_id, state)")
+        try exec("CREATE INDEX IF NOT EXISTS idx_followup_result_anchor ON thought_followup_result(scope_id, anchor_id)")
+        try exec("""
+            CREATE TABLE IF NOT EXISTS thought_followup_source(
+                task_key TEXT NOT NULL,
+                thought_id BLOB NOT NULL,
+                scope_id BLOB NOT NULL,
+                content_hash TEXT NOT NULL,
+                redaction_version TEXT NOT NULL,
+                frozen_created_at REAL NOT NULL,
+                windows_json TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                PRIMARY KEY(task_key, thought_id))
+            """)
+        try exec("CREATE INDEX IF NOT EXISTS idx_followup_source_thought ON thought_followup_source(thought_id)")
+        try exec("""
+            CREATE TABLE IF NOT EXISTS thought_followup_dismissal(
+                scope_id BLOB NOT NULL,
+                thread_id TEXT NOT NULL,
+                member_ids TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                PRIMARY KEY(scope_id, thread_id))
             """)
         let m = try manifest()
         guard m.schemaVersion <= Self.schemaVersion else {

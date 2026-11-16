@@ -491,6 +491,16 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_CATEGORY_BRIEF_MAX_TOKENS ?? 600),
     },
+    // 想法脉络核对（2026-11-16 想法主题与脉络方案 §6 C2）：锚点 × ≤4 候选的独立关系判断。
+    // provider/model 跟随聊天通道（显式 env 优先），配对由 routes-provider-model-pairing 测试锁定。
+    thought_followup_v1: {
+      provider: process.env.HOLO_THOUGHT_FOLLOWUP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_FOLLOWUP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_FOLLOWUP_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_FOLLOWUP_REASONING_EFFORT ?? "none",
+      // §5 B1：默认输出上限 1200 tokens，独立可关闭
+      maxTokens: Number(process.env.HOLO_THOUGHT_FOLLOWUP_MAX_TOKENS ?? 1200),
+    },
     // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
     thought_topic_name_v1: {
       provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -838,6 +848,34 @@ const DEFAULT_CONFIG = {
       perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 0),
     },
   },
+  // 想法归类 schema 4（类别规则层，2026-11-16 方案 §4 A2/W1）：独立灰度闸，默认关闭。
+  // 关闭时 schema 4 请求按稳定错误码拒绝，schema 1/2/3 完全不读此开关。
+  thoughtScopeRules: {
+    enabled: process.env.HOLO_THOUGHT_SCOPE_RULES_ENABLED === "true",
+  },
+  // 想法脉络核对（2026-11-16 方案 §6 C2 / §2 A13）：独立灰度闸，默认 false——
+  // 服务端暗开 + 客户端试点双成立才可出网。privacyVerified：供应商留存证据经人工
+  // 核实后 env 显式开启；未核实 + 非 mock provider 时端点返回 PRIVACY_ROUTE_UNVERIFIED。
+  // pilotSubjects：试点白名单 = 服务端解析的可信主体 SHA-256（backgroundSubject 口径），
+  // 客户端自报设备 ID 不算数；空数组 = 无试点主体（能力口 followupVersion 恒 0）。
+  thoughtFollowup: {
+    enabled: process.env.HOLO_THOUGHT_FOLLOWUP_ENABLED === "true",
+    privacyVerified: process.env.HOLO_THOUGHT_FOLLOWUP_PRIVACY_VERIFIED === "true",
+    pilotSubjects: csv(process.env.HOLO_THOUGHT_ORGANIZATION_PILOT_SUBJECTS ?? ""),
+    deadlineMs: Number(process.env.HOLO_THOUGHT_FOLLOWUP_DEADLINE_MS ?? 30_000),
+    budgets: {
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_FOLLOWUP_DAILY_MAX_CNY ?? 0),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_FOLLOWUP_MODERATION_CNY ?? 0.0005),
+    },
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_FOLLOWUP_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_FOLLOWUP_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_FOLLOWUP_REQUESTS_PER_MINUTE ?? 4),
+      perDay: Number(process.env.HOLO_THOUGHT_FOLLOWUP_REQUESTS_PER_DAY ?? 12),
+    },
+  },
   // 主题命名/摘要 V3：两端点共享预算池（Phase 5 低频事件），限流各自独立桶
   thoughtTopicInsight: {
     enabled: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_ENABLED !== "false",
@@ -1009,6 +1047,28 @@ export function loadConfig(overrides = {}) {
         ...DEFAULT_CONFIG.thoughtSemanticRelate.requestLimits,
         ...(overrides.thoughtSemanticRelate?.requestLimits ?? {}),
       },
+    },
+    thoughtScopeRules: {
+      ...DEFAULT_CONFIG.thoughtScopeRules,
+      ...overrides.thoughtScopeRules,
+    },
+    thoughtFollowup: {
+      ...DEFAULT_CONFIG.thoughtFollowup,
+      ...overrides.thoughtFollowup,
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtFollowup.budgets,
+        ...(overrides.thoughtFollowup?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtFollowup.pricing,
+        ...(overrides.thoughtFollowup?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtFollowup.requestLimits,
+        ...(overrides.thoughtFollowup?.requestLimits ?? {}),
+      },
+      pilotSubjects: overrides.thoughtFollowup?.pilotSubjects
+        ?? DEFAULT_CONFIG.thoughtFollowup.pilotSubjects,
     },
     thoughtTopicInsight: {
       ...DEFAULT_CONFIG.thoughtTopicInsight,

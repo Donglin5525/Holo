@@ -93,6 +93,10 @@ export function publicMessage(code) {
     OPERATION_IN_PROGRESS: "这条想法正在整理中，请稍候",
     BUDGET_EXCEEDED: "今天的自动整理额度已用完，明天会自动恢复",
     MODEL_OUTPUT_INVALID: "整理结果异常，稍后会自动重试",
+    // 想法归类 schema 4 / 想法脉络核对（2026-11-16 方案）：灰度闸人读文案（上一轮遗留收口）
+    THOUGHT_SCOPE_RULES_DISABLED: "自动归类规则暂未开放",
+    THOUGHT_FOLLOWUP_DISABLED: "想法脉络核对暂未开放",
+    MODERATION_BLOCKED: "内容未通过安全审核，无法处理",
 
     // 兜底
     INTERNAL_ERROR: "服务暂时不可用，请稍后重试",

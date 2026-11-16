@@ -19,6 +19,7 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift" \
   "$APP/Models/ThoughtTopicLink+CoreDataClass.swift" \
   "$APP/Services/Thoughts/ThoughtTopicLinkProjection.swift" \
+  "$APP/Services/Sync/DuplicateRowFilter.swift" \
   "$APP/Models/Thought+CoreDataClass.swift" \
   "$APP/Models/Topic+CoreDataClass.swift" \
   "$APP/Models/ThoughtAttachment+CoreDataClass.swift" \

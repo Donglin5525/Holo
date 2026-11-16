@@ -1,0 +1,987 @@
+{
+  "reportVersion": 1,
+  "tool": "eval/tools/run-protocol-eval.mjs",
+  "generatedAt": "2026-11-15T18:06:58.730Z",
+  "inputs": {
+    "corpus": "synthetic-corpus.json(2026-11-16 冻结)",
+    "hardNegatives": "hard-negatives.json(负例语义已由语料 groundTruth 承载,本层不单独跑批)",
+    "ruleSamples": "rule-samples.json",
+    "validators": {
+      "followup": "HoloBackend/src/thoughts/followupSchema.js(含 quoteAlignment 逐字回源)",
+      "semanticRelate": "HoloBackend/src/thoughts/semanticRelateSchema.js",
+      "policyVersion": "thought-followup-1"
+    },
+    "limits": {
+      "quoteMaxUTF16": 120,
+      "reasonMaxUTF16": 100,
+      "threadTitleMaxUTF16": 32,
+      "definitionMaxUTF16": 240
+    }
+  },
+  "corpusDenominators": {
+    "notes": 50,
+    "relationPairs": 61,
+    "established": 45,
+    "negative": 16,
+    "threads": 3
+  },
+  "sections": {
+    "positive": {
+      "denominator": 64,
+      "passed": 64,
+      "failedCount": 0,
+      "breakdown": {
+        "relationPairs": {
+          "denominator": 61,
+          "passed": 61
+        },
+        "threads": {
+          "denominator": 3,
+          "passed": 3
+        }
+      },
+      "cases": [
+        {
+          "id": "P-REL-N04-N03",
+          "kind": "relationPair",
+          "anchor": "N04",
+          "other": "N03",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N08-N02",
+          "kind": "relationPair",
+          "anchor": "N08",
+          "other": "N02",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N10-N09",
+          "kind": "relationPair",
+          "anchor": "N10",
+          "other": "N09",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N11-N06",
+          "kind": "relationPair",
+          "anchor": "N11",
+          "other": "N06",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N15-N08",
+          "kind": "relationPair",
+          "anchor": "N15",
+          "other": "N08",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N17-N10",
+          "kind": "relationPair",
+          "anchor": "N17",
+          "other": "N10",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N21-N10",
+          "kind": "relationPair",
+          "anchor": "N21",
+          "other": "N10",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N22-N19",
+          "kind": "relationPair",
+          "anchor": "N22",
+          "other": "N19",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N23-N13",
+          "kind": "relationPair",
+          "anchor": "N23",
+          "other": "N13",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N24-N04",
+          "kind": "relationPair",
+          "anchor": "N24",
+          "other": "N04",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N25-N08",
+          "kind": "relationPair",
+          "anchor": "N25",
+          "other": "N08",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N27-N24",
+          "kind": "relationPair",
+          "anchor": "N27",
+          "other": "N24",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N27-N18",
+          "kind": "relationPair",
+          "anchor": "N27",
+          "other": "N18",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N29-N05",
+          "kind": "relationPair",
+          "anchor": "N29",
+          "other": "N05",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N29-N10",
+          "kind": "relationPair",
+          "anchor": "N29",
+          "other": "N10",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N30-N07",
+          "kind": "relationPair",
+          "anchor": "N30",
+          "other": "N07",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N31-N08",
+          "kind": "relationPair",
+          "anchor": "N31",
+          "other": "N08",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N31-N11",
+          "kind": "relationPair",
+          "anchor": "N31",
+          "other": "N11",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N31-N22",
+          "kind": "relationPair",
+          "anchor": "N31",
+          "other": "N22",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N31-N28",
+          "kind": "relationPair",
+          "anchor": "N31",
+          "other": "N28",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N32-N09",
+          "kind": "relationPair",
+          "anchor": "N32",
+          "other": "N09",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N34-N07",
+          "kind": "relationPair",
+          "anchor": "N34",
+          "other": "N07",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N34-N30",
+          "kind": "relationPair",
+          "anchor": "N34",
+          "other": "N30",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N35-N31",
+          "kind": "relationPair",
+          "anchor": "N35",
+          "other": "N31",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N36-N21",
+          "kind": "relationPair",
+          "anchor": "N36",
+          "other": "N21",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N36-N29",
+          "kind": "relationPair",
+          "anchor": "N36",
+          "other": "N29",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N38-N36",
+          "kind": "relationPair",
+          "anchor": "N38",
+          "other": "N36",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N40-N27",
+          "kind": "relationPair",
+          "anchor": "N40",
+          "other": "N27",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N42-N40",
+          "kind": "relationPair",
+          "anchor": "N42",
+          "other": "N40",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N42-N27",
+          "kind": "relationPair",
+          "anchor": "N42",
+          "other": "N27",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N04",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N04",
+          "relation": "revises",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N07",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N07",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N24",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N24",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N30",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N30",
+          "relation": "adds_example",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N12",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N12",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N14",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N14",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N16",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N16",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N20",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N20",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N33",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N33",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N37",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N37",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N39",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N39",
+          "relation": "insufficient",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N44-N41",
+          "kind": "relationPair",
+          "anchor": "N44",
+          "other": "N41",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N45-N19",
+          "kind": "relationPair",
+          "anchor": "N45",
+          "other": "N19",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N45-N22",
+          "kind": "relationPair",
+          "anchor": "N45",
+          "other": "N22",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N45-N31",
+          "kind": "relationPair",
+          "anchor": "N45",
+          "other": "N31",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N45-N35",
+          "kind": "relationPair",
+          "anchor": "N45",
+          "other": "N35",
+          "relation": "revises",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N46-N09",
+          "kind": "relationPair",
+          "anchor": "N46",
+          "other": "N09",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N46-N21",
+          "kind": "relationPair",
+          "anchor": "N46",
+          "other": "N21",
+          "relation": "revises",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N46-N29",
+          "kind": "relationPair",
+          "anchor": "N46",
+          "other": "N29",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N46-N36",
+          "kind": "relationPair",
+          "anchor": "N46",
+          "other": "N36",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N47-N11",
+          "kind": "relationPair",
+          "anchor": "N47",
+          "other": "N11",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N48-N15",
+          "kind": "relationPair",
+          "anchor": "N48",
+          "other": "N15",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N49-N23",
+          "kind": "relationPair",
+          "anchor": "N49",
+          "other": "N23",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N49-N43",
+          "kind": "relationPair",
+          "anchor": "N49",
+          "other": "N43",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N44",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N44",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N18",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N18",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N24",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N24",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N27",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N27",
+          "relation": "continues",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N16",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N16",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N33",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N33",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-REL-N50-N42",
+          "kind": "relationPair",
+          "anchor": "N50",
+          "other": "N42",
+          "relation": "none",
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-THR-N44",
+          "kind": "thread",
+          "title": "AI 做决定的边界",
+          "memberIds": [
+            "N44",
+            "N30",
+            "N24",
+            "N07",
+            "N04"
+          ],
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-THR-N46",
+          "kind": "thread",
+          "title": "记录怎么用起来",
+          "memberIds": [
+            "N46",
+            "N36",
+            "N29",
+            "N21",
+            "N09"
+          ],
+          "result": "PASS",
+          "detail": ""
+        },
+        {
+          "id": "P-THR-N45",
+          "kind": "thread",
+          "title": "发版与砍功能的判断",
+          "memberIds": [
+            "N45",
+            "N35",
+            "N31",
+            "N22",
+            "N19"
+          ],
+          "result": "PASS",
+          "detail": ""
+        }
+      ]
+    },
+    "structuralNegative": {
+      "groups": 7,
+      "denominator": 10,
+      "rejected": 10,
+      "unexpectedAccepted": 0,
+      "cases": [
+        {
+          "id": "X01",
+          "group": "G1-伪造引文",
+          "derivation": "N44→N04 revises,锚侧引文「低风险自动,高影响先确认」改一字为「低风险自动,高影响先批认」",
+          "expectation": "reject",
+          "expectedReason": "anchor_evidence_invalid",
+          "actual": {
+            "malformed": true,
+            "reason": "anchor_evidence_invalid"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X02",
+          "group": "G1-伪造引文",
+          "derivation": "N44→N24 continues,对方侧引文「出错的时候是真难纠正」改一字为「出错的时候是真难改正」",
+          "expectation": "reject",
+          "expectedReason": "other_evidence_invalid",
+          "actual": {
+            "malformed": true,
+            "reason": "other_evidence_invalid"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X03",
+          "group": "G2-range越界/错位",
+          "derivation": "N50→N44 continues,锚侧 rangeUTF16 端点越界:46+5 > 窗口长 46",
+          "expectation": "reject",
+          "expectedReason": "anchor_evidence_invalid",
+          "actual": {
+            "malformed": true,
+            "reason": "anchor_evidence_invalid"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X04",
+          "group": "G2-range越界/错位",
+          "derivation": "N50→N44 continues,对方侧 rangeUTF16 起点>终点:[10,5]",
+          "expectation": "reject",
+          "expectedReason": "other_evidence_invalid",
+          "actual": {
+            "malformed": true,
+            "reason": "other_evidence_invalid"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X05",
+          "group": "G3-none带证据",
+          "derivation": "N44→N16 none(H01 转述),照抄语料审计引文两侧 + reason(模型最易犯的形态)",
+          "expectation": "reject",
+          "expectedReason": "negative_decision_fields_not_null",
+          "actual": {
+            "malformed": true,
+            "reason": "negative_decision_fields_not_null"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X06",
+          "group": "G3-none带证据",
+          "derivation": "N27→N18 none(H09 计划),仅 reason 非 null(证据为 null)",
+          "expectation": "reject",
+          "expectedReason": "negative_decision_fields_not_null",
+          "actual": {
+            "malformed": true,
+            "reason": "negative_decision_fields_not_null"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X07",
+          "group": "G4-thread缺锚点",
+          "derivation": "T1「AI 做决定的边界」memberRefs 去掉锚点 N44,仅剩 4 名成员",
+          "expectation": "reject",
+          "expectedReason": "thread_missing_anchor",
+          "actual": {
+            "malformed": true,
+            "reason": "thread_missing_anchor"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X08",
+          "group": "G5-thread成员<3",
+          "derivation": "T1 memberRefs 仅 2 个:[N44, N24]",
+          "expectation": "reject",
+          "expectedReason": "thread_member_count",
+          "actual": {
+            "malformed": true,
+            "reason": "thread_member_count"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X09",
+          "group": "G6-标题超32",
+          "derivation": "T1 标题「AI 做决定的边界」重复 4 次 = 36 UTF-16 > 32",
+          "expectation": "reject",
+          "expectedReason": "thread_title_shape",
+          "actual": {
+            "malformed": true,
+            "reason": "thread_title_shape"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        },
+        {
+          "id": "X10",
+          "group": "G7-windowRef虚构",
+          "derivation": "N34→N07 adds_example,锚点证据 windowRef 指向请求中不存在的「W9」",
+          "expectation": "reject",
+          "expectedReason": "anchor_evidence_invalid",
+          "actual": {
+            "malformed": true,
+            "reason": "anchor_evidence_invalid"
+          },
+          "result": "PASS(按预期拒绝)",
+          "detail": ""
+        }
+      ],
+      "notes": [
+        "窗口内「错位但未越界」的 rangeUTF16 不在拒绝范围:服务端按 canonical quote 重算区间(followupSchema.canonicalEvidence 注释,与 semantic-relate v2+ 同口径),协议层只做结构检查(非负整数、半开区间形状、端点不越窗口)。本组以越界与倒置两例考察拒绝行为。"
+      ]
+    },
+    "schema4Definition": {
+      "withinLimit": {
+        "denominator": 14,
+        "passed": 14,
+        "cases": [
+          {
+            "id": "S4-PASS-RS01",
+            "ruleLen": 43,
+            "result": "PASS",
+            "detail": "definition 43 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS02",
+            "ruleLen": 43,
+            "result": "PASS",
+            "detail": "definition 43 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS03",
+            "ruleLen": 43,
+            "result": "PASS",
+            "detail": "definition 43 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS04",
+            "ruleLen": 54,
+            "result": "PASS",
+            "detail": "definition 54 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS05",
+            "ruleLen": 54,
+            "result": "PASS",
+            "detail": "definition 54 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS06",
+            "ruleLen": 54,
+            "result": "PASS",
+            "detail": "definition 54 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS07",
+            "ruleLen": 54,
+            "result": "PASS",
+            "detail": "definition 54 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS08",
+            "ruleLen": 69,
+            "result": "PASS",
+            "detail": "definition 69 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS09",
+            "ruleLen": 69,
+            "result": "PASS",
+            "detail": "definition 69 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS10",
+            "ruleLen": 69,
+            "result": "PASS",
+            "detail": "definition 69 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS11",
+            "ruleLen": 69,
+            "result": "PASS",
+            "detail": "definition 69 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS12",
+            "ruleLen": 31,
+            "result": "PASS",
+            "detail": "definition 31 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS13",
+            "ruleLen": 33,
+            "result": "PASS",
+            "detail": "definition 33 UTF-16 ≤ 240"
+          },
+          {
+            "id": "S4-PASS-RS14",
+            "ruleLen": 33,
+            "result": "PASS",
+            "detail": "definition 33 UTF-16 ≤ 240"
+          }
+        ]
+      },
+      "overLimit": {
+        "denominator": 14,
+        "rejected": 14,
+        "cases": [
+          {
+            "id": "S4-REJ-RS01",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS02",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS03",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS04",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS05",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS06",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS07",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS08",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS09",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS10",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS11",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS12",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS13",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          },
+          {
+            "id": "S4-REJ-RS14",
+            "ruleLen": 241,
+            "result": "PASS(按预期拒绝)",
+            "detail": "definition 241 UTF-16 > 240 被拒(INVALID_REQUEST)",
+            "code": "INVALID_REQUEST"
+          }
+        ]
+      }
+    }
+  },
+  "summary": {
+    "totalChecks": 102,
+    "passed": 102,
+    "failed": 0,
+    "positivePassRate": "64/64",
+    "negativeRejectRate": "10/10",
+    "schema4": "≤240 通过 14/14;241 超限拒绝 14/14",
+    "releaseGate": {
+      "rule": "协议层放行线:正向集 100% 通过 且 结构反证集 100% 拒绝 且 schema4 definition 两向全符合",
+      "result": "PASS"
+    }
+  }
+}

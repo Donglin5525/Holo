@@ -10,6 +10,9 @@
 //
 
 import SwiftUI
+import os.log
+
+private let rwViewLogger = Logger(subsystem: "com.holo.app", category: "RandomWalk")
 
 struct MemoryRandomWalkView: View {
     @ObservedObject var session: MemoryRandomWalkSession
@@ -39,10 +42,8 @@ struct MemoryRandomWalkView: View {
     private let actionSize: CGFloat = 14
     @State private var loadingShown = false
     @State private var loadingTimer: Task<Void, Never>?
-    /// 原型 is-arriving 的上浮淡入（walk-reveal）：抵达瞬间记录列表 250ms ease-out、
-    /// 回看一句延迟 45ms 再 280ms；新一次旅行开始时复位。
-    /// 内容实测高度（驱动 sheet 自适应，避免少量记录时整屏空膛）
-    @State private var contentHeight: CGFloat = 560
+    /// 内容区与动作区容器：暖光过场覆盖 divider 以下整片区域（与原型 .time-travel 一致），
+    /// 避免 actions 在 arrived 瞬间插入导致弹层高度跳变或闪屏。
     @State private var revealRecords = false
     @State private var revealEcho = false
 
@@ -50,29 +51,44 @@ struct MemoryRandomWalkView: View {
         VStack(spacing: 0) {
             header
             divider
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if session.phase == .arrived { actions }
+            VStack(spacing: 0) {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if showsActionsSlot {
+                    actions
+                        .opacity(session.phase == .arrived ? 1 : 0)
+                        .allowsHitTesting(session.phase == .arrived)
+                        .accessibilityHidden(session.phase != .arrived)
+                }
+            }
+            .overlay {
+                if session.phase == .traveling || session.phase == .landing,
+                   let elapsed = session.elapsedProvider,
+                   let arrival = session.arrival {
+                    MemoryWarmLightTransition(
+                        departure: departureStamp(arrival),
+                        arrival: arrivalStamp(arrival),
+                        timeline: WarmLightTimeline(reduceMotion: session.reduceMotion),
+                        elapsed: elapsed,
+                        animationID: arrival.requestID)
+                }
+            }
+            .clipped()
         }
         .background(Color.gallerySurface)
-        .presentationCornerRadius(24)
-        .presentationDetents([.height(min(max(contentHeight + 24, 480), 720)), .large])
-        .background {
-            // iOS 17 兼容的内容测高（onGeometryChange 是 18+，编译闸门实抓）
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { contentHeight = geo.size.height }
-                    .onChange(of: geo.size.height) { _, height in contentHeight = height }
-            }
-        }
         .onChange(of: scenePhase) { _, phase in
             session.handleScenePhase(phase)
         }
         .onChange(of: session.phase) { _, phase in
-            if phase == .arrived {
-                axFocus = .arrivalDate
+            rwViewLogger.notice("[RW] View.onChange phase=\(String(describing: phase), privacy: .public) hasElapsed=\(session.elapsedProvider != nil, privacy: .public) hasArrival=\(session.arrival != nil, privacy: .public)")
+            if phase == .landing {
+                // 原型 1450ms 交接起点：暖光淡出与记录上浮淡入（walk-reveal）同步触发。
                 withAnimation(.easeOut(duration: 0.25)) { revealRecords = true }
                 withAnimation(.easeOut(duration: 0.28).delay(0.045)) { revealEcho = true }
+            } else if phase == .arrived {
+                axFocus = .arrivalDate
+                if !revealRecords { revealRecords = true }
+                if !revealEcho { revealEcho = true }
             } else if phase == .traveling || phase == .loading {
                 revealRecords = false
                 revealEcho = false
@@ -81,13 +97,23 @@ struct MemoryRandomWalkView: View {
         }
         .onAppear {
             configureLoadingTimer(session.phase)
-            if session.phase == .arrived {
+            if session.phase == .arrived || session.phase == .landing {
                 revealRecords = true
                 revealEcho = true
             }
         }
         .onDisappear {
             loadingTimer?.cancel()
+        }
+    }
+
+    private var showsActionsSlot: Bool {
+        guard session.arrival != nil else { return false }
+        switch session.phase {
+        case .loading, .traveling, .landing, .arrived:
+            return true
+        case .idle, .empty, .failed:
+            return false
         }
     }
 
@@ -212,13 +238,13 @@ struct MemoryRandomWalkView: View {
             VStack(alignment: .leading, spacing: 0) {
                 dateZone(arrival)
                 recordZone(arrival)
-                    .opacity(revealRecords || session.phase != .arrived ? 1 : 0)
-                    .offset(y: revealRecords || session.phase != .arrived ? 0 : 6)
+                    .opacity(revealRecords ? 1 : 0)
+                    .offset(y: revealRecords ? 0 : 8)
                 if let echo = arrival.echo {
                     echoCard(echo, arrival: arrival)
                         .padding(.top, 13)
-                        .opacity(revealEcho || session.phase != .arrived ? 1 : 0)
-                        .offset(y: revealEcho || session.phase != .arrived ? 0 : 6)
+                        .opacity(revealEcho ? 1 : 0)
+                        .offset(y: revealEcho ? 0 : 8)
                 }
             }
             .padding(.horizontal, 20)
@@ -226,19 +252,6 @@ struct MemoryRandomWalkView: View {
             .padding(.bottom, 36)
             .accessibilityHidden(session.phase != .arrived)
         }
-        .overlay {
-            // 暖光过场：结果页先排版好，过场层淡出后自然露出（§4.1 图层顺序）。
-            if session.phase == .traveling || session.phase == .landing,
-               let elapsed = session.elapsedProvider,
-               let arrival = session.arrival {
-                MemoryWarmLightTransition(
-                    departure: departureStamp(arrival),
-                    arrival: arrivalStamp(arrival),
-                    timeline: WarmLightTimeline(reduceMotion: session.reduceMotion),
-                    elapsed: elapsed)
-            }
-        }
-        .clipped()
     }
 
     private func departureStamp(_ arrival: MemoryRandomWalkSession.Arrival) -> MemoryWarmLightTransition.StampContent {
@@ -356,11 +369,19 @@ struct MemoryRandomWalkView: View {
                         .padding(.top, 8)
                 }
                 HStack(spacing: 9) {
-                    Image(systemName: linearIcon(event.module))
-                        .font(.system(size: 15, weight: .light))
-                        .foregroundStyle(Color.galleryAccent)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    // 习惯源图标为 emoji 时直接透出（与时间线长廊同口径，原型 ④）
+                    if let emoji = event.sourceIconEmoji {
+                        Text(emoji)
+                            .font(.system(size: 18))
+                            .frame(width: 36, height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    } else {
+                        Image(systemName: linearIcon(event.module))
+                            .font(.system(size: 15, weight: .light))
+                            .foregroundStyle(Color.galleryAccent)
+                            .frame(width: 36, height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.title)
                             .font(.system(size: rowTitleSize, weight: .semibold,
@@ -368,11 +389,25 @@ struct MemoryRandomWalkView: View {
                             .foregroundStyle(Color.galleryInk)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        Text(event.module.displayName + " · " + (event.hasReliableTime
-                             ? event.date.formatted(.dateTime.hour().minute())
-                             : String(localized: "当天")))
+                        // 想法行带迷你主题/tag 胶囊（与时间线长廊同口径，原型 ①）
+                        if event.module == .thought,
+                           !(event.topicBadges?.isEmpty ?? true) || !(event.tagBadges?.isEmpty ?? true) {
+                            HStack(spacing: 5) {
+                                Text(event.module.displayName + " · " + (event.hasReliableTime
+                                     ? event.date.formatted(.dateTime.hour().minute())
+                                     : String(localized: "当天")))
+                                MemoryGalleryBadgeRow(topics: event.topicBadges ?? [],
+                                                      tags: event.tagBadges ?? [], compact: true)
+                            }
                             .font(.system(size: 12))
                             .foregroundStyle(Color.galleryQuiet)
+                        } else {
+                            Text(event.module.displayName + " · " + (event.hasReliableTime
+                                 ? event.date.formatted(.dateTime.hour().minute())
+                                 : String(localized: "当天")))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.galleryQuiet)
+                        }
                     }
                     Spacer(minLength: 0)
                     if let detail = event.detail, !detail.isEmpty {

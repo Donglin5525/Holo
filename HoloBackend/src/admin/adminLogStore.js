@@ -70,6 +70,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // 归档类别理解器（2026-10-12 主题双通道·零打扰）：请求携带成员笔记片段与移出反证——
   // 一律 metadata_only，正文与证据不落任何日志。
   'thought_category_brief_v1',
+  // 想法脉络核对（2026-11-16 想法方案 §6 C2）：请求含送审窗口正文，响应含双侧逐字证据
+  // 与脉络卡标题/问题——一律 metadata_only，正文/证据/模型输出不落任何日志/缓存/错误。
+  'thought_followup_v1',
   'thought_topic_name_v1',
   'thought_topic_summary_v1',
   // 想法按需洞察（2026-09-24 方案 §5.1）：请求含笔记原文，响应含观察/推测——

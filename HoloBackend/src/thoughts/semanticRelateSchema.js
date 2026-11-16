@@ -28,7 +28,10 @@ export const RELATE_LIMITS = Object.freeze({
 const RELATION_VALUES_V1 = Object.freeze(new Set(["same_thread", "related", "none", "insufficient"]));
 // schema 3 新增 fits_category：符合用户类别定义（不要求共同对象，doc 双通道方案）
 const RELATION_VALUES_V3 = Object.freeze(new Set(["same_thread", "fits_category", "related", "none", "insufficient"]));
+// schema 4 新增 excludes_category：命中用户规则的明确排除（2026-11-16 类别规则层方案 §4 A2）
+const RELATION_VALUES_V4 = Object.freeze(new Set(["same_thread", "fits_category", "excludes_category", "related", "none", "insufficient"]));
 const CANDIDATE_KINDS = Object.freeze(new Set(["category", "thread"]));
+const DEFINITION_SOURCES = Object.freeze(new Set(["user", "none"]));
 
 /** 短标识串：拒绝空串、控制字符与换行（防协议/路径注入）。 */
 function isCleanShortString(value, maxLength) {
@@ -53,10 +56,10 @@ export function validateRelateRequest(body) {
   if (!body || typeof body !== "object") {
     throw new GatewayError("INVALID_REQUEST", "Request body must be an object", 400);
   }
-  if (![1, 2, 3].includes(body.schemaVersion)) {
-    throw new GatewayError("INVALID_REQUEST", "schemaVersion must be 1, 2 or 3", 400);
+  if (![1, 2, 3, 4].includes(body.schemaVersion)) {
+    throw new GatewayError("INVALID_REQUEST", "schemaVersion must be 1, 2, 3 or 4", 400);
   }
-  const isV3 = body.schemaVersion === 3;
+  const isV3 = body.schemaVersion >= 3;
   if (!isCleanShortString(body.operationId, RELATE_LIMITS.idMaxUTF16)) {
     throw new GatewayError("INVALID_REQUEST", "operationId must be 1-64 clean chars", 400);
   }
@@ -107,6 +110,30 @@ export function validateRelateRequest(body) {
         && !isBoundedText(candidate.definition, RELATE_LIMITS.definitionMaxUTF16)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].definition exceeds ${RELATE_LIMITS.definitionMaxUTF16} UTF-16 units`, 400);
     }
+    // schema 4（2026-11-16 类别规则层）：kind 与 definitionSource 必填，definition 只随用户规则。
+    // 缺字段/类型错位一律按协议错误拒绝（方案 §4 A2：不生成空结果回执）。
+    if (body.schemaVersion === 4) {
+      if (candidate.kind === undefined || candidate.kind === null || !CANDIDATE_KINDS.has(candidate.kind)) {
+        throw new GatewayError("INVALID_REQUEST", `candidates[${index}].kind must be category or thread`, 400);
+      }
+      if (!DEFINITION_SOURCES.has(candidate.definitionSource)) {
+        throw new GatewayError("INVALID_REQUEST", `candidates[${index}].definitionSource must be user or none`, 400);
+      }
+      if (candidate.kind === "thread" && candidate.definitionSource !== "none") {
+        throw new GatewayError("INVALID_REQUEST", `candidates[${index}].definitionSource must be none for thread candidates`, 400);
+      }
+      if (candidate.definitionSource === "user") {
+        if (!isBoundedText(candidate.definition, RELATE_LIMITS.definitionMaxUTF16)) {
+          throw new GatewayError(
+            "INVALID_REQUEST",
+            `candidates[${index}].definition must be 1-${RELATE_LIMITS.definitionMaxUTF16} UTF-16 units when definitionSource is user`,
+            400,
+          );
+        }
+      } else if (candidate.definition !== undefined && candidate.definition !== null) {
+        throw new GatewayError("INVALID_REQUEST", `candidates[${index}].definition must be null when definitionSource is none`, 400);
+      }
+    }
     if (!Array.isArray(candidate.representatives) || (candidate.representatives.length === 0 && body.schemaVersion === 1)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].representatives must be non-empty`, 400);
     }
@@ -122,7 +149,7 @@ export function validateRelateRequest(body) {
       }
       return { ref: rep.ref, text: rep.text };
     });
-    return {
+    const normalized = {
       ref: candidate.ref,
       title: candidate.title,
       summary: candidate.summary ?? null,
@@ -130,6 +157,14 @@ export function validateRelateRequest(body) {
       definition: candidate.definition ?? null,
       representatives,
     };
+    // definitionSource 只在 schema 4 的归一化产物上出现：schema 1/2/3 的模型入参
+    // JSON 逐字节保持原样（行为零变化的硬约束）。
+    if (body.schemaVersion === 4) normalized.definitionSource = candidate.definitionSource;
+    // schema 4 类别候选不传 AI 主题摘要作为默认证据（2026-11-16 方案 A1.4/§4 表格）：
+    // brief summary 一律剥离，类别判据只剩用户定义（user 档）或标题+合规纳入例（none 档），
+    // 模型入参与证据回源两侧同时生效。schema 1/2/3 与 schema 4 的 thread 候选不受影响。
+    if (body.schemaVersion === 4 && normalized.kind === "category") normalized.summary = null;
+    return normalized;
   });
 
   return {
@@ -150,12 +185,17 @@ export function validateRelateRequest(body) {
  * - quote 必须是目标正文逐字片段且 rangeUTF16 与之一致；
  * - 任何 decision 出现数值 confidence 即整体 malformed；
  * - decisions 缺失视为 insufficient 空结果（允许空）。
+ * schema 3 追加 fits_category；schema 4（2026-11-16 类别规则层方案 §4 A2）追加
+ * excludes_category，并按候选 kind/definitionSource 施加交叉约束：
+ * 类别禁 same_thread、脉络禁 fits_category/excludes_category、排除须 category+user
+ * 且四件证据齐备（缺一即协议错误，不降级 insufficient）。
  * 返回 { decisions } 或 { malformed, reason }。
  */
 export function validateRelateModelOutput(output, parsedRequest) {
   if (!output || typeof output !== "object") return { malformed: true, reason: "not_object" };
-  const isV3 = parsedRequest.schemaVersion === 3;
-  const relationValues = isV3 ? RELATION_VALUES_V3 : RELATION_VALUES_V1;
+  const isV3 = parsedRequest.schemaVersion >= 3;
+  const isV4 = parsedRequest.schemaVersion === 4;
+  const relationValues = isV4 ? RELATION_VALUES_V4 : isV3 ? RELATION_VALUES_V3 : RELATION_VALUES_V1;
   const allowedRefs = new Set(parsedRequest.candidates.map((c) => c.ref));
   const decisionsRaw = output.decisions;
   if (decisionsRaw === undefined || decisionsRaw === null) {
@@ -179,6 +219,20 @@ export function validateRelateModelOutput(output, parsedRequest) {
     seen.add(item.candidateRef);
     if (!relationValues.has(item.relation)) {
       return { malformed: true, reason: "relation_enum" };
+    }
+    // schema 4（类别规则层）：关系与候选通道/规则来源的交叉约束（方案 §4 A2）。
+    // 类别禁 same_thread；内容脉络禁 fits_category/excludes_category；
+    // excludes_category 只允许 category + definitionSource=user 组合。
+    if (isV4) {
+      const refCandidate = parsedRequest.candidates.find((c) => c.ref === item.candidateRef);
+      if ((refCandidate.kind === "category" && item.relation === "same_thread")
+          || (refCandidate.kind === "thread"
+              && (item.relation === "fits_category" || item.relation === "excludes_category"))) {
+        return { malformed: true, reason: "relation_cross_kind" };
+      }
+      if (item.relation === "excludes_category" && refCandidate.definitionSource !== "user") {
+        return { malformed: true, reason: "excludes_category_requires_user_rule" };
+      }
     }
     if (item.confidence !== undefined && item.confidence !== null) {
       return { malformed: true, reason: "confidence_forbidden" };
@@ -215,9 +269,13 @@ export function validateRelateModelOutput(output, parsedRequest) {
       const candidate = parsedRequest.candidates.find(c => c.ref === item.candidateRef);
       // schema 3 起类别定义是独立字段（与 AI 摘要 summary 分开）；"definition" 依据
       // 的回源基准=类别定义优先，其次摘要，最后标题。
-      const definitionBasis = isV3
-        ? (candidate.definition ?? candidate.summary ?? candidate.title)
-        : (candidate.summary ?? candidate.title);
+      // schema 4 类别候选（2026-11-16 方案 A1.4 收紧）一律不把 brief summary 当证据回源：
+      // user 档只回源用户定义，none 档只回源标题（合规纳入例走 representatives 各自文本）。
+      const definitionBasis = isV4 && candidate.kind === "category"
+        ? (candidate.definitionSource === "user" ? candidate.definition : candidate.title)
+        : isV3
+          ? (candidate.definition ?? candidate.summary ?? candidate.title)
+          : (candidate.summary ?? candidate.title);
       const basis = item.representativeRef === "definition"
         ? definitionBasis
         : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;
@@ -239,6 +297,21 @@ export function validateRelateModelOutput(output, parsedRequest) {
       evidence = item.relation === "same_thread"
         ? { representativeRef: item.representativeRef, representativeQuote, sharedSubject: item.sharedSubject }
         : { representativeRef: item.representativeRef, representativeQuote };
+    } else if (item.relation === "excludes_category") {
+      // schema 4 类别排除是可撤销既有 AI 归属的负向决定（方案 §4 A2）：必须同时携带
+      // 目标 quote/rangeUTF16（上方已核对）与规则侧证据——representativeRef 恒为
+      // "definition"，representativeQuote 从用户规则原文逐字引用明确排除的那一句/短语。
+      // 任一证据缺失或不可逐字回源即协议错误整批拒绝，不降级、不生成空结果回执。
+      const candidate = parsedRequest.candidates.find((c) => c.ref === item.candidateRef);
+      const aligned = (typeof item.representativeQuote === "string" && item.representativeQuote.length > 0)
+        ? alignQuoteToSource(item.representativeQuote, candidate.definition)
+        : null;
+      if (item.representativeRef !== "definition" || !aligned) {
+        return { malformed: true, reason: "excludes_category_evidence_incomplete" };
+      }
+      let representativeQuote = aligned.slice(0, RELATE_LIMITS.quoteMaxUTF16);
+      if (/[\uD800-\uDBFF]$/.test(representativeQuote)) representativeQuote = representativeQuote.slice(0, -1);
+      evidence = { representativeRef: "definition", representativeQuote };
     }
     decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote, rangeUTF16: [range[0], range[1]], ...evidence });
   }

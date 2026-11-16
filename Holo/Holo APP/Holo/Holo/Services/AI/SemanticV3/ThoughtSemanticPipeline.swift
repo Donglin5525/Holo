@@ -85,6 +85,9 @@ actor ThoughtSemanticPipeline {
     func shutdown() async {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        // 索引 shutdown 取消脉络核对在途 Task（§6 C3）；已被原子标记的尝试计入
+        // 日额度，状态由执行路径回 waiting，按存储的领取时间与预算恢复。
+        await ThoughtFollowupCoordinator.shared.cancelActiveRun()
         if let idx = index {
             try? await idx.destroy()
         }
@@ -105,6 +108,9 @@ actor ThoughtSemanticPipeline {
         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
         await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
         await ThoughtCategoryBriefMaintainer.shared.process(store: store)
+        // 脉络核对（W3 接线，§6 C3）：被动领取一个待处理任务并启动受控子 Task，
+        // 手动加速不等新增网络请求，原 embed/relate 继续
+        await ThoughtFollowupCoordinator.shared.process(store: store)
     }
 
     private func startQueueHeartbeat() {
@@ -129,6 +135,9 @@ actor ThoughtSemanticPipeline {
                     await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
                     // 类别理解维护（2026-10-12 主题双通道·零打扰）：每拍最多一个主题，谷时段慢速精化
                     await ThoughtCategoryBriefMaintainer.shared.process(store: store)
+                    // 脉络核对（W3 接线，§6 C3）：谷窗节拍被动领取；process 只领取并
+                    // 启动受控子 Task，心跳不等新增网络请求
+                    await ThoughtFollowupCoordinator.shared.process(store: store)
                     let anyActive = flag != .off || relationFlag != .off
                     let interval: UInt64 = anyActive ? 30 : 300
                     try? await Task.sleep(nanoseconds: interval * 1_000_000_000)

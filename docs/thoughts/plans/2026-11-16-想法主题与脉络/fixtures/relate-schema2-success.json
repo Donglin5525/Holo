@@ -1,0 +1,73 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "schema 2 回归：same_thread 携双侧证据（R0 逐字引用 + sharedSubject）",
+  "request": {
+    "schemaVersion": 2,
+    "operationId": "op-fixture-schema2",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v3.0",
+    "target": {
+      "ref": "T0",
+      "text": "今天跑了五公里，配速比上月快了十五秒。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "跑步训练",
+        "summary": null,
+        "representatives": [
+          {
+            "ref": "R0",
+            "text": "左膝不舒服，这周减量到跑一休一。"
+          },
+          {
+            "ref": "R1",
+            "text": "备战半马，长距离拉练安排在周日早上。"
+          }
+        ]
+      },
+      {
+        "ref": "P1",
+        "title": "下厨记录",
+        "representatives": [
+          {
+            "ref": "R2",
+            "text": "空气炸锅烤鸡翅 200 度 18 分钟。"
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "schemaVersion": 2,
+    "operationId": "op-fixture-schema2",
+    "textRevision": "r-1",
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "same_thread",
+        "quote": "今天跑了五公里",
+        "rangeUTF16": [
+          0,
+          7
+        ],
+        "representativeRef": "R0",
+        "representativeQuote": "左膝不舒服",
+        "sharedSubject": "个人跑步训练"
+      },
+      {
+        "candidateRef": "P1",
+        "relation": "none",
+        "quote": null,
+        "rangeUTF16": null
+      }
+    ],
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 30,
+      "estimatedCostCNY": 0.00057,
+      "dailyBudgetCNY": 0
+    }
+  }
+}

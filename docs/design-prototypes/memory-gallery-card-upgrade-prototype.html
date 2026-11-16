@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记忆长廊 · 卡片信息密度升级（tag/主题外显 · 同日聚合 · 数值人性化 · emoji 透出）</title>
+<style>
+  :root {
+    --accent: #F46D38;          /* 工作台标注主色 */
+    --bg: #0E0E10;
+    --panel: #1C1C1E;
+    --panel-border: #3A3A3C;
+    --ink: #F5F5F5;
+    --ink-2: #C9C9C9;
+    --ink-3: #939393;
+    --ink-4: #6B7280;
+    --screen-bg: #1C1C1E;       /* holoBackground dark */
+    --card-2: #2C2C2E;
+    --divider: #3A3A3C;
+    --serif: "Songti SC", "Noto Serif SC", serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh; padding: 36px 24px 70px;
+  }
+
+  /* ============ 工作台 ============ */
+  .page-head { text-align: center; margin-bottom: 18px; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .page-head p { font-size: 13px; color: var(--ink-3); margin-top: 8px; line-height: 1.75; }
+
+  .legend {
+    max-width: 880px; margin: 0 auto 30px;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px;
+    padding: 15px 18px;
+  }
+  .legend-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--ink-2); line-height: 1.65; }
+  .legend-row + .legend-row { margin-top: 8px; }
+  .legend-row b { color: var(--ink); }
+  .pin-inline {
+    flex: none; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px;
+  }
+
+  .stage { display: flex; justify-content: center; gap: 56px; flex-wrap: wrap; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label { font-size: 14px; font-weight: 600; margin-bottom: 14px; letter-spacing: 2px; color: var(--ink-2); }
+  .col-label .sub { font-weight: 400; letter-spacing: 0; color: var(--ink-3); font-size: 12px; margin-left: 8px; }
+
+  /* ============ 手机机身 ============ */
+  .phone {
+    width: 390px; height: 792px;
+    background: var(--screen-bg);
+    border: 3px solid #0A0A0B; border-radius: 54px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 6px #26262A;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    flex: none; height: 44px; display: flex; justify-content: space-between; align-items: center;
+    padding: 0 26px 0 32px; font-size: 13.5px; font-weight: 600; color: var(--ink);
+  }
+  .statusbar .icons { display: flex; gap: 5px; align-items: center; }
+  .batt { width: 22px; height: 11px; border: 1px solid rgba(245,245,245,.5); border-radius: 3px; position: relative; }
+  .batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: var(--ink); border-radius: 1.5px; }
+  .batt::before { content: ""; position: absolute; right: -3.5px; top: 3px; bottom: 3px; width: 1.5px; background: rgba(245,245,245,.5); border-radius: 0 1px 1px 0; }
+
+  .pin {
+    position: absolute; z-index: 60; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(244,109,56,.5);
+    font-family: -apple-system, sans-serif;
+  }
+
+  .nav {
+    flex: none; height: 52px; display: flex; align-items: center;
+    padding: 0 12px; position: relative; background: var(--screen-bg);
+  }
+  .nav::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 0.5px;
+    background: linear-gradient(90deg, rgba(58,58,60,0), rgba(58,58,60,.42), rgba(58,58,60,0));
+  }
+  .back { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+  .nav-mid { flex: 1; display: flex; justify-content: center; }
+  .nav-title { font-size: 16px; font-weight: 600; font-family: var(--serif); letter-spacing: 2px; }
+  .nav-right { width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--ink-2); gap: 2px; }
+  .nav-right .lbl { font-size: 12px; }
+
+  .screen { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 16px 26px; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* 月份吸顶 */
+  .month-header {
+    position: sticky; top: 0; z-index: 10;
+    background: linear-gradient(var(--screen-bg) 78%, rgba(28,28,30,0));
+    padding: 10px 4px 12px; font-size: 12px; color: var(--ink-3); letter-spacing: 2px;
+  }
+  .month-header b { color: var(--ink-2); font-weight: 600; }
+
+  /* 日期块 */
+  .day-block { margin-top: 6px; }
+  .day-head { display: flex; align-items: baseline; gap: 8px; padding: 10px 4px 8px; }
+  .day-head .d { font-size: 15px; font-weight: 700; font-family: var(--serif); }
+  .day-head .w { font-size: 11px; color: var(--ink-4); }
+  .day-head .n { margin-left: auto; font-size: 10.5px; color: var(--ink-4); }
+
+  /* 主预览卡（想法） */
+  .lead-card {
+    border-radius: 18px; padding: 15px 15px 13px;
+    background: linear-gradient(160deg, rgba(44,44,46,.72), rgba(44,44,46,.38));
+    border: 1px solid rgba(58,58,60,.5);
+  }
+  .lead-body {
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.8; color: var(--ink);
+  }
+  .lead-attach { display: flex; gap: 6px; margin-top: 10px; }
+  .lead-attach i {
+    display: block; width: 54px; height: 40px; border-radius: 8px;
+    background: repeating-linear-gradient(45deg, #2E2E30 0 6px, #323234 6px 12px);
+    border: 1px solid rgba(58,58,60,.6);
+  }
+  .lead-meta { margin-top: 10px; font-size: 10.5px; color: var(--ink-4); display: flex; gap: 6px; align-items: center; }
+  .lead-meta .sep { opacity: .5; }
+
+  /* ① 胶囊行：主题 + tag */
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; align-items: center; }
+  .pill-topic {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3.5px 10px;
+    border-radius: 999px; background: rgba(244,109,56,.13); border: 1px solid rgba(244,109,56,.24);
+    font-size: 10.5px; color: #F0A57E; font-weight: 500; letter-spacing: .3px;
+  }
+  .pill-topic .em { font-size: 11.5px; line-height: 1; }
+  .pill-tag {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3.5px 9px;
+    border-radius: 999px; background: rgba(120,120,128,.13); border: 1px solid rgba(120,120,128,.22);
+    font-size: 10px; color: #A8A8AD; letter-spacing: .3px;
+  }
+  .pill-tag .dot { width: 5px; height: 5px; border-radius: 50%; flex: none; }
+  .pill-more { font-size: 10px; color: var(--ink-4); padding: 0 2px; }
+
+  /* 展开 / 收起 */
+  .expand-toggle {
+    margin: 12px 4px 2px; font-size: 11.5px; color: var(--ink-3); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; user-select: none;
+    padding: 4px 8px 4px 0; border-radius: 8px; transition: color .15s;
+  }
+  .expand-toggle:hover { color: var(--ink); }
+  .expand-toggle .chev { transition: transform .25s; display: inline-flex; }
+  .expand-toggle.open .chev { transform: rotate(180deg); }
+  .day-rows { display: none; }
+  .day-rows.show { display: block; }
+
+  /* 记录行 */
+  .row {
+    display: flex; align-items: center; gap: 10px; padding: 11px 4px;
+    border-bottom: .5px solid rgba(58,58,60,.4); cursor: default; border-radius: 10px;
+    transition: background .15s;
+  }
+  .row:last-child { border-bottom: none; }
+  .row.clickable { cursor: pointer; }
+  .row.clickable:hover { background: rgba(44,44,46,.55); }
+  .row .ic { flex: none; width: 27px; height: 27px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--ink-3); }
+  .row .ic.svg { background: rgba(120,120,128,.1); }
+  .row .ic.emoji { font-size: 17px; background: rgba(120,120,128,.08); }
+  .row .tx { flex: 1; min-width: 0; }
+  .row .t1 { font-size: 13.5px; font-weight: 600; color: var(--ink); line-height: 1.45; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row .t1.serif { font-family: var(--serif); }
+  .row .t2 { font-size: 10.5px; color: var(--ink-4); margin-top: 3px; }
+  .row .val { flex: none; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+  .row .val.ugly { color: #D97B4A; }
+  .row .val .u { font-size: 10px; color: var(--ink-4); }
+
+  /* 迷你胶囊（行内想法） */
+  .mini-topic {
+    display: inline-flex; align-items: center; gap: 4px; padding: 1.5px 8px;
+    border-radius: 999px; background: rgba(244,109,56,.11); border: 1px solid rgba(244,109,56,.2);
+    font-size: 9.5px; color: #F0A57E; font-weight: 400; vertical-align: middle;
+  }
+  .mini-topic .em { font-size: 10px; }
+  .mini-tag {
+    display: inline-flex; align-items: center; gap: 4px; padding: 1.5px 7px;
+    border-radius: 999px; background: rgba(120,120,128,.12); border: 1px solid rgba(120,120,128,.2);
+    font-size: 9.5px; color: #A8A8AD; font-weight: 400; vertical-align: middle;
+  }
+  .mini-tag .dot { width: 4px; height: 4px; border-radius: 50%; }
+
+  /* ② 聚合行的次数徽标 + 求和值 */
+  .times-badge {
+    flex: none; font-size: 9.5px; font-weight: 700; color: var(--accent);
+    background: rgba(244,109,56,.12); border: 1px solid rgba(244,109,56,.26);
+    padding: 1px 6px; border-radius: 999px; letter-spacing: .5px;
+  }
+  .agg-sum { font-size: 13px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .agg-sum .u { font-size: 10px; font-weight: 400; color: var(--ink-3); margin-left: 2px; }
+
+  /* 聚合行展开的时间点 */
+  .agg-times { display: none; padding: 2px 4px 10px 41px; }
+  .agg-times.show { display: block; }
+  .agg-times .tt { font-size: 10px; color: var(--ink-4); line-height: 2; font-variant-numeric: tabular-nums; }
+  .agg-times .tt b { color: var(--ink-3); font-weight: 500; margin-right: 6px; }
+  .agg-hint { font-size: 9.5px; color: var(--ink-4); margin-top: 4px; opacity: .8; }
+
+  /* 现在锚点 */
+  .now-anchor { display: flex; flex-direction: column; align-items: center; margin-top: 22px; }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 14px 4px rgba(244,109,56,.45);
+    animation: breathe 2.2s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: .8; } 50% { transform: scale(1.65); opacity: 1; } }
+  .now-anchor .lbl { margin-top: 7px; font-size: 10px; color: var(--ink-4); letter-spacing: 3px; font-family: var(--serif); }
+
+  /* ============ 底部面板 ============ */
+  .panels { max-width: 880px; margin: 44px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .panels { grid-template-columns: 1fr; } }
+  .panel-card { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px; padding: 16px 18px; }
+  .panel-card h3 { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 12px; letter-spacing: 1px; }
+  .panel-card h3 .tag {
+    font-size: 9.5px; font-weight: 700; color: #0E0E10; background: var(--accent);
+    border-radius: 5px; padding: 2px 6px; margin-right: 7px; letter-spacing: 1px; vertical-align: 1.5px;
+  }
+  .fmt-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 0; border-bottom: .5px solid rgba(58,58,60,.35); }
+  .fmt-row:last-child { border-bottom: none; }
+  .fmt-row .from { color: var(--ink-4); font-variant-numeric: tabular-nums; min-width: 92px; }
+  .fmt-row .arr { color: var(--accent); font-size: 11px; }
+  .fmt-row .to { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .fmt-row .why { margin-left: auto; color: var(--ink-3); font-size: 11px; text-align: right; }
+
+  .rule-row { display: flex; gap: 10px; font-size: 12px; padding: 6px 0; line-height: 1.7; border-bottom: .5px solid rgba(58,58,60,.35); }
+  .rule-row:last-child { border-bottom: none; }
+  .rule-row .k { flex: none; width: 64px; color: var(--ink); font-weight: 500; }
+  .rule-row .v { color: var(--ink-3); }
+
+  .decision {
+    max-width: 880px; margin: 16px auto 0;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px; padding: 16px 18px;
+  }
+  .decision h3 { font-size: 13px; font-weight: 600; letter-spacing: 1px; margin-bottom: 12px; }
+  .dec-row { display: flex; gap: 10px; font-size: 12.5px; color: var(--ink-2); line-height: 1.7; padding: 5px 0; }
+  .dec-row .no {
+    flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 2px;
+    border: 1.5px solid var(--accent); color: var(--accent); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dec-row b { color: var(--ink); }
+  .dec-row .pick { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>记忆长廊 · 卡片信息密度升级</h1>
+  <p>想法卡外显主题与 tag · 同日同习惯求和不再平铺 · 数值像人话 · 源模块的 emoji 原样透出<br>
+  左为现状（问题态），右为升级后（可点击「当天 N 条记录」与聚合行试交互）</p>
+</div>
+
+<div class="legend">
+  <div class="legend-row"><span class="pin-inline">1</span><span><b>主题与 tag 外显</b>：想法的主题（含主题 emoji）与自建 tag，随想法卡片一起显示。主题数据已通到卡片层，纯界面缺口；tag 需补一条数据管道。</span></div>
+  <div class="legend-row"><span class="pin-inline">2</span><span><b>同日同习惯聚合</b>：同一天同一习惯的多条记录合并成一行，计数类求和、测量类取当天最后一次、打卡类计次。复用习惯模块现成的日聚合口径，纯展示层合并，不动数据库。</span></div>
+  <div class="legend-row"><span class="pin-inline">3</span><span><b>数值人性化</b>：「1.0 支」是浮点数直接拼字符串造成的。整数去掉小数点（1.0 支 → 1 支），小数保留（21.5 公里不受伤）；打卡聚合后说「8 次」而不是「已完成」。</span></div>
+  <div class="legend-row"><span class="pin-inline">4</span><span><b>emoji 透出</b>：习惯源图标若为 emoji（图标选择器统一后大量存在），长廊原样显示；源为系统线性图标的保持线性。主题胶囊同理带主题 emoji。</span></div>
+</div>
+
+<div class="stage">
+
+  <!-- ==================== 现状机 ==================== -->
+  <div class="col">
+    <div class="col-label">现状<span class="sub">展开态 · 四个问题同屏</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span class="icons"><span class="batt"></span></span></div>
+      <div class="nav">
+        <div class="back"><svg width="12" height="20" viewBox="0 0 12 20" fill="none"><path d="M10 2 L2.5 10 L10 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="nav-mid"><span class="nav-title">记忆长廊</span></div>
+        <div class="nav-right">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="11" rx="2.2" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 6.4h12.4M5 1.5v3M11 1.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="screen">
+        <div class="month-header"><b>2026年11月</b></div>
+
+        <div class="day-block">
+          <div class="day-head"><span class="d">15日</span><span class="w">周日</span><span class="n">6 条记录</span></div>
+
+          <div class="lead-card">
+            <div class="lead-body">戒烟第 22 天，中午饭后特别馋，嚼口香糖撑过去了</div>
+            <div class="lead-meta"><span>想法</span><span class="sep">·</span><span>13:02</span><span class="sep">·</span><span>平静</span></div>
+          </div>
+
+          <div class="day-rows show">
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h8M2.5 12h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+              <div class="tx"><div class="t1 serif">下午开会走神，在想周末去温榆河骑车的路线</div><div class="t2">想法 · 15:40</div></div>
+              <div class="val"></div>
+            </div>
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.2 8.2l2 2 3.6-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="tx"><div class="t1">戒烟</div><div class="t2">习惯 · 10:12</div></div>
+              <div class="val ugly">1.0 支</div>
+            </div>
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.2 8.2l2 2 3.6-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="tx"><div class="t1">戒烟</div><div class="t2">习惯 · 14:35</div></div>
+              <div class="val ugly">1.0 支</div>
+            </div>
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.2 8.2l2 2 3.6-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="tx"><div class="t1">戒烟</div><div class="t2">习惯 · 21:08</div></div>
+              <div class="val ugly">1.0 支</div>
+            </div>
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.7"/><path d="M5.2 8.2l2 2 3.6-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="tx"><div class="t1">喝水</div><div class="t2">习惯 · 19:20</div></div>
+              <div class="val">已完成</div>
+            </div>
+          </div>
+          <div class="expand-toggle open"><span>收起当天</span><span class="chev"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+        </div>
+
+        <div class="day-block">
+          <div class="day-head"><span class="d">16日</span><span class="w">周一 · 今天</span><span class="n">1 条记录</span></div>
+          <div class="lead-card">
+            <div class="lead-body">周末骑行想带运动相机，拍一段绿道的开场</div>
+            <div class="lead-meta"><span>想法</span><span class="sep">·</span><span>09:20</span><span class="sep">·</span><span>期待</span></div>
+          </div>
+        </div>
+
+        <div class="now-anchor"><div class="pulse-dot"></div><div class="lbl">现在</div></div>
+      </div>
+
+      <div class="pin" style="right: 14px; top: 318px;">3</div>
+    </div>
+  </div>
+
+  <!-- ==================== 方案机 ==================== -->
+  <div class="col">
+    <div class="col-label">升级后<span class="sub">同一天 · 聚合与外显</span></div>
+    <div class="phone">
+      <div class="statusbar"><span>9:41</span><span class="icons"><span class="batt"></span></span></div>
+      <div class="nav">
+        <div class="back"><svg width="12" height="20" viewBox="0 0 12 20" fill="none"><path d="M10 2 L2.5 10 L10 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="nav-mid"><span class="nav-title">记忆长廊</span></div>
+        <div class="nav-right">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="11" rx="2.2" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 6.4h12.4M5 1.5v3M11 1.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="screen">
+        <div class="month-header"><b>2026年11月</b></div>
+
+        <div class="day-block">
+          <div class="day-head"><span class="d">15日</span><span class="w">周日</span><span class="n">4 条记忆</span></div>
+
+          <!-- 主预览卡：主题 + tag 胶囊 -->
+          <div class="lead-card">
+            <div class="lead-body">戒烟第 22 天，中午饭后特别馋，嚼口香糖撑过去了</div>
+            <div class="pill-row">
+              <span class="pill-topic"><span class="em">🚭</span>戒烟</span>
+              <span class="pill-topic"><span class="em">🌱</span>自我管理</span>
+              <span class="pill-tag"><span class="dot" style="background:#5AB56A;"></span>健康</span>
+              <span class="pill-tag"><span class="dot" style="background:#F46D38;"></span>坚持</span>
+              <span class="pill-more">+1</span>
+            </div>
+            <div class="lead-meta"><span>想法</span><span class="sep">·</span><span>13:02</span><span class="sep">·</span><span>平静</span></div>
+          </div>
+
+          <div class="expand-toggle open" data-n="3"><span>收起当天</span><span class="chev"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="day-rows show">
+            <!-- 想法行：迷你胶囊 -->
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h8M2.5 12h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+              <div class="tx">
+                <div class="t1 serif">下午开会走神，在想周末去温榆河骑车的路线</div>
+                <div class="t2" style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">想法 · 15:40
+                  <span class="mini-topic"><span class="em">🚲</span>骑行</span>
+                  <span class="mini-tag"><span class="dot" style="background:#6FA8DC;"></span>周末</span>
+                </div>
+              </div>
+            </div>
+            <!-- 习惯聚合行：emoji 透出 + 次数徽标 + 求和值 -->
+            <div class="row clickable agg-row">
+              <div class="ic emoji">🚭</div>
+              <div class="tx">
+                <div class="t1">戒烟 <span class="times-badge">×3</span></div>
+                <div class="t2">习惯 · 今天 3 次 · 轻点看时间</div>
+              </div>
+              <div class="val"><span class="agg-sum">3<span class="u">支</span></span></div>
+            </div>
+            <div class="agg-times">
+              <div class="tt"><b>10:12</b>1 支</div>
+              <div class="tt"><b>14:35</b>1 支</div>
+              <div class="tt"><b>21:08</b>1 支</div>
+              <div class="agg-hint">计数类习惯：当天求和 · 数据不动，只合并显示</div>
+            </div>
+            <!-- 打卡类聚合 -->
+            <div class="row">
+              <div class="ic emoji">💧</div>
+              <div class="tx">
+                <div class="t1">喝水 <span class="times-badge">×8</span></div>
+                <div class="t2">习惯 · 今天 8 次</div>
+              </div>
+              <div class="val"><span class="agg-sum">8<span class="u">次</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-block">
+          <div class="day-head"><span class="d">16日</span><span class="w">周一 · 今天</span><span class="n">2 条记忆</span></div>
+          <div class="lead-card">
+            <div class="lead-body">周末骑行想带运动相机，拍一段绿道的开场</div>
+            <div class="pill-row">
+              <span class="pill-topic"><span class="em">🚲</span>骑行</span>
+              <span class="pill-tag"><span class="dot" style="background:#6FA8DC;"></span>周末</span>
+            </div>
+            <div class="lead-meta"><span>想法</span><span class="sep">·</span><span>09:20</span><span class="sep">·</span><span>期待</span></div>
+          </div>
+          <div class="expand-toggle"><span>当天 1 条记录</span><span class="chev"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4.5l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <div class="day-rows">
+            <!-- 测量类：非整数小数保留 -->
+            <div class="row">
+              <div class="ic svg"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></div>
+              <div class="tx"><div class="t1">体重 <span class="times-badge">×1</span></div><div class="t2">习惯 · 07:40</div></div>
+              <div class="val"><span class="agg-sum">71.5<span class="u">kg</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="now-anchor"><div class="pulse-dot"></div><div class="lbl">现在</div></div>
+      </div>
+
+      <div class="pin" style="right: 14px; top: 208px;">1</div>
+      <div class="pin" style="left: 14px; top: 470px;">2</div>
+      <div class="pin" style="right: 14px; top: 492px;">3</div>
+      <div class="pin" style="left: 14px; top: 430px;">4</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 底部：格式化与聚合口径 ==================== -->
+<div class="panels">
+  <div class="panel-card">
+    <h3><span class="tag">3</span>数值怎么变成人话</h3>
+    <div class="fmt-row"><span class="from">1.0 支</span><span class="arr">→</span><span class="to">1 支</span><span class="why">整数去掉小数点</span></div>
+    <div class="fmt-row"><span class="from">1.0 + 1.0 + 1.0</span><span class="arr">→</span><span class="to">3 支</span><span class="why">同日求和后再显示</span></div>
+    <div class="fmt-row"><span class="from">71.5 kg</span><span class="arr">→</span><span class="to">71.5 kg</span><span class="why">真小数保留，不四舍五入</span></div>
+    <div class="fmt-row"><span class="from">已完成 ×8</span><span class="arr">→</span><span class="to">8 次</span><span class="why">打卡聚合按次数说</span></div>
+    <div class="fmt-row"><span class="from">喝水 3.5 杯</span><span class="arr">→</span><span class="to">3.5 杯</span><span class="why">带小数的计数照样求和</span></div>
+  </div>
+  <div class="panel-card">
+    <h3><span class="tag">2</span>同日聚合口径（复用习惯模块现成规则）</h3>
+    <div class="rule-row"><span class="k">计数类</span><span class="v">戒烟、喝水杯数——当天所有次数求和，显示 ×N 与总和</span></div>
+    <div class="rule-row"><span class="k">测量类</span><span class="v">体重、血压——当天取最后一次，不逐条平铺</span></div>
+    <div class="rule-row"><span class="k">打卡类</span><span class="v">喝水打卡——当天计次，说「8 次」不说「已完成」</span></div>
+    <div class="rule-row"><span class="k">边界</span><span class="v">纯展示层合并，历史数据与统计口径零改动；跨天不合并</span></div>
+    <div class="rule-row"><span class="k">范围</span><span class="v">时间线长廊 + 随机漫步记录行，两处同口径</span></div>
+  </div>
+</div>
+
+<!-- ==================== 拍板点 ==================== -->
+<div class="decision">
+  <h3>待东林拍板（5 点）</h3>
+  <div class="dec-row"><span class="no">1</span><span><b>胶囊密度</b>：主预览卡「主题最多 2 个 + tag 最多 2 个，超出显示 +N」；记录行内只带 1 主题 + 1 tag。<span class="pick">原型按此画，嫌挤可减为主题 2 个不带 tag。</span></span></div>
+  <div class="dec-row"><span class="no">2</span><span><b>tag 胶囊配色</b>：原型 tag 带源色小圆点（想法模块里 tag 本身有颜色）。<span class="pick">也可全部中性灰，更安静。</span></span></div>
+  <div class="dec-row"><span class="no">3</span><span><b>聚合行可展开吗</b>：原型里轻点聚合行能看到每次时间点（3 个时刻）。<span class="pick">不要的话就纯合并一行，界面更干净。</span></span></div>
+  <div class="dec-row"><span class="no">4</span><span><b>没设单位的计数习惯</b>：聚合后显示「3 次」（默认按次说）。<span class="pick">或只显示 ×3 不补单位。</span></span></div>
+  <div class="dec-row"><span class="no">5</span><span><b>改动范围确认</b>：纯 iOS 端改动，免后端发版；不动 CloudKit 模型。顺手把随机漫步里的记录行一起升级（同口径）。</span></div>
+</div>
+
+<script>
+  // 展开 / 收起 当天记录
+  document.querySelectorAll('.expand-toggle').forEach(function (t) {
+    t.addEventListener('click', function () {
+      var rows = t.parentElement.querySelector('.day-rows');
+      if (!rows) return;
+      var open = rows.classList.toggle('show');
+      t.classList.toggle('open', open);
+      var label = t.querySelector('span:first-child');
+      var m = label.textContent.match(/当天\s*(\d+)\s*条记录/);
+      if (m) {
+        label.textContent = open ? '收起当天' : ('当天 ' + m[1] + ' 条记录');
+      } else {
+        // 从「收起当天」恢复原条数：存于 data-n
+        label.textContent = '当天 ' + (t.dataset.n || '3') + ' 条记录';
+      }
+      if (m) t.dataset.n = m[1];
+    });
+  });
+
+  // 聚合行展开时间点
+  document.querySelectorAll('.agg-row').forEach(function (r) {
+    r.addEventListener('click', function () {
+      var times = r.parentElement.querySelector('.agg-times');
+      if (times) times.classList.toggle('show');
+    });
+  });
+</script>
+</body>
+</html>

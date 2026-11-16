@@ -58,8 +58,14 @@ export function createThoughtSemanticRelateService({
   function routeFor(schemaVersion) {
     // 路由/预算/隐私挂靠始终用 v1 purpose（metadata_only 强制集、独立预算不变）；
     // schema 3（2026-10-12 主题双通道）只换 Prompt 模板：类别候选走双规则判定。
+    // schema 4（2026-11-16 类别规则层）换用 v3 模板：用户定义优先 + excludes_category。
     const purpose = "thought_semantic_relate_v1";
-    const promptPurpose = schemaVersion === 3 ? "thought_semantic_relate_v2" : "thought_semantic_relate_v1";
+    const promptPurpose = {
+      1: "thought_semantic_relate_v1",
+      2: "thought_semantic_relate_v1",
+      3: "thought_semantic_relate_v2",
+      4: "thought_semantic_relate_v3",
+    }[schemaVersion] ?? "thought_semantic_relate_v1";
     const route = config.routes[purpose];
     if (!route) {
       throw new GatewayError("MODEL_UNAVAILABLE", `Route missing for ${purpose}`, 503);
@@ -77,6 +83,12 @@ export function createThoughtSemanticRelateService({
    * 模型输出无法通过契约校验时抛 502（不二次调用模型修补）。
    */
   async function relate({ deviceId, subjectId, body, clientSignal }) {
+    // 类别规则层灰度闸（2026-11-16 方案 §4 A2/W1）：env 默认关闭。放在契约校验之前，
+    // 关闭态下任何 schema 4 请求（无论字段是否合法）都拿到同一个稳定错误码；
+    // schema 1/2/3 不读此开关，行为完全不变。
+    if (body?.schemaVersion === 4 && !config.thoughtScopeRules?.enabled) {
+      throw new GatewayError("THOUGHT_SCOPE_RULES_DISABLED", "Thought scope rules are disabled", 503);
+    }
     const parsed = validateRelateRequest(body);
     const dailyBudgetMicro = Math.round(moduleConfig.budgets.perSubjectDailyCNY * 1_000_000);
 
@@ -116,7 +128,6 @@ export function createThoughtSemanticRelateService({
     }
 
     const { purpose, promptPurpose, route, provider } = routeFor(parsed.schemaVersion);
-    const promptVersion = parsed.schemaVersion === 3 ? "v2" : "v1";
     const finalize = (status, actualMicro) => {
       budgetStore.settleOperation({
         operationId: parsed.operationId,
@@ -173,23 +184,24 @@ export function createThoughtSemanticRelateService({
       candidates: parsed.candidates,
     });
 
-    const logId = captureLogs
-      ? adminLogStore.startAiCall({
+    let logId = null;
+    let content;
+    let usage;
+    try {
+      const serverPrompt = injectServerPrompt(promptPurpose, [{ role: "user", content: userContent }]);
+      // Prompt 版本从实际 registry 读取（2026-11-16 方案 §4 A2：日志不得写死一个误导版本）
+      if (captureLogs) {
+        logId = adminLogStore.startAiCall({
           deviceId,
           purpose,
           provider: route.provider,
           model: route.model,
           promptType: promptPurpose,
-          promptVersion,
+          promptVersion: serverPrompt.promptVersion,
           stream: false,
           request: { contentLength: userContent.length, responseFormat: "json_object" },
-        })
-      : null;
-
-    let content;
-    let usage;
-    try {
-      const serverPrompt = injectServerPrompt(promptPurpose, [{ role: "user", content: userContent }]);
+        });
+      }
       const result = await provider.complete({
         purpose,
         messages: serverPrompt.messages,

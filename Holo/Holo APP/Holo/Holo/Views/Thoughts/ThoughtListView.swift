@@ -459,11 +459,17 @@ struct ThoughtListView: View {
         }
         // P1 §3.2 归入回执：AI 落库成功广播 → 该想法在当前列表时给一次短暂 toast
         // （不用常驻进度条；离线/未授权/无匹配是合法静默，不产生本事件）
+        // 2026-11-16 时机根治两道闸：①编辑器开着（正在写作/编辑）不弹——此刻回执
+        // 说不清归属哪条且打断写作；②回执只跟「你刚写完的那条」走——只有该想法的
+        // 编辑会话在时效窗口内结束才弹。后台积压消化（启动对账/存量补跑/迟到重试）
+        // 的落库与用户动作无因果，一律静默，归类结果由卡片徽章呈现
         .onReceive(NotificationCenter.default.publisher(for: .thoughtTopicLinkDidCommit)) { note in
             guard let payload = note.object as? [String: Any],
                   let thoughtId = payload["thoughtId"] as? UUID,
                   let topicTitle = payload["topicTitle"] as? String,
                   thoughts.contains(where: { $0.id == thoughtId }) else { return }
+            guard !ThoughtEditingSessionRegistry.shared.hasActiveSession,
+                  ThoughtEditingSessionRegistry.shared.isWithinReceiptWindow(thoughtId) else { return }
             HoloToastCenter.shared.show(String(localized: "已归入「\(topicTitle)」"), type: .success)
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
@@ -1823,6 +1829,7 @@ struct ThoughtListView: View {
     private func removeThoughtLocally(_ thought: Thought, topic: Topic) {
         do {
             try topicRepository.remove(thoughtId: thought.id, fromTopic: topic.id)
+            HoloToastCenter.shared.show(String(localized: "已从这条想法移除"), type: .success)
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             if case .topic(let id) = drawerSelection, id == topic.id {
                 // 正按该主题筛选时移除，就地从列表消失

@@ -464,4 +464,118 @@ final class CalendarEventProviderTests: XCTestCase {
         )
         return (provider, ctx)
     }
+    // MARK: - 习惯数值人性化文本（2026-11-16 卡片密度升级）
+
+    func test_HabitValueText_整数去小数点真小数保留() {
+        XCTAssertEqual(HabitValueText.numberText(1.0), "1")
+        XCTAssertEqual(HabitValueText.numberText(3.0), "3")
+        XCTAssertEqual(HabitValueText.numberText(71.5), "71.5")
+        XCTAssertEqual(HabitValueText.numberText(71.50), "71.5")
+        XCTAssertEqual(HabitValueText.numberText(0.5), "0.5")
+    }
+
+    func test_HabitValueText_单位拼接() {
+        XCTAssertEqual(HabitValueText.valueText(3, unit: "支"), "3 支")
+        XCTAssertEqual(HabitValueText.valueText(1, unit: nil), "1")
+        XCTAssertEqual(HabitValueText.valueText(71.5, unit: "kg"), "71.5 kg")
+    }
+
+    func test_HabitValueText_聚合副信息口径() {
+        // 计数类求和
+        XCTAssertEqual(HabitValueText.aggregatedDetail(values: [1, 1, 1], isCountType: true, isCheckIn: false, unit: "支"), "3 支")
+        // 计数类无单位按次数说
+        XCTAssertEqual(HabitValueText.aggregatedDetail(values: [1, 1, 1], isCountType: true, isCheckIn: false, unit: nil), "3 次")
+        // 测量类取最后一次
+        XCTAssertEqual(HabitValueText.aggregatedDetail(values: [71, 71.5], isCountType: false, isCheckIn: false, unit: "kg"), "71.5 kg")
+        // 打卡类计次
+        XCTAssertEqual(HabitValueText.aggregatedDetail(values: [nil, nil], isCountType: false, isCheckIn: true, unit: nil), "2 次")
+        // 全空数值退回按次数说，不显示误导性的 0
+        XCTAssertEqual(HabitValueText.aggregatedDetail(values: [nil, nil, nil], isCountType: true, isCheckIn: false, unit: "支"), "3 次")
+    }
+
+    // MARK: - 同日同习惯合并（CalendarHabitDayMerger）
+
+    private func makeHabitEvent(habitID: UUID, day: Int, hour: Int, minute: Int,
+                                value: Double?, unit: String?, isCountType: Bool,
+                                isCheckIn: Bool = false, title: String = "戒烟") -> CalendarEvent {
+        CalendarEvent(
+            module: .habit,
+            date: makeHabitDate(day: day, hour: hour, minute: minute),
+            title: title,
+            detail: HabitValueText.detail(value: value, unit: unit, isCheckIn: isCheckIn),
+            habitAggregation: HabitDayAggregationContext(
+                habitID: habitID, isCountType: isCountType, isCheckIn: isCheckIn, unit: unit, value: value
+            ),
+            originID: sharedObjectID
+        )
+    }
+
+    private func makeHabitDate(day: Int, hour: Int, minute: Int) -> Date {
+        var c = DateComponents()
+        c.year = 2026; c.month = 7; c.day = day; c.hour = hour; c.minute = minute
+        return Calendar.current.date(from: c) ?? Date()
+    }
+
+    func test_合并_同日同习惯三条聚合成一行求和() {
+        let id = UUID()
+        let events = [
+            makeHabitEvent(habitID: id, day: 15, hour: 10, minute: 12, value: 1, unit: "支", isCountType: true),
+            makeHabitEvent(habitID: id, day: 15, hour: 14, minute: 35, value: 1, unit: "支", isCountType: true),
+            makeHabitEvent(habitID: id, day: 15, hour: 21, minute: 8, value: 1, unit: "支", isCountType: true)
+        ]
+        let merged = CalendarHabitDayMerger.mergeDay(events)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].detail, "3 支")
+        XCTAssertEqual(merged[0].habitMoments?.count, 3)
+        XCTAssertEqual(merged[0].date, makeHabitDate(day: 15, hour: 21, minute: 8))
+        XCTAssertEqual(merged[0].habitMoments?.first?.valueText, "1 支")
+    }
+
+    func test_合并_不同习惯与单条不合并() {
+        // mergeDay 输入约定为同一天（生产调用按 eventsByDay[day] 切片）：同天不同习惯各自保持单条
+        let events = [
+            makeHabitEvent(habitID: UUID(), day: 15, hour: 10, minute: 0, value: 1, unit: "支", isCountType: true),
+            makeHabitEvent(habitID: UUID(), day: 15, hour: 11, minute: 0, value: 2, unit: "杯", isCountType: true),
+            makeHabitEvent(habitID: UUID(), day: 15, hour: 12, minute: 0, value: 1, unit: "支", isCountType: true)
+        ]
+        let merged = CalendarHabitDayMerger.mergeDay(events)
+        XCTAssertEqual(merged.count, 3)
+        XCTAssertNil(merged[0].habitMoments)
+    }
+
+    func test_合并_非习惯事件原样保留() {
+        let id = UUID()
+        let events: [CalendarEvent] = [
+            makeEvent(.thought, day: 15, hour: 9),
+            makeHabitEvent(habitID: id, day: 15, hour: 10, minute: 0, value: 1, unit: "支", isCountType: true),
+            makeHabitEvent(habitID: id, day: 15, hour: 12, minute: 0, value: 1, unit: "支", isCountType: true)
+        ]
+        let merged = CalendarHabitDayMerger.mergeDay(events)
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged.filter { $0.module == .thought }.count, 1)
+        XCTAssertEqual(merged.filter { $0.module == .habit }.first?.detail, "2 支")
+    }
+
+    func test_合并_打卡类计次() {
+        let id = UUID()
+        let events = (0..<4).map { i in
+            makeHabitEvent(habitID: id, day: 15, hour: 8 + i, minute: 0, value: nil, unit: nil,
+                           isCountType: false, isCheckIn: true, title: "喝水")
+        }
+        let merged = CalendarHabitDayMerger.mergeDay(events)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].detail, "4 次")
+        XCTAssertEqual(merged[0].habitMoments?.first?.valueText, nil)
+    }
+
+    func test_合并_测量类取最后一次() {
+        let id = UUID()
+        let events = [
+            makeHabitEvent(habitID: id, day: 15, hour: 7, minute: 30, value: 71, unit: "kg", isCountType: false, title: "体重"),
+            makeHabitEvent(habitID: id, day: 15, hour: 20, minute: 0, value: 71.5, unit: "kg", isCountType: false, title: "体重")
+        ]
+        let merged = CalendarHabitDayMerger.mergeDay(events)
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].detail, "71.5 kg")
+    }
 }

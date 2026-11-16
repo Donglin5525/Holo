@@ -56,7 +56,11 @@ final class MemoryRandomWalkSession: ObservableObject {
 
     // MARK: - 状态
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        didSet {
+            Self.logger.notice("[RW] phase \(String(describing: oldValue), privacy: .public) -> \(String(describing: self.phase), privacy: .public) req=\(self.requestID?.uuidString.prefix(8) ?? "nil", privacy: .public) started=\(self.travelStartedAt != nil, privacy: .public)")
+        }
+    }
     @Published private(set) var arrival: Arrival?
     /// 本轮候选已全部看完（左侧动作换「重新漫步」）。
     @Published private(set) var allSeen = false
@@ -135,6 +139,7 @@ final class MemoryRandomWalkSession: ObservableObject {
     /// - Parameter fromToday: 首次漫步从今天出发；再走一天以上一站为出发点。
     func start() {
         let id = UUID()
+        Self.logger.notice("[RW] start() req=\(id.uuidString.prefix(8), privacy: .public) prevPhase=\(String(describing: self.phase), privacy: .public)")
         requestID = id
         lifecycleTask?.cancel()
         phase = .loading
@@ -145,14 +150,19 @@ final class MemoryRandomWalkSession: ObservableObject {
             do {
                 let arrival = try await self.prepareArrival(requestID: id)
                 try Task.checkCancellation()
-                guard self.requestID == id else { return }
+                guard self.requestID == id else {
+                    Self.logger.notice("[RW] prepareArrival finished but req mismatch")
+                    return
+                }
+                Self.logger.notice("[RW] prepareArrival ok req=\(id.uuidString.prefix(8), privacy: .public) day=\(arrival.day, privacy: .public)")
                 self.arrival = arrival
                 self.beginTravel(requestID: id)
             } catch is CancellationError {
+                Self.logger.notice("[RW] start() cancelled req=\(id.uuidString.prefix(8), privacy: .public)")
                 // 请求被替换或关闭：不落任何终态，新请求自己接管。
             } catch {
                 guard self.requestID == id else { return }
-                Self.logger.error("漫步取数失败：\(String(describing: error))")
+                Self.logger.error("漫步取数失败：\(String(describing: error), privacy: .public)")
                 self.phase = .failed(String(localized: "暂时无法载入旧日记录"))
             }
         }
@@ -160,6 +170,7 @@ final class MemoryRandomWalkSession: ObservableObject {
 
     /// 关闭（随时可用）：取消任务；本轮已看集合保留，重开面板继续同一轮。
     func close() {
+        Self.logger.notice("[RW] close() phase=\(String(describing: self.phase), privacy: .public)")
         requestID = nil
         lifecycleTask?.cancel()
         lifecycleTask = nil
@@ -181,6 +192,7 @@ final class MemoryRandomWalkSession: ObservableObject {
 
     /// 场景失活/回前台：后台时停止绘制；回来有有效快照就静态落到该日。
     func handleScenePhase(_ phase: ScenePhase) {
+        Self.logger.notice("[RW] handleScenePhase(\(String(describing: phase), privacy: .public)) self.phase=\(String(describing: self.phase), privacy: .public)")
         guard phase == .active, self.phase == .traveling || self.phase == .landing else { return }
         commitArrival()
     }
@@ -307,22 +319,36 @@ final class MemoryRandomWalkSession: ObservableObject {
         announce(String(localized: "正在回到那一天"))
 
         let timeline = WarmLightTimeline(reduceMotion: reduceMotion)
+        let handoffMs = Int(timeline.handoffElapsed * 1000)
+        let fadeMs = Int(timeline.fadeDuration * 1000)
+        Self.logger.notice("[RW] beginTravel req=\(requestID.uuidString.prefix(8), privacy: .public) reduceMotion=\(self.reduceMotion, privacy: .public) handoffMs=\(handoffMs, privacy: .public) fadeMs=\(fadeMs, privacy: .public)")
         // 2026-11-14 东林真机实报「动画完全没做」定谳：此前把「重播动效」设置开关当漫步动画闸门，
         // 开关为关的用户整段跳过暖光。漫步动画是核心体验，只随系统「减弱动态效果」降级（§4.3 上半句），
         // 不再受重播开关控制（该开关只管列表回放微动效，见 HoloReplayReveal）。
         lifecycleTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(Int(timeline.handoffElapsed * 1000)))
+            do {
+                try await Task.sleep(for: .milliseconds(handoffMs))
+            } catch {
+                Self.logger.notice("[RW] sleep1 error=\(String(describing: error), privacy: .public) req=\(requestID.uuidString.prefix(8), privacy: .public)")
+            }
+            Self.logger.notice("[RW] after sleep1 cancelled=\(Task.isCancelled, privacy: .public) reqMatch=\(self.requestID == requestID, privacy: .public)")
             guard !Task.isCancelled, self.requestID == requestID else { return }
             self.commitArrival()
             self.phase = .landing
-            try? await Task.sleep(for: .milliseconds(Int(timeline.fadeDuration * 1000)))
+            do {
+                try await Task.sleep(for: .milliseconds(fadeMs))
+            } catch {
+                Self.logger.notice("[RW] sleep2 error=\(String(describing: error), privacy: .public) req=\(requestID.uuidString.prefix(8), privacy: .public)")
+            }
+            Self.logger.notice("[RW] after sleep2 cancelled=\(Task.isCancelled, privacy: .public) reqMatch=\(self.requestID == requestID, privacy: .public)")
             guard !Task.isCancelled, self.requestID == requestID else { return }
             self.finishTravel(requestID: requestID)
         }
     }
 
     private func finishTravel(requestID: UUID) {
+        Self.logger.notice("[RW] finishTravel req=\(requestID.uuidString.prefix(8), privacy: .public)")
         guard self.requestID == requestID else { return }
         travelStartedAt = nil
         phase = .arrived

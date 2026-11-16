@@ -30,11 +30,22 @@ struct TopicDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var showIconPicker = false
 
-    /// 类别定义编辑（主题双通道 2026-10-12）：仅 classification 主题展示定义卡
+    /// 类别规则编辑（主题双通道 2026-10-12；W1 A1.2/A1.3 保存语义）：
+    /// 打开编辑器时抓有效分类 ID 与编辑前定义作核对基线，保存时仓库按基线重读核对
     @State private var showDefinitionEditor = false
     @State private var definitionInput = ""
-    /// AI 代写回退（零打扰）：用户没写过定义时展示本机 brief（语义库 AI 派生）
-    @State private var briefDefinition: String? = nil
+    @State private var editingTopicID: UUID? = nil
+    @State private var editingBaselineDefinition: String? = nil
+    /// 保存被拒/失败的 sheet 内提示（A1.2：不先关 sheet，输入保留可复制）
+    @State private var definitionEditorIssue: DefinitionEditorIssue? = nil
+
+    /// 规则编辑器保存失败提示类型（A1.2：拒绝覆盖与写失败分开提示）
+    enum DefinitionEditorIssue {
+        /// 远端已改/主题已隐藏、合并、删除：提示重新打开，保留当前输入
+        case conflict
+        /// 写库失败：保留输入可重试
+        case saveFailed
+    }
 
     /// 关键词管理（长按：全局重命名/删除，承接原抽屉能力）
     @State private var tagActionTarget: ThoughtRepository.AITagBucket?
@@ -48,6 +59,12 @@ struct TopicDetailView: View {
     @State private var summaryBasisRevision: Int64 = 0
     @State private var summaryRefreshing = false
     @State private var summaryFailedOnce = false
+
+    /// W3 脉络卡（试点，§5 B2）：已核对脉络的本机只读视图。全链资格（授权/
+    /// 整理开关/试点范围/服务器能力）内建于投影——视图只判空渲染，加载失败
+    /// 静默隐藏不弹错，空结果整块不渲染（§1 表第 4 行）。
+    @State private var threadCards: [FollowupThreadCard] = []
+    @State private var expandedThreadIDs: Set<UUID> = []
 
     /// 主题色（按主题在知识树中的稳定标识取色板色）
     private var themeColor: Color {
@@ -190,6 +207,10 @@ struct TopicDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             Task { await loadData() }
         }
+        // W3：试点开关/整理设置变化即时生效——投影按当前资格返回，关闭试点即整块撤下
+        .onReceive(NotificationCenter.default.publisher(for: ThoughtSemanticFeatureFlags.settingsDidChange)) { _ in
+            Task { await loadThreadCards() }
+        }
         // 全屏阅读页：边缘右滑返回（fullScreenCover 无系统返回）
         .holoEdgeSwipeBack { dismiss() }
     }
@@ -202,21 +223,10 @@ struct TopicDetailView: View {
         guard topic != nil else { return }
         thoughts = (try? topicRepository.fetchThoughts(byTopic: topicId)) ?? []
         tagBuckets = (try? thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)) ?? []
+        await loadThreadCards()
         if ThoughtSemanticFeatureFlags.uiEnabled, let topic {
             await loadSummaryIfEligible(for: topic)
-            await loadBriefDefinitionIfEligible(for: topic)
         }
-    }
-
-    /// AI 代写定义（零打扰）：用户没写过定义的 classification 主题，回退展示本机 brief。
-    @MainActor
-    private func loadBriefDefinitionIfEligible(for topic: Topic) async {
-        briefDefinition = nil
-        guard topic.isClassificationTopic,
-              topic.categoryDefinition?.isEmpty != false,
-              let store = await ThoughtSemanticPipeline.shared.store,
-              let brief = try? await store.loadCategoryBrief(topicID: topicId) else { return }
-        briefDefinition = brief.definition
     }
 
     // MARK: - V3 主题摘要（§4.5；AI 派生只存本机语义库）
@@ -266,6 +276,143 @@ struct TopicDetailView: View {
         return .init(summary: record.summary, viewpoints: viewpoints)
     }
 
+    // MARK: - W3 脉络卡（试点，§5 B2）
+
+    /// 读取本主题的已核对脉络。投影内置资格与范围（非试点主题返回空）；
+    /// 至多 2 条卡（§5 B2「每个主题至多两个」）。
+    @MainActor
+    private func loadThreadCards() async {
+        guard let cards = try? await ThoughtFollowupProjection.activeThreadCards(scopeID: topicId) else {
+            threadCards = []
+            return
+        }
+        threadCards = Array(cards.prefix(2))
+    }
+
+    /// 值得回看的脉络：区块标题 + 脉络卡。空结果整个区块不渲染（不留空壳）。
+    @ViewBuilder
+    private var threadCardsSection: some View {
+        if !threadCards.isEmpty {
+            VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
+                Text("值得回看的脉络")
+                    .font(ThoughtLayout.metadata)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+                ForEach(threadCards, id: \.localID) { card in
+                    threadCard(card)
+                }
+            }
+        }
+    }
+
+    /// 单张脉络卡：卡面=脉络标题（主题句）+ 支持笔记数；点按展开按时间排好的
+    /// 来源行（日期、锚点/成员角色、原文片段）；长按菜单可隐藏这张卡。
+    private func threadCard(_ card: FollowupThreadCard) -> some View {
+        let expanded = expandedThreadIDs.contains(card.localID)
+        // 关系按冻结的 createdAt 严格从早到晚（§6 C1）
+        let sources = card.sources.sorted { $0.createdAt < $1.createdAt }
+        return VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
+            Button {
+                withAnimation(HoloAnimation.smooth) {
+                    if expanded {
+                        expandedThreadIDs.remove(card.localID)
+                    } else {
+                        expandedThreadIDs.insert(card.localID)
+                    }
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(card.title)
+                        .font(ThoughtLayout.secondary)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(card.question)
+                            .font(ThoughtLayout.metadata)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Text("\(card.supportCount) 条来源")
+                            .font(ThoughtLayout.metadata)
+                            .foregroundColor(.holoTextPlaceholder)
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.6))
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button(role: .destructive) {
+                    hideThreadCard(card)
+                } label: {
+                    Label("隐藏这条脉络", systemImage: "eye.slash")
+                }
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(sources, id: \.thoughtID) { source in
+                        Button {
+                            // 复用本页现有阅读入口（fullScreenCover 编辑器）
+                            selectedThoughtId = source.thoughtID
+                        } label: {
+                            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                                Circle()
+                                    .fill(themeColor)
+                                    .frame(width: 6, height: 6)
+                                    .padding(.top, 6)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 5) {
+                                        Text(source.isAnchor ? String(localized: "锚点") : String(localized: "成员"))
+                                            .font(ThoughtLayout.metadata.weight(.medium))
+                                            .foregroundColor(source.isAnchor ? .holoToolAI : .holoTextPlaceholder)
+                                        Text(source.createdAt.formatted(date: .abbreviated, time: .omitted))
+                                            .font(ThoughtLayout.metadata)
+                                            .foregroundColor(.holoTextSecondary)
+                                    }
+                                    Text(source.excerpt)
+                                        .font(ThoughtLayout.secondary)
+                                        .foregroundColor(.holoTextPrimary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.holoTextSecondary)
+                                    .padding(.top, 5)
+                            }
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "查看来源想法"))
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+        )
+    }
+
+    /// 隐藏这条脉络：仅藏这张卡的独立本机操作（§6 C1），当设备立即生效；
+    /// 写投影失败不弹错（下次进页按投影重建，不构成用户负担）。
+    private func hideThreadCard(_ card: FollowupThreadCard) {
+        HapticManager.light()
+        withAnimation(HoloAnimation.quick) {
+            threadCards.removeAll { $0.localID == card.localID }
+        }
+        Task {
+            try? await ThoughtFollowupProjection.hideThread(localID: card.localID, scopeID: topicId)
+        }
+    }
+
     // MARK: - 构成行与交集标签（P1 §3.3，2026-09-27）
 
     /// 主题页主体区块（body 过重抽出的子表达式；区块顺序=方案 §3.3 首屏顺序）
@@ -278,6 +425,8 @@ struct TopicDetailView: View {
         if ThoughtSemanticFeatureFlags.uiEnabled, !thoughts.isEmpty {
             membershipSplitSection
         }
+        // W3 脉络卡（试点）：「你加入 / Holo 找到」之下、摘要卡之前（§1 表第 4 行）
+        threadCardsSection
         // V3 新 UI：AI 摘要卡（生成失败/离线静默隐藏，§4.5）
         if ThoughtSemanticFeatureFlags.uiEnabled {
             topicSummarySection(topic)
@@ -296,13 +445,19 @@ struct TopicDetailView: View {
         thoughtListSection
     }
 
-    /// 类别定义卡（主题双通道 2026-10-12）：classification 主题的「收什么」口径。
-    /// 已有定义=AI 归类依据，点开可改；为空=引导一句但不强制（AI 按标题+用户确认代表例判定）。
+    /// 类别规则卡（主题双通道 2026-10-12；W1 A1.4 升级为规则卡）：
+    /// 只读用户点过保存的规则（Topic.categoryDefinition）——AI 草稿（brief）与生效
+    /// 规则彻底分离，不再作为回退展示，避免草稿被误认作已生效。无规则时空态+示例；
+    /// 历史超限定义保持原文显示。规则只在编辑器点保存后生效。
     @ViewBuilder
     private func categoryDefinitionSection(_ topic: Topic) -> some View {
         if topic.isClassificationTopic {
             Button {
+                // A1.2：进入编辑即抓基线（有效分类 ID + 编辑前定义），保存时仓库核对
+                editingTopicID = topic.id
+                editingBaselineDefinition = topic.categoryDefinition
                 definitionInput = topic.categoryDefinition ?? ""
+                definitionEditorIssue = nil
                 showDefinitionEditor = true
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
@@ -324,22 +479,18 @@ struct TopicDetailView: View {
                             .foregroundColor(.holoTextPrimary)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let brief = briefDefinition {
-                        Text(brief)
-                            .font(ThoughtLayout.secondary)
-                            .foregroundColor(.holoTextPrimary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学")
-                            .font(ThoughtLayout.metadata)
-                            .foregroundColor(.holoTextPlaceholder)
-                            .multilineTextAlignment(.leading)
                     } else {
-                        Text("写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学")
-                            .font(ThoughtLayout.secondary)
-                            .foregroundColor(.holoTextPlaceholder)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学")
+                                .font(ThoughtLayout.secondary)
+                                .foregroundColor(.holoTextPlaceholder)
+                                .multilineTextAlignment(.leading)
+                            Text("例如：收录我对产品的判断。纯会议纪要不收，有自己的反思可以收。")
+                                .font(ThoughtLayout.metadata)
+                                .foregroundColor(.holoTextPlaceholder)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -785,7 +936,8 @@ struct TopicDetailView: View {
         }
     }
 
-    /// 类别定义编辑弹层（主题双通道）：改定义 → 进目录指纹 → 受影响笔记自动重评
+    /// 类别规则编辑弹层（主题双通道；W1 A1.2/A1.3 保存语义与限长）：
+    /// 实时剩余长度（裁剪首尾空白后按 UTF-16 计）；保存被拒不关 sheet、保留输入可复制。
     private var categoryDefinitionEditorSheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -796,6 +948,14 @@ struct TopicDetailView: View {
                     .scrollContentBackground(.hidden)
                     .background(RoundedRectangle(cornerRadius: HoloRadius.md)
                         .fill(Color.holoNestedCardBackground))
+                // A1.3：剩余长度实时提示。历史超限定义原文进编辑器（可复制、缩短、
+                // 重存），超出上限时红显并禁用保存——不做任何静默截断
+                Text(definitionLimitText)
+                    .font(ThoughtLayout.metadata)
+                    .foregroundColor(definitionOverLimit ? .holoError : .holoTextPlaceholder)
+                if let issue = definitionEditorIssue {
+                    definitionIssueBanner(issue)
+                }
                 Text("这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。")
                     .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextPlaceholder)
@@ -816,22 +976,75 @@ struct TopicDetailView: View {
                     Button("保存") { saveCategoryDefinition() }
                         .foregroundColor(.holoPrimary)
                         .fontWeight(.semibold)
+                        .disabled(definitionOverLimit)
                 }
             }
         }
         .presentationDetents([.medium])
     }
 
+    /// A1.3 限长计数（与仓库保存同口径：裁剪首尾空白后按 UTF-16 计）
+    private var definitionTrimmedUTF16Count: Int {
+        let trimmed = definitionInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? 0 : trimmed.utf16.count
+    }
+
+    private var definitionOverLimit: Bool {
+        definitionTrimmedUTF16Count > TopicRepository.categoryDefinitionMaxUTF16
+    }
+
+    private var definitionLimitText: String {
+        if definitionOverLimit {
+            let overflow = definitionTrimmedUTF16Count - TopicRepository.categoryDefinitionMaxUTF16
+            return String(localized: "已超出 \(overflow) 字，需缩短到 240 字以内才能保存")
+        }
+        let remaining = TopicRepository.categoryDefinitionMaxUTF16 - definitionTrimmedUTF16Count
+        return String(localized: "还可输入 \(remaining) 字")
+    }
+
+    /// A1.2 保存被拒提示：拒绝覆盖与写失败都在 sheet 内提示，输入保留可复制
+    private func definitionIssueBanner(_ issue: DefinitionEditorIssue) -> some View {
+        let text: String
+        switch issue {
+        case .conflict:
+            text = String(localized: "规则已被其他设备修改，或主题已隐藏、合并、删除。当前输入已保留，可全选复制；关闭后重新打开主题可查看最新规则。")
+        case .saveFailed:
+            text = String(localized: "保存失败，请重试；当前输入已保留。")
+        }
+        return HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(ThoughtLayout.metadata)
+            Text(text)
+                .font(ThoughtLayout.metadata)
+                .multilineTextAlignment(.leading)
+        }
+        .foregroundColor(.holoError)
+        .padding(HoloSpacing.sm + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+            .fill(Color.holoError.opacity(0.08)))
+    }
+
     private func saveCategoryDefinition() {
-        guard let topic else { return }
-        let input = definitionInput
-        showDefinitionEditor = false
+        guard let editingTopicID else { return }
         do {
-            try topicRepository.updateCategoryDefinition(topic, definition: input)
+            // A1.2：仓库按「有效行 + 编辑前基线」重读核对后才写库；无变化时仓库内部跳过
+            try topicRepository.updateCategoryDefinition(
+                topicID: editingTopicID,
+                definition: definitionInput,
+                expectedPreviousDefinition: editingBaselineDefinition)
             HapticManager.light()
+            showDefinitionEditor = false
             Task { await loadData() }
+        } catch TopicRepository.CategoryDefinitionError.definitionChanged,
+                TopicRepository.CategoryDefinitionError.topicInactive,
+                TopicRepository.CategoryDefinitionError.topicDeleted {
+            // 远端已改/已隐藏/已合并/已删：拒绝覆盖，sheet 不关、输入保留可复制
+            definitionEditorIssue = .conflict
         } catch {
-            HoloToastCenter.shared.show(String(localized: "保存失败"), type: .error)
+            // 写库失败（或超长——保存按钮已禁用、理论不可达，计数行已红显具体超出量）：
+            // 不关 sheet，输入保留可重试
+            definitionEditorIssue = .saveFailed
         }
     }
 

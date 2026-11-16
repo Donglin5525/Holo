@@ -274,7 +274,7 @@ struct TransactionRowView: View {
                 // 分类图标
                 categoryIcon
 
-                VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
+                VStack(alignment: .leading, spacing: 4) {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
                         Text(categoryPresentation.title)
@@ -290,7 +290,12 @@ struct TransactionRowView: View {
                         }
                     }
 
-                    TransactionCategoryPathView(presentation: categoryPresentation)
+                    // 分类路径（父级 > 分类）：紧凑变体按需显示——标题是备注时路径行
+                    // 补分类身份；无备注时标题即分类名，恒显路径行是重复信息
+                    //（2026-11-16 明细页降密度拍板）。非紧凑（账本/搜索/双栏）保持恒显。
+                    if !isCompact || hasRemark {
+                        TransactionCategoryPathView(presentation: categoryPresentation)
+                    }
 
                     // 退款标记排在分类之后，保持分类路径的固定位置。
                     if let refundBadgeText {
@@ -358,7 +363,9 @@ struct TransactionRowView: View {
             }
             .padding(.leading, isCompact ? 6 : 11)
             .padding(.trailing, isCompact ? HoloSpacing.sm : HoloSpacing.md)
-            .padding(.vertical, isCompact ? HoloSpacing.xs : 10)
+            // 紧凑行上下留白放宽一档（xs→sm，2026-11-16 明细页降密度拍板），
+            // 热区由 holoRowHitArea 保底 ≥44pt 不受影响
+            .padding(.vertical, isCompact ? HoloSpacing.sm : 10)
             .background(
                 // 双栏选中高亮：主色浅底，与右栏详情建立视觉对应
                 isSelected

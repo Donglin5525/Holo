@@ -80,9 +80,10 @@ struct AddTransactionSheet: View {
     /// 是否显示未保存修改确认弹窗
     @State var showDismissAlert: Bool = false
 
-    /// 是否显示数字键盘（2026-11-09 空间优化：打开弹层默认收起，分类宫格全量可见；
-    /// 只有点金额框或托盘快捷金额 chip 才弹出，其他交互自动收起——键盘状态机见各交互点）
-    @State var showNumericKeypad: Bool = false
+    /// 是否显示数字键盘（2026-11-15 东林实报恢复：打开弹层键盘默认弹出，记账路径键盘先行，
+    /// 与 RefundEntryWalkthroughUITests「记账键盘默认弹出」断言同口径；11-09 空间改版曾改默认收起，
+    /// 键盘已瘦身 350→240，弹出后分类宫格仍可滚动触达。UITest 直通模式可不弹以排除键盘遮挡变量）
+    @State var showNumericKeypad: Bool = !ProcessInfo.processInfo.arguments.contains("UITEST_NO_KEYPAD")
 
     /// 备注输入框是否获得焦点（用于控制键盘切换）
     @FocusState var isNoteFocused: Bool

@@ -25,6 +25,7 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$APP/Services/AI/SemanticV3/ThoughtSemanticStore.swift" \
   "$APP/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift" \
   "$APP/Services/Thoughts/ThoughtTopicLinkProjection.swift" \
+  "$APP/Services/Sync/DuplicateRowFilter.swift" \
   "$APP/Models/ThoughtTopicLink+CoreDataClass.swift" \
   "$APP/Models/Thought+CoreDataClass.swift" \
   "$APP/Models/Topic+CoreDataClass.swift" \

@@ -161,17 +161,18 @@ struct CalendarEventProvider {
             let events: [CalendarEvent] = records.compactMap { record in
                 guard let habit = habitMap[record.habitId] else { return nil }
                 if habit.isCheckInType, !record.isCompleted { return nil }
-                let detail: String?
-                if habit.isNumericType, let value = record.valueDouble {
-                    let unit = habit.unit ?? ""
-                    detail = unit.isEmpty ? "\(value)" : "\(value) \(unit)"
-                } else if habit.isCheckInType {
-                    detail = String(localized: "已完成")
-                } else {
-                    detail = nil
-                }
-                return CalendarEvent(id: record.id, module: .habit, date: record.date,
-                                     title: habit.name, detail: detail, originID: record.objectID)
+                let value = habit.isNumericType ? record.valueDouble : nil
+                return CalendarEvent(
+                    id: record.id, module: .habit, date: record.date,
+                    title: habit.name,
+                    detail: HabitValueText.detail(value: value, unit: habit.unit, isCheckIn: habit.isCheckInType),
+                    sourceIconEmoji: EmojiCatalog.isEmojiIcon(habit.icon) ? habit.icon : nil,
+                    habitAggregation: HabitDayAggregationContext(
+                        habitID: habit.id, isCountType: habit.isCountType,
+                        isCheckIn: habit.isCheckInType, unit: habit.unit, value: value
+                    ),
+                    originID: record.objectID
+                )
             }
             return Partial(module: .habit, events: events, state: events.isEmpty ? .empty : .loaded)
         } catch {
@@ -216,10 +217,25 @@ struct CalendarEventProvider {
             let events: [CalendarEvent] = thoughts.map { thought in
                 let title = thought.previewText.isEmpty ? String(localized: "未命名想法") : thought.previewText
                 // P3：观点的主题标题（读源统一 P0-A：link 投影，与卡片徽章同口径）
-                let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
+                let effectiveTopics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
                     .filter(\.isVisibleTopic)
-                    .map { $0.title }
-                    .sorted()
+                let topics = effectiveTopics.map { $0.title }.sorted()
+                // 主题徽章只透出用户设置过的 emoji（iconEmoji），未设置纯文字——
+                // 与想法卡片「可见徽章只保留名称」同口径（2026-11-16 东林拍板，
+                // 不用 TopicIconProvider 自动兜底，那是主题管理页的口径）
+                let topicBadges = effectiveTopics
+                    .map { topic in
+                        CalendarTopicBadge(
+                            title: topic.title,
+                            emoji: topic.iconEmoji.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
+                        )
+                    }
+                    .sorted { $0.title < $1.title }
+                // 自建 tag 外显：已被合并重定向的概念不显示旧名（目标概念若有关自然会出现）
+                let tagBadges = ((thought.tags as? Set<ThoughtTag>) ?? [])
+                    .filter { $0.mergedIntoTagID == nil }
+                    .map { CalendarTagBadge(name: $0.name, colorHex: $0.color) }
+                    .sorted { $0.name < $1.name }
                 let quotes = Self.referenceQuotes(richContentJSON: thought.richContentJSON)
                 return CalendarEvent(
                     id: thought.id,
@@ -228,6 +244,8 @@ struct CalendarEventProvider {
                     title: title,
                     detail: thought.moodType?.displayName,
                     relatedTopics: topics.isEmpty ? nil : topics,
+                    topicBadges: topicBadges.isEmpty ? nil : topicBadges,
+                    tagBadges: tagBadges.isEmpty ? nil : tagBadges,
                     attachmentThumbnails: thumbnailsByThought[thought.id] ?? [],
                     thoughtReferenceQuotes: quotes,
                     originID: thought.objectID
@@ -258,5 +276,110 @@ struct CalendarEventProvider {
             let source: String? = (normalizedSource.isEmpty || normalizedSource == display) ? nil : normalizedSource
             return ThoughtReferenceQuote(displayText: display, sourceLine: source)
         }
+    }
+}
+
+// MARK: - 习惯数值文本（单一真源）
+
+/// 习惯数值的人性化文本：单条事件、聚合行与旧 MemoryItem 共用同一口径。
+/// 2026-11-16 东林实报「1.0 支不是人话」——整数去小数点、真小数保留、聚合按次数说。
+enum HabitValueText {
+
+    /// 1.0 → "1"，71.5 → "71.5"，71.50 → "71.5"（最多两位小数、去尾随零）
+    static func numberText(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f", value)
+        }
+        let two = String(format: "%.2f", value)
+        return two.hasSuffix("0") ? String(format: "%.1f", value) : two
+    }
+
+    /// 数值 + 单位（有单位拼空格「3 支」；无单位返回纯数字）
+    static func valueText(_ value: Double, unit: String?) -> String {
+        let u = unit?.trimmingCharacters(in: .whitespaces) ?? ""
+        return u.isEmpty ? numberText(value) : numberText(value) + " " + u
+    }
+
+    /// 单条事件副信息
+    static func detail(value: Double?, unit: String?, isCheckIn: Bool) -> String? {
+        if let value { return valueText(value, unit: unit) }
+        if isCheckIn { return String(localized: "已完成") }
+        return nil
+    }
+
+    /// 聚合行副信息：计数类求和（无单位按次数说「N 次」）、测量类取最后一次、打卡类计次。
+    /// 全空数值的组退回按次数说，不显示误导性的「0」。
+    static func aggregatedDetail(values: [Double?], isCountType: Bool, isCheckIn: Bool, unit: String?) -> String? {
+        let count = values.count
+        if isCheckIn { return String(localized: "\(count) 次") }
+        if isCountType {
+            let numbers = values.compactMap { $0 }.filter(\.isFinite)
+            guard !numbers.isEmpty else { return String(localized: "\(count) 次") }
+            let u = unit?.trimmingCharacters(in: .whitespaces) ?? ""
+            if u.isEmpty { return String(localized: "\(count) 次") }
+            return valueText(numbers.reduce(0, +), unit: unit)
+        }
+        if let last = values.compactMap { $0 }.filter(\.isFinite).last {
+            return valueText(last, unit: unit)
+        }
+        return String(localized: "\(count) 次")
+    }
+}
+
+// MARK: - 同日同习惯合并（长廊展示层纯函数）
+
+/// 把同一天内同一习惯的多条事件合并成一行：计数类求和、测量类取最后一次、打卡类计次，
+/// 口径与 HabitNumericAggregator 同源。只作用于长廊时间线渲染——月历热度、日回放与
+/// 统计口径仍按原始 1:1 事件计算，不受合并影响（2026-11-16 东林拍板：戒烟不平铺 1.0）。
+enum CalendarHabitDayMerger {
+
+    /// 输入一天的事件，同习惯多条合并为一行；非习惯事件原样保留。输出按时间升序。
+    static func mergeDay(_ events: [CalendarEvent]) -> [CalendarEvent] {
+        var passthrough: [CalendarEvent] = []
+        var groups: [UUID: [CalendarEvent]] = [:]
+        for event in events {
+            if event.module == .habit, let ctx = event.habitAggregation {
+                groups[ctx.habitID, default: []].append(event)
+            } else {
+                passthrough.append(event)
+            }
+        }
+        var merged: [CalendarEvent] = passthrough
+        for group in groups.values {
+            if group.count > 1 {
+                merged.append(aggregate(group))
+            } else {
+                merged.append(contentsOf: group)
+            }
+        }
+        return merged.sorted { $0.date != $1.date ? $0.date < $1.date : $0.id.uuidString < $1.id.uuidString }
+    }
+
+    /// 聚合行锚定最后一条（最新时刻）；id/originID 同取最后一条（点行回查最新记录）。
+    private static func aggregate(_ group: [CalendarEvent]) -> CalendarEvent {
+        let ordered = group.sorted { $0.date != $1.date ? $0.date < $1.date : $0.id.uuidString < $1.id.uuidString }
+        guard let last = ordered.last else { return group[0] }
+        guard let ctx = last.habitAggregation else { return last }
+        let moments = ordered.map { event in
+            CalendarHabitMoment(
+                date: event.date,
+                valueText: event.habitAggregation?.value.flatMap { HabitValueText.valueText($0, unit: ctx.unit) }
+            )
+        }
+        return CalendarEvent(
+            id: last.id,
+            module: .habit,
+            date: last.date,
+            title: last.title,
+            detail: HabitValueText.aggregatedDetail(
+                values: ordered.map { $0.habitAggregation?.value },
+                isCountType: ctx.isCountType, isCheckIn: ctx.isCheckIn, unit: ctx.unit
+            ),
+            context: last.context,
+            sourceIconEmoji: last.sourceIconEmoji,
+            habitAggregation: last.habitAggregation,
+            habitMoments: moments,
+            originID: last.originID
+        )
     }
 }

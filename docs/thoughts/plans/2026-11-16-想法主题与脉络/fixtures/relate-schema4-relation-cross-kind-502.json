@@ -1,0 +1,65 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "类别候选判 same_thread → 后端整批 502 MODEL_OUTPUT_INVALID（relation_cross_kind）；modelOutput 供 Swift 重放同串校验",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-cross-kind",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "今天的评审会纪要都记录在案，但我总觉得这个方案砍得太狠，想留个反思。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "收录全部会议纪要；纯纪要也要。",
+        "representatives": []
+      },
+      {
+        "ref": "P1",
+        "title": "产品思考",
+        "kind": "thread",
+        "definitionSource": "none",
+        "representatives": [
+          {
+            "ref": "R0",
+            "text": "方案的裁剪标准要先对齐用户的真实场景。"
+          }
+        ]
+      }
+    ]
+  },
+  "modelOutput": {
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "same_thread",
+        "quote": "今天的评审会纪要都记录在案",
+        "rangeUTF16": [
+          0,
+          12
+        ],
+        "representativeRef": "R0",
+        "representativeQuote": "场景",
+        "sharedSubject": "纪要"
+      },
+      {
+        "candidateRef": "P1",
+        "relation": "none",
+        "quote": null,
+        "rangeUTF16": null
+      }
+    ]
+  },
+  "status": 502,
+  "response": {
+    "error": {
+      "code": "MODEL_OUTPUT_INVALID",
+      "message": "整理结果异常，稍后会自动重试"
+    }
+  }
+}

@@ -80,43 +80,150 @@ enum ThoughtRelatedRecall {
 // MARK: - 展示
 
 /// 「你之前也写过」区（编辑器阅读场景底部）。没有命中时不渲染（安静留空）。
+/// W3（§6 C1）：试点内优先展示至多 2 条已核对关系（带轻标记，措辞按关系类型）；
+/// 无核对结果时照旧走本机相关查找。两种结果同受「显示相关笔记」开关约束
+/// （资格内建于投影，视图只判空渲染）。
 struct ThoughtRelatedSection: View {
 
     let thoughtID: UUID
     let content: String
+    /// 正文有未保存修改时已核对关系立即隐藏（§1 表第 5 行）；保存后经既有
+    /// 变化流自然恢复，视图不手动刷新。编辑器以 id(thought+正文长度) 重建本
+    /// 视图，重建即清空旧结论。
+    var hasUnsavedEdits: Bool = false
     /// 点相关旧想法跳原文（编辑器切换目标）
     var onOpenThought: ((UUID) -> Void)? = nil
 
     @State private var items: [ThoughtRelatedRecall.RelatedItem] = []
+    @State private var verifiedRelations: [FollowupVerifiedRelation] = []
     @State private var loaded = false
 
     var body: some View {
         Group {
-            if loaded, !items.isEmpty {
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    Label("你之前也写过", systemImage: "sparkle.magnifyingglass")
-                        .font(ThoughtLayout.metadata)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoToolAI)
-
+            if loaded, !verifiedRelations.isEmpty {
+                relatedSection(footnote: String(localized: "关系已按原文核对")) {
+                    ForEach(verifiedRelations, id: \.fromThoughtID) { relation in
+                        verifiedRow(relation)
+                    }
+                }
+            } else if loaded, !items.isEmpty {
+                relatedSection(footnote: String(localized: "按内容相关推荐，不代表观点一致")) {
                     ForEach(items) { item in
                         relatedRow(item)
                     }
-
-                    Text("按内容相关推荐，不代表观点一致")
-                        .font(ThoughtLayout.metadata)
-                        .foregroundColor(.holoTextPlaceholder)
                 }
-                .padding(HoloSpacing.md)
-                .background(RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color.holoAI.opacity(0.05)))
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(String(localized: "相关旧想法，共\(items.count)条"))
             }
         }
         // 编辑器以 id(thought+正文长度) 重建本视图，task 随之重跑——正文版本变化自动重召回
         .task(id: "\(thoughtID.uuidString)-\(content.count)") {
             startLoading()
+        }
+    }
+
+    /// 两种模式的共用容器：标题 + 行 + 口径说明（已核对 / 按内容推荐分开表述）
+    private func relatedSection<Rows: View>(footnote: String,
+                                            @ViewBuilder rows: () -> Rows) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Label("你之前也写过", systemImage: "sparkle.magnifyingglass")
+                .font(ThoughtLayout.metadata)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolAI)
+
+            rows()
+
+            Text(footnote)
+                .font(ThoughtLayout.metadata)
+                .foregroundColor(.holoTextPlaceholder)
+        }
+        .padding(HoloSpacing.md)
+        .background(RoundedRectangle(cornerRadius: HoloRadius.lg)
+            .fill(Color.holoAI.opacity(0.05)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "相关旧想法，共\(displayedCount)条"))
+    }
+
+    private var displayedCount: Int {
+        verifiedRelations.isEmpty ? items.count : verifiedRelations.count
+    }
+
+    // MARK: - 已核对关系（W3 §6 C1）
+
+    /// 关系措辞映射（§6 C1 表）：只在四种可核对关系内输出，其余不展示。
+    private static func relationPhrase(_ kind: String) -> String? {
+        switch kind {
+        case "continues": return String(localized: "延续了这个问题")
+        case "adds_example": return String(localized: "补了一个新的例子")
+        case "contrasts": return String(localized: "对同一问题给出了不同判断")
+        case "revises": return String(localized: "调整了先前的判断")
+        default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private func verifiedRow(_ relation: FollowupVerifiedRelation) -> some View {
+        if let phrase = Self.relationPhrase(relation.relationKind) {
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                Button {
+                    onOpenThought?(relation.fromThoughtID)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // 轻标记：与「按内容相关推荐」区分（已核对 vs 相似推测）
+                        HStack(spacing: 5) {
+                            Text("已核对")
+                                .font(ThoughtLayout.metadata.weight(.medium))
+                                .foregroundColor(.holoToolAI)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.holoAI.opacity(0.10)))
+                            Text(phrase)
+                                .font(ThoughtLayout.metadata)
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                        Text(relation.evidenceQuote)
+                            .font(ThoughtLayout.secondary)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if !relation.reason.isEmpty {
+                            Text(relation.reason)
+                                .font(ThoughtLayout.metadata)
+                                .foregroundColor(.holoTextPlaceholder)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    markVerifiedUnrelated(relation)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.holoTextPlaceholder)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "不相关"))
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    /// 试点条目点「不相关」：沿用既有 related_feedback 通道（§6 C1 同一双向拒绝），
+    /// 即时消失、同版本不复活。
+    private func markVerifiedUnrelated(_ relation: FollowupVerifiedRelation) {
+        Task {
+            if let store = await ThoughtSemanticPipeline.shared.store {
+                try? await store.recordRelatedFeedback(
+                    thoughtID: thoughtID,
+                    relatedID: relation.fromThoughtID,
+                    basisHash: ThoughtEmbeddingStore.contentHash(of: content))
+            }
+            withAnimation(HoloAnimation.quick) {
+                verifiedRelations.removeAll { $0.fromThoughtID == relation.fromThoughtID }
+            }
         }
     }
 
@@ -172,9 +279,18 @@ struct ThoughtRelatedSection: View {
         guard !loaded else { return }
         loaded = true
         Task {
-            let result = await ThoughtRelatedRecall.findRelated(thoughtID: thoughtID, content: content)
+            // W3（§6 C1）：试点内已核对关系优先（投影内置资格与「显示相关笔记」
+            // 开关，至多 2 条）；未保存修改期间不读——旧结论对不上正在编辑的正文。
+            var verified: [FollowupVerifiedRelation] = []
+            if !hasUnsavedEdits {
+                verified = (try? await ThoughtFollowupProjection.verifiedRelations(for: thoughtID)) ?? []
+            }
+            let result = verified.isEmpty
+                ? await ThoughtRelatedRecall.findRelated(thoughtID: thoughtID, content: content)
+                : []
             await MainActor.run {
                 withAnimation(HoloAnimation.smooth) {
+                    verifiedRelations = Array(verified.prefix(2))
                     items = result
                 }
             }
