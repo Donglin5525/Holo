@@ -23,7 +23,7 @@
 ## 3. 已知崩溃陷阱清单（改代码前对照，实锤新坑后追加）
 1. **巨型 body 视图树**（2026-09-17 实锤）：单个 View 的 body/计算属性内联整棵复杂子树（消息列表/输入栏/长修饰符链），结构类型嵌套数十层 → 真机主线程栈溢出。规约：复杂子树拆独立 `struct`（struct 是类型边界，计算属性不是）；ChatView 的 `ChatContentColumn` / `ChatMessageListPane` 两道边界**禁止内联回计算属性**；新增长修饰符链大界面时同步评估拆分。
 2. 非可选 `@NSManaged` UUID 跨线程 / 对象失效后访问 → Task 块内先做值快照（Thought.id / Attachment.id / reconcile 多案实锤）。
-3. CoreData 对象删除后 UI 仍在 ForEach 渲染 → 删除路径保证 UI 读快照或重新 fetch。
+3. **CoreData 对象删除后 UI 仍在 ForEach 渲染**（2026-11-16 主题删除真机崩溃定谳：`.ips` 堆栈 = `ForEachState.update → key path getter for Topic.id → UUID._unconditionallyBridgeFromObjectiveC`；@State 数组持托管对象 + 通知/手动 reload 存在时序窗口，删除落库后 body 重算即读到死对象）。**根治件已上线（2026-11-16，build 58 起）**：`Utils/ManagedObjectRenderSafety.swift` 提供 `.isRenderable` / `.renderable`，全库 29 处渲染托管对象数组的 ForEach 已统一挂过滤。**规约：今后任何 ForEach 直接渲染 NSManagedObject 数组（Topic/Thought/Habit/Goal/Account/Transaction/TodoList 等），数据源一律 `xxx.renderable`；新页面照此执行，属项目标准防线，不是可选项。**
 4. 新增 Codable 持久化字段必须 `var` + 默认值或 Optional（`let` 带默认值不参与解码，恒 nil）。
 5. 容错枚举必须显式手写 `init(from:)` / `encode(to:)`（编译器合成会盖掉协议扩展默认实现）。
 6. 带 sheetDismissGuard 的视图禁止 push（今日看板闪退前科）。
@@ -75,6 +75,23 @@
 - **验证配型规则**：改了界面结构/加载链路的代码，配的验证必须**打开界面**（冒烟/走查/判读）。模型选择、后端、纯函数单测对「视图接线」类缺陷零拦截力——2026-11-12 的 8/8 单测全绿与页面永久白屏同时为真。
 - **机器闸门（同日上线）**：View Weight Guard 新增规则 5——body 内出现「第 2+ 顶层视图（TupleView）+ 其后跟点修饰」签名直接构建失败。TupleView 劫持修饰链编译器零警告，review 也难肉眼盯住，只有构建闸门必拦；改闸门脚本后必须双向实测（§6 纪律，本次已测：原 bug 精确命中 + 全库 440 文件零误报 + 合法写法三用例全放行）。
 
+## 9. 机器守门清单（2026-11-16 随删主题闪退根治设立；东林拍板「反复犯的坑全部按此思路做」）
+
+**原则：文档红线是软约束，靠自觉必失效；构建/提交层的机器闸门才是硬保证。每道守门上线前必须三连自验（现状绿 → 注入违例被拦 → 复绿），防假闸门。**
+
+| 守门 | 拦什么 | 形态 | 挂载点 |
+|---|---|---|---|
+| View Weight Guard | 巨型视图树（真机栈溢出）+ TupleView 劫持修饰链 | 构建相位脚本 | `BuildScripts/view_weight_guard.py` |
+| ForEach ManagedObject Guard | ForEach 渲染已删托管对象（删除后闪退族，§3.3） | 构建相位脚本 | `BuildScripts/foreach_managed_object_guard.py` |
+| Guards: Test Mount + Banned API | 新测试文件未挂 pbxproj（静默不跑）；uniqueKeysWithValues 新增；入口 `.first!`/`try!`/`as!` | 构建相位脚本×2 | `BuildScripts/test_mount_guard.py` + `banned_api_guard.py`（存量基线：`test_mount_baseline.json`/`banned_api_baseline.json`，挂载专项收口后 `--update-baseline` 收缩） |
+| Pre-Commit Guard | xcstrings 全量重写/词条骤减、CHANGELOG 整覆盖、pbxproj 大规模删除 | git hook（三宿主共用） | `BuildScripts/pre_commit_guard.py` + `.git/hooks/pre-commit`；放行=`--no-verify` 且提交说明写明原因 |
+| holo_build.py | 构建假成功（管道吃 exit code/缺成功标记）；测试假绿（0 用例/计数不符） | 统一包装，**以后跑构建/测试一律走它** | `BuildScripts/holo_build.py`（build/test 模式，test 支持 `--expect N` 计数比对） |
+| pbxproj_surgery.py | 手改工程文件翻车（锚点空转/ID 撞号/plutil 过但 Xcode 读不了） | 手术工具，**pbxproj 手术一律走它**（备份/断言/lint/-list 四连，失败自动回滚） | `BuildScripts/pbxproj_surgery.py` |
+| 后端 purpose 完整性 | 新增对话类 LLM purpose 忘配 reasoningEffort（4 次实锤） | 后端测试 | `HoloBackend/tests/configPurposeCompleteness.test.js` |
+| 归档冒烟清单导出 | §8 的「清单不靠自觉」固化 | 发版前跑一次 | `BuildScripts/archive_smoke_list.py` |
+
+**新增长守门规矩**：新守门脚本必须带 fail-closed（读不到文件/数量异常=失败）、存量用基线/白名单挂账制（不塞代码）、上线三连自验；守门自身 bug 也要修（holo_build 首版 summary 重复计数 bug 即上线当天被抓修——守门也需要被验证）。
+
 ---
 
-*最后更新：2026-11-12（1112 每周回顾带病上架随案：§8 归档窗口重跑红线 + Weight Guard 规则 5 TupleView 劫持闸门；历史：1024 §6 推广为全库 View 闸门 + 高危存量拆分启动 + 登录态深分支为模拟器盲区的实录；1022 §6 ChatView 自动化+拆构造帧；0925 §7 数据沙箱隔离；0923 §6 ChatView 限重 + 装包干净组装）*
+*最后更新：2026-11-16（1116 删主题真机闪退根治随案：§3.3 renderable 防线 + §9 机器守门清单（ForEach Guard/TestMount/BannedAPI/pre-commit/holo_build/pbxproj 手术/后端 purpose/归档清单八件）；历史：1112 §8 归档窗口重跑 + Weight Guard 规则 5；1024 §6 推广全库；1022 §6 ChatView；0925 §7；0923 §6）*
