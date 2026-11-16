@@ -116,16 +116,29 @@ nonisolated enum ThoughtSemanticFeatureFlags {
     private static let followupPilotKey = prefix + "followup_pilot_enabled"
     private static let followupPilotTopicKey = prefix + "followup_pilot_topic_id"
 
+    /// 首次开启通道：启动参数 `-followupPilotTopic <主题UUID>`（不落盘、重启即回默认关）。
+    /// 试点没有产品化的开启入口（设置页诊断组只在开启后显示），首次开启/联调验收统一走
+    /// 启动参数，符合「验收工具走启动参数、App 内不加调试口子」的项目规矩（2026-11-14）。
+    /// 设置页「关闭脉络试点」在启动参数态不生效，重启后自然回到默认关。
+    private static let launchPilotTopic: UUID? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let flag = args.firstIndex(of: "-followupPilotTopic"),
+              flag + 1 < args.count,
+              let id = UUID(uuidString: args[flag + 1]) else { return nil }
+        return id
+    }()
+
     /// 脉络核对试点开关：默认关（生产全静默，§5 B1「生产配置默认为空」）。
     /// 与其他开关相反的缺省方向——未显式开启一律视为关。
     static func followupPilotEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: followupPilotKey) == nil ? false : defaults.bool(forKey: followupPilotKey)
+        launchPilotTopic != nil
+            || (defaults.object(forKey: followupPilotKey) == nil ? false : defaults.bool(forKey: followupPilotKey))
     }
 
     /// 唯一稳定试点主题 ID；默认空 = 全静默。主题改名继承同 ID；
     /// 隐藏、合并或删除由协调器按主题有效性检查停止处理（§5 B1）。
     static func followupPilotTopicID(in defaults: UserDefaults = .standard) -> UUID? {
-        defaults.string(forKey: followupPilotTopicKey).flatMap(UUID.init(uuidString:))
+        launchPilotTopic ?? defaults.string(forKey: followupPilotTopicKey).flatMap(UUID.init(uuidString:))
     }
 
     /// 设置/诊断切换试点范围。切换同样递增授权代数：旧范围的在途任务立即作废，
