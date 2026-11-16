@@ -21,7 +21,11 @@ final class UnderstandingShadowRunUITests: XCTestCase {
     func testSeedAndRunUnderstandingShadow() throws {
         let app = XCUIApplication()
         app.launchEnvironment["UNDERSTANDING_SHADOW_RUN"] = "1"
+        // 合成种子只在模拟器种（模拟器=全新库可随意种）；真机（东林日用机）跑的是
+        // 真实生活数据，严禁种假数据——2026-11-16 真机验证轮启用本测试时加的闸。
+        #if targetEnvironment(simulator)
         app.launchEnvironment["UNDERSTANDING_DEMO_SEED"] = "1"
+        #endif
         app.launch()
 
         // 影子全链：取数→投影→主题→提案（真模型，每主题一次调用）→核验→台账。
@@ -30,5 +34,11 @@ final class UnderstandingShadowRunUITests: XCTestCase {
         //（runner 沙盒视角不同，首版实踩误判）。
         let resultHeader = app.staticTexts["影子理解 · 试跑结果"]
         XCTAssertTrue(resultHeader.waitForExistence(timeout: 120), "120 秒内未见结果覆盖层——全链未完成")
+        // 摘要全文打进测试日志（晋升行/终态行可判读）——诊断与验收双用。
+        let allTexts = app.staticTexts.allElementsBoundByIndex
+            .map { $0.label }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n▾")
+        print("【影子轮摘要】\n▾\(allTexts)")
     }
 }

@@ -17,6 +17,12 @@
 
 import Foundation
 
+nonisolated struct PromotionError: LocalizedError {
+    var message: String
+    init(_ m: String) { message = m }
+    var errorDescription: String? { message }
+}
+
 @MainActor
 enum UnderstandingPromotion {
 
@@ -99,8 +105,8 @@ enum UnderstandingPromotion {
                            validity: EpistemicValidity,
                            themeKey: String,
                            evidence: [LifeObservation],
-                           now: Date) -> HoloMemoryRecord? {
-        guard !evidence.isEmpty else { return nil }
+                           now: Date) throws -> HoloMemoryRecord {
+        guard !evidence.isEmpty else { throw PromotionError("证据空(0条)") }
         let domains = Set(evidence.map(\.domain))
         // 主域=证据里占比最大（平票按 rawValue 稳定序）；id/锚/入库域都用它。
         var counts: [ObservationDomain: Int] = [:]
@@ -114,14 +120,16 @@ enum UnderstandingPromotion {
             primary = .thought
         }
         let primaryMemoryDomain = memoryDomain(primary)
-        let sourceMemoryDomains = Set(domains.map { memoryDomain($0) })
-            .sorted { $0.rawValue < $1.rawValue }
+        // 知识身份的 domain scope 约束：sourceDomains 必须恰好=[primaryDomain]
+        //（invalidDomainScope 实锤：戒烟主题含打卡+想法跨域成员，多域被拒）。
+        // 跨域溯源不丢——每条 evidenceRefs 自带 sourceDomain。
+        let sourceMemoryDomains = [primaryMemoryDomain]
 
         // 主题锚：themeKey 空值抛错 → 整条不可翻译。
         guard let anchor = try? HoloMemoryAnchorRef(
             type: anchorType(primaryDomain: primary),
             value: themeKey,
-            displayLabel: themeKey) else { return nil }
+            displayLabel: themeKey) else { throw PromotionError("锚构造拒(themeKey=\(themeKey))") }
 
         // 证据引用：用户原话观察（quote）→ explicitUserStatement（isUserWordsDomain
         // 判定依据 lineageKey 的域前缀）；行为观察 → entityRef。
@@ -222,22 +230,12 @@ enum UnderstandingPromotion {
                 createdAt: now,
                 updatedAt: now)
             record.personalContext = HoloPersonalContextPayloadEnvelope(v1: payload)
-            do { try record.validate() } catch {
-                NSLog("[UnderstandingPromotion] validate 拒: \(error) | \(statement.prefix(40))")
-                return nil
-            }
+            try record.validate()
             guard let adopted = HoloMemoryActivationPolicy.apply(to: record, now: now) else {
-                NSLog("[UnderstandingPromotion] 激活策略拒(discard/attach失败) | \(statement.prefix(40))")
-                return nil
+                throw PromotionError("激活策略拒(决策路由discard)")
             }
-            do { try adopted.validate() } catch {
-                NSLog("[UnderstandingPromotion] 激活后 validate 拒: \(error) | \(statement.prefix(40))")
-                return nil
-            }
+            try adopted.validate()
             return adopted
-        } catch {
-            NSLog("[UnderstandingPromotion] 构造拒: \(error) | \(statement.prefix(40))")
-            return nil
         }
     }
 
@@ -261,18 +259,23 @@ enum UnderstandingPromotion {
                   let kind = ProposalCandidate.ClaimKind(rawValue: candidate.claimType ?? ""),
                   let provenance = candidate.provenance,
                   let validity = candidate.validity else {
+                NSLog("[UnderstandingPromotion] 字段缺失跳过 stmt=%@ claim=%@ prov=%@ val=%@",
+                      candidate.statement ?? "nil", candidate.claimType ?? "nil",
+                      String(describing: candidate.provenance), String(describing: candidate.validity))
                 skipped += 1
                 continue
             }
             let evidence = resolveEvidence(candidate)
-            guard let record = makeRecord(
-                statement: statement, kind: kind, provenance: provenance, validity: validity,
-                themeKey: candidate.themeKey, evidence: evidence, now: now) else {
+            do {
+                let record = try makeRecord(
+                    statement: statement, kind: kind, provenance: provenance, validity: validity,
+                    themeKey: candidate.themeKey, evidence: evidence, now: now)
+                records.append(record)
+            } catch {
                 skipped += 1
-                failures.append("[\(candidate.themeKey)] 翻译失败（证据空/校验不过）")
+                failures.append("[\(candidate.themeKey)] 翻译失败:\(error.localizedDescription)")
                 continue
             }
-            records.append(record)
         }
         guard !records.isEmpty else { return (0, skipped, failures) }
 
