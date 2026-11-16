@@ -459,11 +459,14 @@ struct ThoughtListView: View {
         }
         // P1 §3.2 归入回执：AI 落库成功广播 → 该想法在当前列表时给一次短暂 toast
         // （不用常驻进度条；离线/未授权/无匹配是合法静默，不产生本事件）
+        // 2026-11-16 时机根治：编辑器开着（正在写作/编辑）不弹——回执此刻说不清
+        // 归属哪条，且打断写作；归类结果由卡片徽章呈现，编辑器关掉后的回执照常弹
         .onReceive(NotificationCenter.default.publisher(for: .thoughtTopicLinkDidCommit)) { note in
             guard let payload = note.object as? [String: Any],
                   let thoughtId = payload["thoughtId"] as? UUID,
                   let topicTitle = payload["topicTitle"] as? String,
                   thoughts.contains(where: { $0.id == thoughtId }) else { return }
+            guard !ThoughtEditingSessionRegistry.shared.hasActiveSession else { return }
             HoloToastCenter.shared.show(String(localized: "已归入「\(topicTitle)」"), type: .success)
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in

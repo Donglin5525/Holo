@@ -292,6 +292,9 @@ final class ThoughtSemanticChangeFeed {
     /// flag 为 off 时同样入队——队列只是本机事实，不触发任何网络行为。
     private func enqueueEmbedIfNeeded(thoughtID: UUID, contentHash: String, priority: Int = 0) async -> Bool {
         guard ThoughtSemanticFeatureFlags.index != .off, let store else { return false }
+        // 编辑中的中间版本不入队（2026-11-16 时机根治）：正文未定稿就分类，
+        // 既拿半截内容猜主题、又打断写作。编辑结束由 handleEditingEnded 定稿入队。
+        guard !ThoughtEditingSessionRegistry.shared.isEditing(thoughtID) else { return false }
         do {
             if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "embed") {
                 return false
@@ -317,6 +320,8 @@ final class ThoughtSemanticChangeFeed {
     /// 属 P2 受控重评，P0 不自动触发——避免 AI 写 link 与重评互相点火成环。
     func enqueueRelateIfNeeded(thoughtID: UUID, contentHash: String, priority: Int = 0) async -> Bool {
         guard ThoughtSemanticFeatureFlags.relation != .off, let store else { return false }
+        // 编辑中的中间版本不入队（口径同 embed，见 enqueueEmbedIfNeeded）
+        guard !ThoughtEditingSessionRegistry.shared.isEditing(thoughtID) else { return false }
         do {
             if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "relate") {
                 return false
@@ -335,6 +340,25 @@ final class ThoughtSemanticChangeFeed {
             logger.error("relate 入队失败 thought=\(thoughtID)：\(error.localizedDescription)")
             return false
         }
+    }
+
+    /// 编辑会话结束（编辑器 onDisappear 兜底落库后调用）：用定稿正文按去重规则入队，
+    /// 补上编辑期间被「编辑中不入队」闸住的版本。删除/归档/排除想法查询自然落空，跳过。
+    /// 编辑中途被杀（没有走到这里）由启动对账 reconcileAllThoughts 兜底。
+    func handleEditingEnded(thoughtID: UUID) async {
+        guard ThoughtSemanticFeatureFlags.index != .off, let store else { return }
+        let context = CoreDataStack.shared.viewContext
+        var finalHash: String?
+        context.performAndWait {
+            let request = Thought.fetchRequest()
+            request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: thoughtID)
+            guard let thought = (try? context.fetch(request))?.first,
+                  let content = thought.value(forKey: "content") as? String, !content.isEmpty
+            else { return }
+            finalHash = ThoughtSemanticText.contentHash(content)
+        }
+        guard let finalHash else { return }
+        _ = await enqueueEmbedIfNeeded(thoughtID: thoughtID, contentHash: finalHash, priority: 100)
     }
 
     /// 软删：tombstone 向量槽位（可恢复路径保留真身，恢复时按 hash 复用，§14）。

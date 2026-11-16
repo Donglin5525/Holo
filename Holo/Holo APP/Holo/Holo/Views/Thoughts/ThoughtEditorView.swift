@@ -429,6 +429,11 @@ struct ThoughtEditorView: View {
                 WelcomeNoteSeed.acknowledgePresentation()
             }
             loadEditingData()
+            // 编辑会话登记（既有想法版）：语义管线编辑中不消费中间版本，
+            // 新建草稿在首次落库拿到 ID 时登记（persistContent 内）
+            if let id = editingThoughtId {
+                ThoughtEditingSessionRegistry.shared.beginEditing(id)
+            }
             // G1：孤儿 staged 文件对账（不被任何恢复记录引用且超期的清理掉）
             Task { await ThoughtEditorRecoveryStore.shared.cleanupOrphans() }
         }
@@ -448,12 +453,27 @@ struct ThoughtEditorView: View {
                 task.cancel()
             }
             inFlightTasks.removeAll()
-            guard !didDeleteCurrentThought else { return }
+            // 删除动作走 deleteCurrentThought，不能让兜底保存凭内容把已删想法重建一条；
+            // 删除沿同样要收口编辑登记（不补语义入队：已删想法不进管线）
+            if didDeleteCurrentThought {
+                if let id = currentThoughtId {
+                    ThoughtEditingSessionRegistry.shared.endEditing(id)
+                }
+                return
+            }
             let outcome = persistContent(shouldDismiss: false, notifyDataChange: true)
             // G1：主路径已由「完成」承担；这里只兜底退出沿。保存成功时恢复记录已清，
             // 不再补写快照（避免给已落库内容留一份假草稿）；失败时内容留本机快照可找回。
             if case .failed = outcome {
                 Task { @MainActor in await writeRecoverySnapshot() }
+            }
+            // 编辑会话收口：注销登记后用定稿正文补一次语义入队（编辑中被闸住的版本；
+            // 与最终保存沿的入队按 contentHash 去重，不会双跑）
+            if let id = currentThoughtId {
+                ThoughtEditingSessionRegistry.shared.endEditing(id)
+                Task { @MainActor in
+                    await ThoughtSemanticChangeFeed.shared.handleEditingEnded(thoughtID: id)
+                }
             }
         }
         // G1 §E13：无实质修改不触发保存周期——加载时设置的初始值、用户撤销回原文
@@ -709,6 +729,8 @@ struct ThoughtEditorView: View {
             if currentThoughtId == nil {
                 draftThoughtId = receipt.thoughtId
                 didCreateThoughtInSession = true
+                // 编辑会话登记（新建草稿版）：登记后本次会话的防抖中间保存不再触发语义入队
+                ThoughtEditingSessionRegistry.shared.beginEditing(receipt.thoughtId)
                 MarkdownTextView.IMEDiag.log("persistContent: draft created wasComposing=\(isComposingIME)")
 
                 // AI 自动分类：每个草稿仅首次创建时触发一次
