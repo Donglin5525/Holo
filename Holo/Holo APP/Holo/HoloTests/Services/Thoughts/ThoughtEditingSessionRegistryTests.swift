@@ -59,4 +59,40 @@ final class ThoughtEditingSessionRegistryTests: XCTestCase {
         registry.endEditing(UUID())
         XCTAssertFalse(registry.hasActiveSession)
     }
+
+    @MainActor
+    func test_receiptWindow_withinAndExpired() async {
+        let registry = ThoughtEditingSessionRegistry()
+        let id = UUID()
+        var now = Date()
+        registry.nowProvider = { now }
+        registry.beginEditing(id)
+        registry.endEditing(id)
+        XCTAssertTrue(registry.isWithinReceiptWindow(id), "刚结束编辑在回执时效窗口内")
+
+        now = now.addingTimeInterval(ThoughtEditingSessionRegistry.receiptWindow + 60)
+        XCTAssertFalse(registry.isWithinReceiptWindow(id), "超窗后不再算「刚写完」，回执不该弹")
+    }
+
+    @MainActor
+    func test_receiptWindow_neverEdited_isFalse() async {
+        let registry = ThoughtEditingSessionRegistry()
+        XCTAssertFalse(registry.isWithinReceiptWindow(UUID()), "从未编辑过的想法不产生回执资格")
+    }
+
+    @MainActor
+    func test_receiptWindow_refCount_lastEndWins() async {
+        let registry = ThoughtEditingSessionRegistry()
+        let id = UUID()
+        var now = Date()
+        registry.nowProvider = { now }
+        registry.beginEditing(id)
+        registry.beginEditing(id)
+        registry.endEditing(id)
+        XCTAssertFalse(registry.isWithinReceiptWindow(id), "仍有一个实例在途，还没到「写完」时刻")
+
+        now = now.addingTimeInterval(60)
+        registry.endEditing(id)
+        XCTAssertTrue(registry.isWithinReceiptWindow(id), "最后一个实例退出才算编辑结束")
+    }
 }
