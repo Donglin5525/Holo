@@ -1971,6 +1971,7 @@
 				71C4A1B20F3E5D89A2C60010 /* ChatView Weight Guard */,
 				7A2B9C3D4E5F60718293A4B5 /* View Weight Guard */,
 				A17B2C3D4E5F60718293A4C6 /* ForEach ManagedObject Guard */,
+				B27C3D4E5F60718293A4D5 /* Guards: Test Mount + Banned API */,
 			);
 			buildRules = (
 			);
@@ -2211,6 +2212,27 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/foreach_managed_object_guard.py\"\n";
+		};
+		B27C3D4E5F60718293A4D5 /* Guards: Test Mount + Banned API */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/HoloTests",
+				"$(SRCROOT)/HoloUITests",
+				"$(SRCROOT)/BuildScripts/test_mount_guard.py",
+				"$(SRCROOT)/BuildScripts/banned_api_guard.py",
+			);
+			name = "Guards: Test Mount + Banned API";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/test_mount_guard.py\"
+/usr/bin/python3 \"$SRCROOT/BuildScripts/banned_api_guard.py\"
+";
 		};
 /* End PBXShellScriptBuildPhase section */
 

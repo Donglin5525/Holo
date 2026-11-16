@@ -1,0 +1,27 @@
+{
+  "uniqueKeysWithValues": {
+    "Holo/Models/HabitRepository+InteractionRebuild.swift": 1,
+    "Holo/Services/AI/Agent/HoloBackgroundContinuationManager.swift": 1,
+    "Holo/Services/AI/Agent/HoloLocalAgentRuntime.swift": 2,
+    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift": 2,
+    "Holo/Services/AI/MemoryFusion/HoloCrossDomainCandidateBuilder.swift": 1,
+    "Holo/Services/AI/MemoryFusion/HoloCrossDomainFusionService.swift": 1,
+    "Holo/Services/AI/MemoryObservation/HoloMemoryLiveObservationCoordinator.swift": 1,
+    "Holo/Services/AI/PersonalContext/HoloPersonalContextExtractor.swift": 1,
+    "Holo/Services/AI/ReportUnderstanding/HoloReportUnderstandingLedger.swift": 1,
+    "Holo/Services/AI/SemanticV3/ThoughtFollowupCoordinator.swift": 1,
+    "Holo/Services/AI/SemanticV3/ThoughtTopicVerifier.swift": 1,
+    "Holo/Services/AI/Understanding/ProposalGate.swift": 1,
+    "Holo/Services/AI/Understanding/ShadowReviewExporter.swift": 1,
+    "Holo/Services/AI/Understanding/ThemeIndex.swift": 3,
+    "Holo/Services/AI/Understanding/UnderstandingDataSource.swift": 1,
+    "Holo/Services/AI/Understanding/UnderstandingShadowRunner.swift": 3,
+    "Holo/Services/Diagnostics/HoloASOFinanceSeeder.swift": 1,
+    "Holo/Services/Diagnostics/HoloMemorySimulatorValidationScenario.swift": 1,
+    "Holo/Services/Tasks/TaskAnalyticsService.swift": 1,
+    "Holo/Views/CategoryManagementView.swift": 1,
+    "Holo/Views/Habits/HabitModuleOptionsSheet.swift": 2,
+    "Holo/Views/Settings/CloudRepullView.swift": 1,
+    "Holo/Views/Thoughts/ThoughtStyleChrome.swift": 1
+  }
+}
