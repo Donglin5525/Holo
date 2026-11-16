@@ -286,8 +286,10 @@ struct CalendarEventDetailSheet: View {
                     if let badges, !badges.isEmpty {
                         ForEach(badges, id: \.title) { badge in
                             HStack(spacing: 4) {
-                                Text(badge.emoji)
-                                    .font(.system(size: 12))
+                                if let emoji = badge.emoji {
+                                    Text(emoji)
+                                        .font(.system(size: 12))
+                                }
                                 Text(badge.title)
                             }
                             .font(.holoLabel)

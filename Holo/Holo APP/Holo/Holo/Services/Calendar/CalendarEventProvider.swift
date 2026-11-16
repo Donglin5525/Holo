@@ -220,9 +220,16 @@ struct CalendarEventProvider {
                 let effectiveTopics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
                     .filter(\.isVisibleTopic)
                 let topics = effectiveTopics.map { $0.title }.sorted()
-                // 主题徽章带 emoji（TopicIconProvider 同口径：用户设置 > 预设 > 关键词 > 哈希兜底）
+                // 主题徽章只透出用户设置过的 emoji（iconEmoji），未设置纯文字——
+                // 与想法卡片「可见徽章只保留名称」同口径（2026-11-16 东林拍板，
+                // 不用 TopicIconProvider 自动兜底，那是主题管理页的口径）
                 let topicBadges = effectiveTopics
-                    .map { CalendarTopicBadge(title: $0.title, emoji: TopicIconProvider.icon(for: $0)) }
+                    .map { topic in
+                        CalendarTopicBadge(
+                            title: topic.title,
+                            emoji: topic.iconEmoji.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
+                        )
+                    }
                     .sorted { $0.title < $1.title }
                 // 自建 tag 外显：已被合并重定向的概念不显示旧名（目标概念若有关自然会出现）
                 let tagBadges = ((thought.tags as? Set<ThoughtTag>) ?? [])

@@ -801,8 +801,10 @@ struct MemoryGalleryBadgeRow: View {
         return HStack(spacing: 6) {
             ForEach(Array(shownTopics), id: \.title) { topic in
                 HStack(spacing: 4) {
-                    Text(topic.emoji)
-                        .font(.system(size: compact ? 10 : 11.5))
+                    if let emoji = topic.emoji {
+                        Text(emoji)
+                            .font(.system(size: compact ? 10 : 11.5))
+                    }
                     Text(topic.title)
                         .lineLimit(1)
                 }

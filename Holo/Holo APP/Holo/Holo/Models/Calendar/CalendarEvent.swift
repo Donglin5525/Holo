@@ -37,7 +37,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     /// P3：相关观点标题（仅想法模块，经 Thought.topics 间接体现观点维度）
     let relatedTopics: [String]?
 
-    /// 想法的主题徽章（title + emoji 恒有值，TopicIconProvider 同口径）；长廊卡片外显用
+    /// 想法的主题徽章（emoji 只透出用户设置过的）；长廊卡片外显用
     let topicBadges: [CalendarTopicBadge]?
 
     /// 想法的自建 tag 徽章（含源色）；长廊卡片外显用
@@ -117,10 +117,12 @@ nonisolated enum CalendarEventValueDirection: Hashable {
     case negative
 }
 
-/// 想法的主题徽章：emoji 恒有值（用户设置 > 预设 > 关键词 > 哈希兜底，TopicIconProvider 同口径）。
+/// 想法的主题徽章：emoji 只透出用户在主题详情页明确设置过的（iconEmoji），
+/// 未设置的主题纯文字——与想法卡片「可见徽章只保留名称」同口径（2026-11-16 东林拍板，
+/// 不沿用 TopicIconProvider 的关键词/哈希自动兜底，那属于主题管理页的口径）。
 nonisolated struct CalendarTopicBadge: Equatable {
     let title: String
-    let emoji: String
+    let emoji: String?
 }
 
 /// 想法的自建 tag 徽章：源色可选（ThoughtTag.color 十六进制）。
