@@ -340,7 +340,7 @@ struct DetailTabView: View {
         showsDate: Bool
     ) -> some View {
         VStack(spacing: 0) {
-            ForEach(transactions) { transaction in
+            ForEach(transactions.renderable) { transaction in
                 TransactionRowView(
                     transaction: transaction,
                     isCompact: true,

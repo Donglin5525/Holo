@@ -189,7 +189,7 @@ struct TaskListFilterBar: View {
         }()
 
         return Menu {
-            ForEach(allLists, id: \.id) { list in
+            ForEach(allLists.renderable, id: \.id) { list in
                 Button {
                     withAnimation(HoloAnimation.quick) {
                         selectedFilter = .list(list.id)

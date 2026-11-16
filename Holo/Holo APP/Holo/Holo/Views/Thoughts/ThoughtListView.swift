@@ -1454,7 +1454,7 @@ struct ThoughtListView: View {
         if !intersections.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(intersections, id: \.topic.id) { item in
+                    ForEach(intersections.filter { $0.topic.isRenderable }, id: \.topic.id) { item in
                         Button {
                             selectedTopicId = item.topic.id
                         } label: {
@@ -1601,7 +1601,7 @@ struct ThoughtListView: View {
 
                 // V3 新 UI：主题筛选 chips（与用户 #标签混排一行）
                 if ThoughtSemanticFeatureFlags.uiEnabled {
-                    ForEach(Array(filterTopics), id: \.id) { topic in
+                    ForEach(filterTopics.renderable, id: \.id) { topic in
                         Button {
                             let node = DrawerNode.topic(topic.id)
                             let isSame = drawerSelection == node
@@ -1660,7 +1660,7 @@ struct ThoughtListView: View {
     private var thoughtListView: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: ThoughtLayout.cardGap) {
-                ForEach(Array(filteredThoughts.enumerated()), id: \.element) { index, thought in
+                ForEach(Array(filteredThoughts.renderable.enumerated()), id: \.element) { index, thought in
                     SwipeActionView(
                         isRevealed: Binding(
                             get: { revealedThoughtId == thought.id },

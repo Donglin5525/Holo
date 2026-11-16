@@ -38,7 +38,7 @@ struct TopicConfirmationQueueView: View {
                             .foregroundColor(.holoTextSecondary)
                             .padding(.horizontal, HoloSpacing.xs)
 
-                        ForEach(thoughts) { thought in
+                        ForEach(thoughts.renderable) { thought in
                             confirmCard(thought)
                         }
                     }

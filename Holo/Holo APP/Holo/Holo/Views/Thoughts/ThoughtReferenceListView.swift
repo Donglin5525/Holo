@@ -93,7 +93,7 @@ struct ThoughtReferenceListView: View {
             }
 
             VStack(spacing: HoloSpacing.sm) {
-                ForEach(thoughts) { ref in
+                ForEach(thoughts.renderable) { ref in
                     ReferenceCardView(thought: ref) {
                         selectedReferenceId = ref.id
                     }

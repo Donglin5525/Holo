@@ -19,7 +19,7 @@ struct GoalPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(goals, id: \.id) { goal in
+                ForEach(goals.renderable, id: \.id) { goal in
                     Button {
                         onSelect(goal)
                         dismiss()

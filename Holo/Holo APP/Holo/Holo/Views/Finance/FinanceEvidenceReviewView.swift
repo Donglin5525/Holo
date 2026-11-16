@@ -298,7 +298,7 @@ struct FinanceEvidenceReviewView: View {
                 emptySection
             } else {
                 VStack(spacing: 0) {
-                    ForEach(transactions) { transaction in
+                    ForEach(transactions.renderable) { transaction in
                         VStack(spacing: 0) {
                             TransactionRowView(transaction: transaction) {
                                 editingTransaction = transaction

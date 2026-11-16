@@ -120,7 +120,7 @@ extension AddTransactionSheet {
         let categories = categoriesForOrder(order)
 
         return LazyVGrid(columns: columns, spacing: CategoryGridReorderFeel.rowSpacing) {
-            ForEach(categories, id: \.objectID) { category in
+            ForEach(categories.renderable, id: \.objectID) { category in
                 if drillDownParent == nil {
                     reorderableParentCategoryButton(category)
                 } else {

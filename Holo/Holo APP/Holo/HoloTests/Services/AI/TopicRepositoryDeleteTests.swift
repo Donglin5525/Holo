@@ -134,4 +134,31 @@ final class TopicRepositoryDeleteTests: XCTestCase {
 
         XCTAssertNil(merged.mergedToTopic, "子主题的 mergedToTopic 应断开，避免悬挂指向")
     }
+
+    // MARK: - ForEach 数据源安全过滤（2026-11-16 删除主题真机崩溃根治件）
+    // 崩溃实锤 Holo-2026-11-16-215553.ips：@State 数组持死 Topic，
+    // ForEachState.update 读 \.id → UUID 桥接 nil → EXC_BREAKPOINT
+
+    func test_删除落库后_对象被renderable过滤() async throws {
+        let (repo, _, ctx) = try makeRepo()
+        let alive = try makeTopic(in: ctx, title: "活主题")
+        let dead = try makeTopic(in: ctx, title: "待删主题")
+
+        _ = try repo.delete(dead)
+
+        XCTAssertFalse(dead.isRenderable, "硬删+save 落库后对象应视为不可渲染")
+        XCTAssertTrue(alive.isRenderable, "活对象不受影响")
+        let source = [dead, alive]
+        XCTAssertEqual(source.renderable.map(\.title), ["活主题"], "ForEach 数据源过滤后不得含死对象")
+    }
+
+    func test_已delete未save阶段_同样被过滤() async throws {
+        let (_, _, ctx) = try makeRepo()
+        let topic = try makeTopic(in: ctx, title: "删除中")
+
+        ctx.delete(topic)
+
+        XCTAssertTrue(topic.isDeleted, "delete 未 save 阶段 isDeleted 应为 true")
+        XCTAssertTrue([topic].renderable.isEmpty, "isDeleted 阶段就不得进渲染管线（删除落库前的窗口同样崩）")
+    }
 }

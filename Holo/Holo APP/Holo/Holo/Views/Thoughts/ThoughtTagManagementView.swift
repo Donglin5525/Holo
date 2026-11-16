@@ -357,7 +357,7 @@ private struct TagThoughtListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
-                        ForEach(thoughts, id: \.id) { thought in
+                        ForEach(thoughts.renderable, id: \.id) { thought in
                             thoughtRow(thought)
                                 .contentShape(Rectangle())
                                 .onTapGesture { selectedThoughtId = thought.id }

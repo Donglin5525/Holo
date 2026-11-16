@@ -68,7 +68,7 @@ struct TopicPickerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
-                        ForEach(topics, id: \.id) { topic in
+                        ForEach(topics.renderable, id: \.id) { topic in
                             Button {
                                 assign(to: topic.id)
                             } label: {

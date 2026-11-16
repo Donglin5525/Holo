@@ -280,7 +280,7 @@ struct ThoughtSidebarView: View {
             subtitle: String(localized: "Holo 串起的长期方向"),
             emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在「想法设置」里手动新建"),
             isEmpty: topics.isEmpty && suggestedCluster == nil) {
-            ForEach(topics, id: \.id) { topic in
+            ForEach(topics.renderable, id: \.id) { topic in
                 let topicPin = ThoughtSidebarPin(kind: .topic, topicID: topic.id, tagPathKey: nil)
                 sidebarRow(
                     title: topic.title,

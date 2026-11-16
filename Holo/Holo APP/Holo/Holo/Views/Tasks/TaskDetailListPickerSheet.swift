@@ -87,7 +87,7 @@ struct TaskDetailListPickerSheet: View {
                         }
                         .buttonStyle(.plain)
 
-                        ForEach(allLists, id: \.id) { list in
+                            ForEach(allLists.renderable, id: \.id) { list in
                             Button {
                                 selectedListId = list.id
                                 showListPicker = false

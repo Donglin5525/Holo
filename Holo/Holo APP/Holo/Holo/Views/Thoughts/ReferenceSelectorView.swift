@@ -148,7 +148,7 @@ struct ReferenceSelectorView: View {
     private var thoughtList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: HoloSpacing.sm) {
-                ForEach(filteredThoughts) { thought in
+                ForEach(filteredThoughts.renderable) { thought in
                     ReferenceThoughtRow(
                         thought: thought,
                         isSelected: selectedIds.contains(thought.id)

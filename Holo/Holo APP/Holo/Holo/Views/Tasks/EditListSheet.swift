@@ -62,7 +62,7 @@ struct EditListSheet: View {
                             .foregroundColor(.holoTextSecondary)
 
                         Menu {
-                            ForEach(folders, id: \.id) { folder in
+                            ForEach(folders.renderable, id: \.id) { folder in
                                 Button {
                                     selectedFolderId = folder.id
                                 } label: {

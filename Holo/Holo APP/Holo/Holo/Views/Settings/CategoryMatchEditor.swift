@@ -20,7 +20,7 @@ struct CategoryMatchEditor: View {
 
     /// 搜索过滤后的分类
     private var filteredCategories: [Category] {
-        let subs = allCategories.filter { $0.isSubCategory }
+        let subs = allCategories.renderable.filter { $0.isSubCategory }
         if searchText.isEmpty { return subs }
         return subs.filter {
             $0.name.localizedCaseInsensitiveContains(searchText)

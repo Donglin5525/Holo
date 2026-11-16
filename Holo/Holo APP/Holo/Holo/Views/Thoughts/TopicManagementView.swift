@@ -39,7 +39,7 @@ struct TopicManagementView: View {
                     Text("还没有主题，先创建一个长期关注方向。")
                         .foregroundColor(.holoTextSecondary)
                 } else {
-                    ForEach(topics, id: \.id) { topic in
+                    ForEach(topics.renderable, id: \.id) { topic in
                         topicRow(topic)
                     }
                 }
@@ -127,7 +127,7 @@ struct TopicManagementView: View {
             Text("该主题下的想法会回到未归类，手动标签不会被删除。")
         }
         .confirmationDialog("合并到哪个主题？", isPresented: $mergePresented, titleVisibility: .visible) {
-            ForEach(topics.filter { $0.id != mergeSource?.id }, id: \.id) { target in
+            ForEach(topics.renderable.filter { $0.id != mergeSource?.id }, id: \.id) { target in
                 Button(target.title) { mergeTopic(into: target) }
             }
             Button("取消", role: .cancel) { mergeSource = nil }

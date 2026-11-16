@@ -901,7 +901,7 @@ struct RefundEntrySheet: View {
                     .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 Menu {
-                    ForEach(accounts, id: \.id) { account in
+                    ForEach(accounts.renderable, id: \.id) { account in
                         Button(account.name) {
                             selectedAccount = account
                         }
