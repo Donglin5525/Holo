@@ -1099,7 +1099,7 @@ struct RefundPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(refunds, id: \.objectID) { refund in
+                ForEach(refunds.renderable, id: \.objectID) { refund in
                     Button {
                         onSelect(refund)
                     } label: {

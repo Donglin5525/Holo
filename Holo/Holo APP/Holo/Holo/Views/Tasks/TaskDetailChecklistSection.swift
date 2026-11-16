@@ -112,7 +112,7 @@ struct TaskDetailChecklistSection: View {
 
             // 子任务列表
             if existingTask != nil {
-                ForEach(checkItems, id: \.id) { item in
+                ForEach(checkItems.renderable, id: \.id) { item in
                     checkItemRow(item)
                     if item.id != checkItems.last?.id {
                         Divider().padding(.horizontal, 12)

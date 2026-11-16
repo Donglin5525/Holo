@@ -188,7 +188,7 @@ struct ReceiptReviewItemEditorBlock: View {
                 )
             }
             Menu {
-                ForEach(accounts, id: \.id) { account in
+                ForEach(accounts.renderable, id: \.id) { account in
                     Button(account.name) { state.selectedAccountID = account.id }
                 }
             } label: {
@@ -209,7 +209,7 @@ struct ReceiptReviewItemEditorBlock: View {
             } else {
                 Menu {
                     Button("不挂项目") { state.selectedProjectID = nil }
-                    ForEach(projects, id: \.id) { project in
+                    ForEach(projects.renderable, id: \.id) { project in
                         Button(project.name) { state.selectedProjectID = project.id }
                     }
                 } label: {

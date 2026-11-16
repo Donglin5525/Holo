@@ -626,7 +626,7 @@ private struct TaskQuadrantSidebarPanel: View {
             scopeRow(.inbox)
             if !lists.isEmpty {
                 sectionLabel(String(localized: "清单"))
-                ForEach(lists, id: \.id) { list in
+                ForEach(lists.renderable, id: \.id) { list in
                     listScopeRow(list)
                 }
             }

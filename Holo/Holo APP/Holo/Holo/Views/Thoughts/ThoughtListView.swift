@@ -1587,7 +1587,7 @@ struct ThoughtListView: View {
                 }
 
                 // 常用标签
-                ForEach(frequentTags) { tag in
+                ForEach(frequentTags.renderable) { tag in
                     HoloFilterChip(
                         title: tag.name,
                         iconColor: tag.tagColor,

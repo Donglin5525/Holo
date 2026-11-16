@@ -163,7 +163,7 @@ struct CategoryPicker: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.md) {
-                    ForEach(recentCategories.filter { $0.managedObjectContext != nil }, id: \.objectID) { category in
+                    ForEach(recentCategories.renderable, id: \.objectID) { category in
                         PickerCategoryButton(
                             category: category,
                             isSelected: selectedCategory?.objectID == category.objectID
@@ -189,7 +189,7 @@ struct CategoryPicker: View {
                 .foregroundColor(.holoTextSecondary)
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
-                ForEach(topLevelCategories, id: \.objectID) { category in
+                ForEach(topLevelCategories.renderable, id: \.objectID) { category in
                     PickerCategoryButton(
                         category: category,
                         // 已选二级分类时高亮其所属一级分类，让"当前选了什么"在总览视图可见
@@ -224,7 +224,7 @@ struct CategoryPicker: View {
             .buttonStyle(.plain)
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
-                ForEach(childCategories, id: \.objectID) { category in
+                ForEach(childCategories.renderable, id: \.objectID) { category in
                     PickerCategoryButton(
                         category: category,
                         isSelected: selectedCategory?.objectID == category.objectID

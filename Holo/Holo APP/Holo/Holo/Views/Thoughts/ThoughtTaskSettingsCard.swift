@@ -416,7 +416,7 @@ private struct ThoughtTaskListPickerSheet: View {
             ScrollView {
                 VStack(spacing: HoloSpacing.xs) {
                     listRow(id: nil, name: String(localized: "不设置"))
-                    ForEach(allLists, id: \.id) { list in
+                    ForEach(allLists.renderable, id: \.id) { list in
                         listRow(id: list.id, name: list.name)
                     }
                     if allLists.isEmpty {

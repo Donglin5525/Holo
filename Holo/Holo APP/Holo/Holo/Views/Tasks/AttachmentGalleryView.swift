@@ -45,7 +45,7 @@ struct AttachmentGalleryView: View {
 
                 // 图片区域
                 TabView(selection: $currentIndex) {
-                    ForEach(Array(attachments.enumerated()), id: \.offset) { index, _ in
+                    ForEach(Array(attachments.renderable.enumerated()), id: \.offset) { index, _ in
                         ZoomableImageView(
                             image: images[index],
                             isLoading: images[index] == nil,

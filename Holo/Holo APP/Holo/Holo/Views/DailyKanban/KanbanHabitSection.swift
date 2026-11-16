@@ -45,7 +45,7 @@ struct KanbanHabitSection: View {
                 emptyView
             } else {
                 VStack(spacing: 0) {
-                    ForEach(activeHabits, id: \.id) { habit in
+                    ForEach(activeHabits.renderable, id: \.id) { habit in
                         habitRow(habit: habit)
                             .holoRecordArrival(habit.id, domain: .habit)
                         if habit.id != activeHabits.last?.id {

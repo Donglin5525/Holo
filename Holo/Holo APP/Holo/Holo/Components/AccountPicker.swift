@@ -32,7 +32,7 @@ struct AccountPicker: View {
             
             // 账户列表
             VStack(spacing: HoloSpacing.sm) {
-                ForEach(accounts, id: \.objectID) { account in
+                ForEach(accounts.renderable, id: \.objectID) { account in
                     AccountRow(
                         account: account,
                         // 使用 objectID 比较，避免因 Core Data 模型字段不一致导致崩溃

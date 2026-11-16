@@ -195,7 +195,7 @@ struct TimelineReplayView: View {
                     let scheduleLaneWidth = scheduleRegionWidth / CGFloat(schedulePlan.laneCount)
 
                     ZStack(alignment: .topLeading) {
-                        ForEach(visibleTimedTasks, id: \.id) { task in
+                        ForEach(visibleTimedTasks.renderable, id: \.id) { task in
                             let laneTop = axisLayout.laneYTop(startMinute: minute(of: effectiveStart(task)))
                             let laneBottom = axisLayout.y(minute:minute(of: effectiveEnd(task)))
                             let lane = taskPlan.lanes[task.id] ?? 0

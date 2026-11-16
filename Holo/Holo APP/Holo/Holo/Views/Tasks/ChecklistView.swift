@@ -152,7 +152,7 @@ struct ChecklistView: View {
                 .background(Color.holoCardBackground)
                 .cornerRadius(HoloRadius.lg)
             } else {
-                ForEach(checkItems, id: \.id) { item in
+                ForEach(checkItems.renderable, id: \.id) { item in
                     checkItemRow(item)
                         .background(Color.holoCardBackground)
 

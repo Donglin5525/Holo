@@ -107,7 +107,7 @@ struct SpendingProjectsView: View {
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             } else {
-                ForEach(projects, id: \.objectID) { project in
+                ForEach(projects.renderable, id: \.objectID) { project in
                     NavigationLink { SpendingProjectDetailView(project: project) { refresh() } } label: {
                         projectRow(project)
                     }

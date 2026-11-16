@@ -530,7 +530,7 @@ struct ProjectHistoryPickerSheet: View {
                 } else {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                            ForEach(candidates, id: \.objectID) { tx in
+                            ForEach(candidates.renderable, id: \.objectID) { tx in
                                 historyRow(tx)
                             }
                         }

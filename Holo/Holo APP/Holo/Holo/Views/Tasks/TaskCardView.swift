@@ -211,7 +211,7 @@ struct TaskCardView: View {
                     .padding(.horizontal, HoloSpacing.md)
 
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                    ForEach(displayedCheckItems, id: \.id) { item in
+                    ForEach(displayedCheckItems.renderable, id: \.id) { item in
                         // 勾选框挂主行完成圈同宽网格（22+11），子任务文字与主行标题同一条左缘线
                         HStack(spacing: 11) {
                             Button {

@@ -208,7 +208,7 @@ struct CategoryManagementView: View {
     private var categoryList: some View {
         List {
             Section {
-                ForEach(topLevelCategories, id: \.id) { parent in
+                ForEach(topLevelCategories.renderable, id: \.id) { parent in
                     Group {
                         // 二级页排序时保留背后 NavigationLink 的身份，避免导航被移除后复位。
                         if isSorting && visibleParentID == nil {
@@ -436,7 +436,7 @@ struct CategoryManagementView: View {
     private func subCategoryRowsList(for parent: Category, subs: [Category]) -> some View {
         List {
             Section {
-                ForEach(subs, id: \.id) { child in
+                ForEach(subs.renderable, id: \.id) { child in
                     Group {
                         if child.isSystem || isSorting {
                             categoryRow(child)

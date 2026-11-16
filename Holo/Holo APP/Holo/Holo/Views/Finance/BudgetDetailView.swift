@@ -74,7 +74,7 @@ struct BudgetDetailView: View {
             isPresented: $showAccountPicker,
             titleVisibility: .visible
         ) {
-            ForEach(accounts, id: \.id) { account in
+            ForEach(accounts.renderable, id: \.id) { account in
                 Button(account.name) {
                     editorAccount = account
                     showCategoryBudgetEditor = true
@@ -99,7 +99,7 @@ struct BudgetDetailView: View {
                 } label: {
                     Label(String(localized: "全部账户"), systemImage: selectedAccountId == nil ? "checkmark" : "")
                 }
-                ForEach(accounts, id: \.id) { account in
+                ForEach(accounts.renderable, id: \.id) { account in
                     Button {
                         selectedAccountId = account.id
                         reload()
@@ -470,7 +470,7 @@ struct BudgetDetailView: View {
                     isOn: strictBinding(selectedAccountId!)
                 )
             } else {
-                ForEach(accounts, id: \.id) { account in
+                ForEach(accounts.renderable, id: \.id) { account in
                     strictToggleRow(
                         title: account.name,
                         isOn: strictBinding(account.id)

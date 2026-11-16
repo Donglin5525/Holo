@@ -114,7 +114,7 @@ struct MatterListContent: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                     } else {
-                        ForEach(matters, id: \.id) { matter in
+                        ForEach(matters.renderable, id: \.id) { matter in
                             row(matter, hidePhaseBadge: true)
                         }
                     }
@@ -145,7 +145,7 @@ struct MatterListContent: View {
                 Text(title)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
-                ForEach(matters, id: \.id) { matter in
+                ForEach(matters.renderable, id: \.id) { matter in
                     row(matter)
                 }
             }

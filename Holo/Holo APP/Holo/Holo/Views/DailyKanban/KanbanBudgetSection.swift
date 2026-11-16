@@ -103,7 +103,7 @@ struct KanbanBudgetSection: View {
             } label: {
                 Label("全部账户", systemImage: selectedAccountId.isEmpty ? "checkmark" : "")
             }
-            ForEach(accounts, id: \.id) { account in
+            ForEach(accounts.renderable, id: \.id) { account in
                 Button {
                     selectAccount(account)
                 } label: {

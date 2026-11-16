@@ -413,12 +413,12 @@ struct HabitTodayRecordSheet: View {
                         .foregroundColor(.holoToolTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    ForEach(recentRecords) { record in
+                    ForEach(recentRecords.renderable) { record in
                         recordRow(record, row: row, showsDate: true)
                     }
                 }
             } else {
-                ForEach(dayRecords) { record in
+                ForEach(dayRecords.renderable) { record in
                     recordRow(record, row: row)
                 }
             }

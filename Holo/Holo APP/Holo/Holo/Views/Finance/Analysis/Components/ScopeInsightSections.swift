@@ -247,7 +247,7 @@ struct ScopeCategoryDrillDownView: View {
                     dayHeader(date: date, transactions: dayTxns)
 
                     VStack(spacing: 0) {
-                        ForEach(dayTxns) { tx in
+                        ForEach(dayTxns.renderable) { tx in
                             TransactionRowView(
                                 transaction: tx,
                                 isCompact: true,

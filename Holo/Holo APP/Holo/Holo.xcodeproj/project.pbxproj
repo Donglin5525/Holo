@@ -1970,6 +1970,7 @@
 				A10000000000000000000008 /* Embed App Extensions */,
 				71C4A1B20F3E5D89A2C60010 /* ChatView Weight Guard */,
 				7A2B9C3D4E5F60718293A4B5 /* View Weight Guard */,
+				A17B2C3D4E5F60718293A4C6 /* ForEach ManagedObject Guard */,
 			);
 			buildRules = (
 			);
@@ -2191,6 +2192,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/view_weight_guard.py\"\n";
+		};
+		A17B2C3D4E5F60718293A4C6 /* ForEach ManagedObject Guard */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Holo/Models",
+				"$(SRCROOT)/Holo/Views",
+				"$(SRCROOT)/Holo/Components",
+				"$(SRCROOT)/BuildScripts/foreach_managed_object_guard.py",
+			);
+			name = "ForEach ManagedObject Guard";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/foreach_managed_object_guard.py\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

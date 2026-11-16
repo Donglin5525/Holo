@@ -261,7 +261,7 @@ struct FinanceSearchView: View {
                 .padding(.top, HoloSpacing.md)
 
             VStack(spacing: HoloSpacing.sm) {
-                ForEach(searchResults, id: \.self) { tx in
+                ForEach(searchResults.renderable, id: \.self) { tx in
                     TransactionRowView(transaction: tx, showsDate: true) {
                         editingTransaction = tx
                     }

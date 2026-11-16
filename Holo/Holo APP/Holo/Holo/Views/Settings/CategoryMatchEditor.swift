@@ -46,7 +46,7 @@ struct CategoryMatchEditor: View {
                             HoloInlineState(kind: .empty, message: String(localized: "没有匹配的分类，请换个关键词。"))
                                 .padding(HoloSpacing.md)
                         }
-                        ForEach(filteredCategories, id: \.id) { category in
+                        ForEach(filteredCategories.renderable, id: \.id) { category in
                             categoryRow(category)
                         }
                     }

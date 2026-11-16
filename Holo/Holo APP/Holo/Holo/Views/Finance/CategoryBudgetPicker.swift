@@ -28,7 +28,7 @@ struct CategoryBudgetPicker: View {
             // 可滚动分类列表
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 2) {
-                    ForEach(topLevelCategories, id: \.objectID) { parent in
+                    ForEach(topLevelCategories.renderable, id: \.objectID) { parent in
                         parentCategoryRow(parent)
 
                         if expandedParentId == parent.id {

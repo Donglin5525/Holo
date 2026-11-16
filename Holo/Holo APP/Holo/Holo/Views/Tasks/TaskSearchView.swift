@@ -242,7 +242,7 @@ struct TaskSearchView: View {
                 .padding(.top, HoloSpacing.md)
 
             LazyVStack(spacing: HoloSpacing.sm) {
-                ForEach(searchResults, id: \.id) { task in
+                ForEach(searchResults.renderable, id: \.id) { task in
                     TaskCardView(
                         task: task,
                         repository: repository,

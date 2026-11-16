@@ -490,7 +490,7 @@ struct ThoughtKnowledgeTreeView: View {
 
     private var topicGrid: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: topicGridColumnCount), spacing: 12) {
-            ForEach(sortedTopics, id: \.id) { topic in
+            ForEach(sortedTopics.renderable, id: \.id) { topic in
                 topicCard(topic)
             }
         }

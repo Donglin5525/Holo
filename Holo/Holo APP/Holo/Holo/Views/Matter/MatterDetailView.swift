@@ -280,7 +280,7 @@ struct MatterDetailView: View {
             Text(verbatim: "待确认 \(loops.count)")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            ForEach(loops.prefix(3), id: \.id) { loop in
+            ForEach(loops.renderable.prefix(3), id: \.id) { loop in
                 HStack(spacing: 8) {
                     Image(systemName: "questionmark.circle")
                         .font(.footnote)

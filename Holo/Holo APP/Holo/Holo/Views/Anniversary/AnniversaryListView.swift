@@ -181,7 +181,7 @@ struct AnniversaryListView: View {
 
             if !upcomingOnceItems.isEmpty {
                 section(title: String(localized: "即将到来")) {
-                    ForEach(Array(upcomingOnceItems.enumerated()), id: \.element) { index, item in
+                    ForEach(Array(upcomingOnceItems.renderable.enumerated()), id: \.element) { index, item in
                         row(item).holoStaggeredAppear(index: index)
                     }
                 }
@@ -189,7 +189,7 @@ struct AnniversaryListView: View {
 
             if !yearlyItems.isEmpty {
                 section(title: String(localized: "每年循环")) {
-                    ForEach(Array(yearlyItems.enumerated()), id: \.element) { index, item in
+                    ForEach(Array(yearlyItems.renderable.enumerated()), id: \.element) { index, item in
                         row(item).holoStaggeredAppear(index: upcomingOnceItems.count + index)
                     }
                 }
@@ -197,7 +197,7 @@ struct AnniversaryListView: View {
 
             if !elapsedItems.isEmpty {
                 section(title: String(localized: "时光已过")) {
-                    ForEach(Array(elapsedItems.enumerated()), id: \.element) { index, item in
+                    ForEach(Array(elapsedItems.renderable.enumerated()), id: \.element) { index, item in
                         row(item).holoStaggeredAppear(index: upcomingOnceItems.count + yearlyItems.count + index)
                     }
                 }

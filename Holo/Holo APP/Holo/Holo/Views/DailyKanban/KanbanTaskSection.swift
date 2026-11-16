@@ -53,7 +53,7 @@ struct KanbanTaskSection: View {
                 emptyView
             } else {
                 VStack(spacing: 0) {
-                    ForEach(todayTasks, id: \.id) { task in
+                    ForEach(todayTasks.renderable, id: \.id) { task in
                         taskRow(task: task)
                         if task.id != todayTasks.last?.id {
                             Divider().background(Color.holoDivider)
@@ -267,7 +267,7 @@ struct KanbanTaskSection: View {
                 .padding(.top, 12)
                 .padding(.bottom, 4)
 
-            ForEach(recentTasks, id: \.id) { task in
+            ForEach(recentTasks.renderable, id: \.id) { task in
                 recentTaskRow(task: task)
                 if task.id != recentTasks.last?.id {
                     Divider().background(Color.holoDivider)
@@ -278,7 +278,7 @@ struct KanbanTaskSection: View {
                 if !recentTasks.isEmpty {
                     Divider().background(Color.holoDivider)
                 }
-                ForEach(openTasks, id: \.id) { task in
+                ForEach(openTasks.renderable, id: \.id) { task in
                     recentTaskRow(task: task)
                     if task.id != openTasks.last?.id {
                         Divider().background(Color.holoDivider)

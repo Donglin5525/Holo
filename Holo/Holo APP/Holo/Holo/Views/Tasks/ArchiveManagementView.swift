@@ -223,7 +223,7 @@ struct ArchiveManagementView: View {
             if archivedTasks.isEmpty {
                 emptyStateView(message: String(localized: "暂无已归档的任务"))
             } else {
-                ForEach(archivedTasks, id: \.id) { task in
+                ForEach(archivedTasks.renderable, id: \.id) { task in
                     ArchivedTaskRow(
                         task: task,
                         onRestore: { restoreTask(task) },
@@ -252,7 +252,7 @@ struct ArchiveManagementView: View {
             if archivedLists.isEmpty {
                 emptyStateView(message: String(localized: "暂无已归档的清单"))
             } else {
-                ForEach(archivedLists, id: \.id) { list in
+                ForEach(archivedLists.renderable, id: \.id) { list in
                     ArchivedListRow(
                         list: list,
                         onRestore: { restoreList(list) },

@@ -72,7 +72,7 @@ struct AccountTabView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.holoToolText)
 
-                    ForEach(activeAccounts, id: \.id) { account in
+                    ForEach(activeAccounts.renderable, id: \.id) { account in
                         accountRow(account, aggregation: aggByAccount[account.id])
                     }
 
@@ -82,7 +82,7 @@ struct AccountTabView: View {
                             .foregroundColor(.holoToolTextSecondary)
                             .padding(.top, HoloSpacing.sm)
 
-                        ForEach(archivedAccounts, id: \.id) { account in
+                        ForEach(archivedAccounts.renderable, id: \.id) { account in
                             accountRow(account, aggregation: aggByAccount[account.id], isArchived: true)
                         }
                     }
