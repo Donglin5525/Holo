@@ -5992,6 +5992,23 @@
         }
       }
     },
+    "今天 %lld 次" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld times today"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天 %lld 次"
+          }
+        }
+      }
+    },
     "%lld 次训练" : {
       "extractionState" : "manual",
       "localizations" : {

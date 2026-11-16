@@ -90,7 +90,8 @@ extension MemoryItem {
     static func from(habitRecord: HabitRecord, habit: Habit) -> MemoryItem {
         var subtitle: String?
         if habit.isNumericType, let value = habitRecord.valueDouble {
-            subtitle = "\(value)\(habit.unit ?? "")"
+            // 与长廊同口径（HabitValueText 单一真源）：1.0 → 1、71.5 → 71.5
+            subtitle = HabitValueText.valueText(value, unit: habit.unit)
         } else if habit.isCheckInType {
             subtitle = "已完成"
         }

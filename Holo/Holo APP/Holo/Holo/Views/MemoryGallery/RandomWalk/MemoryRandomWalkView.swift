@@ -369,11 +369,19 @@ struct MemoryRandomWalkView: View {
                         .padding(.top, 8)
                 }
                 HStack(spacing: 9) {
-                    Image(systemName: linearIcon(event.module))
-                        .font(.system(size: 15, weight: .light))
-                        .foregroundStyle(Color.galleryAccent)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    // 习惯源图标为 emoji 时直接透出（与时间线长廊同口径，原型 ④）
+                    if let emoji = event.sourceIconEmoji {
+                        Text(emoji)
+                            .font(.system(size: 18))
+                            .frame(width: 36, height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    } else {
+                        Image(systemName: linearIcon(event.module))
+                            .font(.system(size: 15, weight: .light))
+                            .foregroundStyle(Color.galleryAccent)
+                            .frame(width: 36, height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.title)
                             .font(.system(size: rowTitleSize, weight: .semibold,
@@ -381,11 +389,25 @@ struct MemoryRandomWalkView: View {
                             .foregroundStyle(Color.galleryInk)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        Text(event.module.displayName + " · " + (event.hasReliableTime
-                             ? event.date.formatted(.dateTime.hour().minute())
-                             : String(localized: "当天")))
+                        // 想法行带迷你主题/tag 胶囊（与时间线长廊同口径，原型 ①）
+                        if event.module == .thought,
+                           !(event.topicBadges?.isEmpty ?? true) || !(event.tagBadges?.isEmpty ?? true) {
+                            HStack(spacing: 5) {
+                                Text(event.module.displayName + " · " + (event.hasReliableTime
+                                     ? event.date.formatted(.dateTime.hour().minute())
+                                     : String(localized: "当天")))
+                                MemoryGalleryBadgeRow(topics: event.topicBadges ?? [],
+                                                      tags: event.tagBadges ?? [], compact: true)
+                            }
                             .font(.system(size: 12))
                             .foregroundStyle(Color.galleryQuiet)
+                        } else {
+                            Text(event.module.displayName + " · " + (event.hasReliableTime
+                                 ? event.date.formatted(.dateTime.hour().minute())
+                                 : String(localized: "当天")))
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.galleryQuiet)
+                        }
                     }
                     Spacer(minLength: 0)
                     if let detail = event.detail, !detail.isEmpty {

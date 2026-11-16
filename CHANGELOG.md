@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-11-16] 记忆长廊卡片信息密度升级——想法外显主题/tag、同日同习惯聚合求和、数值人性化、emoji 透出
+
+东林四点实报（想法的 tag 与主题没外显／戒烟一天多条平铺成 1.0 不求和／1.0 不是人话／源模块的 emoji 在长廊丢了）并成一个功能包，按 HTML 原型（`docs/design-prototypes/memory-gallery-card-upgrade-prototype.html`）1:1 实施。纯 iOS 改动，免后端发版、免 CloudKit 改动、历史数据零改写。
+
+- **想法主题/tag 胶囊外显（CalendarEvent + CalendarEventProvider + 两长廊 View）**：想法主预览卡正文下方新增胶囊行——主题胶囊（暖橙底，带主题 emoji，`TopicIconProvider` 同口径四层兜底）最多 2 个 + tag 胶囊（中性底带源色小圆点）最多 2 个，超出显示 +N；记录行内带迷你版（1 主题 + 1 tag）。主题数据原本已通到 `relatedTopics`（纯界面缺口），tag 新增投影（`Thought.tags` → `tagBadges`，已被合并重定向的概念不显示旧名）。详情弹层主题胶囊同步带 emoji。既有 `relatedTopics` 字段与日回放/拍立得消费点零改动。
+- **同日同习惯聚合（CalendarHabitDayMerger，纯函数）**：长廊时间线内同一天同一习惯的多条记录合并成一行——计数类求和（戒烟 3 次 → 「×3 · 3 支」）、测量类取当天最后一次（体重两条只显最新）、打卡类计次（喝水 → 「×8 · 8 次」），聚合行轻点展开逐条时刻与当次数值。口径与 `HabitNumericAggregator` 同源。只在展示层合并：月历热度、日回放与统计口径仍按原始 1:1 事件计算，当天记录计数随合并口径（6 条 → 4 条）。
+- **数值人性化（HabitValueText，单一真源）**：根治「1.0 支」——浮点数直接插值改为整数去小数点（1.0 → 1）、真小数保留（71.5 kg）、打卡聚合按次数说（「8 次」而非「已完成」）。旧 `MemoryItem` 同步修口径。
+- **emoji 透出**：习惯源图标为 emoji 时（图标选择器统一后大量存在）长廊与随机漫步原样显示彩色 emoji，SF Symbol 源保持既有线性图标——与习惯模块双轨渲染同口径，模块标识线性图标不变。
+- **验证**：构建绿；`CalendarEventProviderTests` 25（含 9 条新增：数值格式化 3 + 合并口径 6）+ `MemoryGalleryTimelineTests` 5 + `MemoryRandomWalkCoreTests` 11 全绿。新增词条「今天 %lld 次」三语齐（xcstrings 文本级手术提交，未卷带并行改动）。
+
 ## [2026-11-16] 统计明细页两优化——趋势图时间轴月界锚定 + 交易明细行降密度
 
 东林实报「趋势图下面的时间可以再缩短一点、交易明细密度非常高」，ios-design 出 A/B 两案、东林圈选 A 案后当日实施。纯 iOS 改动，免后端发版、免 CloudKit 改动。

@@ -74,6 +74,8 @@ struct MemoryGalleryTimelineView: View {
     let onBackToLatestReload: () -> Void
 
     @State private var expandedDay: Date?
+    /// 同日同习惯聚合行展开的行 id（原型 ②：轻点看逐条时刻）
+    @State private var expandedAggregations: Set<UUID> = []
     /// 从日期面板/漫步定位来的目标日（原型 is-target 高亮；空白日临时落位）。
     @State private var selectedDay: Date?
     @State private var isFirstRowVisible = true
@@ -307,7 +309,9 @@ struct MemoryGalleryTimelineView: View {
     // MARK: 日行
 
     private func dayRow(_ day: Date) -> some View {
-        let events = eventsByDay[day] ?? []
+        // 同日同习惯先合并成一行再拆主预览（原型 ②：戒烟 3 条 → 「×3 · 3 支」不平铺）；
+        // 月历热度等仍按原始 1:1 事件计算，不受影响。
+        let events = CalendarHabitDayMerger.mergeDay(eventsByDay[day] ?? [])
         let split = MemoryGalleryDayPreview.split(events)
         let isToday = calendar.isDateInToday(day)
         let isTarget = selectedDay == day
@@ -444,6 +448,10 @@ struct MemoryGalleryTimelineView: View {
                                   design: event.module == .thought ? .serif : .default))
                     .foregroundStyle(Color.galleryInk)
                     .multilineTextAlignment(.leading)
+                if hasBadges(event) {
+                    MemoryGalleryBadgeRow(topics: event.topicBadges ?? [], tags: event.tagBadges ?? [])
+                        .padding(.top, 7)
+                }
                 HStack(spacing: 5) {
                     Image(systemName: linearIcon(event.module))
                         .font(.system(size: 11, weight: .light))
@@ -462,44 +470,117 @@ struct MemoryGalleryTimelineView: View {
     }
 
     /// 紧凑记录行：30pt 图标块 + 标题/元信息 + 金额或状态（缺省箭头），最小 54pt。
+    /// 习惯源图标为 emoji 时直接透出（原型 ④，与习惯模块双轨渲染同口径）；
+    /// 同日聚合行（habitMoments ≥ 2）轻点展开逐条时刻（原型 ②），单条行保持打开详情。
     private func recordRow(_ event: CalendarEvent) -> some View {
-        Button {
-            onSelect(event)
-        } label: {
-            HStack(spacing: 9) {
-                Image(systemName: linearIcon(event.module))
-                    .font(.system(size: minorSize))
-                    .foregroundStyle(Color.galleryAccent)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(event.title)
-                        .font(.system(size: rowTitleSize, weight: .semibold,
-                                      design: event.module == .thought ? .serif : .default))
-                        .foregroundStyle(Color.galleryInk)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Text(metaText(event))
-                        .font(.system(size: metaSize))
-                        .foregroundStyle(Color.galleryQuiet)
-                }
-                Spacer(minLength: 0)
-                if let detail = event.detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.system(size: rowValueSize).monospacedDigit())
-                        .foregroundStyle(Color.galleryInk)
-                        .lineLimit(1)
+        let momentCount = event.habitMoments?.count ?? 0
+        let isAggregated = momentCount > 1
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                if isAggregated {
+                    withAnimation(HoloAnimation.standard) {
+                        if expandedAggregations.contains(event.id) {
+                            expandedAggregations.remove(event.id)
+                        } else {
+                            expandedAggregations.insert(event.id)
+                        }
+                    }
                 } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.galleryQuiet)
+                    onSelect(event)
                 }
+            } label: {
+                HStack(spacing: 9) {
+                    if let emoji = event.sourceIconEmoji {
+                        Text(emoji)
+                            .font(.system(size: 16))
+                            .frame(width: 30, height: 30)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    } else {
+                        Image(systemName: linearIcon(event.module))
+                            .font(.system(size: minorSize))
+                            .foregroundStyle(Color.galleryAccent)
+                            .frame(width: 30, height: 30)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(event.title)
+                                .font(.system(size: rowTitleSize, weight: .semibold,
+                                              design: event.module == .thought ? .serif : .default))
+                                .foregroundStyle(Color.galleryInk)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            if isAggregated {
+                                Text("×\(momentCount)")
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundStyle(Color.galleryAccent)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.galleryAccent.opacity(0.12)))
+                                    .overlay(Capsule().strokeBorder(Color.galleryAccent.opacity(0.26), lineWidth: 1))
+                            }
+                        }
+                        if isAggregated {
+                            HStack(spacing: 4) {
+                                Text("今天 \(momentCount) 次")
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .rotationEffect(.degrees(expandedAggregations.contains(event.id) ? 180 : 0))
+                            }
+                            .font(.system(size: metaSize))
+                            .foregroundStyle(Color.galleryQuiet)
+                        } else if hasBadges(event) {
+                            // 想法行内迷你胶囊（原型 ①）：1 主题 + 1 tag，宽行不挤
+                            HStack(spacing: 5) {
+                                Text(metaText(event))
+                                MemoryGalleryBadgeRow(topics: event.topicBadges ?? [],
+                                                      tags: event.tagBadges ?? [], compact: true)
+                            }
+                        } else {
+                            Text(metaText(event))
+                                .font(.system(size: metaSize))
+                                .foregroundStyle(Color.galleryQuiet)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if let detail = event.detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(.system(size: rowValueSize, weight: isAggregated ? .semibold : .regular).monospacedDigit())
+                            .foregroundStyle(Color.galleryInk)
+                            .lineLimit(1)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.galleryQuiet)
+                    }
+                }
+                .padding(.vertical, 5)
+                .frame(minHeight: 54)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 5)
-            .frame(minHeight: 54)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            if isAggregated, expandedAggregations.contains(event.id), let moments = event.habitMoments {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(moments.enumerated()), id: \.offset) { _, moment in
+                        HStack(spacing: 10) {
+                            Text(moment.date.formatted(.dateTime.hour().minute()))
+                            if let valueText = moment.valueText, !valueText.isEmpty {
+                                Text(valueText)
+                            }
+                        }
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Color.galleryQuiet)
+                    }
+                }
+                .padding(.top, 2)
+                .padding(.leading, 39)
+                .padding(.bottom, 6)
+            }
         }
-        .buttonStyle(.plain)
+    }
+
+    private func hasBadges(_ event: CalendarEvent) -> Bool {
+        !(event.topicBadges?.isEmpty ?? true) || !(event.tagBadges?.isEmpty ?? true)
     }
 
     private func metaText(_ event: CalendarEvent) -> String {
@@ -703,6 +784,64 @@ func linearIcon(_ module: CalendarModule) -> String {
     case .habit: return "checkmark.circle"
     case .todo: return "checklist"
     case .health: return "heart"
+    }
+}
+
+/// 想法的主题/tag 胶囊行（原型 ①）：主题=暖橙胶囊带主题 emoji，tag=中性胶囊带源色点。
+/// 标准版显示 2 主题 + 2 tag（超出 +N），compact 行内迷你版只带 1 主题 + 1 tag。
+struct MemoryGalleryBadgeRow: View {
+    let topics: [CalendarTopicBadge]
+    let tags: [CalendarTagBadge]
+    var compact = false
+
+    var body: some View {
+        let shownTopics = compact ? topics.prefix(1) : topics.prefix(2)
+        let shownTags = compact ? tags.prefix(1) : tags.prefix(2)
+        let overflow = (topics.count - shownTopics.count) + (tags.count - shownTags.count)
+        return HStack(spacing: 6) {
+            ForEach(Array(shownTopics), id: \.title) { topic in
+                HStack(spacing: 4) {
+                    Text(topic.emoji)
+                        .font(.system(size: compact ? 10 : 11.5))
+                    Text(topic.title)
+                        .lineLimit(1)
+                }
+                .font(.system(size: compact ? 9.5 : 10.5))
+                .foregroundStyle(Color.galleryAccent)
+                .padding(.horizontal, compact ? 8 : 10)
+                .padding(.vertical, 3.5)
+                .background(Capsule().fill(Color.galleryAccent.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(Color.galleryAccent.opacity(0.22), lineWidth: 1))
+                .fixedSize()
+            }
+            ForEach(Array(shownTags), id: \.name) { tag in
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(tagDotColor(tag.colorHex))
+                        .frame(width: 5, height: 5)
+                    Text(tag.name)
+                        .lineLimit(1)
+                }
+                .font(.system(size: compact ? 9.5 : 10))
+                .foregroundStyle(Color.galleryQuiet)
+                .padding(.horizontal, compact ? 7 : 9)
+                .padding(.vertical, 3.5)
+                .background(Capsule().fill(Color.galleryQuiet.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(Color.galleryQuiet.opacity(0.2), lineWidth: 1))
+                .fixedSize()
+            }
+            if overflow > 0 {
+                Text("+\(overflow)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.galleryQuiet)
+            }
+        }
+    }
+
+    /// tag 源色（ThoughtTag.color 十六进制）；无色回落长廊次级色
+    private func tagDotColor(_ hex: String?) -> Color {
+        guard let hex, !hex.isEmpty else { return .galleryQuiet }
+        return Color(hex: hex)
     }
 }
 

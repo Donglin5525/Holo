@@ -37,6 +37,21 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     /// P3：相关观点标题（仅想法模块，经 Thought.topics 间接体现观点维度）
     let relatedTopics: [String]?
 
+    /// 想法的主题徽章（title + emoji 恒有值，TopicIconProvider 同口径）；长廊卡片外显用
+    let topicBadges: [CalendarTopicBadge]?
+
+    /// 想法的自建 tag 徽章（含源色）；长廊卡片外显用
+    let tagBadges: [CalendarTagBadge]?
+
+    /// 习惯源图标为 emoji 时透出（SF Symbol 源保持 linearIcon，与习惯模块双轨渲染同口径）
+    let sourceIconEmoji: String?
+
+    /// 习惯同日聚合上下文（仅习惯事件；长廊展示层合并与 ×N 徽标消费）
+    let habitAggregation: HabitDayAggregationContext?
+
+    /// 同日同习惯聚合后的逐条明细（时刻 + 当次数值）；nil = 单条记录，非 nil 且 count ≥ 2 = 聚合行
+    let habitMoments: [CalendarHabitMoment]?
+
     /// 附件缩略图数据（仅想法模块；册页风照片堆直接消费，最大 9 张 300×300）
     let attachmentThumbnails: [Data]
 
@@ -55,6 +70,11 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
          numericValue: Decimal? = nil,
          valueDirection: CalendarEventValueDirection? = nil,
          relatedTopics: [String]? = nil,
+         topicBadges: [CalendarTopicBadge]? = nil,
+         tagBadges: [CalendarTagBadge]? = nil,
+         sourceIconEmoji: String? = nil,
+         habitAggregation: HabitDayAggregationContext? = nil,
+         habitMoments: [CalendarHabitMoment]? = nil,
          attachmentThumbnails: [Data] = [],
          thoughtReferenceQuotes: [ThoughtReferenceQuote] = [],
          originID: NSManagedObjectID) {
@@ -67,6 +87,11 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
         self.numericValue = numericValue
         self.valueDirection = valueDirection
         self.relatedTopics = relatedTopics
+        self.topicBadges = topicBadges
+        self.tagBadges = tagBadges
+        self.sourceIconEmoji = sourceIconEmoji
+        self.habitAggregation = habitAggregation
+        self.habitMoments = habitMoments
         self.attachmentThumbnails = attachmentThumbnails
         self.thoughtReferenceQuotes = thoughtReferenceQuotes
         self.originID = originID
@@ -90,6 +115,36 @@ nonisolated struct ThoughtReferenceQuote: Equatable {
 nonisolated enum CalendarEventValueDirection: Hashable {
     case positive
     case negative
+}
+
+/// 想法的主题徽章：emoji 恒有值（用户设置 > 预设 > 关键词 > 哈希兜底，TopicIconProvider 同口径）。
+nonisolated struct CalendarTopicBadge: Equatable {
+    let title: String
+    let emoji: String
+}
+
+/// 想法的自建 tag 徽章：源色可选（ThoughtTag.color 十六进制）。
+nonisolated struct CalendarTagBadge: Equatable {
+    let name: String
+    let colorHex: String?
+}
+
+/// 习惯事件的同日聚合上下文：长廊展示层把同日同习惯的多条合并成一行
+///（计数类求和 / 测量类取最后一次 / 打卡类计次，与 HabitNumericAggregator 同口径），
+/// 月历热度与统计口径仍按原始 1:1 事件计算，不受合并影响。
+nonisolated struct HabitDayAggregationContext: Equatable {
+    let habitID: UUID
+    let isCountType: Bool
+    let isCheckIn: Bool
+    let unit: String?
+    /// 该条记录的原始数值（打卡类为 nil）
+    let value: Double?
+}
+
+/// 同日同习惯聚合后的单条明细：时刻 + 当次数值文本。
+nonisolated struct CalendarHabitMoment: Equatable {
+    let date: Date
+    let valueText: String?
 }
 
 extension CalendarEvent {
