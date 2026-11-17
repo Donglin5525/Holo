@@ -437,7 +437,11 @@ struct MemoryGalleryTimelineView: View {
             onSelect(event)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                if let thumb = event.attachmentThumbnails.first {
+                // 头图优先（04 §2：显式头图 > 旧附件 > 文字；贴纸完整显示）
+                if let hero = event.heroVisualPlacement,
+                   case .assetReady = hero {
+                    MemoryGalleryHeroBanner(placement: hero)
+                } else if let thumb = event.attachmentThumbnails.first {
                     // 等比裁切（11-15 东林实报「比例被压缩」）：定长槽位+fill+clipped，
                     // 禁用会拉伸的 aspectRatio(.fill) 直挂（在档坑：钳 fill 唯一可靠手段是定长 frame）
                     MemoryGalleryCroppedBanner(data: thumb, ratio: 1.88, cornerRadius: 9)

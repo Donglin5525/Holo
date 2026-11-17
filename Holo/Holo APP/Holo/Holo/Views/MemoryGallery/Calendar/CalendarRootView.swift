@@ -117,7 +117,18 @@ struct CalendarRootView: View {
                 },
                 onOpenEvent: { event in
                     handleEventSelect(event)
-                }
+                },
+                featuredThumbnail: { day in
+                    // 图片月历：当天第一个有头图的想法（04 §2.1 自动候选；仅想法）
+                    guard let events = viewModel.eventsByDay[day] else { return nil }
+                    for event in events where event.module == .thought {
+                        if case .assetReady(let d) = event.heroVisualPlacement,
+                           let thumb = d.thumbnailPixel() {
+                            return thumb
+                        }
+                    }
+                    return nil
+                },
             )
         }
     }

@@ -112,7 +112,11 @@ struct MemoryGalleryFindDateSheet: View {
     let onBackToLatest: () -> Void
     /// 漫步里点开一条原记录（详情弹层/想法深链由宿主决定）。
     let onOpenEvent: (CalendarEvent) -> Void
+    /// 某日的代表图缩略图（图片月历模式；nil = 该日无图或未载入）。
+    var featuredThumbnail: ((Date) -> CGImage?)? = nil
 
+    /// 图片/日期双模式（04 §3：默认图片，本机偏好；点日期先预览再跳属于图片模式行为）
+    @State private var imageMode = true
     @State private var monthAnchor: Date?
     @State private var showYearMenu = false
     /// 漫步里点开的非想法记录：在面板内部嵌套弹层呈现，漫步状态原地保留
@@ -183,6 +187,7 @@ struct MemoryGalleryFindDateSheet: View {
             // 随机漫步置顶（11-15 东林实报「藏太深」+设计审查方案A：挑一天和随机去一天是邻居）
             randomWalkRow
             monthHeader
+            modeSegment
             weekdayHeader
             dayGrid
             Divider().padding(.horizontal, 20)
@@ -306,6 +311,17 @@ struct MemoryGalleryFindDateSheet: View {
         .padding(.vertical, 6)
     }
 
+    /// 图片/日期模式切换（保留日期模式点选即跳的快捷操作）
+    private var modeSegment: some View {
+        Picker("模式", selection: Binding(get: { imageMode }, set: { imageMode = $0 })) {
+            Text(String(localized: "图片")).tag(true)
+            Text(String(localized: "日期")).tag(false)
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 4)
+    }
+
     private var dayGrid: some View {
         let days = monthDays
         let startOfWeekdayIndex = { () -> Int in
@@ -326,32 +342,43 @@ struct MemoryGalleryFindDateSheet: View {
                 Button {
                     onSelectDay(startOfDay)
                 } label: {
-                    VStack(spacing: 3) {
-                        Text("\(calendar.component(.day, from: day))")
-                            .font(.system(size: dayNumberSize).monospacedDigit())
-                            .foregroundStyle(isFuture ? Color.galleryInk.opacity(0.35)
-                                         : (startOfDay == today ? Color.white : Color.galleryInk))
-                        Circle()
-                            .fill(isFuture ? Color.clear
-                                  : (startOfDay == today ? Color.clear
-                                     : (count != nil ? Color.galleryOrange : Color.clear)))
-                            .frame(width: 5, height: 5)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .contentShape(Rectangle())
-                    .background {
-                        if startOfDay == focused {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.galleryTint)
-                                .frame(height: 44)
-                        } else if startOfDay == today {
-                            // 原型：今天=橙色实底+固定白字（深色下 GallerySurface 是暖深色，判读实抓改 .white）
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.galleryOrange)
-                                .frame(height: 44)
+                  Group {
+                    if imageMode, !isFuture {
+                        // 图片月历：日期/今天/选中标记在图片外（04 §3.2）
+                        FindDateImageCell(day: calendar.component(.day, from: day),
+                                          isToday: startOfDay == today,
+                                          isSelected: startOfDay == focused,
+                                          thumb: featuredThumbnail?(startOfDay),
+                                          count: count)
+                    } else {
+                        VStack(spacing: 3) {
+                            Text("\(calendar.component(.day, from: day))")
+                                .font(.system(size: dayNumberSize).monospacedDigit())
+                                .foregroundStyle(isFuture ? Color.galleryInk.opacity(0.35)
+                                             : (startOfDay == today ? Color.white : Color.galleryInk))
+                            Circle()
+                                .fill(isFuture ? Color.clear
+                                      : (startOfDay == today ? Color.clear
+                                         : (count != nil ? Color.galleryOrange : Color.clear)))
+                                .frame(width: 5, height: 5)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                        .background {
+                            if startOfDay == focused, !imageMode {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.galleryTint)
+                                    .frame(height: 44)
+                            } else if startOfDay == today, !imageMode {
+                                // 原型：今天=橙色实底+固定白字（图片模式的今天标记由格子自绘）
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.galleryOrange)
+                                    .frame(height: 44)
+                            }
                         }
                     }
-                    .opacity(isFuture ? 0.35 : 1)
+                  }
+                  .opacity(isFuture ? 0.35 : 1)
                 }
                 .buttonStyle(.plain)
                 .disabled(isFuture)
