@@ -64,7 +64,10 @@ struct VisualAssetLibraryView: View {
             reload()
         }
         .sheet(isPresented: $showMaker) {
-            StickerMakerView(onFinished: { _ in reload() })
+            StickerMakerView(pickerTitle: String(localized: "制作贴纸")) { _, _ in
+                reload()
+            }
+            .presentationDetents([.medium, .large])
         }
         .sheet(item: $renameTarget) { asset in
             renameSheet(asset)

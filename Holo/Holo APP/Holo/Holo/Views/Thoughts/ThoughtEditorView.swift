@@ -1495,6 +1495,22 @@ struct ThoughtEditorView: View {
     /// 它自带先落库能力，新建会话也可用。其余操作需要已落库的对象。
     /// 正文有选中文字时出现「转为选中文字任务」——走同一条 .convertToTask 管线
     /// （管线内部：有选中转选中、无选中转整篇），补回工具栏按钮退役后的选区能力。
+    private var heroMenuTitle: String {
+        hasHeroVisual ? String(localized: "更换头图") : String(localized: "添加头图")
+    }
+
+    private var hasHeroVisual: Bool {
+        if case .assetReady = heroCurrentPlacement { return true }
+        return false
+    }
+
+    /// 未落库的想法：先落库再弹选择器（与「转为任务/图片转正」同一 persistContent 能力，
+    /// 东林拍板；落库后 draftThoughtId 更新 → 选择器绑定有目标）
+    private func ensureThoughtPersistedForHero() {
+        guard currentThoughtId == nil else { return }
+        _ = persistContent(shouldDismiss: false, notifyDataChange: false)
+    }
+
     /// 头图区：已落库且有显式头图才渲染；添加/更换走菜单弹出的制作页（01 §6.3）
     @ViewBuilder
     private var heroSection: some View {
@@ -1507,14 +1523,43 @@ struct ThoughtEditorView: View {
 
     private var viewContext: NSManagedObjectContext { CoreDataStack.shared.viewContext }
 
-    /// 头图制作页（挂在常驻层，无头图时也可弹出）
+    /// 头图选择器（新交互）：回执即绑定（立即生效）；标题动态「头图」
     private var heroMakerSheet: some View {
-        StickerMakerView(initialMode: .photo,
-                         ownerKind: Thought.visualOwnerKind,
-                         ownerKey: currentThoughtId?.uuidString ?? UUID().uuidString,
-                         slot: Thought.visualSlot,
-                         expectedWinner: heroBaselineRevisionID) { _ in
-            heroRevisionBump += 1
+        let current = heroCurrentPlacement
+        var inUse: UUID?
+        if case .assetReady(let d) = current { inUse = d.assetID }
+        return StickerMakerView(initialMode: .photo,
+                                pickerTitle: String(localized: "头图"),
+                                currentPlacement: current,
+                                fallbackIcon: "photo.on.rectangle",
+                                inUseAssetID: inUse,
+                                onRestoreDefault: { applyHeroPayload(.clear) }) { assetID, presentation in
+            applyHeroPayload(.setAsset(.asset(assetID), presentation: presentation))
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private var heroCurrentPlacement: ResolvedPlacement? {
+        guard let currentThoughtId,
+              let thought = try? thoughtRepository.fetchById(currentThoughtId) else { return nil }
+        return thought.resolveHeroVisual(in: viewContext)
+    }
+
+    /// 头图绑定（立即生效）+ 本地 bump 即时刷新
+    private func applyHeroPayload(_ payload: VisualPlacementPayload) {
+        guard let currentThoughtId,
+              let thought = try? thoughtRepository.fetchById(currentThoughtId) else { return }
+        guard let ownerKey = thought.visualOwnerKey else { return }
+        heroRevisionBump += 1
+        Task {
+            _ = try? await VisualCommitCoordinator.shared.commit(
+                .applyPlacement(operationID: UUID(),
+                                ownerKind: Thought.visualOwnerKind,
+                                ownerKey: ownerKey,
+                                slot: Thought.visualSlot,
+                                expectedSlotWinnerRevisionID: nil,
+                                payload: payload),
+                in: CoreDataStack.shared.persistentContainer)
         }
     }
 
@@ -1543,12 +1588,20 @@ struct ThoughtEditorView: View {
                 #if canImport(UIKit)
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 #endif
+                ensureThoughtPersistedForHero()
                 showHeroMaker = true
             } label: {
-                Label(String(localized: "添加/更换头图"), systemImage: "photo.badge.plus")
+                Label(heroMenuTitle, systemImage: "photo.badge.plus")
             }
-            .disabled(currentThoughtId == nil)
             .accessibilityIdentifier("thought.hero.add")
+            if hasHeroVisual {
+                Button(role: .destructive) {
+                    applyHeroPayload(.clear)
+                } label: {
+                    Label(String(localized: "移除头图"), systemImage: "photo.badge.minus")
+                }
+                .accessibilityIdentifier("thought.hero.remove")
+            }
 
             Divider()
             if editorSelectionLength > 0 {
