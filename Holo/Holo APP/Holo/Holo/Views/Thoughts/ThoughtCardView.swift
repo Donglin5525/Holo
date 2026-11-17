@@ -89,6 +89,8 @@ struct ThoughtCardView: View {
         // 每次访问都要重新遍历 Core Data 的标签分配关系
         let aiTagNames = thought.visibleAITagNames
         return VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+            // 头图预览（有显式头图才出现；无头图保持原密度，01 §6.4）
+            ThoughtHeroListPreview(placement: thought.resolveHeroVisual(in: CoreDataStack.shared.viewContext))
             // 顶部：日期 + 状态
             headerView(aiTagNames: aiTagNames)
 

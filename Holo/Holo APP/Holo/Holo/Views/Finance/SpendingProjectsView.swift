@@ -118,13 +118,8 @@ struct SpendingProjectsView: View {
     }
 
     private func projectRow(_ project: SpendingProject) -> some View {
-        let category = project.categoryId.flatMap { FinanceRepository.shared.findCategory(by: $0) }
         return HStack(spacing: HoloSpacing.md) {
-            if let category, !category.isDeleted {
-                CategoryIconBadge(category: category, diameter: 42)
-            } else {
-                CategoryIconBadge(iconName: "bag.fill", color: .holoTextSecondary, diameter: 42)
-            }
+            SpendingProjectIconSlot(project: project)
             VStack(alignment: .leading, spacing: 4) {
                 Text(project.name).font(.holoBody).foregroundColor(.holoTextPrimary).lineLimit(1)
                 Text(project.isRecurring
@@ -168,6 +163,7 @@ struct SpendingProjectDetailView: View {
 
     var body: some View {
         Form {
+            SpendingProjectVisualSection(project: project)
             Section {
                 LabeledContent("类型", value: project.isRecurring ? "周期性支出" : "一次性购买")
                 LabeledContent(project.isRecurring ? String(localized: "每期金额") : String(localized: "金额"), value: NumberFormatter.currency.string(from: project.amount) ?? "¥0")

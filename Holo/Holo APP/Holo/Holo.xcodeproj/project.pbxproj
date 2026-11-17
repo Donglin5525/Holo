@@ -45,6 +45,7 @@
 		2DFEB9107FB6B50D37107805 /* SubtaskParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3005AE966FE2E10711137A /* SubtaskParserTests.swift */; };
 		2E4F2A4C1DE96D5AF71E5AC0 /* HabitNumericAggregationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9F72A62C0B0A6A03101EE0 /* HabitNumericAggregationStandaloneTests.swift */; };
 		3154C526878042FAA896940A /* FinanceReconciliationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFB70A56A73477EA1897490 /* FinanceReconciliationTests.swift */; };
+		33F74B6A530F4D58ACE14670 /* StickerMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE402C1B5CED440AB85485A7 /* StickerMakerView.swift */; };
 		35759AE34A6F0C981EEFA931 /* HoloHealthToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34F2DF19F8AC5F811DDF1D2F /* HoloHealthToolTests.swift */; };
 		36CF72A2A4843D68CEAE4246 /* HoloAgentModelCodableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3E7ED11C3ED171AEA01E2FE /* HoloAgentModelCodableTests.swift */; };
 		37D513885208E065DE2D8C29 /* HoloThoughtReferenceToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8410A8C5A629770129BE33CA /* HoloThoughtReferenceToolTests.swift */; };
@@ -143,6 +144,7 @@
 		7A9EB0466A1CC5121E0D4658 /* HoloThoughtToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCE8AE50DB92A757F4B4E61 /* HoloThoughtToolTests.swift */; };
 		7AE1AB100926000000000002 /* HoloAIWindowPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AE1AB100926000000000001 /* HoloAIWindowPolicyTests.swift */; };
 		7B2C3D4E5F6A7B8C9D0E1F2A /* RefundEntryWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3D4E5F6A7B8C9D0E1F2A3B /* RefundEntryWalkthroughUITests.swift */; };
+		7BC0FAD7F53840C1AC7C2B70 /* VisualAssetLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9F96A4ED4F483EA0524FDE /* VisualAssetLibraryView.swift */; };
 		7C1FBA93D4E50817293A6B02 /* HoloFinancePatternAndLegacyGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C1FBA93D4E50817293A6B01 /* HoloFinancePatternAndLegacyGuardTests.swift */; };
 		7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E8A91D2B3F4056A1E9C02 /* AnniversaryDaysCalculationTests.swift */; };
 		7C4E9A21B8D3F5E60A1C2D3E /* HealthSleepSessionSplitterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5D8B04C9A1F3D67B2E4F5A /* HealthSleepSessionSplitterTests.swift */; };
@@ -208,9 +210,7 @@
 		A1C000000000000000000052 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000051 /* DesignSystem.swift */; };
 		A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000001 /* HoloWidgetIntents.swift */; };
 		A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */; };
-		7BC0FAD7F53840C1AC7C2B70 /* VisualAssetLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF9F96A4ED4F483EA0524FDE /* VisualAssetLibraryView.swift */; };
-		33F74B6A530F4D58ACE14670 /* StickerMakerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE402C1B5CED440AB85485A7 /* StickerMakerView.swift */; };
-		AAA9A9FF79B84BFAB5DB50E6 /* VisualAssetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B9F353F1FF461FAAA7889F /* VisualAssetView.swift */; };
+		12B548034F624EA7810A26CD /* ThoughtHeroSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE42DF40753C4329B7E856FE /* ThoughtHeroSupport.swift */; };
 		A1D01D00000000000000000006 /* CoreDataStack+CategoryLearningEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */; };
 		A1D01D00000000000000000008 /* CoreDataStack+ChatEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */; };
 		A1D01D0000000000000000000A /* CoreDataStack+FinanceEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */; };
@@ -333,6 +333,8 @@
 		AA55E9C10D42F1B3A7E8C901 /* FullScreenCoverEdgeSwipeBackAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA55E9C10D42F1B3A7E8C902 /* FullScreenCoverEdgeSwipeBackAuditTests.swift */; };
 		AA6574CF2BCFA8397B9DF954 /* HoloMemoryRepositoryIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8EDADC5C4B9CC6914DC480 /* HoloMemoryRepositoryIntegrationTests.swift */; };
 		AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */; };
+		AAA9A9FF79B84BFAB5DB50E6 /* VisualAssetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B9F353F1FF461FAAA7889F /* VisualAssetView.swift */; };
+		AB102ABDE3014458B5FE07F7 /* SpendingProjectVisualSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94E168D033241A6AA33779A /* SpendingProjectVisualSection.swift */; };
 		ACD1860A7C508A758C190B7C /* CalendarViewModelNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108ECFE2BB6D4500EBBFCD08 /* CalendarViewModelNavigationTests.swift */; };
 		AD4F6BC8E7A2C5D9F3B64EA7 /* ActivityDistributionAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B2D4FA6C5E9A3B7D1F42C85 /* ActivityDistributionAnalyzerTests.swift */; };
 		AE65461EFB381455650E9DEF /* ThoughtTagConvergenceJobStoreStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86FD6BF4464BC2E855830BCC /* ThoughtTagConvergenceJobStoreStandaloneTests.swift */; };
@@ -660,6 +662,7 @@
 		5F2F8FF0DC789254DD0C1D72 /* HoloFeedbackToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloFeedbackToolTests.swift; sourceTree = "<group>"; };
 		622BFBA66EE5B9248A677503 /* CoreDataTestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreDataTestSupport.swift; sourceTree = "<group>"; };
 		623C37A4887E186F64479565 /* HoloMemorySettingsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemorySettingsStandaloneTests.swift; sourceTree = "<group>"; };
+		63B9F353F1FF461FAAA7889F /* VisualAssetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VisualAssetView.swift; path = Holo/Components/VisualAssets/VisualAssetView.swift; sourceTree = "<group>"; };
 		668C23F8A267CEAEB3CC2B06 /* HoloMemoryDecisionContractStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryDecisionContractStandaloneTests.swift; sourceTree = "<group>"; };
 		687C7413D7B54B92E7EEBB1F /* HoloMemoryDecisionPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryDecisionPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		69443339474AF4E0071C08EA /* GoalWorkshopStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalWorkshopStoreTests.swift; sourceTree = "<group>"; };
@@ -768,9 +771,7 @@
 		A1C000000000000000000051 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DesignSystem.swift; path = Holo/Utils/DesignSystem.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000001 /* HoloWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetIntents.swift; path = HoloWidgets/HoloWidgetIntents.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+AnniversaryEntities.swift"; path = "Holo/Models/CoreDataStack+AnniversaryEntities.swift"; sourceTree = "<group>"; };
-		DF9F96A4ED4F483EA0524FDE /* VisualAssetLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetLibraryView.swift"; path = "Holo/Views/Settings/VisualAssetLibraryView.swift"; sourceTree = "<group>"; };
-		CE402C1B5CED440AB85485A7 /* StickerMakerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StickerMakerView.swift"; path = "Holo/Components/VisualAssets/StickerMakerView.swift"; sourceTree = "<group>"; };
-		63B9F353F1FF461FAAA7889F /* VisualAssetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetView.swift"; path = "Holo/Components/VisualAssets/VisualAssetView.swift"; sourceTree = "<group>"; };
+		DE42DF40753C4329B7E856FE /* ThoughtHeroSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "ThoughtHeroSupport.swift"; path = "Holo/Views/Thoughts/ThoughtHeroSupport.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+CategoryLearningEntities.swift"; path = "Holo/Models/CoreDataStack+CategoryLearningEntities.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+ChatEntities.swift"; path = "Holo/Models/CoreDataStack+ChatEntities.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+FinanceEntities.swift"; path = "Holo/Models/CoreDataStack+FinanceEntities.swift"; sourceTree = "<group>"; };
@@ -956,6 +957,7 @@
 		CD6240A5119CB2141BD12956 /* GoalWorkshopCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalWorkshopCoordinatorTests.swift; sourceTree = "<group>"; };
 		CDB1A12F6A4C1E9D2B00001 /* CategoryDeletionPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionPolicyStandaloneTests.swift; sourceTree = "<group>"; };
 		CDC1A12F6A4C1E9D2B00001 /* CategoryDeletionIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryDeletionIntegrationTests.swift; sourceTree = "<group>"; };
+		CE402C1B5CED440AB85485A7 /* StickerMakerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StickerMakerView.swift; path = Holo/Components/VisualAssets/StickerMakerView.swift; sourceTree = "<group>"; };
 		CTORGA000000000000000A2 /* ThoughtOrganizationContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtOrganizationContractTests.swift; sourceTree = "<group>"; };
 		D1A1000000000000000000E2 /* DiscoveryTopicServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoveryTopicServiceTests.swift; sourceTree = "<group>"; };
 		D531892A7D014FFC9E0B398D /* TimelineAxisLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineAxisLayoutTests.swift; sourceTree = "<group>"; };
@@ -970,10 +972,12 @@
 		DDA06C0100000000000000C1 /* HabitTodayRowMenuUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitTodayRowMenuUITests.swift; sourceTree = "<group>"; };
 		DDA06C0200000000000000A1 /* WelcomeNoteSeedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeNoteSeedTests.swift; sourceTree = "<group>"; };
 		DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageViewDataAgentResultTests.swift; sourceTree = "<group>"; };
+		DF9F96A4ED4F483EA0524FDE /* VisualAssetLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VisualAssetLibraryView.swift; path = Holo/Views/Settings/VisualAssetLibraryView.swift; sourceTree = "<group>"; };
 		E0DCEE6724C74D2F859153E6 /* StickerRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StickerRenderer.swift; path = Holo/Services/VisualAssets/StickerRenderer.swift; sourceTree = "<group>"; };
 		E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitFocusSummaryTests.swift; sourceTree = "<group>"; };
 		E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		E7EC208640A3633A9D32798C /* HealthInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightContextBuilderTests.swift; sourceTree = "<group>"; };
+		E94E168D033241A6AA33779A /* SpendingProjectVisualSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SpendingProjectVisualSection.swift; path = Holo/Views/Finance/SpendingProjectVisualSection.swift; sourceTree = "<group>"; };
 		E9A2A9F6FDD74CCB8FB2C745 /* VisualAssetRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisualAssetRepositoryTests.swift; sourceTree = "<group>"; };
 		EA77E10C0DE0000000000021 /* MatterPresentationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatterPresentationTests.swift; sourceTree = "<group>"; };
 		EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatterVerticalSliceUITests.swift; sourceTree = "<group>"; };
@@ -1437,6 +1441,8 @@
 				A1C000000000000000000051 /* DesignSystem.swift */,
 				A1D01D00000000000000000001 /* HoloWidgetIntents.swift */,
 				A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */,
+				DE42DF40753C4329B7E856FE /* ThoughtHeroSupport.swift */,
+				E94E168D033241A6AA33779A /* SpendingProjectVisualSection.swift */,
 				DF9F96A4ED4F483EA0524FDE /* VisualAssetLibraryView.swift */,
 				CE402C1B5CED440AB85485A7 /* StickerMakerView.swift */,
 				63B9F353F1FF461FAAA7889F /* VisualAssetView.swift */,
@@ -2281,6 +2287,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				12B548034F624EA7810A26CD /* ThoughtHeroSupport.swift in Sources */,
+				AB102ABDE3014458B5FE07F7 /* SpendingProjectVisualSection.swift in Sources */,
 				7BC0FAD7F53840C1AC7C2B70 /* VisualAssetLibraryView.swift in Sources */,
 				33F74B6A530F4D58ACE14670 /* StickerMakerView.swift in Sources */,
 				AAA9A9FF79B84BFAB5DB50E6 /* VisualAssetView.swift in Sources */,

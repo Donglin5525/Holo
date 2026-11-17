@@ -66,6 +66,8 @@ struct ThoughtEditorView: View {
     @State private var paperFooterHeight: CGFloat = 0
     @State private var editorViewport: CGRect = .zero
     @State private var showStylePicker = false
+    @State private var showHeroMaker = false
+    @State private var heroRevisionBump = 0
 
     // MARK: - 结构化编辑状态（#/@ Token）
     /// 当前 #/@ 触发上下文（候选面板数据源）
@@ -222,6 +224,8 @@ struct ThoughtEditorView: View {
                     VStack(spacing: ThoughtLayout.cardGap) {
                         // G1：杀进程后未提交内容的恢复入口（用户确认才恢复，不自动覆盖）
                         recoveryBanner
+                        // 头图（上图是主角、下纸是叙事；无头图整段折叠不留空占位）
+                        heroSection
                         // 内容编辑区（含光标吸附候选浮层）
                         contentSection
                         // AI 归类区域（只读回显）
@@ -309,6 +313,9 @@ struct ThoughtEditorView: View {
         // 宽屏右栏内联形态没有「退出」语义，停用边缘手势。
         .swipeBackToDismiss(isEnabled: onRequestClose == nil) {
             dismiss()
+        }
+        .sheet(isPresented: $showHeroMaker) {
+            heroMakerSheet
         }
         .sheet(isPresented: $showStylePicker) {
             ThoughtStylePicker(style: selectedStyle, content: content, photoCount: editingAttachments.count + pendingImageItems.count, createdAt: currentThoughtObject?.createdAt ?? Date(), nodes: editorNodesLoaded ? editorNodes : nil, photos: paperPhotoSources) { style in
@@ -1488,6 +1495,35 @@ struct ThoughtEditorView: View {
     /// 它自带先落库能力，新建会话也可用。其余操作需要已落库的对象。
     /// 正文有选中文字时出现「转为选中文字任务」——走同一条 .convertToTask 管线
     /// （管线内部：有选中转选中、无选中转整篇），补回工具栏按钮退役后的选区能力。
+    /// 头图区：已落库且有显式头图才渲染；添加/更换走菜单弹出的制作页（01 §6.3）
+    @ViewBuilder
+    private var heroSection: some View {
+        if let currentThoughtId,
+           let thought = try? thoughtRepository.fetchById(currentThoughtId) {
+            ThoughtHeroView(placement: thought.resolveHeroVisual(in: viewContext))
+                .id(heroRevisionBump)
+        }
+    }
+
+    private var viewContext: NSManagedObjectContext { CoreDataStack.shared.viewContext }
+
+    /// 头图制作页（挂在常驻层，无头图时也可弹出）
+    private var heroMakerSheet: some View {
+        StickerMakerView(initialMode: .photo,
+                         ownerKind: Thought.visualOwnerKind,
+                         ownerKey: currentThoughtId?.uuidString ?? UUID().uuidString,
+                         slot: Thought.visualSlot,
+                         expectedWinner: heroBaselineRevisionID) { _ in
+            heroRevisionBump += 1
+        }
+    }
+
+    private var heroBaselineRevisionID: UUID? {
+        guard let currentThoughtId,
+              let thought = try? thoughtRepository.fetchById(currentThoughtId) else { return nil }
+        return thought.resolveHeroVisual(in: viewContext).winnerRevisionIDIfAny
+    }
+
     private var editorOptionsMenu: some View {
         Menu {
             Button {
@@ -1502,6 +1538,17 @@ struct ThoughtEditorView: View {
             }
             .accessibilityIdentifier("thought.style.choose")
             .accessibilityValue(selectedStyle.title)
+
+            Button {
+                #if canImport(UIKit)
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                #endif
+                showHeroMaker = true
+            } label: {
+                Label(String(localized: "添加/更换头图"), systemImage: "photo.badge.plus")
+            }
+            .disabled(currentThoughtId == nil)
+            .accessibilityIdentifier("thought.hero.add")
 
             Divider()
             if editorSelectionLength > 0 {
