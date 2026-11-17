@@ -454,18 +454,21 @@ final class HoloMemoryCenterViewModel: ObservableObject {
             let snapshot = try await service.loadSnapshot(
                 answeringEnabled: settings.memoryAssistedAnsweringEnabled
             )
-            // 值得确认：统一决策投影里的成熟行为规律（确认前不跨会话使用）。
+            // 值得确认：统一决策投影里的成熟行为规律，以及影子理解直出晋升的待确认命题（确认前不跨会话使用）。
             // 已确认：知识层条目（规律确认/发现保存），「已记住」顶部单独成组。
             let resolved = try await repository.resolvedKnowledgeAll(now: Date())
+            let recordsByID = snapshot.recordsByID
             worthConfirming = resolved
-                .filter { $0.decision == .worthConfirming }
+                .filter {
+                    $0.decision == .worthConfirming
+                        || Self.isPromotedUnderstandingCandidate($0, recordsByID: recordsByID)
+                }
                 .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
             confirmedKnowledge = resolved
                 .filter { $0.decision == .confirmedValid }
                 .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
             // 行元数据：四类分组 + 一行来源灰字（originLabel 复用快照投影，减法原型 ①）。
             // 记录复用快照的同一次全量读取，不再二次查库（2026-11-01 性能修复批）。
-            let recordsByID = snapshot.recordsByID
             rowMetaByRecordID = Dictionary(
                 snapshot.projections.compactMap { projection in
                     guard let record = recordsByID[projection.recordID] else { return nil }
@@ -534,5 +537,26 @@ final class HoloMemoryCenterViewModel: ObservableObject {
         originFilter = .all
         domainFilter = nil
         searchText = ""
+    }
+
+    /// 影子理解直出晋升的命题走 observed→sourceLinked，知识层决议为 .remembered，
+    /// 对应旧记录仍停在 candidate / observeOnly（不在「已记住」分组）。
+    /// 将这类待确认的理解命题纳入「值得确认」，由用户确认/否定后再决定是否长期引用。
+    private static func isPromotedUnderstandingCandidate(
+        _ knowledge: HoloResolvedKnowledge,
+        recordsByID: [String: HoloMemoryRecord]
+    ) -> Bool {
+        guard knowledge.decision == .remembered else { return false }
+        let candidateIDs = Set(
+            knowledge.legacyAliases
+                + (knowledge.proposedRevision?.sourceAliases ?? [])
+                + (knowledge.currentRevision?.sourceAliases ?? [])
+        )
+        return candidateIDs.contains { id in
+            guard let record = recordsByID[id] else { return false }
+            let isUnderstanding = (record.lastObservationKey?.hasPrefix("understanding-promotion-") == true)
+                || (record.personalContext?.v1?.contextID.hasPrefix("understanding-") == true)
+            return isUnderstanding && record.state == .candidate && record.userDecision == .none
+        }
     }
 }
