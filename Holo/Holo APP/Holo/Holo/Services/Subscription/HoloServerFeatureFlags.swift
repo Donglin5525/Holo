@@ -53,4 +53,14 @@ nonisolated enum HoloServerFeatureFlags {
     static var goalWorkshopV1: Bool {
         value("goalWorkshopV1", localDefault: false)
     }
+
+    /// 影子理解引擎晋升正式记忆灰度开关（M3.3）：DEBUG 默认开，Release 默认关，
+    /// 服务端下发 understandingPromotionV1 可按需放量或急停。
+    static var understandingPromotionV1: Bool {
+        #if DEBUG
+        return value("understandingPromotionV1", localDefault: true)
+        #else
+        return value("understandingPromotionV1", localDefault: false)
+        #endif
+    }
 }

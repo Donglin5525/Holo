@@ -26,13 +26,10 @@ nonisolated struct PromotionError: LocalizedError {
 @MainActor
 enum UnderstandingPromotion {
 
-    /// 灰度闸 v1（M3.3 换远配）。
+    /// 灰度闸（M3.3 接入服务端远配）：DEBUG 默认开，Release 默认关，
+    /// 服务端下发 understandingPromotionV1 可放量或急停。
     static var isEnabled: Bool {
-        #if DEBUG
-        return true
-        #else
-        return false
-        #endif
+        HoloServerFeatureFlags.understandingPromotionV1
     }
 
     // MARK: - 映射表（纯函数）

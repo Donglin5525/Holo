@@ -62,25 +62,31 @@ nonisolated enum HoloContextAccessPolicy {
             }
             // 准入：有五路决策元数据时以 useLevel 为准（decision metadata 是唯一最终裁决，
             // admission 仅作旧数据兼容投影，§11.1/ADR-6）；无元数据走旧 admission 口径。
-            if let v2 = record.decisionMetadata?.v2 {
-                guard v2.isReliablyDecoded,
-                      v2.useLevel == .factEligible || v2.useLevel == .qualifiedAdvice else {
-                    excluded[record.id] = .admissionForbidden
-                    continue
-                }
-            } else {
-                switch payload.admission.level {
-                case .forbidden:
-                    excluded[record.id] = .admissionForbidden
-                    continue
-                case .unreviewed:
-                    excluded[record.id] = .admissionUnreviewed
-                    continue
-                case .confirmationOnly:
-                    excluded[record.id] = .admissionConfirmationOnly
-                    continue
-                case .adviceEligible:
-                    break
+            // 用户已在记忆中心显式确认/纠正并激活（state == .active）的条目，不再被初始
+            // observeOnly / unreviewed 元数据挡在建议上下文之外（M3.3 对话消费闭环）。
+            let isUserConfirmedActive = (record.userDecision == .confirmed || record.userDecision == .corrected)
+                && record.state == .active
+            if !isUserConfirmedActive {
+                if let v2 = record.decisionMetadata?.v2 {
+                    guard v2.isReliablyDecoded,
+                          v2.useLevel == .factEligible || v2.useLevel == .qualifiedAdvice else {
+                        excluded[record.id] = .admissionForbidden
+                        continue
+                    }
+                } else {
+                    switch payload.admission.level {
+                    case .forbidden:
+                        excluded[record.id] = .admissionForbidden
+                        continue
+                    case .unreviewed:
+                        excluded[record.id] = .admissionUnreviewed
+                        continue
+                    case .confirmationOnly:
+                        excluded[record.id] = .admissionConfirmationOnly
+                        continue
+                    case .adviceEligible:
+                        break
+                    }
                 }
             }
             // 状态：非可用态一律不可用（含 disputed：有分歧先不进建议）。
