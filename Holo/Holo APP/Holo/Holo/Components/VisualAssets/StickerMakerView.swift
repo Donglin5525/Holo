@@ -226,7 +226,6 @@ struct StickerMakerView: View {
     var expectedWinner: UUID? = nil
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.managedObjectContext) private var context
 
     @State private var showCamera = false
     @State private var showLibrary = false

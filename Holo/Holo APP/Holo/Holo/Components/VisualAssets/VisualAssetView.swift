@@ -33,7 +33,7 @@ struct VisualAssetView: View {
                 }
             }
         }
-        .task(id: renderKey) {
+        .task(id: renderKey ?? "missing") {
             await render(size: displaySize)
         }
     }
@@ -45,31 +45,33 @@ struct VisualAssetView: View {
         }
     }
 
-    private var renderKey: String {
+    private var renderKey: String? {
         // 增强对比走 UIKit 全局开关（isDarkerSystemColorsEnabled），进缓存 key
-        VisualRenderCache.key(asset: proxyAsset, role: role, appearance: colorScheme,
-                              increasedContrast: UIAccessibility.isDarkerSystemColorsEnabled,
-                              displayScale: displayScale, presentation: descriptor.presentation)
+        guard let proxyAsset else { return nil }
+        return VisualRenderCache.key(asset: proxyAsset, role: role, appearance: colorScheme,
+                                     increasedContrast: UIAccessibility.isDarkerSystemColorsEnabled,
+                                     displayScale: displayScale, presentation: descriptor.presentation)
     }
 
     private var displayScale: CGFloat { UIScreen.main.scale }
     private var displaySize: CGSize { .init(width: 200, height: 200) }
 
-    private var proxyAsset: VisualAsset {
-        // 缓存 key 只读字段；通过临时 fetch 拿托管对象（主线程 context）
+    /// 渲染路径绝不向 context 插对象（曾因 fetch miss 兜底 insert 残缺对象，
+    /// 导致 viewContext 带脏 + CloudKit 同步 id=nil 半成品——闪退+污染库，已根治）
+    private var proxyAsset: VisualAsset? {
         let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
         request.predicate = NSPredicate(format: "id == %@", descriptor.assetID as CVarArg)
         request.fetchLimit = 1
-        return (try? CoreDataStack.shared.viewContext.fetch(request).first) ?? VisualAsset(context: CoreDataStack.shared.viewContext)
+        return try? CoreDataStack.shared.viewContext.fetch(request).first
     }
 
     private func render(size: CGSize) async {
-        let key = renderKey
+        guard let key = renderKey else { return }
         if let cached = VisualRenderCache.image(for: key) {
             await MainActor.run { displayImage = cached }
             return
         }
-        let asset = await MainActor.run { proxyAsset }
+        guard let asset = await MainActor.run(body: { proxyAsset }) else { return }
         let scale = await MainActor.run { displayScale }
         let scheme = await MainActor.run { colorScheme }
         let contrast = await MainActor.run { UIAccessibility.isDarkerSystemColorsEnabled }

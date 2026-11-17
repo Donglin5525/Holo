@@ -14,10 +14,14 @@ extension Thought {
     static let visualOwnerKind = "thought"
     static let visualSlot = "hero"
 
-    var visualOwnerKey: String { id.uuidString }
+    /// 存量老数据 id 可能未写——安全读，缺 id 的旧想法跳过头图解析（原排版）
+    var visualOwnerKey: String? {
+        (value(forKey: "id") as? UUID)?.uuidString
+    }
 
     func resolveHeroVisual(in context: NSManagedObjectContext) -> ResolvedPlacement {
-        VisualAssetRepository.shared.resolvePlacement(ownerKind: Self.visualOwnerKind,
+        guard let visualOwnerKey else { return .none }
+        return VisualAssetRepository.shared.resolvePlacement(ownerKind: Self.visualOwnerKind,
                                                       ownerKey: visualOwnerKey,
                                                       slot: Self.visualSlot,
                                                       in: context)

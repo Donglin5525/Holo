@@ -70,6 +70,13 @@ final class VisualAssetRepository {
                           ownerKey rawOwnerKey: String,
                           slot: String,
                           in context: NSManagedObjectContext) -> ResolvedPlacement {
+        // 实体预检：context 的模型若不含贴纸实体（如 SwiftUI 环境默认的空模型临时
+        // context——2026-11-17 真机闪退实锤，entityForName 抛 ObjC 异常 try? 拦不住），
+        // 语义上就是「无贴纸数据」，安静返回 none，不让渲染路径崩整个 App
+        guard let entities = context.persistentStoreCoordinator?.managedObjectModel.entitiesByName,
+              entities["VisualPlacementRevision"] != nil else {
+            return .none
+        }
         let ownerKey = VisualPlacementCoding.normalizedOwnerKey(rawOwnerKey)
         let placementKey = VisualPlacementCoding.placementKey(ownerKind: ownerKind, ownerKey: ownerKey, slot: slot)
 

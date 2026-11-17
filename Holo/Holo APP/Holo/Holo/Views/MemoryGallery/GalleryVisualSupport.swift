@@ -14,6 +14,7 @@ extension CalendarEvent {
     /// 想法事件的头图位置（业务 UUID 关联；其他模块 nil）
     var heroVisualPlacement: ResolvedPlacement? {
         guard module == .thought else { return nil }
+        // CalendarEvent.id 是非可选 UUID（值类型，无存量 nil 问题）
         return VisualAssetRepository.shared.resolvePlacement(
             ownerKind: Thought.visualOwnerKind,
             ownerKey: id.uuidString,

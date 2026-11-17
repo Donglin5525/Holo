@@ -14,10 +14,15 @@ extension SpendingProject {
     static let visualOwnerKind = "spendingProject"
     static let visualSlot = "primaryVisual"
 
-    var visualOwnerKey: String { id.uuidString }
+    /// 存量老数据 id 可能未写（@NSManaged 非 optional 底层仍可 nil）——
+    /// 安全读，缺 id 的旧项目跳过贴纸解析、走原分类图标，不崩
+    var visualOwnerKey: String? {
+        (value(forKey: "id") as? UUID)?.uuidString
+    }
 
     func resolvePrimaryVisual(in context: NSManagedObjectContext) -> ResolvedPlacement {
-        VisualAssetRepository.shared.resolvePlacement(ownerKind: Self.visualOwnerKind,
+        guard let visualOwnerKey else { return .none }
+        return VisualAssetRepository.shared.resolvePlacement(ownerKind: Self.visualOwnerKind,
                                                       ownerKey: visualOwnerKey,
                                                       slot: Self.visualSlot,
                                                       in: context)
@@ -27,10 +32,12 @@ extension SpendingProject {
 /// 列表图标位：有贴纸显示贴纸，否则原分类徽章（42pt 位不变，热区不变）
 struct SpendingProjectIconSlot: View {
     let project: SpendingProject
-    @Environment(\.managedObjectContext) private var context
+    // 全工程不注入 managedObjectContext 环境（Repository 单例模式）——
+    // 环境默认值是空模型临时 context，fetch 贴纸实体会抛 entityForName 异常闪退（11-17 真机实锤）。
+    // 贴纸读取一律直连主栈 viewContext。
 
     var body: some View {
-        let resolved = project.resolvePrimaryVisual(in: context)
+        let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
         if case .assetReady(let descriptor) = resolved {
             VisualPlacementView(placement: .assetReady(descriptor), role: .icon)
                 .frame(width: 42, height: 42)
@@ -48,12 +55,11 @@ struct SpendingProjectIconSlot: View {
 /// 详情主视觉区：顶部大贴纸 + 编辑外观 / 恢复分类图标（仅设置了贴纸时出现）
 struct SpendingProjectVisualSection: View {
     let project: SpendingProject
-    @Environment(\.managedObjectContext) private var context
     @State private var showMaker = false
     @State private var busy = false
 
     var body: some View {
-        let resolved = project.resolvePrimaryVisual(in: context)
+        let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
         if case .assetReady(let descriptor) = resolved {
             Section {
                 VStack(spacing: 8) {
@@ -82,7 +88,7 @@ struct SpendingProjectVisualSection: View {
             .listRowBackground(Color.holoCardBackground)
             .sheet(isPresented: $showMaker) {
                 StickerMakerView(ownerKind: SpendingProject.visualOwnerKind,
-                                 ownerKey: project.visualOwnerKey,
+                                 ownerKey: project.visualOwnerKey ?? UUID().uuidString,
                                  slot: SpendingProject.visualSlot,
                                  expectedWinner: descriptor.winningRevisionID) { _ in }
             }
@@ -98,7 +104,7 @@ struct SpendingProjectVisualSection: View {
             .listRowBackground(Color.holoCardBackground)
             .sheet(isPresented: $showMaker) {
                 StickerMakerView(ownerKind: SpendingProject.visualOwnerKind,
-                                 ownerKey: project.visualOwnerKey,
+                                 ownerKey: project.visualOwnerKey ?? UUID().uuidString,
                                  slot: SpendingProject.visualSlot,
                                  expectedWinner: nil) { _ in }
             }
@@ -107,16 +113,16 @@ struct SpendingProjectVisualSection: View {
 
     /// 恢复默认：写 clear 版本（仅此 slot，不删素材）
     private func restoreDefault() {
-        guard !busy else { return }
+        guard !busy, let ownerKey = project.visualOwnerKey else { return }
         busy = true
         let container = CoreDataStack.shared.persistentContainer
         Task {
             _ = try? await VisualCommitCoordinator.shared.commit(
                 .applyPlacement(operationID: UUID(),
                                 ownerKind: SpendingProject.visualOwnerKind,
-                                ownerKey: project.visualOwnerKey,
+                                ownerKey: ownerKey,
                                 slot: SpendingProject.visualSlot,
-                                expectedSlotWinnerRevisionID: project.resolvePrimaryVisual(in: context).winnerRevisionIDIfAny,
+                                expectedSlotWinnerRevisionID: project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext).winnerRevisionIDIfAny,
                                 payload: .clear),
                 in: container)
             await MainActor.run { busy = false }

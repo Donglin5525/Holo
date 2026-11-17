@@ -311,6 +311,16 @@ final class VisualAssetRepositoryTests: XCTestCase {
                        .recordSelected(module: "thought", recordID: recordID))
     }
 
+    func testResolveOnForeignContextReturnsNoneInsteadOfCrash() {
+        // 2026-11-17 真机闪退回归锁：固定支出页曾拿到环境默认的空模型临时 context，
+        // entityForName 抛 ObjC 异常（try? 拦不住）直接闪退。修复后语义=无贴纸数据
+        let foreign = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+        foreign.persistentStoreCoordinator = NSPersistentStoreCoordinator(managedObjectModel: NSManagedObjectModel())
+        let resolved = repo.resolvePlacement(ownerKind: "spendingProject", ownerKey: "any",
+                                             slot: "primaryVisual", in: foreign)
+        XCTAssertEqual(resolved, .none, "陌生模型 context 上解析必须安静返回 none，不许抛异常")
+    }
+
     func testWriterIDStableAndUUIDShaped() {
         XCTAssertTrue(UUID(uuidString: VisualAssetRepository.writerID) != nil, "writerID 是安装级 UUID 串")
     }
