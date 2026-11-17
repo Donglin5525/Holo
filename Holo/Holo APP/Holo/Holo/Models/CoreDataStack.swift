@@ -668,6 +668,8 @@ nonisolated class CoreDataStack: @unchecked Sendable {
         entities.append(contentsOf: createGoalWorkshopEntities())
         // 「今天减负」当日计划版本（ID 逻辑外键；ADR-02 不可变完整版本）
         entities.append(contentsOf: createTodayPlanEntities())
+        // 贴纸与跨模块视觉素材三实体（纯加表；素材/位置版本/删除墓碑，2026-11-16 方案 02 §4）
+        entities.append(contentsOf: CoreDataStack.createVisualAssetEntities())
         model.entities = entities
         return model
     }

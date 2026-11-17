@@ -201,6 +201,10 @@
 		A1C000000000000000000052 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000051 /* DesignSystem.swift */; };
 		A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000001 /* HoloWidgetIntents.swift */; };
 		A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */; };
+		89A3A568ED1346A289884022 /* VisualAssetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */; };
+		C6C140C792E1460BBB65A6D0 /* CoreDataStack+VisualAssetEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */; };
+		2BF1143EBB574A96B9C704DB /* VisualPlacementPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */; };
+		49F69E8F7EEF491FB5EEA91D /* VisualAssetManagedObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2846339525B46D699FA607E /* VisualAssetManagedObject.swift */; };
 		A1D01D00000000000000000006 /* CoreDataStack+CategoryLearningEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */; };
 		A1D01D00000000000000000008 /* CoreDataStack+ChatEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */; };
 		A1D01D0000000000000000000A /* CoreDataStack+FinanceEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */; };
@@ -341,6 +345,8 @@
 		B20B6A13F48F3E5B9E25A4CF /* ThoughtVoiceTranscriptInsertionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B6BEFB331A0A6982A4E3E3B /* ThoughtVoiceTranscriptInsertionTests.swift */; };
 		B2C3D4E5F60718293A4B5C6D /* MemoryExtractionCostSlimTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */; };
 		B31834F8A17B44F309DB752C /* HoloTaskToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2C3CC59EF1E08B6305D230 /* HoloTaskToolTests.swift */; };
+		B3D341ED9E48453AB6EB8009 /* VisualAssetImageProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F426B102A71543A5B5701B50 /* VisualAssetImageProcessorTests.swift */; };
+		5B20A38F288D4BA882404C2C /* VisualAssetRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A2A9F6FDD74CCB8FB2C745 /* VisualAssetRepositoryTests.swift */; };
 		B3E84C21906FDAE743A17F5D1 /* HealthWorkoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17F5D3E8B4C21906FDAE743 /* HealthWorkoutTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0002 /* HabitLifetimeTotalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0001 /* HabitLifetimeTotalTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0004 /* HabitStreakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0003 /* HabitStreakTests.swift */; };
@@ -749,6 +755,10 @@
 		A1C000000000000000000051 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DesignSystem.swift; path = Holo/Utils/DesignSystem.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000001 /* HoloWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetIntents.swift; path = HoloWidgets/HoloWidgetIntents.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+AnniversaryEntities.swift"; path = "Holo/Models/CoreDataStack+AnniversaryEntities.swift"; sourceTree = "<group>"; };
+		5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetRepository.swift"; path = "Holo/Services/VisualAssets/VisualAssetRepository.swift"; sourceTree = "<group>"; };
+		079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+VisualAssetEntities.swift"; path = "Holo/Models/CoreDataStack+VisualAssetEntities.swift"; sourceTree = "<group>"; };
+		BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualPlacementPayload.swift"; path = "Holo/Models/VisualAssets/VisualPlacementPayload.swift"; sourceTree = "<group>"; };
+		B2846339525B46D699FA607E /* VisualAssetManagedObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetManagedObject.swift"; path = "Holo/Models/VisualAssets/VisualAssetManagedObject.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+CategoryLearningEntities.swift"; path = "Holo/Models/CoreDataStack+CategoryLearningEntities.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+ChatEntities.swift"; path = "Holo/Models/CoreDataStack+ChatEntities.swift"; sourceTree = "<group>"; };
 		A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+FinanceEntities.swift"; path = "Holo/Models/CoreDataStack+FinanceEntities.swift"; sourceTree = "<group>"; };
@@ -982,6 +992,8 @@
 		F1FA0A000000000000000004 /* VisionExtractionContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisionExtractionContractTests.swift; sourceTree = "<group>"; };
 		F215DFCBE8FF4A72EC6B7745 /* HoloAgentPersistenceManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentPersistenceManagerTests.swift; sourceTree = "<group>"; };
 		F2B0933AE5B802A27A5717A2 /* HoloMemoryFiveWayFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryFiveWayFixtures.swift; sourceTree = "<group>"; };
+		F426B102A71543A5B5701B50 /* VisualAssetImageProcessorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisualAssetImageProcessorTests.swift; sourceTree = "<group>"; };
+		E9A2A9F6FDD74CCB8FB2C745 /* VisualAssetRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VisualAssetRepositoryTests.swift; sourceTree = "<group>"; };
 		F6245C98D5928399AA166F48 /* GoalWorkshopJourneyUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalWorkshopJourneyUITests.swift; sourceTree = "<group>"; };
 		F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloExpressionDecisionEngineTests.swift; sourceTree = "<group>"; };
 		F7172AA6F8A3B20680429BDE /* HoloAgentInputSnapshotStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentInputSnapshotStandaloneTests.swift; sourceTree = "<group>"; };
@@ -1409,6 +1421,10 @@
 				A1C000000000000000000051 /* DesignSystem.swift */,
 				A1D01D00000000000000000001 /* HoloWidgetIntents.swift */,
 				A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */,
+				5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */,
+				079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */,
+				BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */,
+				B2846339525B46D699FA607E /* VisualAssetManagedObject.swift */,
 				A1D01D00000000000000000005 /* CoreDataStack+CategoryLearningEntities.swift */,
 				A1D01D00000000000000000007 /* CoreDataStack+ChatEntities.swift */,
 				A1D01D00000000000000000009 /* CoreDataStack+FinanceEntities.swift */,
@@ -1831,6 +1847,8 @@
 				7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */,
 				360EBE545A6C4372B98F9216 /* CloudRepullServiceTests.swift */,
 				5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */,
+				F426B102A71543A5B5701B50 /* VisualAssetImageProcessorTests.swift */,
+				E9A2A9F6FDD74CCB8FB2C745 /* VisualAssetRepositoryTests.swift */,
 				5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */,
 				9B2D7AA58BC923A555CD61A8 /* Auth */,
 				77B2CF789BD2C65DA383892E /* Diagnostics */,
@@ -2299,6 +2317,8 @@
 				1A2B3C4D5E6F00000000CC02 /* HoloMatterTaskLinkingTests.swift in Sources */,
 				EA77E10C0DE0000000000022 /* MatterPresentationTests.swift in Sources */,
 				5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */,
+				B3D341ED9E48453AB6EB8009 /* VisualAssetImageProcessorTests.swift in Sources */,
+				5B20A38F288D4BA882404C2C /* VisualAssetRepositoryTests.swift in Sources */,
 				5E7A2C92B4D3F0A8E6C20002 /* BudgetCarryoverNotificationServiceTests.swift in Sources */,
 				5EA11C0FFE11A2B3C4D5E6F0 /* ReportUnderstandingTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5D /* HoloAgentSchedulerTests.swift in Sources */,
@@ -2601,6 +2621,10 @@
 				A1C000000000000000000052 /* DesignSystem.swift in Sources */,
 				A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */,
 				A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */,
+				89A3A568ED1346A289884022 /* VisualAssetRepository.swift in Sources */,
+				C6C140C792E1460BBB65A6D0 /* CoreDataStack+VisualAssetEntities.swift in Sources */,
+				2BF1143EBB574A96B9C704DB /* VisualPlacementPayload.swift in Sources */,
+				49F69E8F7EEF491FB5EEA91D /* VisualAssetManagedObject.swift in Sources */,
 				A1D01D00000000000000000006 /* CoreDataStack+CategoryLearningEntities.swift in Sources */,
 				A1D01D00000000000000000008 /* CoreDataStack+ChatEntities.swift in Sources */,
 				A1D01D0000000000000000000A /* CoreDataStack+FinanceEntities.swift in Sources */,
