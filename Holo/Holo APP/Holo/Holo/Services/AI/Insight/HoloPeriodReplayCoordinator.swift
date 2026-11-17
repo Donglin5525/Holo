@@ -36,6 +36,25 @@ final class HoloPeriodReplayCoordinator {
         }
         networkMonitor.start(queue: networkMonitorQueue)
         registerCloudHandlers()
+        observeInsightGeneration()
+    }
+
+    /// 报告生成即进聊天（2026-11-17 东林拍板）：洞察生成成功的同一时刻（本地/
+    /// 云端/自动补跑轨道共用此广播）就把报告卡静默落进聊天——此前报告只在
+    /// 「深度分析完成刷新报告页」或「用户点开首页胶囊」时才补卡，自动洞察会
+    /// 积压在档案里直到下一次深度分析完成被一次性倒出。backfill 自带 triple
+    /// 去重：用户主动回放的 streaming 占位消息已占住同周期键，不会重复落卡。
+    private func observeInsightGeneration() {
+        NotificationCenter.default.addObserver(
+            forName: .memoryInsightDidGenerate,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.backfillUnopenedInsightCards()
+            }
+        }
     }
 
     /// 云端回放轨道接线（2026-09-01 云端化统一）：进度/终态/回落三个回调由
