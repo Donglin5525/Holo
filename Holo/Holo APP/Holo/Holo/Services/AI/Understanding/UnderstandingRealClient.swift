@@ -71,3 +71,32 @@ enum UnderstandingRealEntry {
         return finalReport
     }
 }
+
+// MARK: - M3.2 自动触发调度（每日一次，单飞防重入）
+
+/// 影子理解引擎日常调度器：启动/回前台时检查，每日最多执行一次增量影子轮
+/// （不删本地索引/台账，未变更主题零模型开销；自动形成记忆关闭时跳过）。
+@MainActor
+enum UnderstandingShadowScheduler {
+    static let throttleKey = "holo_understanding_shadow_last_run"
+    static let throttleInterval: TimeInterval = 20 * 3_600
+    private static var isRunning = false
+
+    static func runIfDue(now: Date = Date()) async {
+        guard !isRunning else { return }
+        guard HoloMemorySettings.shared.automaticMemoryEnabled else { return }
+        let defaults = UserDefaults.standard
+        if let last = defaults.object(forKey: throttleKey) as? Date,
+           now.timeIntervalSince(last) < throttleInterval {
+            return
+        }
+        isRunning = true
+        defaults.set(now, forKey: throttleKey)
+        defer { isRunning = false }
+
+        let report = await UnderstandingRealEntry.runShadowOnce(now: now)
+        NSLog("[UnderstandingShadowScheduler] 日常影子轮完成: 主题=%d/%d 提案=%d 晋升=%@",
+              report.topicsProcessed, report.themesTotal, report.proposalsReceived,
+              report.promotionSummary ?? "未开启")
+    }
+}

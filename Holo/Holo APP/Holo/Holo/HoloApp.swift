@@ -304,6 +304,7 @@ struct HoloApp: App {
                         // 每日限一次，产出进「值得确认」等用户确认。
                         Task.detached(priority: .utility) {
                             await HoloFinancePatternMiningRuntime.runIfNeeded()
+                            await UnderstandingShadowScheduler.runIfDue()
                         }
                     }
                 }
@@ -461,6 +462,10 @@ struct HoloApp: App {
                         )
                         // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
                         Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
+                        // 影子理解引擎：回前台跨天补偿（单飞+20 小时节流）。
+                        Task.detached(priority: .utility) {
+                            await UnderstandingShadowScheduler.runIfDue()
+                        }
                     }
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         HoloBackgroundContinuationManager.shared.appWillEnterForeground()
