@@ -37,6 +37,11 @@ struct WeeklyReviewView: View {
             }
         }
         .background(Color.holoBackground)
+        // 加载态首帧导航容器底色（iOS 26 Liquid Glass）：未声明时系统垫白底，
+        // 中央为 spinner 挖的竖槽露出 holoBackground，视觉上成了一条「竖粗线」
+        // ——真机数据多、加载约一秒时肉眼可见（2026-11-17 东林实报，冻结复现定谳）。
+        // placement .navigation 需 iOS 18+；白色快照行为仅 iOS 26 存在，低版本空实现即可
+        .modifier(WeekReviewNavContainerBackground())
         .navigationTitle(String(localized: "每周回顾"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -320,6 +325,19 @@ struct WeeklyReviewView: View {
         formatter.calendar = calendar
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - 导航容器底色（iOS 18+ 条件修饰）
+
+/// 见 body 内注释：防止加载态首帧被系统垫白底、中央竖槽露出背景色成「粗线」
+private struct WeekReviewNavContainerBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.containerBackground(Color.holoBackground, for: .navigation)
+        } else {
+            content
+        }
     }
 }
 
