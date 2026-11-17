@@ -248,6 +248,14 @@ final class VisualAssetRepository {
         commitQueue.sync { body() }
     }
 
+    /// 按素材 id 精确查询（导入端复用判定）
+    func findAsset(byID id: UUID, in context: NSManagedObjectContext) -> VisualAsset? {
+        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
     /// findAsset(byCreationOperation:)：幂等创建的查询面
     func findAsset(byCreationOperation operationID: UUID, in context: NSManagedObjectContext) throws -> VisualAsset? {
         let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
