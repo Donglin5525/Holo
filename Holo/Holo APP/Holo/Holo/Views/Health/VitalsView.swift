@@ -96,8 +96,8 @@ struct VitalsView: View {
                 values: series(\.heartRateVariability)
             )
             vitalRow(
-                title: String(localized: "夜间呼吸频率"),
-                subtitle: String(localized: "睡眠期均值 vs 基线 \(baselineText(\.respiratoryRate))"),
+                title: String(localized: "呼吸频率"),
+                subtitle: String(localized: "日均值 · 睡眠区间统计见睡眠详情"),
                 unit: String(localized: "次/分"),
                 values: series(\.respiratoryRate)
             )
@@ -140,7 +140,7 @@ struct VitalsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let latest = values.last {
                 VitalsTrendChart(values: values, unit: unit, baseline: baseline(values))
-                deviationText(latest: latest.value, baseline: baseline(values))
+                coverageText(values: values, latestDate: latest.date)
                     .holoText(.metadata)
             } else {
                 Text("无数据")
@@ -152,23 +152,24 @@ struct VitalsView: View {
         .holoSurface()
     }
 
-    private func deviationText(latest: Double, baseline: Double?) -> some View {
-        Group {
-            if let baseline {
-                let delta = latest - baseline
-                let magnitude = abs(delta) / max(baseline, 0.001)
-                if magnitude < Self.baselineBandRatio {
-                    Text("基线附近").foregroundColor(.holoToolTextSecondary)
-                } else if delta > 0 {
-                    Text("高于基线 \(String(format: "%.1f", delta)) ↗").foregroundColor(.holoChart4)
-                } else {
-                    Text("低于基线 \(String(format: "%.1f", -delta)) ↘").foregroundColor(.holoChart4)
-                }
-            } else {
-                Text("基线不足").foregroundColor(.holoToolTextSecondary)
-            }
+    /// 采样覆盖（方案第三步：移除统一 ±3% 的偏离判定，改为如实交代采样日期与覆盖）。
+    /// 与基线的差异不再用统一百分比判词描述，图内基线仅作参照。
+    private func coverageText(values: [(date: Date, value: Double)], latestDate: Date) -> some View {
+        let newest = Self.dayFormatter.string(from: latestDate)
+        if values.count == 1 {
+            return Text(String(localized: "1 天采样 · 最新 \(newest)"))
+                .foregroundColor(.holoToolTextSecondary)
         }
+        let oldest = Self.dayFormatter.string(from: values.first!.date)
+        return Text(String(localized: "\(values.count) 天采样 · \(oldest)–\(newest)"))
+            .foregroundColor(.holoToolTextSecondary)
     }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter
+    }()
 
     // MARK: - 数据整形
 

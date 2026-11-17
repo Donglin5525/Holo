@@ -183,7 +183,8 @@ struct KanbanProgressHero: View {
     }
 
     private var sleepText: String {
-        let hours = healthRepo.todaySleep
+        // 按晚口径（方案第三步）：主睡眠缺失如实显示缺数，不回退自然日合计
+        guard let hours = healthRepo.lastNightSleep?.mainSession?.asleepHours else { return "--" }
         return String(format: "%.1fh", hours)
     }
 

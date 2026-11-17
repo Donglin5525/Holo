@@ -44,6 +44,13 @@ extension HoloHealthQueryOutcome {
         case .unavailable(let error): return .unavailable(error)
         }
     }
+
+    /// `.value` 的载荷；非 value 分支为 nil。best-effort 消费用，
+    /// 需要区分锁屏/失败的严格消费方仍走 switch。
+    var valueIfAvailable: Value? {
+        if case .value(let value) = self { return value }
+        return nil
+    }
 }
 
 /// HK 回调 error 分类器（§7.1）：把 HealthKit 错误映射为严格 outcome 分支。

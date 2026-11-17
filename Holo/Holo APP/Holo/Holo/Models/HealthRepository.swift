@@ -137,6 +137,10 @@ class HealthRepository: ObservableObject {
     /// 今日睡眠时长（小时）
     @Published var todaySleep: Double = 0
 
+    /// 「今日」的昨晚睡眠（按睡眠结束日归属，方案第三步统一口径）。
+    /// nil = 今天与近 7 天都没有可用的主睡眠记录（≠ 0 小时睡眠）。
+    @Published var lastNightSleep: HealthNightSleepRecord?
+
     /// 今日站立时长（小时）
     @Published var todayStandHours: Double = 0
 
@@ -280,6 +284,8 @@ class HealthRepository: ObservableObject {
     func fetchTodayData() async {
         if useMockData {
             await loadMockTodayData()
+            // mock 与真实 HealthKit 同一还原入口（方案完成条件）
+            lastNightSleep = await fetchLatestNightSleep()
             return
         }
 
@@ -288,18 +294,37 @@ class HealthRepository: ObservableObject {
         async let stand = fetchStandTime(for: Date())
         async let activeMinutes = fetchActiveMinutes(for: Date())
         async let workoutSessions = fetchWorkoutSessionsStrict(for: Date())
+        async let lastNight = fetchLatestNightSleep()
 
-        let (stepsValue, sleepValue, standValue, activeMinutesValue, workoutOutcome) = await (steps, sleep, stand, activeMinutes, workoutSessions)
+        let (stepsValue, sleepValue, standValue, activeMinutesValue, workoutOutcome, lastNightRecord) = await (steps, sleep, stand, activeMinutes, workoutSessions, lastNight)
 
         await MainActor.run {
             self.todaySteps = stepsValue
             self.todaySleep = sleepValue
             self.todayStandHours = standValue
             self.todayActiveMinutes = activeMinutesValue
+            self.lastNightSleep = lastNightRecord
             if case .value(let sessions) = workoutOutcome {
                 self.todayWorkoutMinutes = WorkoutSessionData.fold(sessions, on: Date()).totalMinutes
             }
             self.updateAvailabilityAfterFetch()
+        }
+    }
+
+    /// 「今日」的昨晚睡眠（健康分析方案第三步）：按结束日取今天的主睡眠；
+    /// 今天没有则回看至多 7 天取最近一晚（带具体归属日展示）。
+    private func fetchLatestNightSleep() async -> HealthNightSleepRecord? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let weekAgo = calendar.date(byAdding: .day, value: -6, to: today) ?? today
+        switch await fetchNightSleepRangeStrict(from: weekAgo, to: today) {
+        case .value(let records):
+            if let todays = records.first(where: { calendar.isDate($0.endDate, inSameDayAs: today) }) {
+                return todays
+            }
+            return records.last
+        case .noData, .waitingForUnlock, .unavailable:
+            return nil
         }
     }
 
@@ -427,6 +452,256 @@ class HealthRepository: ObservableObject {
     /// 获取指定日期范围的站立数据
     func fetchStandTimeRange(from start: Date, to end: Date) async -> [DailyHealthData] {
         await fetchRange(for: .standHours, from: start, to: end)
+    }
+
+    // MARK: - 按晚睡眠还原（健康分析方案 2026-11-17 第一步）
+    //
+    // 与既有入口的区别：归属按「最后一段可信睡着记录的结束时刻」落在哪一天，
+    // 不按自然日零点、也不按中午锚点窗口截断。跨午夜、跨中午的整晚保留原时长；
+    // 同晚多来源（如 Watch + AutoSleep）按还原器规则表裁决，无双算。
+    // 自然日合计（fetchSleepStrict）与按晚明细（fetchSleepDetailRange）口径不变。
+
+    /// 单结束日便捷入口。nil = 该结束日无任何睡眠记录（≠ 0 小时睡眠）。
+    func fetchNightSleepStrict(forEndDay endDay: Date) async -> HoloHealthQueryOutcome<HealthNightSleepRecord?> {
+        let outcome = await fetchNightSleepRangeStrict(from: endDay, to: endDay)
+        return outcome.map { records in
+            records.first { Calendar.current.isDate($0.endDate, inSameDayAs: endDay) }
+        }
+    }
+
+    /// 按晚还原一个结束日范围的睡眠。读取窗口在请求范围前后各多读一天；
+    /// 归属日落在请求范围内的睡眠段仍连接读取边界时补读（至多两次），
+    /// 补读后仍无法确认的段标记「记录可能不完整」。
+    func fetchNightSleepRangeStrict(from start: Date, to end: Date) async -> HoloHealthQueryOutcome<[HealthNightSleepRecord]> {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return .unavailable(.recoverable(String(localized: "睡眠类型不可用")))
+        }
+        let calendar = Calendar.current
+        let reqStart = calendar.startOfDay(for: start)
+        guard let reqEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: end)) else {
+            return .noData
+        }
+        if useMockData {
+            // 模拟数据与真实 HealthKit 走同一个还原入口（方案完成条件）
+            let samples = Self.mockNightSamples(from: reqStart, to: reqEnd)
+            let readStart = calendar.date(byAdding: .day, value: -1, to: reqStart) ?? reqStart
+            let readEnd = calendar.date(byAdding: .day, value: 1, to: reqEnd) ?? reqEnd
+            let records = HealthNightSleepResolver.resolve(
+                samples: samples,
+                readWindow: HealthSleepSampleAggregator.Interval(start: readStart, end: readEnd),
+                fallbackTimezoneID: TimeZone.current.identifier
+            )
+            return .value(records.filter { $0.endDate >= reqStart && $0.endDate < reqEnd })
+        }
+
+        // 读取窗口逐次加宽；边界补读上限两次
+        var marginDays = 1
+        let maxMargin = 3
+        while true {
+            let readStart = calendar.date(byAdding: .day, value: -marginDays, to: reqStart) ?? reqStart
+            let readEnd = calendar.date(byAdding: .day, value: marginDays, to: reqEnd) ?? reqEnd
+            let outcome = await fetchNightSamples(
+                sleepType,
+                window: HealthSleepSampleAggregator.Interval(start: readStart, end: readEnd)
+            )
+            switch outcome {
+            case .value(let samples):
+                let records = HealthNightSleepResolver.resolve(
+                    samples: samples,
+                    readWindow: HealthSleepSampleAggregator.Interval(start: readStart, end: readEnd),
+                    fallbackTimezoneID: TimeZone.current.identifier
+                )
+                let inRange = records.filter { $0.endDate >= reqStart && $0.endDate < reqEnd }
+                // 只有「请求范围内的记录仍连着读取边界」才值得补读；范围外的段不关心
+                let needsMore = marginDays < maxMargin && inRange.contains { record in
+                    let sessions = (record.mainSession.map { [$0] } ?? []) + record.extraSessions
+                    return sessions.contains { $0.possiblyIncomplete }
+                }
+                if needsMore {
+                    marginDays += 1
+                    continue
+                }
+                return .value(inRange)
+            case .noData:
+                return .noData
+            case .waitingForUnlock:
+                return .waitingForUnlock
+            case .unavailable(let error):
+                return .unavailable(error)
+            }
+        }
+    }
+
+    /// 拉取读取窗口内重叠的睡眠样本并转成带来源的还原输入
+    private func fetchNightSamples(
+        _ sleepType: HKCategoryType,
+        window: HealthSleepSampleAggregator.Interval
+    ) async -> HoloHealthQueryOutcome<[HealthNightSample]> {
+        let predicate = HKQuery.predicateForSamples(withStart: window.start, end: window.end, options: [])
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<[HealthNightSample]> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
+                let categorySamples = (samples as? [HKCategorySample]) ?? []
+                let mapped = categorySamples.map { sample -> HealthNightSample in
+                    let timezone = sample.metadata?[HKMetadataKeyTimeZone] as? TimeZone
+                    return HealthNightSample(
+                        value: sample.value,
+                        start: sample.startDate,
+                        end: sample.endDate,
+                        sourceName: sample.sourceRevision.source.name,
+                        sourceBundleID: sample.sourceRevision.source.bundleIdentifier,
+                        deviceName: sample.device?.name,
+                        timezoneID: timezone?.identifier
+                    )
+                }
+                continuation.resume(returning: mapped.isEmpty ? .noData : .value(mapped))
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    /// mock 按晚样本（模拟器）：复用既有 mock 一晚形态（白天小睡 + 23:30 上床的
+    /// 夜间主睡眠），补上来源信息，与真实样本走同一还原器。
+    nonisolated private static func mockNightSamples(from reqStart: Date, to reqEnd: Date) -> [HealthNightSample] {
+        let calendar = Calendar.current
+        var samples: [HealthNightSample] = []
+        var day = reqStart
+        while day < reqEnd {
+            for tuple in mockSleepRawSamples(forWakeDay: day) {
+                samples.append(HealthNightSample(
+                    value: tuple.value,
+                    start: tuple.start,
+                    end: tuple.end,
+                    sourceName: "Watch",
+                    sourceBundleID: "com.apple.health",
+                    deviceName: "Apple Watch",
+                    timezoneID: TimeZone.current.identifier
+                ))
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return samples
+    }
+
+    /// 一晚的睡眠体征：按主睡眠可信睡着区间匹配心率/呼吸/HRV（方案第二步）。
+    /// 区间外样本（日间呼吸、睡前 HRV、正午运动心率）不进入该晚统计。
+    /// 静息心率保留独立日粒度（fetchVitalsRange 口径不变）。
+    func fetchNightVitals(for session: HealthNightSession) async -> HoloHealthQueryOutcome<HealthNightVitals> {
+        let trustedIntervals = session.timeline.compactMap { segment -> HealthSleepSampleAggregator.Interval? in
+            switch segment.stage {
+            case .asleepCore, .asleepDeep, .asleepREM, .asleepUnspecified:
+                return HealthSleepSampleAggregator.Interval(start: segment.start, end: segment.end)
+            default:
+                return nil
+            }
+        }
+        guard !trustedIntervals.isEmpty else {
+            return .value(HealthNightVitals(
+                heartRate: HealthNightMetricVitals(samples: [], median: nil),
+                respiratory: HealthNightMetricVitals(samples: [], median: nil),
+                heartRateVariability: HealthNightMetricVitals(samples: [], median: nil)
+            ))
+        }
+        if useMockData {
+            return .value(Self.mockNightVitals(for: session, trusted: trustedIntervals))
+        }
+        let span = HealthSleepSampleAggregator.Interval(start: session.start, end: session.sessionEnd)
+        async let heartRaw = fetchQuantitySamples(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), in: span)
+        async let respiratoryRaw = fetchQuantitySamples(.respiratoryRate, unit: HKUnit.count().unitDivided(by: .minute()), in: span)
+        async let hrvRaw = fetchQuantitySamples(.heartRateVariabilitySDNN, unit: HKUnit.secondUnit(with: .milli), in: span)
+        let (heartOutcome, respiratoryOutcome, hrvOutcome) = await (heartRaw, respiratoryRaw, hrvRaw)
+
+        // 每项独立判定：无样本/不可用按空样本处理，不拖垮其他项；锁屏整体等待
+        var anyLocked = false
+        func resolve(_ outcome: HoloHealthQueryOutcome<[HealthVitalSample]>, isHRV: Bool) -> HealthNightMetricVitals {
+            switch outcome {
+            case .value(let raw):
+                return HealthNightVitalsMatcher.match(raw: raw, trustedIntervals: trustedIntervals, isHRV: isHRV)
+            case .noData, .unavailable:
+                return HealthNightVitalsMatcher.match(raw: [], trustedIntervals: trustedIntervals, isHRV: isHRV)
+            case .waitingForUnlock:
+                anyLocked = true
+                return HealthNightVitalsMatcher.match(raw: [], trustedIntervals: trustedIntervals, isHRV: isHRV)
+            }
+        }
+        let heart = resolve(heartOutcome, isHRV: false)
+        let respiratory = resolve(respiratoryOutcome, isHRV: false)
+        let hrv = resolve(hrvOutcome, isHRV: true)
+        if anyLocked { return .waitingForUnlock }
+        return .value(HealthNightVitals(heartRate: heart, respiratory: respiratory, heartRateVariability: hrv))
+    }
+
+    /// 时间跨度内的量化样本 → 采样点
+    private func fetchQuantitySamples(
+        _ identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        in span: HealthSleepSampleAggregator.Interval
+    ) async -> HoloHealthQueryOutcome<[HealthVitalSample]> {
+        guard let type = HKObjectType.quantityType(forIdentifier: identifier) else {
+            return .unavailable(.recoverable(String(localized: "体征类型不可用")))
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: span.start, end: span.end, options: [])
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<[HealthVitalSample]> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
+                let points = ((samples as? [HKQuantitySample]) ?? []).map {
+                    HealthVitalSample(date: $0.startDate, value: $0.quantity.doubleValue(for: unit))
+                }
+                continuation.resume(returning: .value(points))
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    /// mock 睡眠体征：夜间均匀心率/呼吸 + 前后两半各一 HRV，另混入区间外样本
+    /// （白天呼吸、睡前 HRV）验证匹配剔除；与真实样本走同一匹配器。
+    nonisolated private static func mockNightVitals(
+        for session: HealthNightSession, trusted: [HealthSleepSampleAggregator.Interval]
+    ) -> HealthNightVitals {
+        let intervals = trusted.sorted { $0.start < $1.start }
+        func point(in interval: HealthSleepSampleAggregator.Interval, fraction: Double, value: Double) -> HealthVitalSample {
+            HealthVitalSample(
+                date: interval.start.addingTimeInterval(interval.end.timeIntervalSince(interval.start) * fraction),
+                value: value
+            )
+        }
+        let first = intervals.first!
+        let last = intervals.last!
+        var heart: [HealthVitalSample] = []
+        var respiratory: [HealthVitalSample] = []
+        for interval in intervals {
+            for fraction in [0.15, 0.45, 0.75] {
+                heart.append(point(in: interval, fraction: fraction, value: 56 + Double.random(in: -2...2)))
+                respiratory.append(point(in: interval, fraction: fraction, value: 14 + Double.random(in: -0.5...0.5)))
+            }
+        }
+        // HRV：前后两半各一个（满足 ≥2 且两半有样本的门槛）
+        var hrv = [
+            point(in: first, fraction: 0.3, value: 42),
+            point(in: last, fraction: 0.7, value: 38)
+        ]
+        // 混入区间外样本（睡前心率、白天呼吸、睡前 HRV）：匹配器必须剔除，不影响该晚统计
+        heart.append(HealthVitalSample(date: session.start.addingTimeInterval(-2 * 3600), value: 71))
+        respiratory.append(HealthVitalSample(date: first.start.addingTimeInterval(-3 * 3600), value: 16))
+        hrv.append(HealthVitalSample(date: session.start.addingTimeInterval(-90 * 60), value: 65))
+        return HealthNightVitals(
+            heartRate: HealthNightVitalsMatcher.match(raw: heart, trustedIntervals: intervals, isHRV: false),
+            respiratory: HealthNightVitalsMatcher.match(raw: respiratory, trustedIntervals: intervals, isHRV: false),
+            heartRateVariability: HealthNightVitalsMatcher.match(raw: hrv, trustedIntervals: intervals, isHRV: true)
+        )
     }
 
     /// 获取指定日期范围的活动分钟数据
@@ -1644,7 +1919,10 @@ class HealthRepository: ObservableObject {
     }
 
     var dashboardSnapshot: HealthDashboardSnapshot {
-        HealthDashboardSnapshot(
+        // 睡眠环走按晚口径（与首页/详情/「今日」同一结果）；无主睡眠记录时如实缺数，
+        // 不再回退自然日合计——三个入口必须同晚一致（方案第三步）
+        let nightHours = lastNightSleep?.mainSession?.asleepHours
+        return HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(
                 type: .steps,
                 value: todaySteps,
@@ -1652,8 +1930,8 @@ class HealthRepository: ObservableObject {
             ),
             sleep: HealthMetricSnapshot(
                 type: .sleep,
-                value: todaySleep,
-                availability: sleepAvailability
+                value: nightHours ?? 0,
+                availability: nightHours != nil ? .available : .noData
             ),
             workout: HealthMetricSnapshot(
                 type: .workout,

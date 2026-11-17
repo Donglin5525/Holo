@@ -133,7 +133,7 @@ struct KanbanHealthSection: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(
                     availability == .available
-                        ? String(localized: "昨晚睡眠 \(String(format: "%.1f", healthRepo.todaySleep)) 小时")
+                        ? sleepTitle
                         : sleepUnavailableTitle(availability)
                 )
                     .font(.system(size: 13, weight: .medium))
@@ -160,15 +160,31 @@ struct KanbanHealthSection: View {
 
     // MARK: - Helpers
 
+    /// 按晚口径（方案第三步）：同一结束日的主睡眠；最新一晚不是今天时带具体日期
+    private var lastNightMainHours: Double? {
+        healthRepo.lastNightSleep?.mainSession?.asleepHours
+    }
+
+    private var sleepTitle: String {
+        guard let record = healthRepo.lastNightSleep, let main = record.mainSession else { return "" }
+        let hours = String(format: "%.1f", main.asleepHours)
+        if Calendar.current.isDateInToday(record.endDate) {
+            return String(localized: "昨晚睡眠 \(hours) 小时")
+        }
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return String(localized: "\(formatter.string(from: record.endDate)) 睡了 \(hours) 小时")
+    }
+
     private var sleepQualityLabel: String {
-        let hours = healthRepo.todaySleep
+        let hours = lastNightMainHours ?? 0
         if hours >= HealthThresholds.sleepQualityGoodHours { return String(localized: "良好") }
         if hours >= HealthThresholds.sleepQualityFairHours { return String(localized: "一般") }
         return String(localized: "不足")
     }
 
     private var sleepQualityColor: Color {
-        let hours = healthRepo.todaySleep
+        let hours = lastNightMainHours ?? 0
         if hours >= HealthThresholds.sleepQualityGoodHours { return .holoSuccess }
         if hours >= HealthThresholds.sleepQualityFairHours { return Color.orange }
         return .holoError

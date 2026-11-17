@@ -23,6 +23,9 @@ struct HealthDetailView: View {
     @State private var currentAvailability: HealthMetricAvailability = .noData
     @State private var sleepDetail: HealthSleepDetail?
     @State private var sleepTimeline: HealthSleepTimeline?
+    /// 按晚还原结果（方案第三步：详情与首页、「今日」同一晚同源）
+    @State private var nightRecord: HealthNightSleepRecord?
+    @State private var nightVitals: HealthNightVitals?
     @State private var hourlySteps: HourlyStepsData?
     @State private var workoutSessions: [WorkoutSessionData] = []
     @State private var selectedSession: WorkoutSessionData?
@@ -63,6 +66,15 @@ struct HealthDetailView: View {
                                 SleepStagesCard(detail: sleepDetail)
                             } else if let sleepDetail, sleepDetail.totalHours > 0 {
                                 SleepStageGuideCard()
+                            }
+
+                            // 按晚结果补充：来源与状态、额外睡眠段（小睡/待确认候选）、睡眠体征
+                            if let record = nightRecord {
+                                nightSourcesCard(record)
+                                nightExtrasCard(record)
+                                if let vitals = nightVitals {
+                                    HealthNightVitalsCard(vitals: vitals)
+                                }
                             }
                         }
 
@@ -274,9 +286,18 @@ struct HealthDetailView: View {
                     .foregroundStyle(Color.holoToolText)
                     .monospacedDigit()
                     .fixedSize(horizontal: false, vertical: true)
-                Text((sleepDetail?.napCount ?? 0) > 0 ? "按起床日汇总 · 含小睡" : "按起床日汇总")
+                Text((sleepDetail?.napCount ?? 0) > 0 ? "按记录结束日归属 · 含小睡" : "按记录结束日归属")
                     .holoText(.metadata)
                     .foregroundStyle(Color.holoToolTextSecondary)
+            }
+            if let main = nightRecord?.mainSession {
+                // 入睡 / 记录结束（生活事实分开标注，与首页同一结果）
+                HStack(spacing: HoloSpacing.lg) {
+                    Label("\(Self.clockFormatter.string(from: main.start)) 入睡", systemImage: "moon.zzz.fill")
+                    Label("\(Self.clockFormatter.string(from: main.asleepEnd)) 记录结束", systemImage: "alarm.fill")
+                }
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
             }
             HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
                 Text(String(localized: "时长目标 \(SleepStagesCard.formatHours(type.dailyGoal))"))
@@ -292,6 +313,122 @@ struct HealthDetailView: View {
         .padding(HoloSpacing.md)
         .holoSurface()
     }
+
+    /// 来源与状态卡：记录来自哪里、分期可信度、边界完整性、待确认候选
+    private func nightSourcesCard(_ record: HealthNightSleepRecord) -> some View {
+        let sessions = (record.mainSession.map { [$0] } ?? []) + record.extraSessions
+        let sources = Array(Set(sessions.flatMap(\.sources))).sorted { $0.name < $1.name }
+        let anyPending = sessions.contains { $0.stageStatus == .conflicting }
+        let anyIncomplete = sessions.contains { $0.possiblyIncomplete }
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack {
+                Text("记录来源")
+                    .holoText(.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+                Spacer()
+                Text(sources.map(\.name).joined(separator: " · "))
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+            }
+
+            if record.mainAmbiguous {
+                Text("这一结束日有两段相近的长睡眠，暂缓主睡眠对比，两段都按实际记录展示。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoToolWarning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if anyPending {
+                VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                    Text("两个来源对这段睡眠的记录相差明显，无法裁决——这段不参与趋势比较。")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoToolWarning)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(sessions.flatMap(\.candidates).enumerated()), id: \.offset) { _, candidate in
+                        Text("· \(candidate.source.name)：\(Self.clockFormatter.string(from: candidate.start))–\(Self.clockFormatter.string(from: candidate.asleepEnd)) · \(SleepStagesCard.formatHours(candidate.asleepSeconds / 3600))\(candidate.staged ? " · 有分期" : " · 仅时长")")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+                }
+            }
+            if anyIncomplete {
+                Text("这段记录连接到读取边界，可能不完整。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoToolWarning)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .holoSurface()
+    }
+
+    /// 额外睡眠段卡：小睡 / 其他睡眠 / 孤立短记录单列（不并入主睡眠）
+    private func nightExtrasCard(_ record: HealthNightSleepRecord) -> some View {
+        Group {
+            if !record.extraSessions.isEmpty {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text("额外睡眠记录")
+                        .holoText(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoToolText)
+
+                    ForEach(Array(record.extraSessions.enumerated()), id: \.offset) { _, session in
+                        HStack {
+                            Text(kindLabel(session.kind))
+                                .font(.system(.subheadline, weight: .semibold))
+                                .foregroundColor(.holoToolText)
+                            Spacer()
+                            Text("\(Self.clockFormatter.string(from: session.start))–\(Self.clockFormatter.string(from: session.asleepEnd)) · \(SleepStagesCard.formatHours(session.asleepHours))")
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoToolTextSecondary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+                .padding(HoloSpacing.md)
+                .holoSurface()
+            }
+        }
+    }
+
+    private func kindLabel(_ kind: HealthNightSession.Kind) -> String {
+        switch kind {
+        case .main: return String(localized: "主睡眠")
+        case .nap: return String(localized: "小睡")
+        case .otherSleep: return String(localized: "其他睡眠")
+        case .record: return String(localized: "睡眠记录")
+        }
+    }
+
+    /// 按晚结果 → 既有明细卡数据（时间轴/阶段卡继续用 HealthSleepDetail 渲染，口径来自主睡眠）
+    private static func sleepDetail(fromRecord record: HealthNightSleepRecord) -> HealthSleepDetail? {
+        guard let main = record.mainSession else { return nil }
+        let awakeHours = main.timeline
+            .filter { $0.stage == .awake }
+            .reduce(0.0) { $0 + $1.duration } / 3600
+        let naps = record.extraSessions.filter { $0.kind == .nap }
+        let stages = main.stageHours
+        return HealthSleepDetail(
+            date: record.endDate,
+            totalHours: main.asleepHours,
+            coreHours: stages?.core,
+            deepHours: stages?.deep,
+            remHours: stages?.rem,
+            awakeHours: awakeHours > 0 ? awakeHours : nil,
+            inBedHours: main.bedStart.map { max(main.sessionEnd.timeIntervalSince($0), 0) / 3600 },
+            bedtime: main.start,
+            wakeTime: main.asleepEnd,
+            interruptionCount: main.awakeInterruptions,
+            napCount: naps.isEmpty ? nil : naps.count,
+            napHours: naps.isEmpty ? nil : naps.reduce(0.0) { $0 + $1.asleepHours }
+        )
+    }
+
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 
     private var statsSection: some View {
         HStack(spacing: HoloSpacing.sm) {
@@ -410,11 +547,24 @@ struct HealthDetailView: View {
             currentAvailability = data.steps > 0 ? .available : .noData
             hourlySteps = hourly
         case .sleep:
-            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
-            let detail = await repository.fetchSleepDetailRange(from: date, to: date).first
-            let timeline = await repository.fetchSleepTimeline(forWakeDay: date)
+            // 按晚统一口径（方案第三步）：归属按「最后一段可信睡着记录结束时刻」，
+            // 与首页、「今日」同一晚同源；无主睡眠记录 = 未记录，不回退自然日合计
+            let night = await repository.fetchNightSleepStrict(forEndDay: date)
+            var vitals: HealthNightVitals?
+            if case .value(let record) = night, let main = record?.mainSession {
+                if case .value(let v) = await repository.fetchNightVitals(for: main) {
+                    vitals = v
+                }
+            }
             guard generation == detailLoadGeneration else { return }
-            // 总览、阶段和近七晚都按起床日归属，避免午夜把同一晚拆成两种时长。
+            // fetchNightSleepStrict 的载荷本身可选（nil = 该结束日无记录），拍平双层可选
+            let record: HealthNightSleepRecord? = night.valueIfAvailable ?? nil
+            nightRecord = record
+            nightVitals = vitals
+            let detail = record.flatMap(Self.sleepDetail(fromRecord:))
+            let timeline: HealthSleepTimeline? = record?.mainSession.map {
+                HealthSleepTimeline(wakeDay: date, segments: $0.timeline, hasStageData: $0.stageHours != nil)
+            }
             currentValue = detail?.totalHours ?? 0
             currentAvailability = detail == nil ? .noData : .available
             sleepDetail = detail
@@ -573,10 +723,15 @@ struct HealthDetailView: View {
         isLoading = true
         let data: [DailyHealthData]
         if type == .sleep {
+            // 周趋势与单晚同一按晚口径（方案第三步：点同一晚数字一致）
             let end = Calendar.current.startOfDay(for: date)
             let start = Calendar.current.date(byAdding: .day, value: -6, to: end) ?? end
-            data = await repository.fetchSleepDetailRange(from: start, to: end).map {
-                DailyHealthData(date: $0.date, value: $0.totalHours)
+            if case .value(let records) = await repository.fetchNightSleepRangeStrict(from: start, to: end) {
+                data = records.compactMap { record in
+                    record.mainSession.map { DailyHealthData(date: record.endDate, value: $0.asleepHours) }
+                }
+            } else {
+                data = []
             }
         } else {
             data = await repository.fetchChartWeeklyData(for: type, endingOn: date)

@@ -80,6 +80,7 @@ struct SleepTimelineCard: View {
         case .awake: return String(localized: "清醒")
         case .inBedAwake: return String(localized: "在床")
         case .asleepUnspecified: return String(localized: "未分期")
+        case .conflict: return String(localized: "未知")
         }
     }
 
@@ -241,6 +242,7 @@ struct SleepTimelineCard: View {
         case .asleepREM: return .holoChart8
         case .awake: return .holoToolTextSecondary.opacity(0.65)
         case .inBedAwake: return .holoToolTextSecondary.opacity(0.26)
+        case .conflict: return .holoToolTextSecondary.opacity(0.10)
         }
     }
 }

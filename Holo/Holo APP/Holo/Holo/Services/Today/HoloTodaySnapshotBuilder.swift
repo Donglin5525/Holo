@@ -475,7 +475,8 @@ enum HoloTodaySnapshotBuilder {
             habitCompleted: habitCompleted,
             habitTotal: habitTotal,
             habitRows: habitRows,
-            sleepHours: healthRepo.todaySleep > 0 ? healthRepo.todaySleep : nil,
+            // 按晚口径（方案第三步）：与首页/详情同一结束日主睡眠
+            sleepHours: healthRepo.lastNightSleep?.mainSession?.asleepHours,
             steps: healthRepo.todaySteps > 0 ? Int(healthRepo.todaySteps) : nil,
             healthAuthorized: healthRepo.isAuthorized,
             hasHealthData: healthRepo.todaySteps > 0 || healthRepo.todaySleep > 0

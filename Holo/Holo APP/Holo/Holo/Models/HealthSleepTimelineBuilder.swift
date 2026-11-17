@@ -24,6 +24,8 @@ struct HealthSleepSegment: Equatable, Sendable {
         case awake
         /// 在床但未睡（入睡潜伏/晨间在床）
         case inBedAwake
+        /// 睡着与清醒同时覆盖（同来源相互矛盾，按晚还原器产出）
+        case conflict
     }
 
     let stage: HealthSleepSegment.Stage

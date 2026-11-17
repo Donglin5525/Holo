@@ -40,8 +40,11 @@ struct HealthView: View {
     /// 左右滑动切天的实时手势标记：快速轻扫时点击回调需同步读取，防止误触进详情/弹层
     @State private var daySwipeState = DaySwipeGestureState()
     @State private var dayData = HealthDayData()
-    @State private var insightViewModel = HealthInsightViewModel()
-    @State private var selectedEvidenceInsight: GeneratedHealthInsight?
+    /// 所选结束日的按晚结果（方案第三步：主睡眠/额外记录与详情、「今日」同源）
+    @State private var nightRecord: HealthNightSleepRecord?
+    /// 近期作息回顾（周期区，锚定今天不随切日变化）
+    @State private var routineReview: HealthRoutineReview?
+    @State private var showRoutineDetail = false
     /// 日期数据加载代数（R10，2026-10-04 体检）：快速切天时旧请求不得覆盖新日期
     @State private var dateLoadGeneration = 0
 
@@ -54,7 +57,10 @@ struct HealthView: View {
 
     private var snapshot: HealthDashboardSnapshot {
         let stepsAvail: HealthMetricAvailability = dayData.steps > 0 ? .available : .noData
-        let sleepAvail: HealthMetricAvailability = dayData.sleep > 0 ? .available : .noData
+        // 睡眠走按晚口径：主睡眠缺失时如实缺数（「暂无可用睡眠记录」），
+        // 不回退自然日合计，保证首页与详情、「今日」同一晚数字一致（方案第三步）
+        let nightHours = nightRecord?.mainSession?.asleepHours
+        let sleepAvail: HealthMetricAvailability = nightHours != nil ? .available : .noData
         let workoutAvail: HealthMetricAvailability = dayData.workoutMinutes > 0 ? .available : .noData
         let standAvail: HealthMetricAvailability
         if dayData.standHours > 0 {
@@ -67,7 +73,7 @@ struct HealthView: View {
 
         return HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: dayData.steps, availability: stepsAvail),
-            sleep: HealthMetricSnapshot(type: .sleep, value: dayData.sleep, availability: sleepAvail),
+            sleep: HealthMetricSnapshot(type: .sleep, value: nightHours ?? 0, availability: sleepAvail),
             workout: HealthMetricSnapshot(type: .workout, value: dayData.workoutMinutes, availability: workoutAvail),
             standOrActivity: HealthDashboardSnapshot.standOrActivitySnapshot(
                 standHours: dayData.standHours,
@@ -119,18 +125,12 @@ struct HealthView: View {
         }
         .task {
             await refreshAll()
-            // 洞察改为后台隐性生成：页面只读缓存立即显示，生成不随页面离场取消
-            insightViewModel.load()
         }
         .onChange(of: selectedDate) {
             Task { await loadDateData(for: selectedDate) }
         }
-        .sheet(item: $selectedEvidenceInsight) { insight in
-            HealthInsightEvidenceSheet(
-                insight: insight,
-                evidence: insightViewModel.snapshot?.evidence ?? [],
-                periodBadgeText: insightPeriodBadgeText
-            )
+        .sheet(isPresented: $showRoutineDetail) {
+            HealthRoutineReviewDetailSheet(review: routineReview)
         }
     }
 
@@ -227,14 +227,11 @@ struct HealthView: View {
         .padding(.vertical, HoloSpacing.md)
     }
 
-    /// 周期段：核心洞察与生活闭环是近 N 天的周期结论，与所选日期无关，
+    /// 周期段：近期作息回顾是截至昨天的周期结论，与所选日期无关，
     /// 不挂 .id 不参与切天过渡（方案甲：切天时只有日期段滑动）
     private var periodSection: some View {
         VStack(spacing: HoloSpacing.md) {
-            if let core = generatedCoreInsight {
-                coreInsightCard(core)
-            }
-            lifestyleInsightCard
+            routineReviewCard
         }
     }
 
@@ -629,54 +626,42 @@ struct HealthView: View {
         }
     }
 
-    /// 只展示真实 AI 洞察：本地兜底 core（fallback-core-* 前缀，含「数据正在积累」话术）
-    /// 整卡不出现——数据齐全时兜底话与 94 分「状态很好」自相矛盾（11-10 诊断 P0）。
-    private var generatedCoreInsight: GeneratedHealthInsight? {
-        guard let core = insightViewModel.snapshot?.coreInsight,
-              !HealthInsightFallbackBuilder.isFallbackCore(core) else { return nil }
-        return core
-    }
+    // MARK: - 近期作息回顾（周期区，方案第三步）
 
-    private func coreInsightCard(_ insight: GeneratedHealthInsight) -> some View {
+    /// 近 14 天作息回顾卡：首屏只突出一条最重要的变化；无明显变化时给近期事实。
+    /// 点击查看依据（两段窗口、参与晚数、中位数与对应日期）。
+    private var routineReviewCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            // 卡头：图标 + 标题 + 周期徽章；窄宽一行放不下时徽章降级第二行
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    coreInsightHeaderTitle
-                    insightPeriodBadge
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    coreInsightHeaderTitle
-                    insightPeriodBadge
-                }
+            HStack(alignment: .firstTextBaseline) {
+                Text("近 14 天作息回顾")
+                    .holoText(.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+                    .layoutPriority(1)
+                Spacer()
+                Text(routineRangeText)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
-            Text(insight.title)
-                .holoText(.body)
-                .fontWeight(.semibold)
-                .foregroundColor(.holoToolText)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(insight.summary)
+            Text(routineHeadlineText)
                 .holoText(.supporting)
-                .foregroundColor(.holoToolTextSecondary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !insight.evidenceIds.isEmpty {
+            if routineReview != nil {
                 Rectangle()
                     .fill(Color.holoToolBorder)
                     .frame(height: 0.5)
-                    .padding(.top, 2)
 
                 HStack(spacing: 4) {
-                    Text("证据 · \(insight.evidenceIds.count) 条")
+                    Text("查看依据")
                         .holoText(.metadata)
                         .foregroundColor(.holoToolTextSecondary)
-
                     Spacer()
-
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.holoToolTextSecondary.opacity(0.5))
@@ -687,188 +672,86 @@ struct HealthView: View {
         .holoSurface()
         .contentShape(Rectangle())
         .onTapGesture {
-            guard !daySwipeState.isSwiping else { return }
-            selectedEvidenceInsight = insight
+            guard !daySwipeState.isSwiping, routineReview != nil else { return }
+            showRoutineDetail = true
         }
     }
 
-    /// 卡头标题（图标 + 「HOLO 洞察」），单行与徽章降级两行两种排布复用
-    private var coreInsightHeaderTitle: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 11, weight: .semibold))
+    /// 窗口徽标：明确「截至昨天」的日期范围
+    private var routineRangeText: String {
+        guard let review = routineReview else { return "" }
+        let formatter = Self.routineDayFormatter
+        return "\(formatter.string(from: review.recentRange.start))–\(formatter.string(from: review.recentRange.end))"
+    }
 
-            Text("HOLO 洞察")
-                .lineLimit(1)
+    /// 一句话结论：有达标变化突出变化（时长 > 入睡 > 记录结束），否则给近期事实
+    private var routineHeadlineText: String {
+        guard let review = routineReview else {
+            return String(localized: "正在读取近 14 天的睡眠记录。")
         }
-        .font(.system(.caption2, weight: .semibold))
-        .foregroundColor(.holoToolAI)
-    }
-
-    /// 周期徽章：真实窗口「近 N 天 · 起日–止日」（连接符 en dash，中文两侧不空格）
-    private var insightPeriodBadge: some View {
-        Text(insightPeriodBadgeText)
-            .font(.system(.caption2, weight: .medium))
-            .foregroundColor(Color.holoToolAI)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.holoToolAI.opacity(0.10))
-            .clipShape(Capsule())
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-    }
-
-    /// 洞察周期徽章文案（卡头与证据弹层同源）：有快照 period 时显示真实窗口
-    /// 「近 N 天 · 起日–止日」，无 period 时退回固定窗口「近 14 天」
-    private var insightPeriodBadgeText: String {
-        guard let period = insightViewModel.snapshot?.period else {
-            return String(localized: "近 \(HealthThresholds.insightWindowDays) 天")
+        if let headline = review.headline {
+            var sentence = routineChangeSentence(headline)
+            if let companion = review.headlineCompanion {
+                sentence += String(localized: "；") + routineChangeSentence(companion)
+            }
+            return sentence
         }
-        let crossYear = !Calendar.current.isDate(period.start, equalTo: period.end, toGranularity: .year)
-        let startText = crossYear
-            ? Self.insightBadgeCrossYearFormatter.string(from: period.start)
-            : Self.insightBadgeDayFormatter.string(from: period.start)
-        let endText = Self.insightBadgeDayFormatter.string(from: period.end)
-        return String(localized: "近 \(period.days) 天 · \(startText)–\(endText)")
+        // 事实结尾：有什么展示什么，不把缺数据说成变化
+        var facts: [String] = []
+        facts.append(String(localized: "近 14 天有 \(review.recentNightsTotal) 晚记录"))
+        if let onset = review.onsetSummary.typical {
+            facts.append(String(localized: "典型入睡 \(Self.clockText(onset))"))
+        } else if review.onsetSummary.nights > 0 {
+            facts.append(String(localized: "入睡时间分散，暂无典型值"))
+        }
+        if review.recentNightsTotal < 4 {
+            facts.append(String(localized: "更多可比较的记录将用于判断作息变化"))
+        }
+        return facts.joined(separator: " · ")
     }
 
-    /// 「MMMd」按 App 语言取模板（照抄 HealthDateNavigator 的种子语言做法，不用 Locale.current；
-    /// 简繁：11月10日；英文：Nov 10）
-    private static let insightBadgeDayFormatter: DateFormatter = {
+    /// 钟点文本（HealthClockMinute → HH:mm）
+    static func clockText(_ clock: HealthClockMinute) -> String {
+        String(format: "%02d:%02d", clock.minutes / 60, clock.minutes % 60)
+    }
+
+    /// 单条变化的展示句（方向 + 幅度 + 是否持续）：
+    /// 时长用「多/少」、钟点用「晚/早」，避免把时长说成「晚」
+    private func routineChangeSentence(_ change: HealthRoutineReview.MetricChange) -> String {
+        let name: String
+        switch change.metric {
+        case .duration: name = String(localized: "主睡眠时长")
+        case .onset: name = String(localized: "入睡时间")
+        case .recordEnd: name = String(localized: "记录结束时间")
+        }
+        let direction: String
+        if change.metric == .duration {
+            direction = change.deltaMinutes >= 0 ? String(localized: "多") : String(localized: "少")
+        } else {
+            direction = change.deltaMinutes >= 0 ? String(localized: "晚") : String(localized: "早")
+        }
+        let magnitude = Self.routineMinutesFormatter.string(from: abs(change.deltaMinutes) as NSNumber) ?? "0"
+        let sustained = change.sustained ? String(localized: "（近两周持续）") : ""
+        return String(localized: "\(name)比此前\(direction)约 \(magnitude) 分钟\(sustained)")
+    }
+
+    /// 「MMMd」按 App 语言取模板（沿用既有种子语言做法）
+    private static let routineDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = insightBadgeLocale
+        switch SeedLanguage.current {
+        case .simplifiedChinese: formatter.locale = Locale(identifier: "zh_CN")
+        case .traditionalChinese: formatter.locale = Locale(identifier: "zh_TW")
+        case .english: formatter.locale = Locale(identifier: "en_US")
+        }
         formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
     }()
 
-    /// 跨年时起始日带年份（2025年12月30日 / Dec 30, 2025）
-    private static let insightBadgeCrossYearFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = insightBadgeLocale
-        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+    private static let routineMinutesFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.maximumFractionDigits = 0
         return formatter
     }()
-
-    private static var insightBadgeLocale: Locale {
-        switch SeedLanguage.current {
-        case .simplifiedChinese: return Locale(identifier: "zh_CN")
-        case .traditionalChinese: return Locale(identifier: "zh_TW")
-        case .english: return Locale(identifier: "en_US")
-        }
-    }
-
-    private var lifestyleInsightCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("生活闭环")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-                    .layoutPriority(1)
-                Spacer()
-                Text("近 \(insightPeriodDays) 天 · \(lifestyleRows.count) 条关联")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-
-            if lifestyleRows.isEmpty {
-                Text(lifestyleEmptyHint)
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(spacing: HoloSpacing.md) {
-                    ForEach(Array(lifestyleRows.enumerated()), id: \.offset) { _, row in
-                        HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                            Image(systemName: row.icon)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(row.color)
-                                .frame(width: 28, height: 28)
-                                .background(row.color.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.title)
-                                    .font(.system(.subheadline, weight: .semibold))
-                                    .foregroundColor(.holoToolText)
-
-                                Text(row.detail)
-                                    .font(.holoTinyLabel)
-                                    .foregroundColor(.holoToolTextSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer(minLength: 0)
-                        }
-                        .contentShapeIf(row.generated != nil, shape: Rectangle())
-                        .onTapGestureIf(row.generated != nil) {
-                            guard !daySwipeState.isSwiping, let generated = row.generated else { return }
-                            selectedEvidenceInsight = generated
-                        }
-                    }
-                }
-            }
-        }
-        .padding(HoloSpacing.md)
-        .holoSurface()
-    }
-
-    // MARK: - 洞察数据源（只认 LLM 生成结果；规则兜底文案不上界面）
-
-    /// 洞察窗口天数：快照 period 的真实天数，无快照时退回固定窗口
-    private var insightPeriodDays: Int {
-        insightViewModel.snapshot?.period.days ?? HealthThresholds.insightWindowDays
-    }
-
-    private var lifestyleRows: [(icon: String, title: String, detail: String, color: Color, generated: GeneratedHealthInsight?)] {
-        if let loops = insightViewModel.snapshot?.lifestyleLoops, !loops.isEmpty {
-            return loops.map {
-                (lifestyleIcon(for: $0.domain), $0.title, $0.summary, lifestyleColor(for: $0.domain), $0)
-            }
-        }
-        // P4：无 LLM 跨域循环时不展示硬编码假洞察，返回空（卡片显示诚实占位）。
-        return []
-    }
-
-    /// 生活闭环空态文案：按生成状态说实话——数据不足 / 分析失败 / 分析中 / 分析过但无关联。
-    private var lifestyleEmptyHint: String {
-        switch insightViewModel.snapshot?.status {
-        case .insufficientData:
-            return String(localized: "数据积累中。连续记录睡眠、运动、记账、待办，HOLO 会从中发现跨域规律。")
-        case .fallback:
-            return String(localized: "这次分析没有完成。")
-        case .generating, .none:
-            return String(localized: "HOLO 正在分析近 \(HealthThresholds.insightWindowDays) 天的记录。")
-        case .disabled:
-            return String(localized: "洞察生成暂不可用。")
-        case .fresh, .cached:
-            return String(localized: "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。")
-        }
-    }
-
-    private func lifestyleIcon(for domain: HealthInsightDomain) -> String {
-        switch domain {
-        case .health: return "heart.fill"
-        case .task: return "checklist"
-        case .habit: return "repeat"
-        case .finance: return "creditcard.fill"
-        case .thought: return "lightbulb.fill"
-        case .mixed: return "link"
-        }
-    }
-
-    private func lifestyleColor(for domain: HealthInsightDomain) -> Color {
-        switch domain {
-        case .health: return .holoChart1
-        case .task: return .holoPrimary
-        case .habit: return .holoSuccess
-        case .finance: return .holoChart8
-        case .thought: return .holoChart7
-        case .mixed: return .holoPurple
-        }
-    }
 
     /// 近 7 天趋势卡：指标切换用系统分段控件（§8.8 口径），卡头带「详情」入口
     private var weeklyTrendCard: some View {
@@ -969,6 +852,24 @@ struct HealthView: View {
     private func refreshAll() async {
         await repository.refresh()
         await loadDateData(for: selectedDate)
+        await loadRoutineReview()
+    }
+
+    /// 周期区作息回顾：一次取齐 42 天窗口的按晚结果，端上计算，锚定今天
+    private func loadRoutineReview() async {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let windowStart = calendar.date(byAdding: .day, value: -(HealthRoutineReviewAnalyzer.referenceDays + HealthRoutineReviewAnalyzer.recentDays - 1), to: today) ?? today
+        switch await repository.fetchNightSleepRangeStrict(from: windowStart, to: today) {
+        case .value(let records):
+            let nights = records.compactMap { record -> (Date, HealthNightSession)? in
+                guard let main = record.mainSession else { return nil }
+                return (record.endDate, main)
+            }
+            routineReview = HealthRoutineReviewAnalyzer.analyze(nights: nights, today: today)
+        case .noData, .waitingForUnlock, .unavailable:
+            routineReview = nil
+        }
     }
 
     private func loadDateData(for date: Date) async {
@@ -981,11 +882,16 @@ struct HealthView: View {
         let sleep = await repository.fetchChartWeeklyData(for: .sleep, endingOn: date)
         let steps = await repository.fetchChartWeeklyData(for: .steps, endingOn: date)
         let workout = await repository.fetchChartWeeklyData(for: .workout, endingOn: date)
+        let night = await repository.fetchNightSleepStrict(forEndDay: date)
         guard generation == dateLoadGeneration else { return }
         dayData = day
         weeklySleepData = sleep
         weeklyStepsData = steps
         weeklyWorkoutData = workout
+        switch night {
+        case .value(let record): nightRecord = record
+        case .noData, .waitingForUnlock, .unavailable: nightRecord = nil
+        }
     }
 
     /// 左右滑动切天：与日期胶囊共用同一条边界规则（不越过今天）
