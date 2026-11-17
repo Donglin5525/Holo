@@ -84,6 +84,31 @@ enum StickerRenderer {
                       presentation: .init(borderStyle: borderStyle))
     }
 
+    /// 确认页即时预览（不查库、不走缓存：工作图 + 遮罩 + 当前纸边选择直接合成）
+    static func renderDisplayImageForPreview(subject: CGImage,
+                                             mask: CVPixelBuffer,
+                                             presentation: VisualPlacementPayload.Presentation) -> CGImage? {
+        let edgePoints: CGFloat
+        switch presentation.borderWeight {
+        case .thin: edgePoints = 2.5
+        case .standard: edgePoints = 4
+        }
+        let edgeColor: CGColor
+        switch presentation.borderStyle {
+        case .adaptivePaper:
+            edgeColor = UIColor(named: "VisualStickerPaper")?.cgColor
+                ?? CGColor(red: 0.98, green: 0.97, blue: 0.95, alpha: 1)
+        case .white:
+            edgeColor = UIColor(named: "VisualStickerPaperExplicitWhite")?.cgColor
+                ?? CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+        case .none:
+            edgeColor = CGColor(red: 0, green: 0, blue: 0, alpha: 0)
+        }
+        return VisualAssetImageProcessor.composeSticker(
+            subject: subject, occupancyMask: mask,
+            edge: .init(radiusPixels: edgePoints * UIScreen.main.scale, color: edgeColor))
+    }
+
     // MARK: - 私有
 
     private static func renderSticker(asset: VisualAsset,

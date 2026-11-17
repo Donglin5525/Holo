@@ -12,6 +12,7 @@ import CoreData
 
 @objc(VisualAsset)
 final class VisualAsset: NSManagedObject {}
+extension VisualAsset: Identifiable {}
 
 @objc(VisualPlacementRevision)
 final class VisualPlacementRevision: NSManagedObject {}

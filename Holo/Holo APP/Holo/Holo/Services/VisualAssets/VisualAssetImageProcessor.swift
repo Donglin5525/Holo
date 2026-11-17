@@ -238,6 +238,50 @@ enum VisualAssetImageProcessor {
         return cg
     }
 
+    // MARK: - 存储编码（制作页提交用）
+
+    /// CGImage → PNG Data（透明保留；工作图/紧裁主体/缩略图共用）
+    static func encodePNG(_ image: CGImage) -> Data? {
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out, UTType.png.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dest, image, nil)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    /// OneComponent8 遮罩 → 灰度 PNG（恢复时按工作画布尺寸解码）
+    static func encodeMaskPNG(_ mask: CVPixelBuffer) -> Data? {
+        let ci = CIImage(cvPixelBuffer: mask)
+        guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return nil }
+        return encodePNG(cg)
+    }
+
+    /// 紧裁主体（sticker 的 contentData）：mask 非零区的 bounding box 裁切 + 长边限幅
+    static func tightCrop(_ image: CGImage, mask: CVPixelBuffer, maxLongest: Int) -> CGImage? {
+        CVPixelBufferLockBaseAddress(mask, [])
+        defer { CVPixelBufferUnlockBaseAddress(mask, []) }
+        let w = CVPixelBufferGetWidth(mask), h = CVPixelBufferGetHeight(mask)
+        guard w == image.width, h == image.height else { return nil }
+        let base = CVPixelBufferGetBaseAddress(mask)!.assumingMemoryBound(to: UInt8.self)
+        let rowBytes = CVPixelBufferGetBytesPerRow(mask)
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        for y in 0..<h {
+            let row = base + y * rowBytes
+            for x in 0..<w where row[x] > 1 {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        let cropRect = CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+        let cropped = image.cropping(to: cropRect) ?? image
+        let longest = max(cropped.width, cropped.height)
+        guard longest > maxLongest else { return cropped }
+        return downscale(cropped, targetLongest: CGFloat(maxLongest))
+    }
+
     // MARK: - 私有
 
     private static func blend(input: CIImage, background: CIImage, mask: CIImage) -> CIImage {
