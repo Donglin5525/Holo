@@ -57,6 +57,8 @@ struct SpendingProjectVisualSection: View {
     let project: SpendingProject
     @State private var showMaker = false
     @State private var busy = false
+    /// 贴纸写入不触发 SwiftUI 重算（Form 不监听视觉实体）——通知驱动 bump 强制重查
+    @State private var revisionBump = 0
 
     var body: some View {
         let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
@@ -86,6 +88,10 @@ struct SpendingProjectVisualSection: View {
                 }
             }
             .listRowBackground(Color.holoCardBackground)
+            .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+                revisionBump += 1
+            }
+            .id(revisionBump)
             .sheet(isPresented: $showMaker) {
                 StickerMakerView(ownerKind: SpendingProject.visualOwnerKind,
                                  ownerKey: project.visualOwnerKey ?? UUID().uuidString,
@@ -102,6 +108,10 @@ struct SpendingProjectVisualSection: View {
                 }
             }
             .listRowBackground(Color.holoCardBackground)
+            .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+                revisionBump += 1
+            }
+            .id(revisionBump)
             .sheet(isPresented: $showMaker) {
                 StickerMakerView(ownerKind: SpendingProject.visualOwnerKind,
                                  ownerKey: project.visualOwnerKey ?? UUID().uuidString,

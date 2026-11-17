@@ -321,6 +321,23 @@ final class VisualAssetRepositoryTests: XCTestCase {
         XCTAssertEqual(resolved, .none, "陌生模型 context 上解析必须安静返回 none，不许抛异常")
     }
 
+    func testCreateAssetAndApplyEndToEndResolvesReady() async throws {
+        // 11-17 东林实报「设置外观没生效」回归锁：制作页提交带占位 assetID 的 payload，
+        // 协调器必须重映射为真实素材 ID——读取端（viewContext）解析要命中 assetReady
+        let op = UUID()
+        let receipt = try await VisualCommitCoordinator.shared.commit(
+            .createAssetAndApply(operationID: op, ownerKind: "spendingProject", ownerKey: "p-e2e",
+                                 slot: "primaryVisual", expectedSlotWinnerRevisionID: nil,
+                                 payload: .setAsset(.asset(UUID()), presentation: nil)) { _ in },
+            in: CoreDataTestSupport.sharedTestContainer)
+        let resolved = repo.resolvePlacement(ownerKind: "spendingProject", ownerKey: "P-E2E",
+                                             slot: "primaryVisual", in: context)
+        guard case .assetReady(let d) = resolved else {
+            return XCTFail("提交后解析应 assetReady（重映射真实ID），实际 \(resolved)")
+        }
+        XCTAssertEqual(d.assetID, receipt.assetID, "位置记录必须指向真实创建的素材")
+    }
+
     func testWriterIDStableAndUUIDShaped() {
         XCTAssertTrue(UUID(uuidString: VisualAssetRepository.writerID) != nil, "writerID 是安装级 UUID 串")
     }

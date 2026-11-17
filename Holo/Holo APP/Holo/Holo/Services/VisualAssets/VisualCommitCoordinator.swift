@@ -151,12 +151,21 @@ final class VisualCommitCoordinator {
                 throw VisualCommitError.conflict(currentWinnerRevisionID: currentWinnerID ?? UUID())
             }
         }
-        // 建素材（createAssetAndApply 才有）+ 位置版本：同一次 save
+        // 建素材（createAssetAndApply 才有）+ 位置版本：同一次 save。
+        // 制作页构造 payload 时素材尚未创建（带占位 assetID）——这里重映射为真实 ID，
+        // 否则位置记录指向不存在的素材，读取端永远 pending（11-17 东林实报「没生效」根因）
         var assetID: UUID?
+        var payload = payload
         if let makeAsset {
             let asset = try repo.createAssetIfNeeded(operationID: operationID, kind: .sticker,
                                                      assign: makeAsset, in: context)
             assetID = asset.value(forKey: "id") as? UUID
+            if let realID = assetID,
+               var selection = payload.selection, selection.type == .asset,
+               selection.assetID != realID {
+                selection.assetID = realID
+                payload = VisualPlacementPayload.setAsset(selection, presentation: payload.presentation)
+            }
         }
         if context.hasChanges { try context.save() }
         let revision = try repo.commitRevisionLocked(operationID: operationID, ownerKind: ownerKind,

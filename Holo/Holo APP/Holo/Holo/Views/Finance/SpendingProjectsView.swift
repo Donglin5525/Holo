@@ -60,6 +60,9 @@ struct SpendingProjectsView: View {
             }
             .sheet(isPresented: $showAdd) { AddSpendingProjectSheet { refresh() } }
             .task { refresh() }
+            .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+                refresh()
+            }
             .onAppear { refresh() }
         }
     }
