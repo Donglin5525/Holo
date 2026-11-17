@@ -185,6 +185,59 @@ enum VisualAssetImageProcessor {
         return pb
     }
 
+    // MARK: - 存储字段解码（渲染层用）
+
+    /// sourceData/contentData 已是工作图规范（sRGB、方向摆正、长边 ≤2048），
+    /// 直接解码不再走方向/降采样（避免二次变换）
+    static func decodeWorkingCGImage(from data: Data) -> CGImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// maskData（8bit 灰度 PNG，工作画布尺寸）→ OneComponent8 像素缓冲
+    static func decodeMask(from data: Data, width: Int, height: Int) -> CVPixelBuffer? {
+        guard let cg = decodeWorkingCGImage(from: data) else { return nil }
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, cg.width, cg.height,
+                            kCVPixelFormatType_OneComponent8, nil, &buffer)
+        guard let pb = buffer else { return nil }
+        ciContext.render(CIImage(cgImage: cg), to: pb,
+                         bounds: CGRect(x: 0, y: 0, width: cg.width, height: cg.height),
+                         colorSpace: CGColorSpaceCreateDeviceGray())
+        return pb
+    }
+
+    /// photo 派生：等比降采样到目标长边（不放大——源小于目标时原样返回）
+    static func downscale(_ image: CGImage, targetLongest: CGFloat) -> CGImage {
+        let longest = max(image.width, image.height)
+        guard CGFloat(longest) > targetLongest, targetLongest > 0 else { return image }
+        let scale = targetLongest / CGFloat(longest)
+        let w = max(1, Int(CGFloat(image.width) * scale.rounded(.up)))
+        let h = max(1, Int(CGFloat(image.height) * scale.rounded(.up)))
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage() ?? image
+    }
+
+    /// photo 夜间柔光：深色预览 RGB×0.92、alpha 不变；只影响预览，不改源文件（04 §5.2）
+    static func softenPhoto(_ image: CGImage, targetLongest: CGFloat) -> CGImage {
+        let base = downscale(image, targetLongest: targetLongest)
+        let ci = CIImage(cgImage: base)
+        let f = CIFilter.colorMatrix()
+        f.inputImage = ci
+        f.rVector = CIVector(x: 0.92, y: 0, z: 0, w: 0)
+        f.gVector = CIVector(x: 0, y: 0.92, z: 0, w: 0)
+        f.bVector = CIVector(x: 0, y: 0, z: 0.92, w: 0)
+        f.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+        guard let out = f.outputImage,
+              let cg = ciContext.createCGImage(out, from: out.extent) else { return base }
+        return cg
+    }
+
     // MARK: - 私有
 
     private static func blend(input: CIImage, background: CIImage, mask: CIImage) -> CIImage {

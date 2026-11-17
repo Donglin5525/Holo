@@ -228,37 +228,62 @@ final class VisualAssetRepository {
                         slot: String,
                         payload: VisualPlacementPayload,
                         in context: NSManagedObjectContext) throws -> VisualPlacementRevision {
-        let ownerKey = VisualPlacementCoding.normalizedOwnerKey(rawOwnerKey)
-        let placementKey = VisualPlacementCoding.placementKey(ownerKind: ownerKind, ownerKey: ownerKey, slot: slot)
-        let canonical = try VisualPlacementCoding.canonicalData(payload)
-        let hash = try VisualPlacementCoding.hash(of: payload)
-
         var thrown: Error?
         var created: VisualPlacementRevision?
-        commitQueue.sync {
+        performCommitLocked {
             do {
-                let next = maxClock(placementKey: placementKey, in: context) + 1
-                let revision = VisualPlacementRevision(context: context)
-                revision.setValue(UUID(), forKey: "id")
-                revision.setValue(operationID, forKey: "operationID")
-                revision.setValue(operationID, forKey: "mutationID")
-                revision.setValue(ownerKind, forKey: "ownerKind")
-                revision.setValue(ownerKey, forKey: "ownerKey")
-                revision.setValue(slot, forKey: "slot")
-                revision.setValue(placementKey, forKey: "placementKey")
-                revision.setValue(next, forKey: "logicalClock")
-                revision.setValue(Self.writerID, forKey: "writerID")
-                revision.setValue(String(data: canonical, encoding: .utf8), forKey: "payloadJSON")
-                revision.setValue(hash, forKey: "payloadHash")
-                revision.setValue(Date(), forKey: "changedAt")
-                if context.hasChanges { try context.save() }
-                created = revision
+                created = try commitRevisionLocked(operationID: operationID, ownerKind: ownerKind,
+                                                   ownerKey: rawOwnerKey, slot: slot,
+                                                   payload: payload, in: context)
             } catch {
                 thrown = error
             }
         }
         if let thrown { throw thrown }
         return created!
+    }
+
+    /// 供协调器把「建素材 + 版本 + save」整体包进同一把串行锁（sync 不可重入，内部版不加锁）
+    func performCommitLocked(_ body: () -> Void) {
+        commitQueue.sync { body() }
+    }
+
+    /// findAsset(byCreationOperation:)：幂等创建的查询面
+    func findAsset(byCreationOperation operationID: UUID, in context: NSManagedObjectContext) throws -> VisualAsset? {
+        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        request.predicate = NSPredicate(format: "creationOperationID == %@", operationID as CVarArg)
+        request.fetchLimit = 1
+        return try context.fetch(request).first
+    }
+
+    /// 无锁版：调用方必须已持有 commitQueue（协调器路径）
+    func commitRevisionLocked(operationID: UUID,
+                                      ownerKind: String,
+                                      ownerKey rawOwnerKey: String,
+                                      slot: String,
+                                      payload: VisualPlacementPayload,
+                                      in context: NSManagedObjectContext) throws -> VisualPlacementRevision {
+        let ownerKey = VisualPlacementCoding.normalizedOwnerKey(rawOwnerKey)
+        let placementKey = VisualPlacementCoding.placementKey(ownerKind: ownerKind, ownerKey: ownerKey, slot: slot)
+        let canonical = try VisualPlacementCoding.canonicalData(payload)
+        let hash = try VisualPlacementCoding.hash(of: payload)
+
+        let next = maxClock(placementKey: placementKey, in: context) + 1
+        let revision = VisualPlacementRevision(context: context)
+        revision.setValue(UUID(), forKey: "id")
+        revision.setValue(operationID, forKey: "operationID")
+        revision.setValue(operationID, forKey: "mutationID")
+        revision.setValue(ownerKind, forKey: "ownerKind")
+        revision.setValue(ownerKey, forKey: "ownerKey")
+        revision.setValue(slot, forKey: "slot")
+        revision.setValue(placementKey, forKey: "placementKey")
+        revision.setValue(next, forKey: "logicalClock")
+        revision.setValue(Self.writerID, forKey: "writerID")
+        revision.setValue(String(data: canonical, encoding: .utf8), forKey: "payloadJSON")
+        revision.setValue(hash, forKey: "payloadHash")
+        revision.setValue(Date(), forKey: "changedAt")
+        if context.hasChanges { try context.save() }
+        return revision
     }
 
     /// 写入删除墓碑（只追加；二段删除的第一段：墓碑 + 清 Binary 由调用方同事务完成）

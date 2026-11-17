@@ -201,6 +201,11 @@
 		A1C000000000000000000052 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C000000000000000000051 /* DesignSystem.swift */; };
 		A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000001 /* HoloWidgetIntents.swift */; };
 		A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */; };
+		6F1C51B1079A40EC8537F4F1 /* VisualAssetDraftStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFD59FD61C724D97B64547A8 /* VisualAssetDraftStore.swift */; };
+		70674F5136A64C39B6C515AC /* VisualCommitCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B7DEA861360427AB429CB39 /* VisualCommitCoordinator.swift */; };
+		48D56BBE06F04BDAA1854C5C /* StickerRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0DCEE6724C74D2F859153E6 /* StickerRenderer.swift */; };
+		F2CB60C89DD94CD38652A38A /* SubjectExtractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135026F3ACEB4DA2AF90CDD1 /* SubjectExtractionService.swift */; };
+		EC597FD7839D4EED9CD630C4 /* VisualAssetImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A91C2EC6FA1431EBE5D3B8C /* VisualAssetImageProcessor.swift */; };
 		89A3A568ED1346A289884022 /* VisualAssetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */; };
 		C6C140C792E1460BBB65A6D0 /* CoreDataStack+VisualAssetEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */; };
 		2BF1143EBB574A96B9C704DB /* VisualPlacementPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */; };
@@ -755,6 +760,11 @@
 		A1C000000000000000000051 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DesignSystem.swift; path = Holo/Utils/DesignSystem.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000001 /* HoloWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HoloWidgetIntents.swift; path = HoloWidgets/HoloWidgetIntents.swift; sourceTree = "<group>"; };
 		A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+AnniversaryEntities.swift"; path = "Holo/Models/CoreDataStack+AnniversaryEntities.swift"; sourceTree = "<group>"; };
+		BFD59FD61C724D97B64547A8 /* VisualAssetDraftStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetDraftStore.swift"; path = "Holo/Services/VisualAssets/VisualAssetDraftStore.swift"; sourceTree = "<group>"; };
+		4B7DEA861360427AB429CB39 /* VisualCommitCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualCommitCoordinator.swift"; path = "Holo/Services/VisualAssets/VisualCommitCoordinator.swift"; sourceTree = "<group>"; };
+		E0DCEE6724C74D2F859153E6 /* StickerRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "StickerRenderer.swift"; path = "Holo/Services/VisualAssets/StickerRenderer.swift"; sourceTree = "<group>"; };
+		135026F3ACEB4DA2AF90CDD1 /* SubjectExtractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "SubjectExtractionService.swift"; path = "Holo/Services/VisualAssets/SubjectExtractionService.swift"; sourceTree = "<group>"; };
+		6A91C2EC6FA1431EBE5D3B8C /* VisualAssetImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetImageProcessor.swift"; path = "Holo/Services/VisualAssets/VisualAssetImageProcessor.swift"; sourceTree = "<group>"; };
 		5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualAssetRepository.swift"; path = "Holo/Services/VisualAssets/VisualAssetRepository.swift"; sourceTree = "<group>"; };
 		079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "CoreDataStack+VisualAssetEntities.swift"; path = "Holo/Models/CoreDataStack+VisualAssetEntities.swift"; sourceTree = "<group>"; };
 		BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "VisualPlacementPayload.swift"; path = "Holo/Models/VisualAssets/VisualPlacementPayload.swift"; sourceTree = "<group>"; };
@@ -1421,6 +1431,11 @@
 				A1C000000000000000000051 /* DesignSystem.swift */,
 				A1D01D00000000000000000001 /* HoloWidgetIntents.swift */,
 				A1D01D00000000000000000003 /* CoreDataStack+AnniversaryEntities.swift */,
+				BFD59FD61C724D97B64547A8 /* VisualAssetDraftStore.swift */,
+				4B7DEA861360427AB429CB39 /* VisualCommitCoordinator.swift */,
+				E0DCEE6724C74D2F859153E6 /* StickerRenderer.swift */,
+				135026F3ACEB4DA2AF90CDD1 /* SubjectExtractionService.swift */,
+				6A91C2EC6FA1431EBE5D3B8C /* VisualAssetImageProcessor.swift */,
 				5339D51EC6B14826B65F5625 /* VisualAssetRepository.swift */,
 				079ABCAC391840418B45F393 /* CoreDataStack+VisualAssetEntities.swift */,
 				BA73F097FB424D30A33EC288 /* VisualPlacementPayload.swift */,
@@ -2621,6 +2636,11 @@
 				A1C000000000000000000052 /* DesignSystem.swift in Sources */,
 				A1D01D00000000000000000002 /* HoloWidgetIntents.swift in Sources */,
 				A1D01D00000000000000000004 /* CoreDataStack+AnniversaryEntities.swift in Sources */,
+				6F1C51B1079A40EC8537F4F1 /* VisualAssetDraftStore.swift in Sources */,
+				70674F5136A64C39B6C515AC /* VisualCommitCoordinator.swift in Sources */,
+				48D56BBE06F04BDAA1854C5C /* StickerRenderer.swift in Sources */,
+				F2CB60C89DD94CD38652A38A /* SubjectExtractionService.swift in Sources */,
+				EC597FD7839D4EED9CD630C4 /* VisualAssetImageProcessor.swift in Sources */,
 				89A3A568ED1346A289884022 /* VisualAssetRepository.swift in Sources */,
 				C6C140C792E1460BBB65A6D0 /* CoreDataStack+VisualAssetEntities.swift in Sources */,
 				2BF1143EBB574A96B9C704DB /* VisualPlacementPayload.swift in Sources */,
