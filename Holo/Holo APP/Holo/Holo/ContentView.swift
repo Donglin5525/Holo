@@ -29,6 +29,7 @@ struct ContentView: View {
 
     @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
     @State private var pendingGoalDetailId: UUID?
+    @State private var directGoalDetailTarget: DirectGoalDetailRoute?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// Tab 枚举（iPhone）
@@ -65,6 +66,22 @@ struct ContentView: View {
         }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
+        }
+        // 深链直达目标详情（不借道 PersonalView → GoalListView 三层迷宫）
+        .sheet(item: $directGoalDetailTarget) { route in
+            DirectGoalDetailSheet(
+                goalId: route.id,
+                onOpenLinkedEntity: { target in
+                    directGoalDetailTarget = nil
+                    DispatchQueue.main.async {
+                        DeepLinkState.shared.navigate(to: target)
+                    }
+                },
+                onClose: {
+                    directGoalDetailTarget = nil
+                }
+            )
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // Cmd+1…9 模块直跳：iPad → 侧边栏；iPhone → 映射回主 tab（老习惯不变）
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
@@ -207,7 +224,10 @@ struct ContentView: View {
                         DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
                     },
                     onOpenLinkedEntity: { DeepLinkState.shared.navigate(to: $0) },
-                    pendingGoalDetailId: $pendingGoalDetailId
+                    pendingGoalDetailId: $pendingGoalDetailId,
+                    onClose: {
+                        selectedTab = .today
+                    }
                 )
                     .holoContentColumn()
                     .transition(.opacity)
@@ -221,14 +241,7 @@ struct ContentView: View {
         guard let target else { return }
         switch target {
         case .goalDetail(let goalId):
-            pendingGoalDetailId = goalId
-            if useIPadSidebar {
-                // iPad：个人是侧边栏目的地，HomeView 页面层持有自己的 pendingGoalDetailId，
-                // 这里只负责把侧边栏切过去
-                sidebarSelection = .profile
-            } else {
-                selectedTab = .profile
-            }
+            directGoalDetailTarget = DirectGoalDetailRoute(id: goalId)
             deepLinkState.pendingTarget = nil
         default:
             // 其余目标（小组件/通知/内部跳转）全部由 HomeView 的常驻模块栈消费：

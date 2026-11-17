@@ -1388,7 +1388,7 @@ struct ThoughtEditorView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(aiAssignments, id: \.id) { assignment in
+                    ForEach(aiAssignments.renderable, id: \.id) { assignment in
                         aiTagChip(assignment)
                     }
                 }
@@ -1573,19 +1573,15 @@ struct ThoughtEditorView: View {
         retryInFlight = true
         defer { retryInFlight = false }
 
-        do {
-            try thoughtRepository.updateOrganizedStatus(thoughtId: thoughtId, status: "pending")
-        } catch {
-            ThoughtLog.error("重置整理状态失败", error.localizedDescription)
-            return
-        }
         ThoughtClassificationFeedbackStore.log(
             .retry, thoughtId: thoughtId, tagName: "",
             topicConfidence: currentThoughtObject?.topicConfidence
         )
-        organizedStatus = "pending"
-        // 状态先置 pending 再入队；旧 ai 建议保留展示，新结果写入时自然替换（方案 L-3）
-        ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thoughtId)
+        // V3 下手动重新整理只走语义主题通道，不改写 organizedStatus 为 pending，也不再通过 V2 往 ThoughtTag 写 AI 标签
+        Task {
+            await ThoughtSemanticPipeline.shared.bootstrap()
+            await ThoughtSemanticPipeline.shared.kickQueue()
+        }
     }
 
     /// 删除当前想法：软删进 30 天回收站后关闭编辑器。

@@ -18,6 +18,7 @@ struct HabitPrefillDraft: Identifiable {
     var name: String = ""
     var icon: String = "checkmark.circle"
     var color: String = "#13A4EC"
+    var goalId: UUID? = nil
 }
 
 /// 新建习惯表单
@@ -285,6 +286,9 @@ struct AddHabitSheet: View {
             name = draft.name
             selectedIcon = draft.icon
             selectedColor = draft.color
+            if let goalId = draft.goalId {
+                goalSelection = GoalRepository.shared.findGoal(by: goalId)
+            }
         }
     }
 

@@ -848,7 +848,7 @@ struct TopicDetailView: View {
                 .padding(.top, HoloSpacing.xxl)
             } else {
                 LazyVStack(spacing: ThoughtLayout.cardGap) {
-                    ForEach(filteredThoughts) { thought in
+                    ForEach(filteredThoughts.renderable) { thought in
                         ThoughtCardView(
                             thought: thought,
                             onNavigate: { selectedThoughtId = thought.id },
@@ -856,9 +856,7 @@ struct TopicDetailView: View {
                                 // 标签点选映射到本页关键词筛选
                                 selectedKeywordKey = ThoughtTagNormalizer.key(tagName)
                             },
-                            onRetryOrganize: thought.organizedStatus == "failed" ? {
-                                ThoughtOrganizationQueue.shared.enqueueManual(thoughtId: thought.id)
-                            } : nil
+                            onRetryOrganize: nil
                         )
                         // P1 校验补链：主题页是纠错的天然阵地——成员卡长按可「从这个主题移除」
                         //（卡片列表的主题行纠错是长按隐藏手势，这里给一个语境明确的可见兜底）

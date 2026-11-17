@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 /// 行2/行3 的真实观测数据（GoalListCard.facts(goal:snapshot:) 产出）
 struct GoalListCardFacts: Equatable {
@@ -92,10 +93,15 @@ struct GoalListCard: View {
     }
 
     var body: some View {
+        if goal.managedObjectContext == nil || goal.isDeleted || goal.deletedAt != nil {
+            EmptyView()
+        } else {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 Text(goal.displayIcon)
                     .font(.system(size: 20))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .frame(width: 40, height: 40)
                     .background(goal.goalDomain.badgeColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
                 Text(goal.title)
@@ -122,6 +128,7 @@ struct GoalListCard: View {
         .frame(minHeight: 84, alignment: .leading)
         .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.holoToolBorder, lineWidth: 0.5))
+        }
     }
 
     /// 行2：数值(15 medium 等宽)/摘要(12 次文字) 二选一靠左 + 期限 12 次文字右对齐（A2）
@@ -173,7 +180,9 @@ struct GoalListCard: View {
         let text = displayableText(GoalFactsPresentation.result(snapshot))
         let progress = GoalFactsPresentation.progress(snapshot.result)?.fraction
         guard goal.isQuantitative else {
-            return GoalListCardFacts(valueText: nil, summaryText: text, progress: nil)
+            let tasks = goal.sortedTasks
+            let stepSummary: String? = tasks.isEmpty ? nil : String(localized: "已完成 \(tasks.filter(\.completed).count) / \(tasks.count) 步")
+            return GoalListCardFacts(valueText: nil, summaryText: text ?? stepSummary, progress: nil)
         }
         // 达标型按基线视角展示「已减 2.5 / 5 kg」（目标大于基线时「已增」，规格 A0）
         if goal.goalKindEnum == .target,

@@ -4340,7 +4340,13 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 userMessageId = nil
             }
 
+            let aiMessageId = chatRepo.addStreamingMessage(
+                role: "assistant",
+                parentMessageId: userMessageId,
+                messageType: .goalPlanning
+            )
             isStreaming = true
+            streamingText = ""
             defer {
                 isStreaming = false
                 streamingText = ""
@@ -4348,32 +4354,53 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
 
             do {
                 let userContext = await UserContextBuilder.shared.buildContext()
-                let result = try await goalPlanningCoordinator.start(
+                let allowedMemoryIDs = userContext.memorySummary?.sourceIDs ?? []
+                var lastFlush = ContinuousClock.now
+                let result = try await goalPlanningCoordinator.startStreaming(
                     seedText: seedText,
                     userContext: userContext,
                     provider: provider,
-                    maxTurns: planningMaxTurns
+                    maxTurns: planningMaxTurns,
+                    onQuestionText: { [weak self] partial in
+                        guard let self else { return }
+                        let now = ContinuousClock.now
+                        if now - lastFlush > .milliseconds(33) {
+                            self.streamingText = self.strippedGoalPlanningText(partial, allowedMemoryIDs: allowedMemoryIDs)
+                            lastFlush = now
+                        }
+                    },
+                    onDraftGenerating: { [weak self] in
+                        self?.streamingText = String(localized: "信息已经清楚了，正在为你整理目标计划…")
+                    }
                 )
                 activeGoalPlanningSession = result.session
                 GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
-                if let question = result.assistantText {
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                        content: strippedGoalPlanningText(
-                            question,
-                            allowedMemoryIDs: userContext.memorySummary?.sourceIDs ?? []
-                        ),
-                        parentMessageId: userMessageId,
-                        messageType: .goalPlanning
-                    )
-                }
                 if let draft = result.draft {
                     goalDraftForReview = draft
-                    let summary = String(localized: "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)")
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                        content: summary,
-                        parentMessageId: userMessageId,
+                    let summary = String(localized: "我为你整理好了目标计划「\(draft.title)」（\(draft.cardSummary)），你可以点击下方卡片确认或微调细节。")
+                    chatRepo.finalizeMessage(
+                        aiMessageId,
+                        finalContent: summary,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        messageType: .goalPlanning
+                    )
+                } else if let question = result.assistantText {
+                    let cleanQuestion = strippedGoalPlanningText(question, allowedMemoryIDs: allowedMemoryIDs)
+                    streamingText = cleanQuestion
+                    chatRepo.finalizeMessage(
+                        aiMessageId,
+                        finalContent: cleanQuestion,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
                         messageType: .goalPlanning
                     )
                 }
@@ -4384,20 +4411,30 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                     // 否则后续普通消息仍会被路由成规划回答、反复触发额度报错。
                     activeGoalPlanningSession = nil
                     GoalPlanningSessionStore.clear()
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                        content: quotaError.userMessage,
-                        parentMessageId: userMessageId,
+                    chatRepo.finalizeMessage(
+                        aiMessageId,
+                        finalContent: quotaError.userMessage,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
                         messageType: .quotaExhausted
                     )
                 } else {
                     // errorMessage 没有界面消费点，失败必须落到气泡，否则用户发消息石沉大海
                     let userMessage = HoloAIUserErrorMapper.message(for: error)
                     errorMessage = userMessage
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                        content: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
-                        parentMessageId: userMessageId,
+                    chatRepo.finalizeMessage(
+                        aiMessageId,
+                        finalContent: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
                         messageType: .goalPlanning
                     )
                 }
@@ -4410,7 +4447,13 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         inputText = ""
         errorMessage = nil
         let userMessageId = chatRepo.addMessage(role: "user", content: text, messageType: .goalPlanning)
+        let aiMessageId = chatRepo.addStreamingMessage(
+            role: "assistant",
+            parentMessageId: userMessageId,
+            messageType: .goalPlanning
+        )
         isStreaming = true
+        streamingText = ""
         defer {
             isStreaming = false
             streamingText = ""
@@ -4418,32 +4461,53 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
 
         do {
             let userContext = await UserContextBuilder.shared.buildContext()
-            let result = try await goalPlanningCoordinator.handleUserReply(
+            let allowedMemoryIDs = userContext.memorySummary?.sourceIDs ?? []
+            var lastFlush = ContinuousClock.now
+            let result = try await goalPlanningCoordinator.handleUserReplyStreaming(
                 text,
                 session: session,
                 userContext: userContext,
-                provider: provider
-            )
-                activeGoalPlanningSession = result.session
-                GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
-                if let question = result.assistantText {
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                        content: strippedGoalPlanningText(
-                            question,
-                            allowedMemoryIDs: userContext.memorySummary?.sourceIDs ?? []
-                        ),
-                        parentMessageId: userMessageId,
-                        messageType: .goalPlanning
-                    )
+                provider: provider,
+                onQuestionText: { [weak self] partial in
+                    guard let self else { return }
+                    let now = ContinuousClock.now
+                    if now - lastFlush > .milliseconds(33) {
+                        self.streamingText = self.strippedGoalPlanningText(partial, allowedMemoryIDs: allowedMemoryIDs)
+                        lastFlush = now
+                    }
+                },
+                onDraftGenerating: { [weak self] in
+                    self?.streamingText = String(localized: "信息已经清楚了，正在为你整理目标计划…")
                 }
-                if let draft = result.draft {
-                    goalDraftForReview = draft
-                    let summary = String(localized: "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)")
-                    _ = chatRepo.addMessage(
-                        role: "assistant",
-                    content: summary,
-                    parentMessageId: userMessageId,
+            )
+            activeGoalPlanningSession = result.session
+            GoalPlanningSessionStore.save(session: result.session, draftForReview: result.draft)
+            if let draft = result.draft {
+                goalDraftForReview = draft
+                let summary = String(localized: "我为你整理好了目标计划「\(draft.title)」（\(draft.cardSummary)），你可以点击下方卡片确认或微调细节。")
+                chatRepo.finalizeMessage(
+                    aiMessageId,
+                    finalContent: summary,
+                    intent: nil,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    analysisContextJSON: nil,
+                    rawLogJSON: nil,
+                    messageType: .goalPlanning
+                )
+            } else if let question = result.assistantText {
+                let cleanQuestion = strippedGoalPlanningText(question, allowedMemoryIDs: allowedMemoryIDs)
+                streamingText = cleanQuestion
+                chatRepo.finalizeMessage(
+                    aiMessageId,
+                    finalContent: cleanQuestion,
+                    intent: nil,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    analysisContextJSON: nil,
+                    rawLogJSON: nil,
                     messageType: .goalPlanning
                 )
             }
@@ -4454,20 +4518,30 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 // 不能让用户后续每条消息都被当成规划回答反复撞额度墙。
                 activeGoalPlanningSession = nil
                 GoalPlanningSessionStore.clear()
-                _ = chatRepo.addMessage(
-                    role: "assistant",
-                    content: quotaError.userMessage,
-                    parentMessageId: userMessageId,
+                chatRepo.finalizeMessage(
+                    aiMessageId,
+                    finalContent: quotaError.userMessage,
+                    intent: nil,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    analysisContextJSON: nil,
+                    rawLogJSON: nil,
                     messageType: .quotaExhausted
                 )
             } else {
                 // 同上：失败写气泡，避免静默失败
                 let userMessage = HoloAIUserErrorMapper.message(for: error)
                 errorMessage = userMessage
-                _ = chatRepo.addMessage(
-                    role: "assistant",
-                    content: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
-                    parentMessageId: userMessageId,
+                chatRepo.finalizeMessage(
+                    aiMessageId,
+                    finalContent: String(localized: "目标规划没有完成：\(userMessage) 可以再试一次，或直接用文字告诉我你的目标。"),
+                    intent: nil,
+                    extractedDataJSON: nil,
+                    parsedBatchJSON: nil,
+                    executionBatchJSON: nil,
+                    analysisContextJSON: nil,
+                    rawLogJSON: nil,
                     messageType: .goalPlanning
                 )
             }
@@ -4496,15 +4570,40 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
     }
 
     func finishGoalPlanningSave(_ result: GoalDraftSaveResult) {
-        let extractedData: [String: String] = [
-            "goalId": result.goal.id.uuidString,
-            "goalTitle": result.goal.title,
+        let goal = result.goal
+        var metricSummary: String? = nil
+        if goal.goalKindEnum != .process, let target = goal.metricTargetValueDouble {
+            let fmt: (Double) -> String = { v in
+                v.rounded() == v ? String(Int(v)) : String(format: "%.1f", v)
+            }
+            let unitSuffix = (goal.metricUnit ?? "").isEmpty ? "" : " \(goal.metricUnit ?? "")"
+            if goal.goalKindEnum == .target, let baseline = goal.baselineValueDouble {
+                metricSummary = "\(fmt(baseline)) → \(fmt(target))\(unitSuffix)"
+            } else {
+                metricSummary = String(localized: "目标 \(fmt(target))\(unitSuffix)")
+            }
+        }
+
+        var extractedData: [String: String] = [
+            "goalId": goal.id.uuidString,
+            "goalTitle": goal.title,
             "createdTaskCount": "\(result.createdTaskCount)",
             "createdHabitCount": "\(result.createdHabitCount)"
         ]
+        if let metricSummary {
+            extractedData["metricSummary"] = metricSummary
+        }
+
+        let closingMessage: String
+        if let metricSummary {
+            closingMessage = String(localized: "目标「\(goal.title)」已经建好了，核心指标是 \(metricSummary)，同时帮你安排了 \(result.createdTaskCount) 个任务和 \(result.createdHabitCount) 个习惯。之后可以在目标详情里随时记录进展，点下面卡片就能直接查看。")
+        } else {
+            closingMessage = String(localized: "目标「\(goal.title)」已经建好了，共生成 \(result.createdTaskCount) 个任务和 \(result.createdHabitCount) 个习惯。点下面卡片可以直接进入目标详情开始推进。")
+        }
+
         _ = chatRepo?.addMessage(
             role: "assistant",
-            content: String(localized: "已创建目标「\(result.goal.title)」，并生成 \(result.createdTaskCount) 个任务、\(result.createdHabitCount) 个习惯。"),
+            content: closingMessage,
             extractedDataJSON: Self.encodeExtractedData(extractedData),
             messageType: .goalPlanning
         )

@@ -12,6 +12,7 @@ struct GoalSavedChatCardData: Equatable, Sendable {
     let title: String
     let taskCount: Int
     let habitCount: Int
+    let metricSummary: String?
 
     nonisolated init?(dictionary: [String: String]?) {
         guard let dictionary,
@@ -26,10 +27,15 @@ struct GoalSavedChatCardData: Equatable, Sendable {
         self.title = title
         self.taskCount = Int(dictionary["createdTaskCount"] ?? "") ?? 0
         self.habitCount = Int(dictionary["createdHabitCount"] ?? "") ?? 0
+        let rawMetric = dictionary["metricSummary"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.metricSummary = (rawMetric?.isEmpty == false) ? rawMetric : nil
     }
 
     var summary: String {
-        "\(taskCount) 个任务 · \(habitCount) 个习惯"
+        if let metricSummary {
+            return "\(metricSummary) · \(taskCount) 个任务 · \(habitCount) 个习惯"
+        }
+        return "\(taskCount) 个任务 · \(habitCount) 个习惯"
     }
 }
 
@@ -48,6 +54,22 @@ struct GoalSavedChatCard: View {
                     title: String(localized: "目标已创建"),
                     subtitle: data.title
                 )
+
+                if let metricSummary = data.metricSummary {
+                    HStack(spacing: 8) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                        Text(metricSummary)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoToolText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.holoPrimary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     HoloAIMetricTile(label: String(localized: "任务"), value: "\(data.taskCount)")

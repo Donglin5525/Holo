@@ -21,11 +21,49 @@ final class GoalPlanningCoordinator {
         return try await nextQuestionOrDraft(session: session, userContext: userContext, provider: provider)
     }
 
+    func startStreaming(
+        seedText: String?,
+        userContext: UserContext,
+        provider: AIProvider,
+        maxTurns: Int = GoalPlanningSession.defaultMaxTurns,
+        onQuestionText: @escaping @MainActor (String) -> Void,
+        onDraftGenerating: @escaping @MainActor () -> Void
+    ) async throws -> GoalPlanningTurnResult {
+        let session = GoalPlanningSession.fresh(seedText: seedText, maxTurns: maxTurns)
+        return try await nextQuestionOrDraftStreaming(
+            session: session,
+            userContext: userContext,
+            provider: provider,
+            onQuestionText: onQuestionText,
+            onDraftGenerating: onDraftGenerating
+        )
+    }
+
     func handleUserReply(_ reply: String, session: GoalPlanningSession, userContext: UserContext, provider: AIProvider) async throws -> GoalPlanningTurnResult {
         var updated = session
         updated.answers.append(reply)
         updated.turnCount += 1
         return try await nextQuestionOrDraft(session: updated, userContext: userContext, provider: provider)
+    }
+
+    func handleUserReplyStreaming(
+        _ reply: String,
+        session: GoalPlanningSession,
+        userContext: UserContext,
+        provider: AIProvider,
+        onQuestionText: @escaping @MainActor (String) -> Void,
+        onDraftGenerating: @escaping @MainActor () -> Void
+    ) async throws -> GoalPlanningTurnResult {
+        var updated = session
+        updated.answers.append(reply)
+        updated.turnCount += 1
+        return try await nextQuestionOrDraftStreaming(
+            session: updated,
+            userContext: userContext,
+            provider: provider,
+            onQuestionText: onQuestionText,
+            onDraftGenerating: onDraftGenerating
+        )
     }
 
     func regenerateDraft(session: GoalPlanningSession, mode: GoalPlanningMode, userContext: UserContext, provider: AIProvider) async throws -> GoalPlanningTurnResult {
@@ -61,6 +99,61 @@ final class GoalPlanningCoordinator {
         var collecting = session
         collecting.status = .collecting
         return GoalPlanningTurnResult(session: collecting, assistantText: response, draft: nil)
+    }
+
+    private func nextQuestionOrDraftStreaming(
+        session: GoalPlanningSession,
+        userContext: UserContext,
+        provider: AIProvider,
+        onQuestionText: @escaping @MainActor (String) -> Void,
+        onDraftGenerating: @escaping @MainActor () -> Void
+    ) async throws -> GoalPlanningTurnResult {
+        if session.turnCount >= session.maxTurns {
+            onDraftGenerating()
+            var ready = session
+            let draft = try await generateDraft(session: ready, userContext: userContext, provider: provider)
+            ready.draft = draft
+            ready.status = .draftReady
+            return GoalPlanningTurnResult(session: ready, assistantText: nil, draft: draft)
+        }
+
+        let prompt = GoalPlanningPromptBuilder.questionPrompt(session: session, userContext: userContext)
+        let messages = [ChatMessageDTO(role: "user", content: prompt)]
+        var fullText = ""
+        var isBufferingSentinelPrefix = true
+        let sentinel = "DRAFT_READY"
+
+        for try await chunk in provider.chatStreaming(messages: messages, userContext: userContext) {
+            try Task.checkCancellation()
+            fullText += chunk
+            if isBufferingSentinelPrefix {
+                let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty { continue }
+                if sentinel.hasPrefix(trimmed) && trimmed.count <= sentinel.count {
+                    continue
+                }
+                isBufferingSentinelPrefix = false
+            }
+            onQuestionText(fullText)
+        }
+
+        let finalTrimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if finalTrimmed == sentinel {
+            onDraftGenerating()
+            var ready = session
+            let draft = try await generateDraft(session: ready, userContext: userContext, provider: provider)
+            ready.draft = draft
+            ready.status = .draftReady
+            return GoalPlanningTurnResult(session: ready, assistantText: nil, draft: draft)
+        }
+
+        if isBufferingSentinelPrefix, !finalTrimmed.isEmpty {
+            onQuestionText(finalTrimmed)
+        }
+
+        var collecting = session
+        collecting.status = .collecting
+        return GoalPlanningTurnResult(session: collecting, assistantText: finalTrimmed, draft: nil)
     }
 
     private func generateDraft(session: GoalPlanningSession, userContext: UserContext, provider: AIProvider) async throws -> GoalDraft {

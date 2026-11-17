@@ -90,29 +90,60 @@ struct GoalAnalysisSection: View {
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
 
     @StateObject private var model = GoalAnalysisSectionModel()
+    @State private var isExpanded = false
     @State private var reportMessage: ChatMessageViewData?
     @State private var showHistory = false
     @State private var adjustmentContext: GoalAdjustmentReviewContext?
 
     var body: some View {
+        if goal.managedObjectContext == nil || goal.isDeleted || goal.deletedAt != nil {
+            EmptyView()
+        } else {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                Text("目标分析").holoText(.body).fontWeight(.semibold)
-                Spacer()
-                if let state = model.state, !state.history.isEmpty {
-                    Button("历史分析") { showHistory = true }
-                        .holoText(.supporting)
-                        .foregroundColor(.holoPrimary)
-                        .accessibilityIdentifier("goal.analysis.history")
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.holoAI)
+                    Text("目标分析")
+                        .holoText(.body)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.holoToolText)
+                    Spacer()
+                    if let badge = statusSummaryText {
+                        Text(badge)
+                            .goalJourneyText(.metadata)
+                            .foregroundStyle(Color.holoAI)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
             }
-            content
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                if let state = model.state, !state.history.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button("历史分析") { showHistory = true }
+                            .holoText(.supporting)
+                            .foregroundColor(.holoPrimary)
+                            .accessibilityIdentifier("goal.analysis.history")
+                    }
+                }
+                content
+            }
         }
-        .padding(HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
+        .background(Color.holoAI.opacity(0.06), in: RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .onAppear {
             model.observe(goalID: goal.id, goal: goal)
             model.load(goal: goal)
@@ -153,6 +184,15 @@ struct GoalAnalysisSection: View {
         } message: {
             Text(model.launchNotice ?? "")
         }
+        }
+    }
+
+    private var statusSummaryText: String? {
+        guard let state = model.state else { return nil }
+        if state.running != nil { return String(localized: "分析中") }
+        if state.isDue { return String(localized: "待复盘") }
+        if state.latestCompleted != nil { return String(localized: "查看复盘") }
+        return String(localized: "阶段复盘")
     }
 
     // MARK: - 内容

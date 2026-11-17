@@ -2230,9 +2230,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/test_mount_guard.py\"
-/usr/bin/python3 \"$SRCROOT/BuildScripts/banned_api_guard.py\"
-";
+			shellScript = "/usr/bin/python3 \"$SRCROOT/BuildScripts/test_mount_guard.py\"\n/usr/bin/python3 \"$SRCROOT/BuildScripts/banned_api_guard.py\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

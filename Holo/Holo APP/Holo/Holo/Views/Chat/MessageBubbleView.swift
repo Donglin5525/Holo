@@ -231,10 +231,16 @@ struct MessageBubbleView: View {
             } else if message.isQuotaExhausted {
                 QuotaExhaustedChatCard(message: message.content, onLearnPlus: onLearnPlus)
             } else if let savedGoalCard = message.savedGoalCard {
+                if !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    bubbleContent
+                }
                 GoalSavedChatCard(data: savedGoalCard) {
                     onSavedGoalCardTap?(savedGoalCard.goalId)
                 }
             } else if isGoalDraftReady {
+                if !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    bubbleContent
+                }
                 if let draft = goalDraftForReview {
                     GoalDraftReadyChatCard(draft: draft) {
                         onGoalDraftCardTap?()

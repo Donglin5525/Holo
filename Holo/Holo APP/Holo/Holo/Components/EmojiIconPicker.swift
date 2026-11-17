@@ -136,9 +136,11 @@ struct EmojiCatalogGrid: View {
             onSelect(emoji)
         } label: {
             Text(emoji)
-                .font(.system(size: 26))
+                .font(.system(size: 24))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
+                .frame(height: 44)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .fill(isCurrent ? Color.holoPrimary.opacity(0.14) : Color.holoCardBackground)

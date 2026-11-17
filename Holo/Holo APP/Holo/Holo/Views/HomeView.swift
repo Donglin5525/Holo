@@ -112,6 +112,8 @@ struct HomeView: View {
 
     /// 从 AI 对话卡片跳转到个人目标详情
     @State private var pendingGoalDetailId: UUID?
+    /// 深链直达目标详情页（不借道 PersonalView → GoalListView 三层迷宫）
+    @State private var directGoalDetailTarget: DirectGoalDetailRoute?
 
     /// 从小组件跳转到想法详情
     @State private var pendingThoughtDetailId: UUID?
@@ -526,9 +528,27 @@ struct HomeView: View {
                     DispatchQueue.main.async {
                         DeepLinkState.shared.navigate(to: target)
                     }
-                }, pendingGoalDetailId: $pendingGoalDetailId, pushWeeklyReviewOpen: $pushWeeklyReviewOpen)
+                }, pendingGoalDetailId: $pendingGoalDetailId, pushWeeklyReviewOpen: $pushWeeklyReviewOpen, onClose: {
+                    showPersonalView = false
+                })
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
+        }
+        // 深链直达目标详情（从对话卡片 / 通知直接打开，关闭即原位返回）
+        .sheet(item: $directGoalDetailTarget) { route in
+            DirectGoalDetailSheet(
+                goalId: route.id,
+                onOpenLinkedEntity: { target in
+                    directGoalDetailTarget = nil
+                    DispatchQueue.main.async {
+                        DeepLinkState.shared.navigate(to: target)
+                    }
+                },
+                onClose: {
+                    directGoalDetailTarget = nil
+                }
+            )
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // Deep Link / 小组件 - 快速记账
         .sheet(isPresented: $showAddTransactionSheet) {
@@ -1459,8 +1479,7 @@ struct HomeView: View {
                 navigateToScreen(.tasks)
             }
         case .goalDetail(let goalId):
-            pendingGoalDetailId = goalId
-            showPersonalView = true
+            directGoalDetailTarget = DirectGoalDetailRoute(id: goalId)
             deepLinkState.pendingTarget = nil
         case .habitDetail:
             if activeScreen != .habits {
@@ -1640,6 +1659,62 @@ struct HomeView: View {
     private func handleScheduleTap(_ state: ScheduleReminderState) {
         guard let target = state.deepLinkTarget else { return }
         deepLinkState.pendingTarget = target
+    }
+}
+
+struct DirectGoalDetailRoute: Identifiable, Equatable {
+    let id: UUID
+}
+
+struct DirectGoalDetailSheet: View {
+    let goalId: UUID
+    let onOpenLinkedEntity: (DeepLinkTarget) -> Void
+    let onClose: () -> Void
+
+    @ObservedObject private var repository = GoalRepository.shared
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let goal = repository.findGoal(by: goalId) {
+                    GoalDetailView(
+                        goal: goal,
+                        onOpenLinkedEntity: onOpenLinkedEntity,
+                        onDeleteRequested: { deletedId, cascading in
+                            try? repository.deleteGoal(id: deletedId, deletingOwnedEntities: cascading)
+                            GoalNotificationService.broadcastGoalDataChange()
+                            onClose()
+                        }
+                    )
+                } else {
+                    VStack(spacing: HoloSpacing.md) {
+                        Text("未找到该目标")
+                            .font(.holoBody)
+                            .foregroundColor(.holoToolTextSecondary)
+                        Button("返回") { onClose() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.holoToolBackground)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("关闭目标详情")
+                }
+            }
+        }
+        .swipeBackToDismiss {
+            onClose()
+        }
     }
 }
 

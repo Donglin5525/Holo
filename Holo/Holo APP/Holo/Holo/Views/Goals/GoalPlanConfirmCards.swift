@@ -22,16 +22,20 @@ struct GoalResultSourceConfirmCard: View {
         goalConfirmCard(icon: "scope", title: String(localized: "结果来源")) {
             if confirmation.resultSource != nil {
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text("选择用哪种方式记录目标进度")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+
                     Picker("", selection: sourceTypeBinding) {
                         Text("手动记录").tag(GoalResultSourceKind.manual)
-                        Text("习惯").tag(GoalResultSourceKind.habit)
+                        Text("已有习惯").tag(GoalResultSourceKind.habit)
                         Text("账本").tag(GoalResultSourceKind.ledger)
                     }
                     .pickerStyle(.segmented)
 
                     switch source.sourceType {
                     case .manual:
-                        goalConfirmHint(String(localized: "进度由你在目标里手动记录"))
+                        goalConfirmHint(String(localized: "创建后在目标详情里手动更新数值即可"))
                     case .habit:
                         habitPicker
                         aggregationPicker
@@ -40,14 +44,16 @@ struct GoalResultSourceConfirmCard: View {
                         if source.resolvedLedgerScope == .accountBalance || source.resolvedLedgerScope == .accountDelta {
                             accountPicker
                         } else {
-                            goalConfirmHint(String(localized: "按全账本收入减支出的净增加衡量，不是专项资金"))
+                            goalConfirmHint(String(localized: "按所有账本的总收入减去总支出计算，不是单独攒的钱"))
                         }
                     }
 
-                    targetRow
+                    CardDivider()
+
+                    targetSection
 
                     if source.isPending {
-                        goalConfirmHint(pendingText, isWarning: true)
+                        goalConfirmHint(pendingText, isWarning: false)
                     }
                 }
             } else {
@@ -107,8 +113,8 @@ struct GoalResultSourceConfirmCard: View {
 
     private var pendingText: String {
         switch source.sourceType {
-        case .habit: return String(localized: "待补齐：计划照常建立，报告里结果按未知处理；之后到习惯里选定来源")
-        case .ledger: return String(localized: "待补齐：计划照常建立，报告里结果按未知处理；之后到财务完善账户再选定")
+        case .habit: return String(localized: "暂未选定具体习惯，创建后仍可随时在目标详情里绑定")
+        case .ledger: return String(localized: "暂未选定具体账户，创建后仍可随时在目标详情里绑定")
         case .manual: return String(localized: "待补齐")
         }
     }
@@ -168,34 +174,36 @@ struct GoalResultSourceConfirmCard: View {
     }
 
     private var habitPicker: some View {
-        goalConfirmLabeled(String(localized: "读哪个习惯")) {
+        goalConfirmLabeled(String(localized: "选择习惯")) {
             Picker("", selection: habitSelectionBinding) {
-                Text("稍后补齐").tag(Self.pendingTag)
+                Text("请选择习惯").tag(Self.pendingTag)
                 ForEach(draftNumericHabits) { habitDraft in
                     Text("新建 · \(habitDraft.name)").tag("draft:\(habitDraft.id)")
                 }
                 ForEach(candidateNumericHabits) { candidate in
-                    Text("既有 · \(candidate.name)").tag("habit:\(candidate.id.uuidString)")
+                    let unitText = candidate.unit.map { $0.isEmpty ? "" : " (\($0))" } ?? ""
+                    Text("已有 · \(candidate.name)\(unitText)").tag("habit:\(candidate.id.uuidString)")
                 }
                 // 旧草案指向的既有习惯不在授权候选里：仍给出当前选项，避免选择器空白
                 if let id = source.sourceID, !candidateNumericHabits.contains(where: { $0.id == id }) {
-                    Text("既有 · \(GoalConfirmObjectResolver.habitName(id: id, candidates: candidates))")
+                    Text("已有 · \(GoalConfirmObjectResolver.habitName(id: id, candidates: candidates))")
                         .tag("habit:\(id.uuidString)")
                 }
             }
             .pickerStyle(.menu)
+            .lineLimit(1)
             .accessibilityIdentifier("goal.confirm.resultSource.habit")
         }
     }
 
     private var aggregationPicker: some View {
-        goalConfirmLabeled(String(localized: "怎么读")) {
+        goalConfirmLabeled(String(localized: "计算方式")) {
             Picker("", selection: Binding(
                 get: { source.aggregation ?? .latest },
                 set: { value in updateSource { $0.aggregation = value } }
             )) {
-                Text("取最新一次（体重类）").tag(GoalHabitAggregationKind.latest)
-                Text("累计相加（练习量类）").tag(GoalHabitAggregationKind.sum)
+                Text("取最新记录").tag(GoalHabitAggregationKind.latest)
+                Text("累计相加").tag(GoalHabitAggregationKind.sum)
                 if source.aggregation == .windowTrend {
                     Text("窗口趋势").tag(GoalHabitAggregationKind.windowTrend)
                 }
@@ -207,31 +215,33 @@ struct GoalResultSourceConfirmCard: View {
     // MARK: 账本来源（全账本净增 / 该账本净增 / 单账户余额）
 
     private var ledgerScopePicker: some View {
-        Picker("", selection: Binding(
-            get: { source.resolvedLedgerScope },
-            set: { kind in
-                updateSource { current in
-                    switch kind {
-                    case .wholeLedgerDelta:
-                        current.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-                        current.sourceID = nil
-                        current.isPending = false
-                    case .accountBalance, .accountDelta:
-                        // 账户口径（余额 reach / 净结余增加）同构：保留已选账户，无账户则待补齐
-                        let accountID = current.ledgerScope?.accountID
-                        current.ledgerScope = GoalLedgerScopePayload(kind: kind, accountID: accountID)
-                        current.sourceID = accountID
-                        current.isPending = accountID == nil
+        goalConfirmLabeled(String(localized: "统计口径")) {
+            Picker("", selection: Binding(
+                get: { source.resolvedLedgerScope },
+                set: { kind in
+                    updateSource { current in
+                        switch kind {
+                        case .wholeLedgerDelta:
+                            current.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
+                            current.sourceID = nil
+                            current.isPending = false
+                        case .accountBalance, .accountDelta:
+                            // 账户口径（余额 reach / 净结余增加）同构：保留已选账户，无账户则待补齐
+                            let accountID = current.ledgerScope?.accountID
+                            current.ledgerScope = GoalLedgerScopePayload(kind: kind, accountID: accountID)
+                            current.sourceID = accountID
+                            current.isPending = accountID == nil
+                        }
                     }
                 }
+            )) {
+                Text(String(localized: "全账本净增")).tag(GoalLedgerScopeKind.wholeLedgerDelta)
+                Text(String(localized: "该账本净增")).tag(GoalLedgerScopeKind.accountDelta)
+                Text(String(localized: "账户余额")).tag(GoalLedgerScopeKind.accountBalance)
             }
-        )) {
-            // segmented 三档放不下完整 displayName，短文案与口径一一对应
-            Text(String(localized: "全账本净增")).tag(GoalLedgerScopeKind.wholeLedgerDelta)
-            Text(String(localized: "该账本净增")).tag(GoalLedgerScopeKind.accountDelta)
-            Text(String(localized: "账户余额")).tag(GoalLedgerScopeKind.accountBalance)
+            .pickerStyle(.menu)
+            .lineLimit(1)
         }
-        .pickerStyle(.segmented)
     }
 
     /// 单账户余额只认真实资产账户；信用负债账户不能当专款来源（§4.1）
@@ -268,7 +278,7 @@ struct GoalResultSourceConfirmCard: View {
                            ? String(localized: "哪个账户代表这笔资金")
                            : String(localized: "在哪个账户里净增加")) {
             Picker("", selection: accountSelectionBinding) {
-                Text("稍后补齐").tag(Self.pendingTag)
+                Text("请选择账户").tag(Self.pendingTag)
                 ForEach(selectableAccounts) { account in
                     Text(account.name).tag("account:\(account.id.uuidString)")
                 }
@@ -285,39 +295,67 @@ struct GoalResultSourceConfirmCard: View {
     // MARK: 目标值 / 单位 / 比较方式
 
     private static let comparisons: [(GoalResultComparison, String)] = [
-        (.reach, String(localized: "达到")),
-        (.stayBelow, String(localized: "不超过")),
+        (.reach, String(localized: "达到目标值")),
+        (.stayBelow, String(localized: "保持低于")),
         (.trendDown, String(localized: "持续下降")),
         (.trendUp, String(localized: "持续上升")),
     ]
 
-    private var targetRow: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            Picker("", selection: Binding(
-                get: { source.comparison ?? .reach },
-                set: { value in updateSource { $0.comparison = value } }
-            )) {
-                ForEach(Self.comparisons, id: \.0) { comparison, name in
-                    Text(name).tag(comparison)
+    private var targetSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            goalConfirmLabeled(String(localized: "达标方式")) {
+                Picker("", selection: Binding(
+                    get: { source.comparison ?? .reach },
+                    set: { value in updateSource { $0.comparison = value } }
+                )) {
+                    ForEach(Self.comparisons, id: \.0) { comparison, name in
+                        Text(name).tag(comparison)
+                    }
                 }
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.menu)
 
-            TextField(String(localized: "目标值"), value: Binding(
-                get: { source.targetValue },
-                set: { value in updateSource { $0.targetValue = value } }
-            ), format: .number)
-            #if canImport(UIKit)
-            .keyboardType(.decimalPad)
-            #endif
-            .goalConfirmField()
+            HStack(spacing: HoloSpacing.sm) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("当前值")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+                    TextField("可选", value: Binding(
+                        get: { source.baselineValue },
+                        set: { value in updateSource { $0.baselineValue = value } }
+                    ), format: .number)
+                    #if canImport(UIKit)
+                    .keyboardType(.decimalPad)
+                    #endif
+                    .goalConfirmField()
+                }
 
-            TextField(String(localized: "单位"), text: Binding(
-                get: { source.unit ?? "" },
-                set: { text in updateSource { $0.unit = text.isEmpty ? nil : text } }
-            ))
-            .goalConfirmField()
-            .frame(maxWidth: 88)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("目标值")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+                    TextField("70", value: Binding(
+                        get: { source.targetValue },
+                        set: { value in updateSource { $0.targetValue = value } }
+                    ), format: .number)
+                    #if canImport(UIKit)
+                    .keyboardType(.decimalPad)
+                    #endif
+                    .goalConfirmField()
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("单位")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+                    TextField("kg", text: Binding(
+                        get: { source.unit ?? "" },
+                        set: { text in updateSource { $0.unit = text.isEmpty ? nil : text } }
+                    ))
+                    .goalConfirmField()
+                }
+                .frame(width: 64)
+            }
         }
     }
 }

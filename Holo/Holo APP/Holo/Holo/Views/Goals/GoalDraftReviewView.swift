@@ -27,6 +27,7 @@ struct GoalDraftReviewView: View {
     @State private var deadlineDate: Date?
     /// 目标闭环 v2：结果来源 / 回顾 / 预算 / 期次 / 限制 的用户最终确认状态
     @State private var confirmation: GoalPlanConfirmation
+    @State private var localCandidates: GoalWorkshopAuthorizedCandidates = .empty
 
     let workshopSession: GoalWorkshopSessionV1?
     let onCancel: () -> Void
@@ -53,13 +54,18 @@ struct GoalDraftReviewView: View {
         self.onSaved = onSaved
     }
 
-    private var candidates: GoalWorkshopAuthorizedCandidates { workshopSession?.candidates ?? .empty }
+    private var candidates: GoalWorkshopAuthorizedCandidates {
+        workshopSession?.candidates ?? localCandidates
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
                     goalInfoCard
+                    if workshopSession == nil && confirmation.resultSource == nil {
+                        quantitativeMetricCard
+                    }
                     outcomeCard
                     if let workshopSession {
                         workshopCard(for: workshopSession)
@@ -124,6 +130,11 @@ struct GoalDraftReviewView: View {
         .interactiveDismissDisabled(true)
         .sheetDismissGuard(onAttempt: requestCancel)
         .swipeBackToDismiss(isEnabled: !isSaving, onDismiss: requestCancel)
+        .onAppear {
+            if workshopSession == nil {
+                localCandidates = GoalWorkshopCandidateBuilder.build()
+            }
+        }
     }
 
     /// 取消、下拉和边缘返回都经过同一确认，保存期间不退出。
@@ -196,6 +207,93 @@ struct GoalDraftReviewView: View {
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Quantitative Metric Card（量化目标衡量指标确认与微调）
+
+    private var quantitativeMetricCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            sectionHeader(icon: "chart.line.uptrend.xyaxis", title: String(localized: "衡量指标"))
+
+            CardDivider()
+
+            Picker("目标类型", selection: $draft.goalKind) {
+                ForEach(GoalKind.allCases) { kind in
+                    Text(kind.displayName).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(draft.goalKind.descriptor)
+                .font(.holoCaption)
+                .foregroundColor(.holoToolTextSecondary)
+
+            if draft.isQuantitative {
+                HStack(spacing: HoloSpacing.sm) {
+                    if draft.goalKind == .target {
+                        metricNumberField(
+                            label: String(localized: "当前值"),
+                            placeholder: "82",
+                            value: $draft.metricBaselineValue
+                        )
+                    }
+                    metricNumberField(
+                        label: String(localized: "目标值"),
+                        placeholder: "70",
+                        value: $draft.metricTargetValue
+                    )
+                    VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                        Text("单位")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoToolTextSecondary)
+                        TextField("kg", text: Binding(
+                            get: { draft.metricUnit ?? "" },
+                            set: { draft.metricUnit = $0.isEmpty ? nil : $0 }
+                        ))
+                        .font(.holoCaption)
+                        .foregroundColor(.holoToolText)
+                        .padding(HoloSpacing.sm)
+                        .background(Color.holoToolBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                    }
+                    .frame(width: 72)
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolSurface)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
+    }
+
+    private func metricNumberField(
+        label: String,
+        placeholder: String,
+        value: Binding<Double?>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            Text(label)
+                .font(.holoLabel)
+                .foregroundColor(.holoToolTextSecondary)
+            TextField(placeholder, text: Binding(
+                get: {
+                    guard let v = value.wrappedValue else { return "" }
+                    return v.rounded() == v ? String(Int(v)) : String(v)
+                },
+                set: { text in
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    value.wrappedValue = trimmed.isEmpty ? nil : Double(trimmed)
+                }
+            ))
+            #if canImport(UIKit)
+            .keyboardType(.decimalPad)
+            #endif
+            .font(.holoCaption)
+            .foregroundColor(.holoToolText)
+            .padding(HoloSpacing.sm)
+            .background(Color.holoToolBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        }
     }
 
     // MARK: - Outcome Card（期望结果/动机/期限——§1.2 缺口补齐）
@@ -630,6 +728,32 @@ struct GoalDraftReviewView: View {
                         createdHabitCount: receipt.createdHabitCount
                     )
                 } else {
+                    if let source = finalConfirmation.resultSource {
+                        draft.metricTargetValue = source.targetValue
+                        draft.metricBaselineValue = source.baselineValue
+                        draft.metricUnit = source.unit
+                        if source.targetValue != nil {
+                            if source.baselineValue != nil || source.comparison == .trendDown || source.comparison == .stayBelow {
+                                draft.goalKind = .target
+                            } else if draft.goalKind == .process {
+                                draft.goalKind = .cumulative
+                            }
+                        }
+                        switch source.sourceType {
+                        case .manual:
+                            draft.metricSource = .manual
+                            draft.sourceHabitId = nil
+                            draft.ledgerScope = nil
+                        case .habit:
+                            draft.metricSource = .habit
+                            draft.sourceHabitId = source.sourceID
+                            draft.ledgerScope = nil
+                        case .ledger:
+                            draft.metricSource = .ledger
+                            draft.sourceHabitId = nil
+                            draft.ledgerScope = source.ledgerScope
+                        }
+                    }
                     result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
                 }
                 GoalNotificationService.broadcastGoalDataChange()

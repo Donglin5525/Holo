@@ -10,6 +10,37 @@
 
 import Foundation
 import CoreData
+import Combine
+
+@MainActor
+final class GoalHealthKitCache: ObservableObject {
+    static let shared = GoalHealthKitCache()
+
+    @Published private(set) var values: [UUID: Double] = [:]
+
+    func value(for goalID: UUID) -> Double? {
+        values[goalID]
+    }
+
+    func setValue(_ value: Double?, for goalID: UUID) {
+        if let value {
+            values[goalID] = value
+        } else {
+            values.removeValue(forKey: goalID)
+        }
+    }
+
+    func refreshIfNeeded(for goal: Goal) async {
+        guard goal.metricSourceEnum == .healthKit,
+              let kind = goal.healthMetricKindEnum else { return }
+        let start = goal.baselineDate ?? goal.createdAt
+        let fetched = await HealthRepository.shared.fetchGoalMetricValue(kind: kind, since: start)
+        if values[goal.id] != fetched {
+            setValue(fetched, for: goal.id)
+            GoalNotificationService.broadcastGoalDataChange()
+        }
+    }
+}
 
 /// 量化目标进度快照
 struct GoalMetricProgress: Equatable {
@@ -50,6 +81,24 @@ enum GoalMetricEvaluator {
             return evaluateHabit(goal: goal, target: target)
         case .ledger:
             return evaluateLedger(goal: goal, target: target, finance: finance)
+        case .healthKit:
+            return evaluateHealthKit(goal: goal, target: target)
+        }
+    }
+
+    // MARK: - healthKit 源
+
+    private static func evaluateHealthKit(goal: Goal, target: Double) -> GoalMetricProgress? {
+        guard let current = GoalHealthKitCache.shared.value(for: goal.id) else { return nil }
+        let start = goal.baselineDate ?? goal.createdAt
+        switch goal.goalKindEnum {
+        case .process:
+            return nil
+        case .cumulative:
+            return makeProgress(goal: goal, current: current, target: target, baseline: nil, elapsedAnchor: start)
+        case .target:
+            guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
+            return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: start)
         }
     }
 

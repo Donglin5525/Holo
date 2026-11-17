@@ -89,8 +89,8 @@ struct HabitSourceDetailView: View {
                         Text("被这些目标使用").goalJourneyText(.body).foregroundStyle(Color.holoToolTextSecondary).padding(.top, 20).padding(.bottom, 6)
                         ForEach(usages) { usage in
                             NavigationLink {
-                                GoalDetailView(goal: usage.goal, onOpenLinkedEntity: { DeepLinkState.shared.navigate(to: $0) }, onDeleteRequested: { id in
-                                    do { try goals.deleteGoal(id: id) } catch { self.error = error.localizedDescription }
+                                GoalDetailView(goal: usage.goal, onOpenLinkedEntity: { DeepLinkState.shared.navigate(to: $0) }, onDeleteRequested: { id, cascading in
+                                    do { try goals.deleteGoal(id: id, deletingOwnedEntities: cascading) } catch { self.error = error.localizedDescription }
                                 })
                             } label: {
                                 VStack(alignment: .leading, spacing: 3) {

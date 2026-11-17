@@ -27,18 +27,26 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
 
     /// 从个人页「目标管理」进入目标列表（G1 旅程同款路径）
     private func openGoalList(_ app: XCUIApplication) {
+        let skip = app.buttons["跳过引导"].firstMatch
+        if skip.waitForExistence(timeout: 4) {
+            skip.tap()
+        }
         let personal = app.buttons["个人"].firstMatch
         if personal.waitForExistence(timeout: 8) {
             personal.tap()
         }
+        let byId = app.buttons["personal.goals"].firstMatch
+        if byId.waitForExistence(timeout: 8) {
+            byId.tap()
+            return
+        }
         let goalEntry = app.buttons["目标管理"].firstMatch
-        if goalEntry.waitForExistence(timeout: 8) {
+        if goalEntry.waitForExistence(timeout: 4) {
             goalEntry.tap()
         } else {
-            // iPad/宽屏侧栏形态
-            let sidebarEntry = app.staticTexts["目标管理"].firstMatch
-            XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 6), "找不到目标管理入口")
-            sidebarEntry.tap()
+            let byLabel = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "我的目标")).firstMatch
+            XCTAssertTrue(byLabel.waitForExistence(timeout: 6), "找不到目标管理入口")
+            byLabel.tap()
         }
     }
 
@@ -142,5 +150,56 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["一起想清楚"].waitForExistence(timeout: 3), "关闸时不应显示新入口")
         XCTAssertTrue(app.buttons["让 HoloAI 规划"].firstMatch.waitForExistence(timeout: 6), "旧规划入口应保留")
         XCTAssertTrue(app.buttons["手动创建"].firstMatch.waitForExistence(timeout: 4), "手动创建应保留")
+    }
+
+    func testVisualAuditConfirmPageAllResultSources() throws {
+        let app = launchApp(extraArguments: ["GOAL_WORKSHOP_UI_MOCK_WEIGHT"])
+        openGoalList(app)
+        enterWorkshopFresh(app)
+
+        XCTAssertTrue(app.buttons["先跳过这个问题"].waitForExistence(timeout: 10))
+        app.buttons["先跳过这个问题"].tap()
+        XCTAssertTrue(app.buttons["选这条"].waitForExistence(timeout: 10))
+        app.buttons.matching(identifier: "选这条").element(boundBy: 1).tap()
+        let generate = app.buttons["按这条路径出草案"].firstMatch
+        XCTAssertTrue(generate.waitForExistence(timeout: 8))
+        generate.tap()
+
+        XCTAssertTrue(app.staticTexts["成功标准"].waitForExistence(timeout: 10))
+        let confirm = app.buttons["去确认这份草案"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 6))
+        confirm.tap()
+
+        XCTAssertTrue(app.navigationBars["确认目标计划"].waitForExistence(timeout: 8))
+        snap(app, "01-confirm-top")
+
+        let scrollView = app.scrollViews.firstMatch
+        let habitSeg = app.segmentedControls.buttons["已有习惯"].firstMatch
+        for _ in 0..<5 {
+            if habitSeg.exists && habitSeg.isHittable { break }
+            scrollView.swipeUp()
+        }
+        snap(app, "02-confirm-result-source-manual")
+
+        XCTAssertTrue(habitSeg.waitForExistence(timeout: 4), "应显示「已有习惯」分段按钮")
+        habitSeg.tap()
+        snap(app, "03-confirm-result-source-habit")
+
+        let ledgerSeg = app.segmentedControls.buttons["账本"].firstMatch
+        XCTAssertTrue(ledgerSeg.waitForExistence(timeout: 4), "应显示「账本」分段按钮")
+        ledgerSeg.tap()
+        snap(app, "04-confirm-result-source-ledger")
+
+        let manualSeg = app.segmentedControls.buttons["手动记录"].firstMatch
+        XCTAssertTrue(manualSeg.waitForExistence(timeout: 4), "应显示「手动记录」分段按钮")
+        manualSeg.tap()
+        snap(app, "05-confirm-result-source-manual-back")
+    }
+
+    private func snap(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

@@ -60,13 +60,15 @@ struct GoalPlanConfirmation: Equatable {
             let aggregation: GoalHabitAggregationKind = draft.goalKind == .cumulative ? .sum : .latest
             let kind: GoalResultSourceKind
             switch draft.metricSource {
-            case .manual: kind = .manual
+            case .manual, .healthKit: kind = .manual
             case .habit: kind = .habit
             case .ledger: kind = .ledger
             }
             let comparison: GoalResultComparison
             if draft.goalKind == .target, let target = draft.metricTargetValue, let baseline = draft.metricBaselineValue, target < baseline {
                 comparison = .trendDown
+            } else if draft.habits.contains(where: { $0.isBadHabit == true && $0.successRule == "stayBelowTarget" }) {
+                comparison = .stayBelow
             } else {
                 comparison = .reach
             }

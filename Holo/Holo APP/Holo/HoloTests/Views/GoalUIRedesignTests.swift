@@ -22,7 +22,7 @@ final class GoalUIRedesignTests: XCTestCase {
         context = CoreDataTestSupport.sharedTestContainer.viewContext
         try CoreDataTestSupport.clearEntities(context, [
             "Goal", "GoalPlanRevisionMO", "Account", "Transaction",
-            "Habit", "HabitRecord", "TodoTask",
+            "Habit", "HabitRecord", "TodoTask", "RecycleBinBatch",
         ])
         repository = GoalRepository(context: context)
         CoreDataTestSupport.retain(repository)
@@ -330,7 +330,8 @@ final class GoalUIRedesignTests: XCTestCase {
     func testTargetKindNowOffersLedgerSource() {
         XCTAssertTrue(GoalMetricSource.selectable(for: .target).contains(.ledger),
                       "达标型开放账本（账户余额 reach，七条 §5）")
-        XCTAssertEqual(GoalMetricSource.selectable(for: .cumulative), [.manual, .habit, .ledger])
+        XCTAssertTrue(GoalMetricSource.selectable(for: .target).contains(.healthKit))
+        XCTAssertEqual(GoalMetricSource.selectable(for: .cumulative), [.manual, .habit, .ledger, .healthKit])
         XCTAssertEqual(GoalMetricSource.selectable(for: .process), [.manual])
     }
 
@@ -815,5 +816,663 @@ final class GoalUIRedesignTests: XCTestCase {
     func testLedgerMenuTitleCarriesScopeQualifier() {
         XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .cumulative), "旅行·净增加")
         XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .target), "旅行·余额达到")
+    }
+
+    /// 期限清除：传 .some(nil) 后 deadline 彻底清空，不留旧值
+    func testClearGoalDeadlineViaUpdateFields() throws {
+        let deadline = Date().addingTimeInterval(86400 * 30)
+        let goal = try makeGoal(title: "今年攒钱", domain: .finance, deadline: deadline)
+        XCTAssertNotNil(goal.deadline)
+
+        try repository.updateFields(goal, deadline: .some(nil))
+        XCTAssertNil(goal.deadline, "清除期限后应为 nil")
+
+        let roundTrip = GoalEditForm.draft(from: goal)
+        XCTAssertNil(roundTrip.deadlineText, "回读 draft 的 deadlineText 应为 nil")
+    }
+
+    /// 「今年底」预设应落到当年 12 月 31 日
+    func testEndOfCurrentYearPreset() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        let now = cal.date(from: DateComponents(year: 2026, month: 11, day: 16))!
+        let end = GoalEditForm.endOfCurrentYear(from: now, calendar: cal)
+        let comps = cal.dateComponents([.year, .month, .day], from: end)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 12)
+        XCTAssertEqual(comps.day, 31)
+    }
+
+    /// 删除目标使用单条软删（deletedAt != nil, deletedBatchId == nil），解除任务与习惯关联且不销毁内存对象
+    func testDeleteGoalSoftDeletesAndUnlinksEntitiesWithoutInvalidation() throws {
+        let goal = try makeGoal(title: "待删除目标", domain: .health)
+        let task = TodoTask.create(in: context, title: "子任务")
+        task.goal = goal
+        let habit = Habit.create(in: context, name: "每日称重", icon: "⚖️", color: "#EA580C", type: .numeric, frequency: .daily)
+        habit.goal = goal
+        try context.save()
+
+        let previousFocusID = UserDefaults.standard.string(forKey: "holo.today.focusGoalID")
+        UserDefaults.standard.set(goal.id.uuidString, forKey: "holo.today.focusGoalID")
+        defer {
+            if let previousFocusID {
+                UserDefaults.standard.set(previousFocusID, forKey: "holo.today.focusGoalID")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "holo.today.focusGoalID")
+            }
+        }
+
+        repository.loadGoals()
+        XCTAssertTrue(repository.goals.contains(where: { $0.id == goal.id }))
+
+        try repository.deleteGoal(goal)
+
+        XCTAssertNotNil(goal.deletedAt, "软删除应写入 deletedAt")
+        XCTAssertNil(goal.deletedBatchId, "单条删除 deletedBatchId 应保持为 nil")
+        XCTAssertFalse(goal.isDeleted, "软删不应立即销毁 NSManagedObject（防止退栈动画悬空崩溃）")
+        XCTAssertNil(task.goal, "删除目标后关联任务应保留且解除归属")
+        XCTAssertNil(habit.goal, "删除目标后关联习惯应保留且解除归属")
+        XCTAssertFalse(repository.goals.contains(where: { $0.id == goal.id }), "软删后应从活跃目标列表隐藏")
+        XCTAssertNil(UserDefaults.standard.string(forKey: "holo.today.focusGoalID"), "置顶关注该目标时应同步清除")
+    }
+
+    // MARK: - 删除目标连带清理（2026-11-17 东林两 BUG 之二）
+
+    /// 通过共创提交建一个带专属习惯/任务的真目标（绑定 isGoalOwned = true）
+    private func commitGoalWithOwnedEntities() throws -> Goal {
+        let draft = GoalDraft(
+            id: "cascade-draft",
+            title: "级联删除验收",
+            summary: nil,
+            domain: .health,
+            iconEmoji: nil,
+            desiredOutcome: "体重降到 70 公斤",
+            motivation: nil,
+            deadlineText: nil,
+            tasks: [GoalTaskDraft(id: "cascade-task", isSelected: true, title: "买体脂秤",
+                                  dueDateText: nil, priority: 1, note: nil)],
+            habits: [GoalHabitDraft(id: "cascade-habit", isSelected: true, name: "每日称重",
+                                    frequency: "daily", targetCount: 1, type: "numeric", unit: "公斤",
+                                    targetValue: nil, isBadHabit: false, successRule: "completeWhenDone")],
+            missingInfoWarnings: []
+        )
+        let receipt = try GoalWorkshopCommitService.performCommit(
+            draft: draft,
+            allowAIContext: false,
+            source: "goalWorkshop",
+            sourceSessionID: UUID(),
+            successEvidence: "体重达标",
+            assumptions: [],
+            selectedRouteTitle: nil,
+            in: context
+        )
+        guard let goal = repository.findGoal(by: receipt.goalID) else {
+            throw XCTSkip("提交后目标应可读取")
+        }
+        return goal
+    }
+
+    /// 影响清单只统计「目标创建」的实体：专属习惯/任务计入，复用挂进来的旧习惯不计
+    func testOwnedEntityImpactCountsOnlyGoalOwnedEntities() throws {
+        let goal = try commitGoalWithOwnedEntities()
+        let reused = Habit.create(in: context, name: "旧习惯", icon: "leaf", color: "#987444",
+                                  type: .checkIn, frequency: .daily)
+        try repository.linkHabit(reused, to: goal)
+
+        let impact = repository.ownedEntityImpact(of: goal)
+
+        XCTAssertEqual(impact.ownedHabits.map(\.name), ["每日称重"], "只计目标创建的习惯")
+        XCTAssertEqual(impact.ownedTasks.map(\.title), ["买体脂秤"], "只计目标创建的任务")
+        XCTAssertFalse(impact.isEmpty)
+        XCTAssertEqual(impact.summaryText, "1 个习惯、1 个任务")
+    }
+
+    /// 连带删除：专属习惯硬删（记录级联）、专属任务软删进回收站、复用习惯仅解除关联
+    func testDeleteGoalCascadingOwnedEntities() throws {
+        let goal = try commitGoalWithOwnedEntities()
+        let reused = Habit.create(in: context, name: "旧习惯", icon: "leaf", color: "#987444",
+                                  type: .checkIn, frequency: .daily)
+        try repository.linkHabit(reused, to: goal)
+
+        let ownedHabit = repository.ownedEntityImpact(of: goal).ownedHabits[0]
+        let ownedTask = repository.ownedEntityImpact(of: goal).ownedTasks[0]
+        let record = HabitRecord.createNumeric(in: context, habit: ownedHabit, value: 72.5)
+        try context.save()
+        let ownedHabitID = ownedHabit.id
+        let recordID = record.id
+
+        try repository.deleteGoal(goal, deletingOwnedEntities: true)
+        try context.save()
+
+        XCTAssertNotNil(goal.deletedAt, "目标本体软删")
+        // save 后 isDeleted 对已持久化删除不可靠，统一以重查计数断言硬删
+        let habitRequest = Habit.fetchRequest()
+        habitRequest.predicate = NSPredicate(format: "id == %@", ownedHabitID as CVarArg)
+        XCTAssertEqual(try context.fetch(habitRequest).count, 0, "目标创建的习惯应被硬删")
+        let recordRequest = HabitRecord.fetchRequest()
+        recordRequest.predicate = NSPredicate(format: "id == %@", recordID as CVarArg)
+        XCTAssertEqual(try context.fetch(recordRequest).count, 0, "习惯的记录应随级联规则删除")
+        XCTAssertFalse(reused.isDeleted, "复用挂进来的旧习惯必须存活")
+        XCTAssertNil(reused.goal, "旧习惯仅解除关联")
+        XCTAssertTrue(ownedTask.deletedFlag, "目标创建的任务应软删进回收站")
+        XCTAssertNotNil(ownedTask.deletedBatchId, "任务应挂在回收站批次上（可恢复）")
+        XCTAssertNil(ownedTask.goal, "任务归属解除")
+
+        let batchRequest = NSFetchRequest<RecycleBinBatch>(entityName: "RecycleBinBatch")
+        let batches = try context.fetch(batchRequest)
+        XCTAssertEqual(batches.count, 1, "整批任务共用一个回收站批次")
+    }
+
+    /// 默认删除（不连带）：所有习惯/任务存活，仅解除关联——旧行为不回归
+    func testDeleteGoalWithoutCascadingKeepsOwnedEntities() throws {
+        let goal = try commitGoalWithOwnedEntities()
+        let impact = repository.ownedEntityImpact(of: goal)
+        let ownedHabit = impact.ownedHabits[0]
+        let ownedTask = impact.ownedTasks[0]
+
+        try repository.deleteGoal(goal)
+
+        XCTAssertFalse(ownedHabit.isDeleted, "默认删除不动专属习惯")
+        XCTAssertNil(ownedHabit.goal)
+        XCTAssertFalse(ownedTask.deletedFlag, "默认删除不动专属任务")
+        XCTAssertNil(ownedTask.goal)
+    }
+
+    /// 复合 Emoji（含 VS16 / ZWJ）应被稳定识别为 emoji 图标
+    func testCompoundHabitEmojiRecognition() {
+        for emoji in ["🏃‍♂️", "🏃‍♀️‍➡️", "⚖️", "🐷", "❤️"] {
+            XCTAssertTrue(EmojiCatalog.isEmojiIcon(emoji), "复合 Emoji \(emoji) 应被识别为 emoji 图标")
+        }
+        XCTAssertFalse(EmojiCatalog.isEmojiIcon("figure.run"))
+    }
+
+    // MARK: - AI 目标规划量化草案 & 卡片摘要 & 流式哨兵守卫
+
+    func testGoalDraftQuantitativeDecodingAndCardSummary() throws {
+        let json = """
+        {
+          "id": "draft-weight-1",
+          "title": "科学减重到 70kg",
+          "summary": "从 82kg 稳步减到 70kg",
+          "domain": "health",
+          "desiredOutcome": "体重降到 70kg",
+          "motivation": "提升体能",
+          "deadlineText": "2027-05-16",
+          "goalKind": "target",
+          "metricSource": "manual",
+          "metricUnit": "kg",
+          "metricBaselineValue": "82",
+          "metricTargetValue": 70,
+          "tasks": [
+            { "id": "t1", "isSelected": true, "title": "记录初始体重", "dueDateText": null, "priority": 1, "note": null }
+          ],
+          "habits": [
+            { "id": "h1", "isSelected": true, "name": "去健身房", "frequency": "weekly", "targetCount": 3, "type": "checkIn", "unit": null, "targetValue": null, "isBadHabit": false, "successRule": "completeWhenDone" }
+          ],
+          "missingInfoWarnings": []
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let draft = try JSONDecoder().decode(GoalDraft.self, from: data)
+        XCTAssertEqual(draft.goalKind, .target)
+        XCTAssertEqual(draft.metricSource, .manual)
+        XCTAssertEqual(draft.metricUnit, "kg")
+        XCTAssertEqual(draft.metricBaselineValue, 82)
+        XCTAssertEqual(draft.metricTargetValue, 70)
+        XCTAssertEqual(draft.quantitativeSummary, "82 → 70 kg")
+        XCTAssertTrue(draft.cardSummary.contains("82 → 70 kg"))
+    }
+
+    func testGoalSavedChatCardDataParsesMetricSummary() {
+        let dict: [String: String] = [
+            "goalId": UUID().uuidString,
+            "goalTitle": "科学减重到 70kg",
+            "createdTaskCount": "1",
+            "createdHabitCount": "2",
+            "metricSummary": "82 → 70 kg"
+        ]
+        let card = GoalSavedChatCardData(dictionary: dict)
+        XCTAssertEqual(card?.metricSummary, "82 → 70 kg")
+        XCTAssertEqual(card?.summary, "82 → 70 kg · 1 个任务 · 2 个习惯")
+    }
+
+    @MainActor
+    func testGoalPlanningCoordinatorStreamingSentinelGuard() async throws {
+        let draftJSON = """
+        {
+          "id": "draft-1",
+          "title": "减重到 70kg",
+          "summary": null,
+          "domain": "health",
+          "desiredOutcome": "70kg",
+          "motivation": null,
+          "deadlineText": null,
+          "goalKind": "target",
+          "metricSource": "manual",
+          "metricUnit": "kg",
+          "metricBaselineValue": 82,
+          "metricTargetValue": 70,
+          "tasks": [],
+          "habits": [],
+          "missingInfoWarnings": []
+        }
+        """
+        let provider = StubGoalPlanningStreamProvider(responses: [
+            ["DR", "AFT_", "READY"],
+            [draftJSON]
+        ])
+        let coordinator = GoalPlanningCoordinator()
+        var streamedQuestions: [String] = []
+        var didTriggerDraftGenerating = false
+
+        let result = try await coordinator.startStreaming(
+            seedText: "目前 82kg，想减到 70kg",
+            userContext: .empty,
+            provider: provider,
+            onQuestionText: { streamedQuestions.append($0) },
+            onDraftGenerating: { didTriggerDraftGenerating = true }
+        )
+
+        XCTAssertTrue(streamedQuestions.isEmpty, "DRAFT_READY 哨兵绝不能泄露到流式文本回调")
+        XCTAssertTrue(didTriggerDraftGenerating, "识别到 DRAFT_READY 后应触发草案生成状态回调")
+        XCTAssertEqual(result.draft?.goalKind, .target)
+        XCTAssertEqual(result.draft?.metricBaselineValue, 82)
+        XCTAssertEqual(result.draft?.metricTargetValue, 70)
+    }
+
+    /// 5 类典型目标创建场景端到端校验：草案解码 → Confirmation 默认推导 → 落库 Goal 实体
+    func testFiveGoalCreationScenariosEndToEnd() throws {
+        let now = Date()
+
+        // 1. 达标型（减重 82 -> 70 kg + 绑定已有数值习惯「体重」）
+        let weightHabit = Habit.create(in: context, name: "体重", icon: "⚖️", color: "#EA580C", type: .numeric, frequency: .daily, unit: "kg")
+        try context.save()
+        let s1JSON = """
+        {
+          "id": "s1", "title": "科学减重到 70kg", "domain": "health",
+          "goalKind": "target", "metricSource": "manual", "metricUnit": "kg",
+          "metricBaselineValue": 82, "metricTargetValue": 70,
+          "tasks": [{"id":"t1","isSelected":true,"title":"记录初始体重","dueDateText":null,"priority":1,"note":null}],
+          "habits": [{"id":"h1","isSelected":true,"name":"健身房训练","frequency":"weekly","targetCount":3,"type":"checkIn","unit":null,"targetValue":null,"isBadHabit":false,"successRule":"completeWhenDone"}],
+          "missingInfoWarnings": []
+        }
+        """
+        var d1 = try JSONDecoder().decode(GoalDraft.self, from: Data(s1JSON.utf8))
+        let c1 = GoalPlanConfirmation.defaults(from: d1, successEvidence: "体重降到 70kg", now: now)
+        XCTAssertEqual(c1.resultSource?.comparison, .trendDown)
+        XCTAssertEqual(c1.resultSource?.baselineValue, 82)
+        XCTAssertEqual(c1.resultSource?.targetValue, 70)
+        // 模拟用户在确认页切换到「已有习惯 → 体重」
+        d1.metricSource = .habit
+        d1.sourceHabitId = weightHabit.id
+        let g1 = try repository.createGoal(from: d1, allowAIContext: true)
+        XCTAssertEqual(g1.goalKindEnum, .target)
+        XCTAssertEqual(g1.metricSourceEnum, .habit)
+        XCTAssertEqual(g1.sourceHabitId, weightHabit.id)
+        XCTAssertEqual(g1.baselineValueDouble, 82)
+        XCTAssertEqual(g1.metricTargetValueDouble, 70)
+
+        // 2. 累积型（今年跑满 300 km）
+        let s2JSON = """
+        {
+          "id": "s2", "title": "今年跑满 300 公里", "domain": "health",
+          "goalKind": "cumulative", "metricSource": "manual", "metricUnit": "km",
+          "metricBaselineValue": null, "metricTargetValue": 300,
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d2 = try JSONDecoder().decode(GoalDraft.self, from: Data(s2JSON.utf8))
+        let c2 = GoalPlanConfirmation.defaults(from: d2, successEvidence: "累计 300km", now: now)
+        XCTAssertEqual(c2.resultSource?.comparison, .reach)
+        XCTAssertEqual(c2.resultSource?.aggregation, .sum)
+        let g2 = try repository.createGoal(from: d2, allowAIContext: true)
+        XCTAssertEqual(g2.goalKindEnum, .cumulative)
+        XCTAssertEqual(g2.metricTargetValueDouble, 300)
+        XCTAssertEqual(g2.metricUnit, "km")
+
+        // 3. 财务储蓄（存 50000 元，切到账本全账本净增）
+        let s3JSON = """
+        {
+          "id": "s3", "title": "年底存下 50000 元应急金", "domain": "finance",
+          "goalKind": "cumulative", "metricSource": "ledger", "metricUnit": "元",
+          "metricBaselineValue": null, "metricTargetValue": 50000,
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d3 = try JSONDecoder().decode(GoalDraft.self, from: Data(s3JSON.utf8))
+        let c3 = GoalPlanConfirmation.defaults(from: d3, successEvidence: "存够 50000 元", now: now)
+        XCTAssertEqual(c3.resultSource?.sourceType, .ledger)
+        let g3 = try repository.createGoal(from: d3, allowAIContext: true)
+        XCTAssertEqual(g3.metricSourceEnum, .ledger)
+        XCTAssertEqual(g3.metricTargetValueDouble, 50000)
+
+        // 4. 坏习惯控制（每周抽烟不超过 10 根）
+        let s4JSON = """
+        {
+          "id": "s4", "title": "控制每周抽烟不超过 10 根", "domain": "health",
+          "goalKind": "target", "metricSource": "manual", "metricUnit": "根",
+          "metricBaselineValue": null, "metricTargetValue": 10,
+          "tasks": [],
+          "habits": [{"id":"h4","isSelected":true,"name":"抽烟","frequency":"weekly","targetCount":10,"type":"numeric","unit":"根","targetValue":10,"isBadHabit":true,"successRule":"stayBelowTarget"}],
+          "missingInfoWarnings": []
+        }
+        """
+        let d4 = try JSONDecoder().decode(GoalDraft.self, from: Data(s4JSON.utf8))
+        let c4 = GoalPlanConfirmation.defaults(from: d4, successEvidence: "每周不超过 10 根", now: now)
+        XCTAssertEqual(c4.resultSource?.comparison, .stayBelow)
+
+        // 5. 纯过程型（架构师面试准备）
+        let s5JSON = """
+        {
+          "id": "s5", "title": "完成架构师面试准备", "domain": "career",
+          "goalKind": "process", "metricSource": "manual", "metricUnit": null,
+          "metricBaselineValue": null, "metricTargetValue": null,
+          "tasks": [{"id":"t5","isSelected":true,"title":"梳理项目亮点","dueDateText":null,"priority":1,"note":null}],
+          "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d5 = try JSONDecoder().decode(GoalDraft.self, from: Data(s5JSON.utf8))
+        let c5 = GoalPlanConfirmation.defaults(from: d5, successEvidence: "通过面试", now: now)
+        XCTAssertNil(c5.resultSource, "纯过程型不应强行生成量化结果来源")
+        let g5 = try repository.createGoal(from: d5, allowAIContext: true)
+        XCTAssertEqual(g5.goalKindEnum, .process)
+    }
+
+    /// 额外 10 类风格迥异的边界/对抗场景端到端校验（Case 6–15）
+    @MainActor
+    func testTenDiverseGoalCreationEdgeCases() async throws {
+        let now = Date()
+
+        // Case 6: 数值上升达标型（卧推 60 -> 90 kg）
+        let c6JSON = """
+        {
+          "id": "c6", "title": "卧推突破 90kg", "domain": "health",
+          "goalKind": "target", "metricSource": "manual", "metricUnit": "kg",
+          "metricBaselineValue": 60, "metricTargetValue": 90,
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d6 = try JSONDecoder().decode(GoalDraft.self, from: Data(c6JSON.utf8))
+        let conf6 = GoalPlanConfirmation.defaults(from: d6, successEvidence: "卧推 90kg", now: now)
+        XCTAssertEqual(conf6.resultSource?.comparison, .reach, "目标值大于基线时应为 reach 而非 trendDown")
+        XCTAssertEqual(d6.quantitativeSummary, "60 → 90 kg")
+        let g6 = try repository.createGoal(from: d6, allowAIContext: true)
+        XCTAssertEqual(g6.baselineValueDouble, 60)
+        XCTAssertEqual(g6.metricTargetValueDouble, 90)
+
+        // Case 7: 模型漏标 goalKind + 字符串数字 + 未知 domain 容错兜底
+        let c7JSON = """
+        {
+          "id": "c7", "title": "今年读完 24 本书", "domain": "alien_domain",
+          "goalKind": "process", "metricSource": "manual", "metricUnit": "本",
+          "metricBaselineValue": null, "metricTargetValue": "24",
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d7 = try JSONDecoder().decode(GoalDraft.self, from: Data(c7JSON.utf8))
+        XCTAssertEqual(d7.domain, .other, "未知领域应安全回退 .other")
+        XCTAssertEqual(d7.goalKind, .cumulative, "有目标值无基线时漏标 goalKind 应自动兜底 .cumulative")
+        XCTAssertEqual(d7.metricTargetValue, 24)
+
+        // Case 8: 小数精度（体脂率 22.5% -> 18.5%）
+        let c8JSON = """
+        {
+          "id": "c8", "title": "体脂率降到 18.5%", "domain": "health",
+          "goalKind": "target", "metricSource": "manual", "metricUnit": "%",
+          "metricBaselineValue": 22.5, "metricTargetValue": 18.5,
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d8 = try JSONDecoder().decode(GoalDraft.self, from: Data(c8JSON.utf8))
+        XCTAssertEqual(d8.quantitativeSummary, "22.5 → 18.5 %")
+        let g8 = try repository.createGoal(from: d8, allowAIContext: true)
+        XCTAssertEqual(g8.baselineValueDouble ?? 0, 22.5, accuracy: 0.01)
+        XCTAssertEqual(g8.metricTargetValueDouble ?? 0, 18.5, accuracy: 0.01)
+
+        // Case 9: 零基线戒断型坏习惯（彻底戒糖饮料 abstain）
+        let c9JSON = """
+        {
+          "id": "c9", "title": "戒掉含糖饮料", "domain": "health",
+          "goalKind": "process", "metricSource": "manual", "metricUnit": null,
+          "metricBaselineValue": null, "metricTargetValue": null,
+          "tasks": [],
+          "habits": [{"id":"h9","isSelected":true,"name":"不喝含糖饮料","frequency":"daily","targetCount":1,"type":"checkIn","unit":null,"targetValue":null,"isBadHabit":true,"successRule":"abstain"}],
+          "missingInfoWarnings": []
+        }
+        """
+        let d9 = try JSONDecoder().decode(GoalDraft.self, from: Data(c9JSON.utf8))
+        let res9 = try repository.saveDraft(d9, allowAIContext: true)
+        XCTAssertEqual(res9.createdHabitCount, 1)
+        XCTAssertEqual(res9.goal.goalKindEnum, .process)
+
+        // Case 10: 多任务多习惯部分取消勾选
+        let c10JSON = """
+        {
+          "id": "c10", "title": "备战半程马拉松", "domain": "health",
+          "goalKind": "cumulative", "metricSource": "manual", "metricUnit": "km",
+          "metricBaselineValue": null, "metricTargetValue": 120,
+          "tasks": [
+            {"id":"t1","isSelected":true,"title":"买跑鞋","dueDateText":null,"priority":1,"note":null},
+            {"id":"t2","isSelected":false,"title":"报训练营","dueDateText":null,"priority":2,"note":null},
+            {"id":"t3","isSelected":true,"title":"报名赛事","dueDateText":null,"priority":1,"note":null},
+            {"id":"t4","isSelected":false,"title":"买护膝","dueDateText":null,"priority":3,"note":null}
+          ],
+          "habits": [
+            {"id":"h1","isSelected":true,"name":"晨跑","frequency":"weekly","targetCount":3,"type":"checkIn","unit":null,"targetValue":null,"isBadHabit":false,"successRule":"completeWhenDone"},
+            {"id":"h2","isSelected":false,"name":"拉伸","frequency":"daily","targetCount":1,"type":"checkIn","unit":null,"targetValue":null,"isBadHabit":false,"successRule":"completeWhenDone"},
+            {"id":"h3","isSelected":true,"name":"核心训练","frequency":"weekly","targetCount":2,"type":"checkIn","unit":null,"targetValue":null,"isBadHabit":false,"successRule":"completeWhenDone"}
+          ],
+          "missingInfoWarnings": []
+        }
+        """
+        let d10 = try JSONDecoder().decode(GoalDraft.self, from: Data(c10JSON.utf8))
+        let res10 = try repository.saveDraft(d10, allowAIContext: true)
+        XCTAssertEqual(res10.createdTaskCount, 2, "只应创建选中的 2 个任务")
+        XCTAssertEqual(res10.createdHabitCount, 2, "只应创建选中的 2 个习惯")
+
+        // Case 11: 无单位量化目标（单位为 nil 或空串时不出现多余尾空格）
+        let c11JSON = """
+        {
+          "id": "c11", "title": "完成 12 次深度复盘", "domain": "career",
+          "goalKind": "cumulative", "metricSource": "manual", "metricUnit": "",
+          "metricBaselineValue": null, "metricTargetValue": 12,
+          "tasks": [], "habits": [], "missingInfoWarnings": []
+        }
+        """
+        let d11 = try JSONDecoder().decode(GoalDraft.self, from: Data(c11JSON.utf8))
+        XCTAssertEqual(d11.quantitativeSummary, "目标 12")
+
+        // Case 12: 财务单账户余额达标（100000 元 + accountBalance）
+        let accountID = UUID()
+        var d12 = GoalDraft(
+            id: "c12",
+            title: "攒够 10 万买车首付",
+            summary: nil,
+            domain: .finance,
+            iconEmoji: nil,
+            desiredOutcome: "专户达到 10 万",
+            motivation: nil,
+            deadlineText: nil,
+            tasks: [],
+            habits: [],
+            missingInfoWarnings: [],
+            goalKind: .target,
+            metricSource: .ledger,
+            metricUnit: "元",
+            metricTargetValue: 100000,
+            metricBaselineValue: nil,
+            sourceHabitId: nil,
+            ledgerScope: GoalLedgerScopePayload(kind: .accountBalance, accountID: accountID)
+        )
+        let conf12 = GoalPlanConfirmation.defaults(from: d12, successEvidence: "账户余额 10 万", now: now)
+        XCTAssertEqual(conf12.resultSource?.sourceType, .ledger)
+        XCTAssertEqual(conf12.resultSource?.ledgerScope?.kind, .accountBalance)
+        XCTAssertEqual(conf12.resultSource?.ledgerScope?.accountID, accountID)
+        let g12 = try repository.createGoal(from: d12, allowAIContext: true)
+        XCTAssertEqual(g12.ledgerScopePayload?.accountID, accountID)
+
+        // Case 13: 超长标题 + 无截止日期（deadlineText = null）
+        let longTitle = "每天坚持学习 Swift 并发编程与 SwiftUI 底层渲染原理并输出高质量技术笔记总结"
+        d12.title = longTitle
+        d12.deadlineText = nil
+        d12.goalKind = .process
+        d12.metricTargetValue = nil
+        let g13 = try repository.createGoal(from: d12, allowAIContext: true)
+        XCTAssertEqual(g13.title, longTitle)
+        XCTAssertNil(g13.deadline)
+
+        // Case 14: 多轮流式追问 + 第二轮分片吐出 DRAFT_READY
+        let streamDraftJSON = """
+        {"id":"c14","title":"托福冲刺 105 分","domain":"learning","goalKind":"target","metricSource":"manual","metricUnit":"分","metricBaselineValue":88,"metricTargetValue":105,"tasks":[],"habits":[],"missingInfoWarnings":[]}
+        """
+        let multiTurnProvider = StubGoalPlanningStreamProvider(responses: [
+            ["好的，", "你目前的英语基础大概是多少分呢？"],
+            ["DR", "AFT", "_READY"],
+            [streamDraftJSON]
+        ])
+        let coordinator = GoalPlanningCoordinator()
+        var turn1Texts: [String] = []
+        let r1 = try await coordinator.startStreaming(
+            seedText: "我想考托福 105 分",
+            userContext: .empty,
+            provider: multiTurnProvider,
+            onQuestionText: { turn1Texts.append($0) },
+            onDraftGenerating: { XCTFail("第一轮不应触发草案生成") }
+        )
+        XCTAssertEqual(r1.session.status, .collecting)
+        XCTAssertEqual(turn1Texts.last, "好的，你目前的英语基础大概是多少分呢？")
+
+        var turn2Texts: [String] = []
+        var turn2Generating = false
+        let r2 = try await coordinator.handleUserReplyStreaming(
+            "目前 88 分，三个月后考试",
+            session: r1.session,
+            userContext: .empty,
+            provider: multiTurnProvider,
+            onQuestionText: { turn2Texts.append($0) },
+            onDraftGenerating: { turn2Generating = true }
+        )
+        XCTAssertTrue(turn2Texts.isEmpty, "第二轮 DRAFT_READY 不应泄漏到对话气泡")
+        XCTAssertTrue(turn2Generating)
+        XCTAssertEqual(r2.draft?.metricBaselineValue, 88)
+        XCTAssertEqual(r2.draft?.metricTargetValue, 105)
+
+        // Case 15: 数据源往返切换（habit -> ledger -> manual）不残留脏 sourceHabitId / ledgerScope
+        var d15 = try JSONDecoder().decode(GoalDraft.self, from: Data(c6JSON.utf8))
+        d15.metricSource = .habit
+        d15.sourceHabitId = UUID()
+        d15.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
+        // 模拟用户最终改回 manual
+        d15.metricSource = .manual
+        d15.sourceHabitId = nil
+        d15.ledgerScope = nil
+        let g15 = try repository.createGoal(from: d15, allowAIContext: true)
+        XCTAssertEqual(g15.metricSourceEnum, .manual)
+        XCTAssertNil(g15.sourceHabitId)
+        XCTAssertNil(g15.ledgerScopePayload)
+    }
+
+    @MainActor
+    func testHealthKitGoalEvaluation() throws {
+        // 达标型：苹果健康体重 82 -> 70 kg，当前同步 76 kg -> 50% 进度；同步 69.5 kg -> isAchieved
+        let weightDraft = GoalDraft(
+            id: "hk-weight",
+            title: "苹果健康减重到 70kg",
+            summary: nil,
+            domain: .health,
+            iconEmoji: nil,
+            desiredOutcome: "70kg",
+            motivation: nil,
+            deadlineText: nil,
+            tasks: [],
+            habits: [],
+            missingInfoWarnings: [],
+            goalKind: .target,
+            metricSource: .healthKit,
+            metricUnit: "kg",
+            metricTargetValue: 70,
+            metricBaselineValue: 82,
+            sourceHabitId: nil,
+            ledgerScope: nil,
+            healthMetricKind: .bodyMass
+        )
+        let weightGoal = try repository.createGoal(from: weightDraft, allowAIContext: true)
+        XCTAssertEqual(weightGoal.metricSourceEnum, .healthKit)
+        XCTAssertEqual(weightGoal.healthMetricKindEnum, .bodyMass)
+
+        GoalHealthKitCache.shared.setValue(76.0, for: weightGoal.id)
+        let mid = GoalMetricEvaluator.evaluate(goal: weightGoal)
+        XCTAssertEqual(mid?.currentValue, 76.0)
+        XCTAssertEqual(mid?.progress ?? 0, 0.5, accuracy: 0.01)
+        XCTAssertEqual(mid?.isAchieved, false)
+
+        GoalHealthKitCache.shared.setValue(69.5, for: weightGoal.id)
+        let done = GoalMetricEvaluator.evaluate(goal: weightGoal)
+        XCTAssertEqual(done?.isAchieved, true)
+        XCTAssertEqual(done?.progress ?? 0, 1.0, accuracy: 0.01)
+
+        // 累积型：苹果健康步数目标 100000 步，当前 25000 步 -> 25%
+        let stepsDraft = GoalDraft(
+            id: "hk-steps",
+            title: "本月走满 10 万步",
+            summary: nil,
+            domain: .health,
+            iconEmoji: nil,
+            desiredOutcome: nil,
+            motivation: nil,
+            deadlineText: nil,
+            tasks: [],
+            habits: [],
+            missingInfoWarnings: [],
+            goalKind: .cumulative,
+            metricSource: .healthKit,
+            metricUnit: "步",
+            metricTargetValue: 100000,
+            metricBaselineValue: nil,
+            sourceHabitId: nil,
+            ledgerScope: nil,
+            healthMetricKind: .stepCount
+        )
+        let stepsGoal = try repository.createGoal(from: stepsDraft, allowAIContext: true)
+        GoalHealthKitCache.shared.setValue(25000, for: stepsGoal.id)
+        let stepsProgress = GoalMetricEvaluator.evaluate(goal: stepsGoal)
+        XCTAssertEqual(stepsProgress?.progress ?? 0, 0.25, accuracy: 0.01)
+        XCTAssertEqual(stepsProgress?.isAchieved, false)
+    }
+}
+
+private final class StubGoalPlanningStreamProvider: AIProvider {
+    var lastCallLog: LLMCallLog? = nil
+    private var responses: [[String]]
+
+    init(responses: [[String]]) {
+        self.responses = responses
+    }
+
+    func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        throw APIError.serverError("unused")
+    }
+
+    func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
+        responses.isEmpty ? "" : responses.removeFirst().joined()
+    }
+
+    func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
+        let chunks = responses.isEmpty ? [] : responses.removeFirst()
+        return AsyncThrowingStream { continuation in
+            for chunk in chunks {
+                continuation.yield(chunk)
+            }
+            continuation.finish()
+        }
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
+        chatStreaming(messages: messages, userContext: userContext)
     }
 }

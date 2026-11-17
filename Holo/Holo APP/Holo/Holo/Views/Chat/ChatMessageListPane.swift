@@ -106,6 +106,8 @@ struct ChatMessageListPane: View {
         .onChange(of: viewModel.streamingText) { _, _ in
             if scrollController.viewport.showsJumpToLatest {
                 hasUnseenStreamingUpdate = true
+            } else if viewModel.isStreaming {
+                scrollController.scrollToBottom(animated: false)
             }
         }
         .onChange(of: viewModel.isStreaming) { _, streaming in

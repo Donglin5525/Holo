@@ -187,7 +187,7 @@ struct HabitTileView: View {
     private var iconChip: some View {
         Group {
             if EmojiCatalog.isEmojiIcon(habit.icon) {
-                Text(habit.icon).font(.system(size: 17))
+                habit.iconImage(size: 17)
             } else {
                 habit.iconImage(size: 17)
                     .foregroundColor(isCompleted ? .white : habit.habitColor)

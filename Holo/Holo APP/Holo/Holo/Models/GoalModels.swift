@@ -129,6 +129,8 @@ enum GoalMetricSource: String, Codable, CaseIterable, Identifiable {
     case habit
     /// 账本：财务流水自动算（3b 接入）
     case ledger
+    /// 苹果健康：HealthKit 被动同步（体重 / 步数 / 跑步距离 / 睡眠 / 活动能量）
+    case healthKit
 
     var id: String { rawValue }
 
@@ -137,17 +139,62 @@ enum GoalMetricSource: String, Codable, CaseIterable, Identifiable {
         case .manual: return String(localized: "手动记录")
         case .habit: return String(localized: "数值习惯")
         case .ledger: return String(localized: "账本")
+        case .healthKit: return String(localized: "苹果健康")
         }
     }
 
     /// 表单可选项（按目标类型收窄矩阵）：
-    /// 累积型可选手动/习惯/账本（全账本或指定账户净结余增加）；
-    /// 达标型可选手动/习惯/账本（账本只提供「账户余额到达目标值」，表单必选具体账户）
+    /// 累积型可选手动/习惯/账本/苹果健康；
+    /// 达标型可选手动/习惯/账本/苹果健康
     static func selectable(for kind: GoalKind) -> [GoalMetricSource] {
         switch kind {
         case .process: return [.manual]
-        case .cumulative: return [.manual, .habit, .ledger]
-        case .target: return [.manual, .habit, .ledger]
+        case .cumulative: return [.manual, .habit, .ledger, .healthKit]
+        case .target: return [.manual, .habit, .ledger, .healthKit]
+        }
+    }
+}
+
+/// 苹果健康量化指标类型（GoalMetricSource.healthKit 使用）
+enum GoalHealthMetricKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    case bodyMass
+    case bodyFatPercentage
+    case stepCount
+    case distanceWalkingRunning
+    case activeEnergyBurned
+    case sleepHours
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .bodyMass: return String(localized: "体重")
+        case .bodyFatPercentage: return String(localized: "体脂率")
+        case .stepCount: return String(localized: "步数")
+        case .distanceWalkingRunning: return String(localized: "步行/跑步距离")
+        case .activeEnergyBurned: return String(localized: "活动能量")
+        case .sleepHours: return String(localized: "睡眠时长")
+        }
+    }
+
+    var defaultUnit: String {
+        switch self {
+        case .bodyMass: return "kg"
+        case .bodyFatPercentage: return "%"
+        case .stepCount: return String(localized: "步")
+        case .distanceWalkingRunning: return "km"
+        case .activeEnergyBurned: return "kcal"
+        case .sleepHours: return String(localized: "小时")
+        }
+    }
+
+    /// true = 取最新观测值（如体重、体脂率、睡眠）；false = 累计求和（如步数、距离、热量）
+    var isLatestSample: Bool {
+        switch self {
+        case .bodyMass, .bodyFatPercentage, .sleepHours:
+            return true
+        case .stepCount, .distanceWalkingRunning, .activeEnergyBurned:
+            return false
         }
     }
 }
@@ -233,48 +280,92 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     /// ledger 源的账本范围（2026-11-14 表单暴露）：累积型=全账本/指定账户净结余增加，
     /// 达标型=账户余额；nil=未指定（老草案解码兼容，按全账本解释）
     var ledgerScope: GoalLedgerScopePayload? = nil
+    /// healthKit 源对应的苹果健康指标类型（体重 / 步数 / 距离 / 睡眠等）
+    var healthMetricKind: GoalHealthMetricKind? = nil
 
     var isQuantitative: Bool { goalKind != .process }
+
+    /// 量化目标摘要（如 "82 → 70 kg" 或 "目标 300 km"），过程型返回 nil
+    var quantitativeSummary: String? {
+        guard isQuantitative, let target = metricTargetValue else { return nil }
+        let targetText = Self.formatMetricNumber(target)
+        let unitSuffix = metricUnit.map { $0.isEmpty ? "" : " \($0)" } ?? ""
+        if goalKind == .target, let baseline = metricBaselineValue {
+            let baseText = Self.formatMetricNumber(baseline)
+            return "\(baseText) → \(targetText)\(unitSuffix)"
+        }
+        return String(localized: "目标 \(targetText)\(unitSuffix)")
+    }
+
+    private static func formatMetricNumber(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
+    }
 
     var cardSummary: String {
         let taskCount = tasks.filter(\.isSelected).count
         let habitCount = habits.filter(\.isSelected).count
-        return String(localized: "\(taskCount) 个任务 · \(habitCount) 个习惯")
+        let actionPart = String(localized: "\(taskCount) 个任务 · \(habitCount) 个习惯")
+        if let metric = quantitativeSummary {
+            return "\(metric) · \(actionPart)"
+        }
+        return actionPart
     }
 }
 
 // MARK: - AI 草案解码兼容（外部输入边界）
 
 extension GoalDraft {
-    /// AI 产出的草案 JSON 不含量化字段（后端 prompt 未升级前），
-    /// 解码时缺失的量化键回退默认值，不阻断既有规划链路
+    /// AI 产出的草案 JSON 可能缺少量化字段，或将数字编码为字符串；
+    /// 解码时做容错与默认值回退，不阻断规划链路
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         title = try c.decode(String.self, forKey: .title)
         summary = try c.decodeIfPresent(String.self, forKey: .summary)
-        domain = try c.decode(GoalDomain.self, forKey: .domain)
+        domain = (try? c.decode(GoalDomain.self, forKey: .domain)) ?? .other
         iconEmoji = try c.decodeIfPresent(String.self, forKey: .iconEmoji)
         desiredOutcome = try c.decodeIfPresent(String.self, forKey: .desiredOutcome)
         motivation = try c.decodeIfPresent(String.self, forKey: .motivation)
         deadlineText = try c.decodeIfPresent(String.self, forKey: .deadlineText)
         tasks = try c.decode([GoalTaskDraft].self, forKey: .tasks)
         habits = try c.decode([GoalHabitDraft].self, forKey: .habits)
-        missingInfoWarnings = try c.decode([String].self, forKey: .missingInfoWarnings)
-        goalKind = try c.decodeIfPresent(GoalKind.self, forKey: .goalKind) ?? .process
-        metricSource = try c.decodeIfPresent(GoalMetricSource.self, forKey: .metricSource) ?? .manual
+        missingInfoWarnings = (try? c.decodeIfPresent([String].self, forKey: .missingInfoWarnings)) ?? []
+        goalKind = (try? c.decodeIfPresent(GoalKind.self, forKey: .goalKind)) ?? .process
+        metricSource = (try? c.decodeIfPresent(GoalMetricSource.self, forKey: .metricSource)) ?? .manual
         metricUnit = try c.decodeIfPresent(String.self, forKey: .metricUnit)
-        metricTargetValue = try c.decodeIfPresent(Double.self, forKey: .metricTargetValue)
-        metricBaselineValue = try c.decodeIfPresent(Double.self, forKey: .metricBaselineValue)
-        sourceHabitId = try c.decodeIfPresent(UUID.self, forKey: .sourceHabitId)
+        metricTargetValue = Self.decodeFlexibleDouble(from: c, forKey: .metricTargetValue)
+        metricBaselineValue = Self.decodeFlexibleDouble(from: c, forKey: .metricBaselineValue)
+        sourceHabitId = try? c.decodeIfPresent(UUID.self, forKey: .sourceHabitId)
         ledgerScope = try? c.decodeIfPresent(GoalLedgerScopePayload.self, forKey: .ledgerScope)
+        healthMetricKind = try? c.decodeIfPresent(GoalHealthMetricKind.self, forKey: .healthMetricKind)
+        // 若模型给出了有效目标值但漏标 goalKind，自动按达标/累积兜底，避免量化目标退化成纯过程型
+        if goalKind == .process, metricTargetValue != nil {
+            goalKind = metricBaselineValue != nil ? .target : .cumulative
+        }
+    }
+
+    private static func decodeFlexibleDouble(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> Double? {
+        if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let text = try? container.decodeIfPresent(String.self, forKey: key) {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return Double(trimmed)
+        }
+        return nil
     }
 
     enum CodingKeys: String, CodingKey {
         case id, title, summary, domain, iconEmoji, desiredOutcome, motivation, deadlineText
         case tasks, habits, missingInfoWarnings
         case goalKind, metricSource, metricUnit, metricTargetValue, metricBaselineValue, sourceHabitId
-        case ledgerScope
+        case ledgerScope, healthMetricKind
     }
 }
 

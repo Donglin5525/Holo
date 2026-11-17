@@ -21,9 +21,12 @@ extension HabitIconRenderable {
     @ViewBuilder
     func iconImage(size: CGFloat) -> some View {
         if EmojiCatalog.isEmojiIcon(icon) {
-            // 用户手选的 emoji 图标：彩色文本渲染，不跟随习惯色
+            // 用户手选的 emoji 图标：彩色文本渲染，不跟随习惯色；复合 emoji 允许按框等比微缩避免左右裁切
             Text(icon)
                 .font(.system(size: size))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .allowsTightening(true)
         } else if isCustomIcon {
             Image(icon)
                 .renderingMode(.template)

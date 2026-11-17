@@ -2,38 +2,50 @@
 //  GoalDetailView.swift
 //  Holo
 //
-//  目标详情视图：状态操作、关联任务/习惯、AI 授权开关
+//  目标详情视图：Hero 进度闭环 + 分段查看 + 统一编辑与轻量「目标管理」入口
 //
 
 import SwiftUI
 import CoreData
 
+private enum GoalDetailSheetRoute: Identifiable {
+    case edit
+    case management
+    case quickTask
+    case newHabit
+    case linkExisting
+    case planEditor
+    case workshopAdvice(GoalWorkshopLaunch)
+
+    var id: String {
+        switch self {
+        case .edit: return "edit"
+        case .management: return "management"
+        case .quickTask: return "quickTask"
+        case .newHabit: return "newHabit"
+        case .linkExisting: return "linkExisting"
+        case .planEditor: return "planEditor"
+        case .workshopAdvice(let launch): return "workshop-\(launch.id)"
+        }
+    }
+}
+
 struct GoalDetailView: View {
-    @ObservedObject private var repository = GoalRepository.shared
     @ObservedObject var goal: Goal
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
-    let onDeleteRequested: (UUID) -> Void
-    @State private var showDeleteConfirm = false
-    @State private var operationError: String?
-    @State private var showEditForm = false
+    /// 删除确认回调（第二参 = 是否连带删除目标创建的习惯/任务）
+    let onDeleteRequested: (UUID, Bool) -> Void
 
-    /// 目标共创·已有目标调整建议（P0 只给建议不写回）
-    @State private var goalWorkshopLaunch: GoalWorkshopLaunch?
-    /// 共创入口显隐随服务端开关即时刷新
     @State private var workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
-    /// 目标闭环（分析区/修正入口）显隐随服务端开关即时刷新
     @State private var closedLoopEnabled = HoloAIFeatureFlags.goalClosedLoopEnabled
-    @State private var showLinkManager = false
-    @State private var showMetricLogSheet = false
-    @State private var showGoalSettings = false
-    /// 五字段设置面板（说明/期望结果/动机/图标/AI 上下文，S5 接线）
-    @State private var showGoalSettingsEdit = false
-    @State private var showGoalReview = false
+    @State private var activeSheet: GoalDetailSheetRoute?
+    @State private var pendingSheet: GoalDetailSheetRoute?
+    @State private var showAchievementCelebration = false
 
     init(
         goal: Goal,
         onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
-        onDeleteRequested: @escaping (UUID) -> Void = { _ in }
+        onDeleteRequested: @escaping (UUID, Bool) -> Void = { _, _ in }
     ) {
         self.goal = goal
         self.onOpenLinkedEntity = onOpenLinkedEntity
@@ -43,550 +55,130 @@ struct GoalDetailView: View {
     var body: some View {
         if goal.managedObjectContext == nil || goal.isDeleted || goal.deletedAt != nil {
             Text("这个目标已删除")
+                .goalJourneyText(.body)
+                .foregroundStyle(Color.holoToolTextSecondary)
         } else {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                GoalProgressScrollSection(goal: goal, onOpenReview: closedLoopEnabled ? { showGoalReview = true } : nil)
-                Button("目标设置与全部关联") { showGoalSettings = true }
-                    .goalJourneyText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+            ScrollView(showsIndicators: false) {
+                GoalProgressScrollSection(
+                    goal: goal,
+                    closedLoopEnabled: closedLoopEnabled,
+                    onOpenLinkedEntity: onOpenLinkedEntity,
+                    onNewTask: { activeSheet = .quickTask },
+                    onNewHabit: { activeSheet = .newHabit },
+                    onLinkExisting: { activeSheet = .linkExisting },
+                    onOpenPlanEditor: { activeSheet = .planEditor }
+                )
+                .padding(.horizontal, GoalJourneyStyle.pageInset)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
+                .holoContentColumn(paintsBackground: false)
             }
-            .padding(.horizontal, GoalJourneyStyle.pageInset).padding(.top, 8).padding(.bottom, 24)
-            .holoContentColumn(paintsBackground: false)
-        }
-        .background(Color.holoToolBackground)
-        .navigationTitle("目标详情")
-        #if canImport(UIKit)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .tint(GoalJourneyStyle.action)
-        .toolbar { ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
-            Button { showGoalSettings = true } label: { Image(systemName: "ellipsis") }.accessibilityLabel("目标设置")
-        } }
-        .sheet(isPresented: $showGoalSettings) { settingsPanel }
-        .sheet(isPresented: $showGoalReview) {
-            NavigationStack {
-                ScrollView { GoalAnalysisSection(goal: goal, onOpenLinkedEntity: onOpenLinkedEntity).padding(GoalJourneyStyle.pageInset) }
-                    .background(Color.holoToolBackground).navigationTitle("回顾与历史").navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalReview = false } } }
+            .background(Color.holoToolBackground)
+            .navigationTitle("目标详情")
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .tint(GoalJourneyStyle.action)
+            .toolbar {
+                ToolbarItemGroup(placement: HoloToolbarPlacement.topBarTrailing) {
+                    Button("编辑") { activeSheet = .edit }
+                        .accessibilityIdentifier("goal-detail-edit")
+                    Button { activeSheet = .management } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .accessibilityLabel("目标管理")
+                    .accessibilityIdentifier("goal-detail-manage")
+                }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
-            workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
-            closedLoopEnabled = HoloAIFeatureFlags.goalClosedLoopEnabled
-        }
-    }
-    }
-
-    private var settingsPanel: some View {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                        header(GoalProgressEvaluator.evaluate(goal: goal))
-                        aiContextToggle; proactiveNudgeToggle; taskSection; habitSection; metricLogSection; actionSection
-                    }.padding(GoalJourneyStyle.pageInset)
-                }.background(Color.holoToolBackground).navigationTitle("目标设置")
-                    #if canImport(UIKit)
-                    .navigationBarTitleDisplayMode(.inline)
-                    #endif
-                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalSettings = false } } }
+            .sheet(item: $activeSheet, onDismiss: {
+                if let next = pendingSheet {
+                    pendingSheet = nil
+                    activeSheet = next
+                }
+            }) { route in
+                sheetContent(for: route)
             }
-            .sheet(isPresented: $showGoalSettingsEdit) {
-                GoalSettingsEditSheet(goal: goal)
+            .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
+                workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
+                closedLoopEnabled = HoloAIFeatureFlags.goalClosedLoopEnabled
             }
-        .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("删除目标", role: .destructive) {
-                onDeleteRequested(goal.id)
+            .task(id: goal.id) {
+                if goal.metricSourceEnum == .healthKit {
+                    await GoalHealthKitCache.shared.refreshIfNeeded(for: goal)
+                }
+                checkAchievementCelebrationIfNeeded()
             }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("删除目标后，基于该目标创建的任务和习惯不会被删除，只会解除与该目标的关联。")
-        }
-        .alert("操作失败", isPresented: Binding(
-            get: { operationError != nil },
-            set: { if !$0 { operationError = nil } }
-        )) {
-            Button("知道了", role: .cancel) {}
-        } message: {
-            Text(operationError ?? "")
-        }
-        .sheet(item: $goalWorkshopLaunch) { launch in
-            GoalWorkshopFlowView(launch: launch)
-        }
-        .sheet(isPresented: $showEditForm) {
-            GoalEditSheet(goal: goal) {
-                showEditForm = false
+            .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in
+                checkAchievementCelebrationIfNeeded()
             }
-        }
-        .sheet(isPresented: $showLinkManager) {
-            GoalLinkManagerSheet(goal: goal)
-        }
-        .sheet(isPresented: $showMetricLogSheet) {
-            GoalMetricLogSheet(goal: goal)
-        }
-    }
-
-    private func header(_ progress: GoalProgressSummary) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text(goal.title)
-                .holoText(.pageTitle)
-                .foregroundColor(.holoToolText)
-            if let summary = goal.summary, !summary.isEmpty {
-                Text(summary)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-            if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
-                infoLine(icon: "checkmark.seal", label: String(localized: "期望结果"), value: desiredOutcome)
-            }
-            if let motivation = goal.motivation, !motivation.isEmpty {
-                infoLine(icon: "heart", label: String(localized: "动机"), value: motivation)
-            }
-            if let deadline = goal.deadline {
-                let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
-                infoLine(
-                    icon: "calendar",
-                    label: String(localized: "截止日期"),
-                    value: days >= 0 ? String(localized: "\(GoalEditForm.formatDeadline(deadline))（还剩 \(days) 天）") : String(localized: "\(GoalEditForm.formatDeadline(deadline))（已逾期 \(-days) 天）")
+            .sheet(isPresented: $showAchievementCelebration) {
+                GoalAchievementCelebrationSheet(
+                    goal: goal,
+                    onMarkCompleted: {
+                        try? GoalRepository.shared.updateStatus(goal, status: .completed)
+                        GoalNotificationService.broadcastGoalDataChange()
+                        showAchievementCelebration = false
+                    },
+                    onKeepActive: {
+                        showAchievementCelebration = false
+                    }
                 )
             }
         }
     }
 
-    private func infoLine(icon: String, label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: icon)
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary)
-                .frame(width: 16)
-            Text("\(label)：")
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary)
-            Text(value)
-                .holoText(.metadata)
-                .foregroundColor(.holoToolText)
-                .fixedSize(horizontal: false, vertical: true)
+    private func checkAchievementCelebrationIfNeeded() {
+        guard goal.goalStatus == .active,
+              goal.isQuantitative,
+              let metric = GoalMetricEvaluator.evaluate(goal: goal),
+              metric.isAchieved else {
+            return
         }
+        let key = "holo.goal.celebrated.\(goal.id.uuidString)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        showAchievementCelebration = true
     }
 
-    private var aiContextToggle: some View {
-        Toggle("允许 HoloAI 后续参考此目标", isOn: Binding(
-            get: { goal.allowAIContext },
-            set: { newValue in
-                perform {
-                    try repository.updateAIContext(goal, allow: newValue)
-                }
-            }
-        ))
-        .holoText(.body)
-        .padding(HoloSpacing.md)
-        .holoSurface()
-    }
-
-    private var proactiveNudgeToggle: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Toggle("允许 HoloAI 主动围绕此目标提醒（含系统通知）", isOn: Binding(
-                get: { goal.allowAIContext && goal.proactiveNudge },
-                set: { newValue in
-                    perform {
-                        try repository.updateProactiveNudge(goal, enabled: newValue)
-                    }
-                }
-            ))
-            .holoText(.body)
-            .disabled(!goal.allowAIContext)
-
-            if !goal.allowAIContext {
-                Text("需先开启「允许 HoloAI 参考此目标」")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .padding(.leading, 4)
-            }
-        }
-        .padding(HoloSpacing.md)
-        .holoSurface()
-    }
-
-    private var taskSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(title: String(localized: "关联任务"))
-            if goal.sortedTasks.isEmpty {
-                Text("暂无关联任务")
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-            } else {
-                ForEach(goal.sortedTasks, id: \.id) { task in
-                    linkedEntityRow(title: task.title, icon: "checklist") {
-                        onOpenLinkedEntity(.taskDetail(taskId: task.id))
-                    }
-                }
-            }
-        }
-    }
-
-    private var habitSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(title: String(localized: "关联习惯"))
-            if goal.sortedHabits.isEmpty {
-                Text("暂无关联习惯")
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-            } else {
-                ForEach(goal.sortedHabits, id: \.id) { habit in
-                    linkedEntityRow(title: habit.name, icon: "checkmark.circle") {
-                        onOpenLinkedEntity(.habitDetail(habitId: habit.id))
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 量化目标
-
-    private var unitDisplay: String {
-        goal.metricUnit.map { " \($0)" } ?? ""
-    }
-
-    /// 量化目标头部：大数字进度区（当前值/目标值 + 环形进度 + 预计达成 + 记一笔入口）
-    private func metricProgressCard(_ metric: GoalMetricProgress) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.lg) {
-                GoalMetricRingView(progress: metric.progress)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(metricHeadlineText(metric))
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoToolText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-
-                    if goal.goalKindEnum == .target {
-                        // 达标型基线视角：已减 2.5 kg / 共 5 kg，而非从 0 起的百分比
-                        Text(metricBaselineText(metric))
-                            .holoText(.body)
-                            .foregroundColor(.holoToolTextSecondary)
-                    } else {
-                        Text("已完成 \(Int((metric.progress * 100).rounded()))%")
-                            .holoText(.body)
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            metricForecastLine(metric)
-
-            if goal.metricSourceEnum == .manual {
-                Button {
-                    showMetricLogSheet = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus.circle.fill")
-                            .holoText(.supporting)
-                        Text("记一笔")
-                            .holoText(.body)
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(Color.holoPrimary))
-                }
-                .buttonStyle(HoloPressStyle())
-            } else {
-                metricSourceLabel
-            }
-        }
-        .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoPrimary.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoPrimary.opacity(0.2), lineWidth: 1)
-        )
-    }
-
-    /// 大数字行：累积型「128.5 / 300 km」；达标型「72.5 kg · 目标 70」
-    private func metricHeadlineText(_ metric: GoalMetricProgress) -> String {
-        if goal.goalKindEnum == .target {
-            return String(localized: "\(GoalMetricEvaluator.formatValue(metric.currentValue))\(unitDisplay) · 目标 \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))")
-        }
-        return "\(GoalMetricEvaluator.formatValue(metric.currentValue)) / \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unitDisplay)"
-    }
-
-    private func metricBaselineText(_ metric: GoalMetricProgress) -> String {
-        guard let baseline = goal.baselineValueDouble else { return "" }
-        let target = goal.metricTargetValueDouble ?? 0
-        let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
-        let moved = abs(baseline - metric.currentValue)
-        let total = abs(target - baseline)
-        return String(localized: "\(verb) \(GoalMetricEvaluator.formatValue(moved))\(unitDisplay) / 共 \(GoalMetricEvaluator.formatValue(total))\(unitDisplay)")
-    }
-
-    /// 预计达成行：已达成 / 按节奏外推 / 低速段不预测
     @ViewBuilder
-    private func metricForecastLine(_ metric: GoalMetricProgress) -> some View {
-        if metric.isAchieved {
-            forecastLabel(icon: "checkmark.circle.fill", color: .green, text: String(localized: "已达成目标"))
-        } else if let forecast = metric.forecast {
-            let dateText = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
-            if let meets = forecast.meetsDeadline {
-                if meets {
-                    forecastLabel(icon: "checkmark.circle.fill", color: .green, text: String(localized: "按当前节奏预计 \(dateText) 达成，赶在截止前"))
-                } else {
-                    forecastLabel(icon: "exclamationmark.triangle.fill", color: .orange, text: String(localized: "照目前进度难以在截止前达成，按当前节奏预计 \(dateText) 达成"))
-                }
-            } else {
-                forecastLabel(icon: "chart.line.uptrend.xyaxis", color: .holoPrimary, text: String(localized: "按当前节奏预计 \(dateText) 达成"))
+    private func sheetContent(for route: GoalDetailSheetRoute) -> some View {
+        switch route {
+        case .edit:
+            GoalEditSheet(goal: goal) {
+                activeSheet = nil
             }
-        } else {
-            // 进度 <10% 低速段：预测波动大，只提示不输出结论
-            forecastLabel(icon: "leaf", color: .holoToolTextSecondary, text: String(localized: "刚起步，多记几笔再看趋势"))
+        case .management:
+            GoalManagementSheet(
+                goal: goal,
+                workshopEnabled: workshopEnabled,
+                onEditGoal: { switchSheet(to: .edit) },
+                onOpenPlanEditor: { switchSheet(to: .planEditor) },
+                onOpenWorkshopAdvice: {
+                    switchSheet(to: .workshopAdvice(.existingGoalAdvice(goalID: goal.id, goalTitle: goal.title)))
+                },
+                onDeleteConfirmed: onDeleteRequested
+            )
+        case .quickTask:
+            GoalQuickTaskSheet(goal: goal)
+        case .newHabit:
+            AddHabitSheet(prefill: HabitPrefillDraft(goalId: goal.id))
+        case .linkExisting:
+            GoalLinkManagerSheet(goal: goal)
+        case .planEditor:
+            GoalPlanEditorSheet(goal: goal)
+        case .workshopAdvice(let launch):
+            GoalWorkshopFlowView(launch: launch)
         }
     }
 
-    private func forecastLabel(icon: String, color: Color, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .holoText(.metadata)
-            Text(text)
-                .holoText(.metadata)
-        }
-        .foregroundColor(color)
-    }
-
-    /// 自动源（habit/ledger）的来源标签：可点跳源；
-    /// 自动源不叠加手动补录（单一事实来源），所以不显示「记一笔」
-    @ViewBuilder
-    private var metricSourceLabel: some View {
-        switch goal.metricSourceEnum {
-        case .manual:
-            EmptyView()
-        case .habit:
-            if let habit = GoalMetricEvaluator.sourceHabit(for: goal) {
-                Button {
-                    onOpenLinkedEntity(.habitDetail(habitId: habit.id))
-                } label: {
-                    sourceLabelRow(text: String(localized: "数据来自：\(habit.name)"))
-                }
-                .buttonStyle(HoloPressStyle())
-            }
-        case .ledger:
-            Button {
-                onOpenLinkedEntity(.finance)
-            } label: {
-                sourceLabelRow(text: String(localized: "数据来自：账本"))
-            }
-            .buttonStyle(HoloPressStyle())
-        }
-    }
-
-    private func sourceLabelRow(text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "link")
-                .holoText(.metadata)
-            Text(text)
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary)
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary.opacity(0.6))
-        }
-    }
-
-    /// habit 源失效（习惯被删/归档）：进度暂停计算，给重新选择数据源的入口
-    private var sourceUnavailableRow: some View {
-        Button {
-            showEditForm = true
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolWarning)
-                Text("数据源习惯已删除或归档，进度暂停计算，点此重新选择")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(HoloSpacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoToolWarning.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-        }
-        .buttonStyle(HoloPressStyle())
-    }
-
-    /// 手动源的记录列表（可删除误记，删除后进度实时重算）
-    @ViewBuilder
-    private var metricLogSection: some View {
-        if goal.isQuantitative && goal.metricSourceEnum == .manual {
-            let logs = repository.getMetricLogs(for: goal)
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                HStack {
-                    Text("记录")
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Text("\(logs.count) 条")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-                if logs.isEmpty {
-                    Text("还没有记录，点「记一笔」开始")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                } else {
-                    ForEach(logs, id: \.id) { log in
-                        metricLogRow(log)
-                    }
-                }
-            }
-        }
-    }
-
-    private func metricLogRow(_ log: GoalMetricLog) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text("\(goal.goalKindEnum == .target ? "" : "+ ")\(GoalMetricEvaluator.formatValue(log.value))\(unitDisplay)")
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoToolText)
-                    Text(GoalMetricEvaluator.displayDateFormatter.string(from: log.date))
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-                if let note = log.note, !note.isEmpty {
-                    Text(note)
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                perform { try repository.deleteMetricLog(log, for: goal) }
-            } label: {
-                Image(systemName: "trash")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
-            }
-            .buttonStyle(HoloPressStyle())
-        }
-        .padding(.vertical, HoloSpacing.xs)
-    }
-
-    private func sectionHeader(title: String) -> some View {
-        HStack {
-            Text(title).holoText(.body).fontWeight(.semibold)
-            Spacer()
-            Button("管理") {
-                showLinkManager = true
-            }
-            .holoText(.supporting)
-            .foregroundColor(.holoPrimary)
-        }
-    }
-
-    private var actionSection: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            if workshopEnabled {
-                Button("一起想清楚怎么调整") {
-                    goalWorkshopLaunch = .existingGoalAdvice(goalID: goal.id, goalTitle: goal.title)
-                }
-            }
-            Button("编辑目标") {
-                showEditForm = true
-            }
-            Button("目标设置") {
-                showGoalSettingsEdit = true
-            }
-            if goal.goalStatus == .active {
-                Button("暂停目标") {
-                    perform { try repository.updateStatus(goal, status: .paused) }
-                }
-            } else if goal.goalStatus == .paused {
-                Button("恢复目标") {
-                    perform { try repository.updateStatus(goal, status: .active) }
-                }
-            }
-            if goal.goalStatus != .completed {
-                Button("标记完成") {
-                    perform { try repository.updateStatus(goal, status: .completed) }
-                }
-            } else {
-                // 红队 U10：误触「标记完成」可逆——恢复为进行中（completedAt 由模型自动清）
-                Button("恢复为进行中") {
-                    perform { try repository.updateStatus(goal, status: .active) }
-                }
-            }
-            Button("删除目标", role: .destructive) { showDeleteConfirm = true }
-        }
-        .buttonStyle(.bordered)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func linkedEntityRow(
-        title: String,
-        icon: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: icon)
-                    .foregroundColor(.holoPrimary)
-                Text(title)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                    .lineLimit(1)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-            .padding(.vertical, HoloSpacing.sm)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(HoloPressStyle())
-    }
-
-    private func perform(_ action: () throws -> Void) {
-        do {
-            try action()
-            GoalNotificationService.broadcastGoalDataChange()
-        } catch {
-            operationError = error.localizedDescription
-        }
+    /// 先关闭当前弹窗，在 onDismiss 完成后再弹出目标弹窗，避免 SwiftUI 并发 presentation 冲突
+    private func switchSheet(to next: GoalDetailSheetRoute) {
+        pendingSheet = next
+        activeSheet = nil
     }
 }
 
-// MARK: - 量化目标进度环
-
-/// 数字进度的环形呈现（trim 写法对齐 TripleHealthRingView，中心显示百分比）
-private struct GoalMetricRingView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let progress: Double
-
-    var body: some View {
-        ZStack {
-            HoloProgress(value: progress, color: .holoPrimary, shape: .ring, lineWidth: 10)
-
-            Text("\(Int((progress * 100).rounded()))%")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.holoToolText)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-        }
-        .frame(width: 72, height: 72)
-    }
-}
-
-// MARK: - 编辑目标 Sheet
+// MARK: - 统一编辑目标 Sheet
 
 struct GoalEditSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -638,8 +230,6 @@ struct GoalEditSheet: View {
             primaryActionColor: GoalJourneyStyle.action,
             footerBackground: GoalJourneyStyle.sheetFooterCream,
             primaryAccessory: {
-                // 修改成功条件的确认勾选（红队 U8）：放脚手架恒可见区（保存钮上方），
-                // 不再埋在滚动区里——滚出视口时保存钮静默禁用、找不到原因
                 if criteriaChanged {
                     Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed)
                         .holoText(.supporting)
@@ -647,7 +237,7 @@ struct GoalEditSheet: View {
             }
         ) {
             ScrollView(showsIndicators: false) {
-                GoalEditForm(draft: $draft)
+                GoalEditForm(draft: $draft, showsExtendedFields: true)
                     .padding(.horizontal, HoloSpacing.page)
                     .padding(.top, 4)
                     .padding(.bottom, 20)
@@ -672,12 +262,10 @@ struct GoalEditSheet: View {
         isSaving = true
         DispatchQueue.main.async {
             do {
-                // deadline 从 draft.deadlineText 解析；nil 表示清空
                 let parsedDeadline: Date?? = {
                     guard let text = draft.deadlineText, !text.isEmpty else { return .some(nil) }
                     return .some(GoalEditForm.parseDeadlineText(text))
                 }()
-                // 量化字段随表单整体保存：切回过程型时 updateFields 内部清空量化配置
                 try GoalRepository.shared.updateFields(
                     goal,
                     title: draft.title,
@@ -709,5 +297,101 @@ struct GoalEditSheet: View {
                 saveError = error.localizedDescription
             }
         }
+    }
+}
+
+// MARK: - 目标达成庆祝弹窗（成果回顾 + 一键结项归档）
+
+private struct GoalAchievementCelebrationSheet: View {
+    let goal: Goal
+    let onMarkCompleted: () -> Void
+    let onKeepActive: () -> Void
+
+    private var elapsedDays: Int {
+        max(1, Calendar.current.dateComponents([.day], from: goal.createdAt, to: Date()).day ?? 1)
+    }
+
+    private var completedTaskCount: Int {
+        goal.sortedTasks.filter(\.completed).count
+    }
+
+    private var linkedHabitCount: Int {
+        goal.sortedHabits.count
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: HoloSpacing.xl) {
+                Spacer()
+
+                ZStack {
+                    Circle()
+                        .fill(GoalJourneyStyle.action.opacity(0.12))
+                        .frame(width: 96, height: 96)
+                    Text(goal.displayIcon)
+                        .font(.system(size: 46))
+                }
+
+                VStack(spacing: HoloSpacing.sm) {
+                    Text("目标达成")
+                        .font(.holoTitle)
+                        .foregroundColor(.holoToolText)
+                    Text("「\(goal.title)」已经达成你的设定目标")
+                        .font(.holoBody)
+                        .foregroundColor(.holoToolTextSecondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                HStack(spacing: HoloSpacing.md) {
+                    statTile(title: String(localized: "坚持天数"), value: "\(elapsedDays) 天")
+                    statTile(title: String(localized: "完成任务"), value: "\(completedTaskCount) 项")
+                    statTile(title: String(localized: "关联习惯"), value: "\(linkedHabitCount) 个")
+                }
+                .padding(.horizontal, HoloSpacing.md)
+
+                Spacer()
+
+                VStack(spacing: HoloSpacing.sm) {
+                    Button(action: onMarkCompleted) {
+                        Text("标记为已完成")
+                            .font(.holoBody)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(GoalJourneyStyle.action)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    }
+
+                    Button(action: onKeepActive) {
+                        Text("继续保持进行中")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, HoloSpacing.lg)
+            }
+            .background(Color.holoToolBackground)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func statTile(title: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.holoBody)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
+            Text(title)
+                .font(.holoLabel)
+                .foregroundColor(.holoToolTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, HoloSpacing.md)
+        .background(Color.holoToolSurface)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 }

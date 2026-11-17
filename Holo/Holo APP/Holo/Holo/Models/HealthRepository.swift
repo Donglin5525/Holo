@@ -1593,6 +1593,8 @@ class HealthRepository: ObservableObject {
             HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned),
             HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning),
+            HKObjectType.quantityType(forIdentifier: .bodyMass),
+            HKObjectType.quantityType(forIdentifier: .bodyFatPercentage),
             // 二期体征三项（需 Apple Watch 产生数据）
             HKObjectType.quantityType(forIdentifier: .restingHeartRate),
             HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
@@ -1665,6 +1667,85 @@ class HealthRepository: ObservableObject {
             ),
             dataSourceState: dataSourceState
         )
+    }
+
+    // MARK: - Goal Metric Sync (Apple Health 被动数据源)
+
+    /// 读取目标关联的苹果健康指标当前值（最新样本或自 startDate 起的累计值）
+    func fetchGoalMetricValue(kind: GoalHealthMetricKind, since startDate: Date) async -> Double? {
+        if useMockData {
+            switch kind {
+            case .bodyMass: return nil
+            case .bodyFatPercentage: return nil
+            case .stepCount: return todaySteps > 0 ? todaySteps : nil
+            case .distanceWalkingRunning: return nil
+            case .activeEnergyBurned: return nil
+            case .sleepHours: return todaySleep > 0 ? todaySleep : nil
+            }
+        }
+        guard HKHealthStore.isHealthDataAvailable() else { return nil }
+
+        let now = Date()
+        switch kind {
+        case .bodyMass:
+            let lookback = min(startDate, Calendar.current.date(byAdding: .day, value: -90, to: now) ?? startDate)
+            return await fetchLatestQuantitySample(identifier: .bodyMass, unit: .gramUnit(with: .kilo), since: lookback)
+        case .bodyFatPercentage:
+            let lookback = min(startDate, Calendar.current.date(byAdding: .day, value: -90, to: now) ?? startDate)
+            if let ratio = await fetchLatestQuantitySample(identifier: .bodyFatPercentage, unit: .percent(), since: lookback) {
+                return ratio * 100.0
+            }
+            return nil
+        case .stepCount:
+            return await fetchCumulativeQuantitySum(identifier: .stepCount, unit: .count(), from: startDate, to: now)
+        case .distanceWalkingRunning:
+            return await fetchCumulativeQuantitySum(identifier: .distanceWalkingRunning, unit: .meterUnit(with: .kilo), from: startDate, to: now)
+        case .activeEnergyBurned:
+            return await fetchCumulativeQuantitySum(identifier: .activeEnergyBurned, unit: .kilocalorie(), from: startDate, to: now)
+        case .sleepHours:
+            if todaySleep > 0 { return todaySleep }
+            return nil
+        }
+    }
+
+    private func fetchLatestQuantitySample(
+        identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        since startDate: Date
+    ) async -> Double? {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: Date(), options: .strictEndDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: quantityType, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
+                guard let sample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: sample.quantity.doubleValue(for: unit))
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchCumulativeQuantitySum(
+        identifier: HKQuantityTypeIdentifier,
+        unit: HKUnit,
+        from startDate: Date,
+        to endDate: Date
+    ) async -> Double? {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
+                guard let sum = result?.sumQuantity() else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: sum.doubleValue(for: unit))
+            }
+            healthStore.execute(query)
+        }
     }
 }
 

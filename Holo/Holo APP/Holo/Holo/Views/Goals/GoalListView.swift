@@ -113,7 +113,11 @@ struct GoalListView: View {
                         Label("手动创建", systemImage: "square.and.pencil")
                     }
                 } label: {
-                    Label("新建", systemImage: "plus")
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.holoToolOnAction)
+                        .frame(width: 30, height: 30)
+                        .background(GoalJourneyStyle.action, in: Circle())
                 }
                 .accessibilityLabel(String(localized: "新建目标"))
             }
@@ -145,17 +149,32 @@ struct GoalListView: View {
             get: { deleteConfirmGoalID != nil },
             set: { if !$0 { deleteConfirmGoalID = nil } }
         ), titleVisibility: .visible) {
-            Button("删除目标", role: .destructive) {
-                if let goalId = deleteConfirmGoalID {
-                    requestDelete(goalId)
+            if confirmImpact != nil {
+                Button("删除目标及其创建的习惯和任务", role: .destructive) {
+                    if let goalId = deleteConfirmGoalID {
+                        requestDelete(goalId, cascading: true)
+                    }
+                    deleteConfirmGoalID = nil
                 }
-                deleteConfirmGoalID = nil
+                Button("仅删除目标", role: .destructive) {
+                    if let goalId = deleteConfirmGoalID {
+                        requestDelete(goalId, cascading: false)
+                    }
+                    deleteConfirmGoalID = nil
+                }
+            } else {
+                Button("删除目标", role: .destructive) {
+                    if let goalId = deleteConfirmGoalID {
+                        requestDelete(goalId)
+                    }
+                    deleteConfirmGoalID = nil
+                }
             }
             Button("取消", role: .cancel) {
                 deleteConfirmGoalID = nil
             }
         } message: {
-            Text("删除目标后，基于该目标创建的任务和习惯不会被删除，只会解除与该目标的关联。")
+            Text(deleteDialogMessage)
         }
         .navigationDestination(item: $selectedGoalRoute) { route in
             if let goal = repository.findGoal(by: route.id) {
@@ -231,11 +250,23 @@ struct GoalListView: View {
                 resumeBanner(resumableSession)
                     .padding(.top, 4)
             }
-            Picker(String(localized: "目标分段"), selection: $selectedSegment) {
-                Text("进行中").tag(Segment.ongoing)
-                Text("已完成").tag(Segment.completed)
+            HStack(spacing: HoloSpacing.sm) {
+                HoloFilterChip(
+                    title: String(localized: "进行中"),
+                    iconColor: GoalJourneyStyle.action,
+                    isSelected: selectedSegment == .ongoing
+                ) {
+                    selectedSegment = .ongoing
+                }
+                HoloFilterChip(
+                    title: String(localized: "已完成"),
+                    iconColor: GoalJourneyStyle.action,
+                    isSelected: selectedSegment == .completed
+                ) {
+                    selectedSegment = .completed
+                }
+                Spacer()
             }
-            .pickerStyle(.segmented)
             .padding(.top, 8)
             .padding(.bottom, 4)
 
@@ -295,7 +326,7 @@ struct GoalListView: View {
     }
 
     private func goalCards(_ goals: [Goal]) -> some View {
-        ForEach(goals, id: \.id) { goal in
+        ForEach(goals.renderable, id: \.id) { goal in
             Button {
                 selectedGoalRoute = GoalDetailRoute(id: goal.id)
             } label: {
@@ -599,11 +630,28 @@ struct GoalListView: View {
         pendingGoalDetailId = nil
     }
 
-    private func requestDelete(_ goalId: UUID) {
+    /// 待确认删除目标的「目标创建」实体清单（nil = 没有可连带项）
+    private var confirmImpact: GoalRepository.OwnedEntityImpact? {
+        guard let goalId = deleteConfirmGoalID,
+              let goal = repository.findGoal(by: goalId) else { return nil }
+        let impact = repository.ownedEntityImpact(of: goal)
+        return impact.isEmpty ? nil : impact
+    }
+
+    private var deleteDialogMessage: String {
+        if let impact = confirmImpact {
+            return String(localized: "这个目标创建了\(impact.summaryText)。选「删除目标及其创建的习惯和任务」时：习惯及其全部记录将被永久删除，无法恢复；任务进入回收站，30 天内可恢复。只是手动关联的旧习惯和任务会保留，仅解除关联。")
+        }
+        return String(localized: "删除目标后，任务和习惯会保留，仅解除关联。")
+    }
+
+    private func requestDelete(_ goalId: UUID, cascading: Bool = false) {
         selectedGoalRoute = nil
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             do {
-                try repository.deleteGoal(id: goalId)
+                try repository.deleteGoal(id: goalId, deletingOwnedEntities: cascading)
+                cardFacts.removeValue(forKey: goalId)
+                reviewDueGoalIDs.remove(goalId)
                 GoalNotificationService.broadcastGoalDataChange()
             } catch {
                 operationError = error.localizedDescription

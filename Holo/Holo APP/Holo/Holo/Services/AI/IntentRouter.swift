@@ -778,14 +778,35 @@ final class IntentRouter {
             )
             try habitRepo.addNumericRecord(for: habit, value: weight, note: note, analyticsSource: "ai")
             logger.info("体重已记录：\(weight) kg")
+            let syncedGoal = syncWeightToActiveManualGoal(weight)
+            let suffix = syncedGoal.map { "，并已同步更新目标「\($0.title)」进度" } ?? ""
             return RouteResult(
-                text: "已记录体重：\(weight) kg",
+                text: "已记录体重：\(weight) kg\(suffix)",
                 habitId: habit.id,
                 linkedEntity: LinkedEntity(type: .habit, id: habit.id)
+            )
+        } else if let syncedGoal = syncWeightToActiveManualGoal(weight) {
+            return RouteResult(
+                text: "已更新目标「\(syncedGoal.title)」当前体重：\(GoalMetricEvaluator.formatValue(weight)) kg",
+                linkedEntity: LinkedEntity(type: .goal, id: syncedGoal.id)
             )
         } else {
             return RouteResult(text: "未找到体重记录习惯，请先在习惯模块创建")
         }
+    }
+
+    private func syncWeightToActiveManualGoal(_ weight: Double) -> Goal? {
+        let candidates = GoalRepository.shared.activeGoals().filter { goal in
+            goal.goalKindEnum == .target
+                && goal.metricSourceEnum == .manual
+                && (goal.metricUnitText.lowercased() == "kg"
+                    || goal.title.contains("减重")
+                    || goal.title.contains("体重"))
+        }
+        guard let targetGoal = candidates.first else { return nil }
+        try? GoalRepository.shared.addMetricLog(for: targetGoal, value: weight, note: "对话记录体重")
+        GoalNotificationService.broadcastGoalDataChange()
+        return targetGoal
     }
 
     // MARK: - Check In
@@ -1111,6 +1132,11 @@ final class IntentRouter {
         case .ledger:
             return RouteResult(
                 text: "「\(goal.title)」是存钱目标，进度按账本自动计算。记账请直接记一笔账，比如「发工资了 8000」。",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        case .healthKit:
+            return RouteResult(
+                text: "「\(goal.title)」会自动从苹果健康同步，无需手动录入。",
                 linkedEntity: LinkedEntity(type: .goal, id: goal.id)
             )
         }

@@ -107,9 +107,11 @@ final class GoalUIRedesignUITests: XCTestCase {
         let app = launchApp(seedListStates: true)
         openGoalList(app)
 
-        // 分段控件存在（原生 segmented）
-        let segmented = app.segmentedControls.firstMatch
-        XCTAssertTrue(segmented.waitForExistence(timeout: 10), "分段控件「进行中|已完成」应存在")
+        // HoloFilterChip 分段（「进行中」|「已完成」）
+        let ongoingChip = app.buttons["进行中"].firstMatch
+        let completedChip = app.buttons["已完成"].firstMatch
+        XCTAssertTrue(ongoingChip.waitForExistence(timeout: 10), "分段「进行中」应存在")
+        XCTAssertTrue(completedChip.exists, "分段「已完成」应存在")
         snap(app, "01-list-segmented")
 
         // 进行中段：量化/过程型/已暂停/已到期四卡（待回顾需闭环数据，无则跳）
@@ -131,7 +133,7 @@ final class GoalUIRedesignUITests: XCTestCase {
         snap(app, "01-list-ongoing-cards")
 
         // 切已完成段：有卡 + 「已完成」胶囊
-        segmented.buttons["已完成"].tap()
+        completedChip.tap()
         XCTAssertTrue(card(app, title: "走查·完成的目标").waitForExistence(timeout: 6), "已完成段应有卡")
         XCTAssertTrue(app.staticTexts["已完成"].firstMatch.exists, "「已完成」胶囊")
         XCTAssertTrue(app.staticTexts.matching(
@@ -162,42 +164,60 @@ final class GoalUIRedesignUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["领域"].firstMatch.exists, "创建表单不应出现领域选择（v3）")
         snap(app, "02-form-initial-process")
 
-        // 切累积型：「目标」+ 单位框出现
-        typeCard(app, name: "累积型").tap()
-        XCTAssertTrue(app.staticTexts["目标"].firstMatch.waitForExistence(timeout: 4), "累积型出「目标」标签")
-        XCTAssertTrue(app.textFields["300"].firstMatch.exists, "累积型目标数框占位 300")
-        XCTAssertTrue(app.textFields["km"].firstMatch.exists, "累积型单位框占位 km")
+        // 切「累计」：「目标累计」+ 单位框出现
+        typeCard(app, name: "累计").tap()
+        XCTAssertTrue(app.staticTexts["目标累计"].firstMatch.waitForExistence(timeout: 4), "累计出「目标累计」标签")
+        XCTAssertTrue(app.textFields["300"].firstMatch.exists, "累计目标数框占位 300")
+        XCTAssertTrue(app.textFields["km"].firstMatch.exists, "累计单位框占位 km")
         snap(app, "02-form-cumulative")
 
-        // 切达标型：「现在→目标」结构
-        typeCard(app, name: "达标型").tap()
-        XCTAssertTrue(app.staticTexts["现在"].firstMatch.waitForExistence(timeout: 4), "达标型出「现在」标签")
-        XCTAssertTrue(app.textFields["75"].firstMatch.exists, "达标型现在框占位 75")
-        XCTAssertTrue(app.textFields["70"].firstMatch.exists, "达标型目标框占位 70")
-        XCTAssertTrue(app.textFields["kg"].firstMatch.exists, "达标型单位框占位 kg")
+        // 切「达标」：「数据来源 / 当前数值 / 想达到」结构
+        typeCard(app, name: "达标").tap()
+        XCTAssertTrue(app.staticTexts["数据来源"].firstMatch.waitForExistence(timeout: 4), "达标应直接露出「数据来源」")
+        XCTAssertTrue(app.staticTexts["当前数值"].firstMatch.exists, "达标出「当前数值」标签")
+        XCTAssertTrue(app.staticTexts["想达到"].firstMatch.exists, "达标出「想达到」标签")
+        XCTAssertTrue(app.textFields["75"].firstMatch.exists, "达标当前值占位 75")
+        XCTAssertTrue(app.textFields["65"].firstMatch.exists, "达标目标框占位 65")
+        XCTAssertTrue(app.textFields["kg"].firstMatch.exists, "达标单位框占位 kg")
         snap(app, "02-form-target")
 
-        // 回过程型：数字区收起
-        typeCard(app, name: "过程型").tap()
-        XCTAssertFalse(app.staticTexts["现在"].firstMatch.waitForExistence(timeout: 2), "回过程型「现在」应收起")
-        XCTAssertFalse(app.textFields["300"].firstMatch.exists, "回过程型数字框应收起")
+        // 切回「做成一件事」：数字区收起
+        typeCard(app, name: "做成一件事").tap()
+        XCTAssertFalse(app.staticTexts["当前数值"].firstMatch.waitForExistence(timeout: 2), "回做成一件事「当前数值」应收起")
+        XCTAssertFalse(app.textFields["300"].firstMatch.exists, "回做成一件事数字框应收起")
         snap(app, "02-form-back-to-process")
 
-        // 输入含 300 的标题 → 提示行出现 → 点击切累积型且目标框=300
+        // 输入含 300 的标题 → 提示行出现 → 点击切「累计」且目标框=300
         bigInput.tap()
         bigInput.typeText("今年跑满 300 公里")
         let hint = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "点一下切到「累积型」")).firstMatch
-        XCTAssertTrue(hint.waitForExistence(timeout: 4), "标题含 300 停过程型时提示行应出现")
+            NSPredicate(format: "label CONTAINS %@", "点一下按数量累计追踪")).firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 4), "标题含 300 时提示行应出现")
         snap(app, "02-form-hint-row")
 
         hint.tap()
-        XCTAssertTrue(app.staticTexts["目标"].firstMatch.waitForExistence(timeout: 4), "点击提示行后应切累积型")
+        XCTAssertTrue(app.staticTexts["目标累计"].firstMatch.waitForExistence(timeout: 4), "点击提示行后应切累计")
         let targetField = app.textFields.matching(NSPredicate(format: "value == %@", "300")).firstMatch
         XCTAssertTrue(targetField.waitForExistence(timeout: 4), "目标框应预填 300")
-        // R5：单位微型映射——标题含「公里」→ 单位预填 km；数字有效+标题非空即可保存
         XCTAssertTrue(app.textFields.matching(NSPredicate(format: "value == %@", "km")).firstMatch.waitForExistence(timeout: 4),
                       "单位应按标题词映射预填 km")
+
+        // 期限交互：点 Holo 截止期限行打开 Holo 定制期限弹层 → 点「1个月后」确定 → 再打开点「不设期限」清除
+        let deadlineRow = app.buttons["goal-deadline-row"].firstMatch
+        if deadlineRow.waitForExistence(timeout: 4) {
+            deadlineRow.tap()
+            let oneMonthChip = app.buttons["goal-deadline-1m"].firstMatch
+            XCTAssertTrue(oneMonthChip.waitForExistence(timeout: 4), "Holo 期限弹层应出现「1个月后」")
+            oneMonthChip.tap()
+            app.buttons["确定"].firstMatch.tap()
+            XCTAssertTrue(deadlineRow.waitForExistence(timeout: 4))
+            deadlineRow.tap()
+            let clearChip = app.buttons["goal-deadline-clear"].firstMatch
+            XCTAssertTrue(clearChip.waitForExistence(timeout: 4), "Holo 期限弹层「不设期限」应存在")
+            clearChip.tap()
+            XCTAssertTrue(app.staticTexts["不设期限"].firstMatch.waitForExistence(timeout: 4), "点「不设期限」后应清除期限")
+        }
+
         let createButton = app.buttons["创建"].firstMatch
         XCTAssertTrue(createButton.waitForExistence(timeout: 4), "创建按钮应存在")
         XCTAssertTrue(createButton.isEnabled, "数字有效+标题非空即可保存（单位可选，规格 B5）")
@@ -227,7 +247,7 @@ final class GoalUIRedesignUITests: XCTestCase {
         snap(app, "03-after-pause")
     }
 
-    // MARK: - 4. 详情页目标设置面板（五字段+领域行）
+    // MARK: - 4. 详情页统一编辑与「目标管理」面板
 
     func testGoalSettingsPanel() throws {
         let app = launchApp(seedListStates: true)
@@ -239,32 +259,31 @@ final class GoalUIRedesignUITests: XCTestCase {
         XCTAssertTrue(processCard.label.contains("📚"), "改前图标应为学习领域默认 📚")
         processCard.tap()
 
-        let settingsEntry = app.buttons["目标设置与全部关联"].firstMatch
-        XCTAssertTrue(settingsEntry.waitForExistence(timeout: 8), "详情页应有「目标设置与全部关联」")
+        let manageBtn = app.buttons["goal-detail-manage"].firstMatch
+        XCTAssertTrue(manageBtn.waitForExistence(timeout: 6), "详情页右上角应有「目标管理」")
         snap(app, "04-detail")
 
-        settingsEntry.tap()
-        // 面板内 actionSection 的「目标设置」行打开二层面板：详情工具栏 ellipsis 同名
-        // （accessibilityLabel 也叫「目标设置」），被 sheet 遮挡时 hittable 判定不可靠，
-        // 按 identifier 排除 ellipsis 后取可点中的，屏外则上滑找
-        let settingsAction = scrollUntilHittable(
-            app,
-            predicate: NSPredicate(format: "label == %@ AND identifier != %@", "目标设置", "ellipsis")
-        )
-        XCTAssertNotNil(settingsAction, "设置面板应有「目标设置」入口")
-        settingsAction?.tap()
-        XCTAssertTrue(app.staticTexts["说明"].firstMatch.waitForExistence(timeout: 6),
-                      "二层面板应打开（「说明」字段可见）")
-        snap(app, "04-settings-panel")
+        // 目标管理页使用 HoloSheetScaffold，且不再套娃出现「目标设置」按钮
+        manageBtn.tap()
+        XCTAssertTrue(app.staticTexts["目标管理"].waitForExistence(timeout: 6), "应打开「目标管理」弹窗")
+        XCTAssertFalse(app.buttons["目标设置"].exists, "管理页不应再套娃出现「目标设置」按钮")
+        let editRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "编辑目标内容、目标值与期限")).firstMatch
+        XCTAssertTrue(editRow.waitForExistence(timeout: 4), "管理页应有统一编辑入口")
+        editRow.tap()
 
-        // 五字段 + 领域行存在
-        for label in ["说明", "期望结果", "动机", "领域", "图标", "AI 上下文"] {
-            XCTAssertTrue(app.staticTexts[label].firstMatch.waitForExistence(timeout: 4),
-                          "面板应有「\(label)」")
+        // 统一编辑表单展开「补充说明、动机与图标」
+        let detailsToggle = scrollUntilHittable(app, predicate: NSPredicate(format: "label CONTAINS %@", "补充说明、动机与图标"))
+        XCTAssertNotNil(detailsToggle, "编辑表单应有「补充说明、动机与图标」折叠区")
+        detailsToggle?.tap()
+        snap(app, "04-unified-edit-extended")
+
+        for label in ["补充说明", "期望结果", "动机", "领域", "图标"] {
+            let exists = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", label)).firstMatch.waitForExistence(timeout: 4)
+            XCTAssertTrue(exists, "扩展细节区应含「\(label)」")
         }
 
         // 改领域：学习 → 健康
-        let domainRow = scrollUntilHittable(app, predicate: NSPredicate(format: "label CONTAINS %@", "领域"))
+        let domainRow = scrollUntilHittable(app, predicate: NSPredicate(format: "identifier == %@", "goal-edit-domain-row"))
         XCTAssertNotNil(domainRow, "领域行应存在")
         domainRow?.tap()
         XCTAssertTrue(app.staticTexts["选择领域"].waitForExistence(timeout: 6), "领域选择 sheet 应打开")
@@ -277,21 +296,13 @@ final class GoalUIRedesignUITests: XCTestCase {
         XCTAssertNotNil(healthRow, "领域选择应有「健康」")
         healthRow?.tap()
 
-        // picker 选完回到设置面板，领域行值应显示「健康」（draft 已回写）
-        let domainAfterPick = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "领域、健康")).firstMatch
-        XCTAssertTrue(domainAfterPick.waitForExistence(timeout: 6), "选完「健康」后领域行应显示新值")
-
         let save = app.buttons["保存"].firstMatch
         XCTAssertTrue(save.waitForExistence(timeout: 4), "保存按钮应存在")
         save.tap()
 
-        // 保存后二层面板应关闭（保存成功路径才 dismiss）；「保存失败」alert 不应出现
         XCTAssertTrue(waitForNonExistence(app.buttons["知道了"].firstMatch, timeout: 4), "不应弹「保存失败」alert")
-        XCTAssertFalse(app.staticTexts["说明"].firstMatch.waitForExistence(timeout: 2), "保存后设置面板应关闭")
+        XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 6), "保存后回到目标详情")
 
-        // 返回列表：卡片图标块随领域变健康默认 💪（配色变化的最直接可观测）
-        let done = app.buttons["完成"].firstMatch
-        if done.waitForExistence(timeout: 4) { done.tap() }
         let back = app.navigationBars.buttons.firstMatch
         if back.waitForExistence(timeout: 4) { back.tap() }
         let changedCard = card(app, title: "走查·过程型目标")
@@ -299,5 +310,44 @@ final class GoalUIRedesignUITests: XCTestCase {
         XCTAssertTrue(changedCard.label.contains("💪"), "图标块配色应随新领域变化（📚→💪）")
         XCTAssertFalse(changedCard.label.contains("📚"), "旧领域默认图标不应残留")
         snap(app, "04-list-after-domain-change")
+    }
+
+    // MARK: - 5. 新建后直接进详情再删除，闭环无闪退
+
+    func testDeleteGoalFromDetailNoCrash() throws {
+        let app = launchApp(seedListStates: false)
+        openGoalList(app)
+
+        let newMenu = app.buttons["新建目标"].firstMatch
+        XCTAssertTrue(newMenu.waitForExistence(timeout: 8))
+        newMenu.tap()
+        app.buttons["手动创建"].firstMatch.tap()
+
+        let titleField = app.textFields["想做成什么？"].firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 8))
+        titleField.tap()
+        let tempTitle = "走查·待删除闭环"
+        titleField.typeText(tempTitle)
+        app.buttons["创建"].firstMatch.tap()
+
+        // 创建后自动进入详情页 → 点「···」目标管理 → 删除目标
+        let manageBtn = app.buttons["goal-detail-manage"].firstMatch
+        XCTAssertTrue(manageBtn.waitForExistence(timeout: 8), "创建后应进入详情且右上角有管理按钮")
+        manageBtn.tap()
+
+        let deleteRow = scrollUntilHittable(app, predicate: NSPredicate(format: "label CONTAINS %@", "删除目标"))
+        XCTAssertNotNil(deleteRow, "管理页应有删除目标入口")
+        deleteRow?.tap()
+
+        let confirmDelete = app.buttons.matching(NSPredicate(format: "label == %@", "删除目标"))
+            .allElementsBoundByIndex
+            .last(where: { $0.exists && $0.isHittable })
+        XCTAssertNotNil(confirmDelete, "应弹出删除确认按钮")
+        confirmDelete?.tap()
+
+        let deletedCard = card(app, title: tempTitle)
+        XCTAssertTrue(waitForNonExistence(deletedCard, timeout: 6), "删除后应安全退回列表且目标消失，无闪退")
+        XCTAssertTrue(app.buttons["新建目标"].waitForExistence(timeout: 6), "删除返回后目标列表应仍可正常交互")
+        snap(app, "05-after-detail-delete-no-crash")
     }
 }

@@ -38,7 +38,7 @@ final class UserContextBuilder {
 
         let recentTrend = await buildRecentTrend()
 
-        let goalContext = buildGoalContext(limit: 3)
+        let goalContext = buildGoalContext(limit: 6)
 
         let anniversaryLines = buildAnniversaryLines()
 
@@ -507,7 +507,7 @@ final class UserContextBuilder {
             if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
                 var line = """
                 - \(goal.title)
-                  - 量化目标\(deadlineSuffix)：当前 \(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(goal.metricUnitText)
+                  - 量化目标（来源：\(goal.metricSourceEnum.displayName)）\(deadlineSuffix)：当前 \(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(goal.metricUnitText)
                   - \(Self.quantitativeForecastText(metric: metric))
                   - 期望结果：\(goal.desiredOutcome ?? "未设定")
                   - 动机：\(goal.motivation ?? "未设定")

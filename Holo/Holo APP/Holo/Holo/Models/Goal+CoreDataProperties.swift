@@ -83,6 +83,23 @@ extension Goal {
         set { metricSource = newValue.rawValue }
     }
 
+    /// 苹果健康指标类型（复存在 ledgerScope，以 "hk:" 前缀与账本 JSON 隔离，零 CoreData Schema 变更）
+    var healthMetricKindEnum: GoalHealthMetricKind? {
+        get {
+            guard metricSourceEnum == .healthKit,
+                  let raw = ledgerScope,
+                  raw.hasPrefix("hk:") else { return nil }
+            return GoalHealthMetricKind(rawValue: String(raw.dropFirst(3)))
+        }
+        set {
+            if let newValue {
+                ledgerScope = "hk:\(newValue.rawValue)"
+            } else if ledgerScope?.hasPrefix("hk:") == true {
+                ledgerScope = nil
+            }
+        }
+    }
+
     /// 账本范围便捷读写（2026-11-14 表单暴露账本范围选择）：ledgerScope 存
     /// GoalLedgerScopePayload JSON。共创旧提交只存 kind 原始值（不带账户 ID），
     /// JSON 解不出来按 nil 返回——读取方（评估器/表单预填）回落计划版本里的完整 payload，

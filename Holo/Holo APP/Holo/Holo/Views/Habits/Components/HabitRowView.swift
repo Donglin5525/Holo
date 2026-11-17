@@ -336,7 +336,8 @@ struct HabitRowView: View {
     // MARK: 当月缝线（月初累加视角，2026-10-07 东林定稿）
 
     /// 实针=已记录 ｜ 空心针=补录 ｜ 针眼=漏做 ｜ 细搭线=暂停日（不算断）｜ 淡点=还没到的日子 ｜
-    /// 空圈=今天游标（位置即日期，不另标数字）；创建前空位不渲染（那时还没有这个习惯，不是漏做）。
+    /// 空圈=今天游标（位置即日期，不另标数字）；创建前=最淡的小点占位（那时还没有这个习惯，
+    /// 不是漏做——但完全不画会让月中新建的习惯整条痕迹缺一截，像没显示全，2026-11-17 东林实报）。
     private var trailStitches: some View {
         HStack(spacing: 0) {
             ForEach(snapshot.trail) { day in
@@ -353,7 +354,10 @@ struct HabitRowView: View {
         let color = Color(hex: snapshot.colorHex)
         ZStack {
             if day.isBeforeCreation {
-                // 创建前：空位，不渲染
+                // 创建前：最淡占位点（弱于未来日），保住整月痕迹的连续感
+                Circle()
+                    .fill(Color.holoToolTextSecondary.opacity(0.25))
+                    .frame(width: 2, height: 2)
             } else if day.isFuture {
                 // 还没走到的日子：小点弱于漏做针眼。用 ToolTextSecondary 而非 ToolBorder——
                 // 后者浅色是 0.91 暖灰，米色底上不可见（11-05 挑刺专项F 浅色补弱）

@@ -200,7 +200,7 @@ struct GoalSettingsSheet: View {
 
 /// 领域选择 sheet：内联七项列表，图标块与列表卡同构（领域色 12% 底 + 默认 emoji），
 /// 选中项名称与对勾用模块行动色标记（R6：不再用领域色/系统蓝，全页一个橙）；选完即关
-private struct GoalDomainPickerSheet: View {
+struct GoalDomainPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     let current: GoalDomain
     let onSelect: (GoalDomain) -> Void

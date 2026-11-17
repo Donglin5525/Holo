@@ -2886,6 +2886,16 @@
         }
       }
     },
+    "目标 %@%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "目标 %1$@%2$@"
+          }
+        }
+      }
+    },
     "目标进度" : {
       "localizations" : {
         "en" : {

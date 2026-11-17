@@ -174,7 +174,7 @@ enum GoalPlanResolver {
         let sourceKind: GoalResultSourceKind
         var sourceID: UUID?
         switch goal.metricSourceEnum {
-        case .manual:
+        case .manual, .healthKit:
             sourceKind = .manual
         case .habit:
             sourceKind = .habit

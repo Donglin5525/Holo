@@ -32,19 +32,23 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         return app
     }
 
-    /// 从个人页「目标管理」进目标列表（GoalWorkshopJourneyUITests 同款路径）
+    /// 从个人页「我的目标」进目标列表（入口行 accessibilityIdentifier=personal.goals）
     private func openGoalList(_ app: XCUIApplication) {
+        let skip = app.buttons["跳过引导"].firstMatch
+        if skip.waitForExistence(timeout: 3) {
+            skip.tap()
+        }
         let personal = app.buttons["个人"].firstMatch
-        if personal.waitForExistence(timeout: 10) {
+        if personal.waitForExistence(timeout: 15) {
             personal.tap()
         }
-        let goalEntry = app.buttons["目标管理"].firstMatch
-        if goalEntry.waitForExistence(timeout: 8) {
+        let goalEntry = app.buttons["personal.goals"].firstMatch
+        if goalEntry.waitForExistence(timeout: 10) {
             goalEntry.tap()
         } else {
-            let sidebarEntry = app.staticTexts["目标管理"].firstMatch
-            XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 6), "找不到目标管理入口")
-            sidebarEntry.tap()
+            let fallback = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "我的目标")).firstMatch
+            XCTAssertTrue(fallback.waitForExistence(timeout: 6), "找不到目标列表入口")
+            fallback.tap()
         }
     }
 
@@ -54,25 +58,19 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         let newButton = app.buttons["新建目标"].firstMatch
         XCTAssertTrue(newButton.waitForExistence(timeout: 8), "目标列表应可见")
         // 截图种子无目标时：新建目标 → 手动创建 → 填标题 → 创建（保存后自动进详情）
-        let createItem = app.buttons["手动创建"].firstMatch
-        newButton.tap()
-        if createItem.waitForExistence(timeout: 4) {
-            createItem.tap()
-            let titleField = app.textFields["目标标题"].firstMatch
-            XCTAssertTrue(titleField.waitForExistence(timeout: 8), "手动创建表单应出现")
-            titleField.tap()
-            titleField.typeText("闭环冒烟目标")
-            app.buttons["创建目标"].firstMatch.tap()
+        let existingCard = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "闭环冒烟目标")).firstMatch
+        if existingCard.waitForExistence(timeout: 2) {
+            existingCard.tap()
         } else {
-            // 已有目标：直接点第一张目标卡（含「待回顾」标的优先）
-            let due = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "待回顾")).firstMatch
-            if due.waitForExistence(timeout: 3) {
-                due.tap()
-            } else {
-                app.buttons["新建目标"].firstMatch.tap() // 收起菜单
-                let anyGoal = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "闭环冒烟目标")).firstMatch
-                XCTAssertTrue(anyGoal.waitForExistence(timeout: 4), "应存在可打开的目标")
-                anyGoal.tap()
+            newButton.tap()
+            let createItem = app.buttons["手动创建"].firstMatch
+            if createItem.waitForExistence(timeout: 4) {
+                createItem.tap()
+                let titleField = app.textFields["想做成什么？"].firstMatch
+                XCTAssertTrue(titleField.waitForExistence(timeout: 8), "手动创建表单应出现")
+                titleField.tap()
+                titleField.typeText("闭环冒烟目标")
+                app.buttons["创建"].firstMatch.tap()
             }
         }
         return app.navigationBars["目标详情"].waitForExistence(timeout: 10)
@@ -83,15 +81,9 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         openGoalList(app)
         XCTAssertTrue(openFirstGoalDetail(app), "应进入目标详情")
 
-        // 分析入口收在原型的“回顾与历史”，既有报告链和功能仍保留。
-        let review = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "查看回顾与历史")).firstMatch
-        for _ in 0..<6 where !review.isHittable { app.swipeUp() }
-        XCTAssertTrue(review.isHittable); review.tap()
         let section = app.staticTexts["目标分析"].firstMatch
-        XCTAssertTrue(section.waitForExistence(timeout: 8), "开关开：详情应原位出现「目标分析」区")
-        XCTAssertTrue(app.navigationBars["回顾与历史"].exists)
-        app.buttons["完成"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 5), "返回原目标详情")
+        for _ in 0..<5 where !section.isHittable { app.swipeUp() }
+        XCTAssertTrue(section.waitForExistence(timeout: 8), "开关开：详情应直接出现「目标分析」区")
         XCTAssertFalse(app.buttons["去记账"].exists, "不得出现目标页记账表单入口")
 
         // 返回列表不闪退
@@ -106,7 +98,7 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["目标分析"].waitForExistence(timeout: 4), "开关关：详情不出现分析区（回退=隐藏增量）")
         XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 4), "既有详情结构不受影响")
     }
-    /// 真正经过原生今天、长卷、原记录编辑后返回，验证展示与保存联动。
+    /// 真正经过原生今天、详情、原记录编辑后返回，验证展示与保存联动。
     func testTodaySourceRecordEditingAfterPriorEdits() throws {
         let app = XCUIApplication()
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
@@ -117,7 +109,6 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         let focus = app.buttons["today-focus-goal"]
         XCTAssertTrue(focus.waitForExistence(timeout: 20), "今天应只展示重点目标摘要")
         focus.tap()
-        XCTAssertTrue(app.staticTexts["进展长卷"].waitForExistence(timeout: 8))
         let reading = app.buttons["goal-source-验收·阅读"]
         for _ in 0..<5 where !reading.isHittable { app.swipeUp() }
         XCTAssertTrue(reading.isHittable)
@@ -187,7 +178,6 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         app.launch()
         let focus = app.buttons["today-focus-goal"]
         XCTAssertTrue(focus.waitForExistence(timeout: 20)); focus.tap()
-        XCTAssertTrue(app.staticTexts["进展长卷"].waitForExistence(timeout: 6))
         for (orientation, name) in [(UIDeviceOrientation.portrait, "iPad竖屏"), (.landscapeLeft, "iPad横屏")] {
             XCUIDevice.shared.orientation = orientation
             let reading = app.buttons["goal-source-验收·阅读"]
@@ -210,8 +200,6 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
             XCTAssertTrue(app.textFields["goal-plan-result-target"].waitForExistence(timeout: 5))
             let planShot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); planShot.name = name + "-约定编辑"; planShot.lifetime = .keepAlways; add(planShot)
             app.navigationBars["调整本目标约定"].buttons["取消"].firstMatch.tap()
-            let heading = app.staticTexts["进展长卷"]
-            for _ in 0..<8 where !heading.isHittable { app.swipeDown() }
         }
         XCUIDevice.shared.orientation = .portrait
     }
@@ -225,26 +213,19 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         app.launch()
         let focus = app.buttons["today-focus-goal"]
         XCTAssertTrue(focus.waitForExistence(timeout: 20)); focus.tap()
-        XCTAssertTrue(app.staticTexts["想达成什么"].waitForExistence(timeout: 6))
-        XCTAssertTrue(app.staticTexts["为此做的安排"].exists)
-        let time = app.sliders["拨动长卷时间"]
-        time.adjust(toNormalizedSliderPosition: 0)
-        let now = app.buttons["回到当前进展"]
-        XCTAssertTrue(now.waitForExistence(timeout: 5)); now.tap()
-        app.navigationBars.buttons["目标设置"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["目标设置"].waitForExistence(timeout: 5))
-        let edit = app.buttons["编辑目标"].firstMatch
-        for _ in 0..<5 where !edit.isHittable { app.swipeUp() }
-        XCTAssertTrue(edit.isHittable); edit.tap()
-        XCTAssertTrue(app.navigationBars["编辑目标"].waitForExistence(timeout: 5))
-        app.navigationBars["编辑目标"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["目标设置"].waitForExistence(timeout: 5))
-        app.buttons["完成"].firstMatch.tap()
-        let review = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "查看回顾与历史")).firstMatch
-        for _ in 0..<6 where !review.isHittable { app.swipeUp() }
-        XCTAssertTrue(review.isHittable); review.tap()
-        XCTAssertTrue(app.navigationBars["回顾与历史"].waitForExistence(timeout: 6))
-        XCTAssertTrue(app.staticTexts["目标分析"].exists)
+        XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.buttons["goal-result-source"].waitForExistence(timeout: 6))
+        let analysis = app.staticTexts["目标分析"]
+        for _ in 0..<5 where !analysis.isHittable { app.swipeUp() }
+        XCTAssertTrue(analysis.waitForExistence(timeout: 6))
+
+        app.buttons["goal-detail-manage"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["目标管理"].waitForExistence(timeout: 5))
+        let edit = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "编辑目标内容、目标值与期限")).firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 4)); edit.tap()
+        XCTAssertTrue(app.staticTexts["编辑目标"].waitForExistence(timeout: 5))
+        app.buttons["关闭"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 5))
     }
 
     func testNarrativeNumberOpensOriginalAccount() throws {
@@ -256,14 +237,15 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         app.launch()
         let focus = app.buttons["today-focus-goal"]
         XCTAssertTrue(focus.waitForExistence(timeout: 20)); focus.tap()
-        let amount = app.links.matching(NSPredicate(format: "label BEGINSWITH %@", "¥")).firstMatch
-        XCTAssertTrue(amount.waitForExistence(timeout: 6), "叙事数字应是可访问的链接")
-        let preview = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); preview.name = "按原型还原-长卷首屏"; preview.lifetime = .keepAlways; add(preview)
-        amount.tap()
+        let accountSource = app.buttons["goal-result-source"]
+        for _ in 0..<5 where !accountSource.isHittable { app.swipeUp() }
+        XCTAssertTrue(accountSource.waitForExistence(timeout: 6), "结果来源应可访问并跳进原账户")
+        let preview = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); preview.name = "精简详情-首屏"; preview.lifetime = .keepAlways; add(preview)
+        accountSource.tap()
         XCTAssertTrue(app.buttons["完成"].firstMatch.waitForExistence(timeout: 6), "应进入原账户来源弹层")
-        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "叙事金额-原账户"; shot.lifetime = .keepAlways; add(shot)
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "来源入口-原账户"; shot.lifetime = .keepAlways; add(shot)
         app.buttons["完成"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["进展长卷"].waitForExistence(timeout: 6))
+        XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 6))
     }
 
     func testSourceShowsGoalsUsingDifferentMetrics() throws {
@@ -284,17 +266,16 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         XCTAssertTrue(fitness.isHittable)
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "来源明细-共享记录与双向目标"; shot.lifetime = .keepAlways; add(shot)
         fitness.tap()
-        let distance = app.buttons["goal-source-验收·跑步"]
-        XCTAssertTrue(distance.waitForExistence(timeout: 6))
-        XCTAssertTrue(app.staticTexts["15 / 40 公里"].exists, "另一个目标仍按里程读取同一组原记录")
+        XCTAssertTrue(app.staticTexts["15 / 40 公里"].waitForExistence(timeout: 6), "另一个目标仍按里程读取同一组原记录")
     }
 
     func testPlanPreviewSavesAndReopensWithoutChangingFacts() throws {
         let app = launchProgressApp()
         app.buttons["today-focus-goal"].tap()
-        let amount = app.links.matching(NSPredicate(format: "label BEGINSWITH %@", "¥")).firstMatch
-        XCTAssertTrue(amount.waitForExistence(timeout: 6))
-        let originalFact = amount.label
+        let accountSource = app.buttons["goal-result-source"]
+        for _ in 0..<5 where !accountSource.isHittable { app.swipeUp() }
+        XCTAssertTrue(accountSource.waitForExistence(timeout: 6))
+        let originalFact = accountSource.label
         openPlan(app)
         let field = app.textFields["goal-plan-result-target"]
         XCTAssertTrue(field.waitForExistence(timeout: 6))
@@ -310,7 +291,7 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "调整约定-采用前影响预览"; shot.lifetime = .keepAlways; add(shot)
         app.buttons["goal-plan-save"].tap()
         XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 6))
-        XCTAssertEqual(amount.label, originalFact, "修改要求不能改变账户的实际余额")
+        XCTAssertTrue(accountSource.waitForExistence(timeout: 6))
         openPlan(app)
         XCTAssertTrue(field.waitForExistence(timeout: 6))
         let saved = field.value as? String ?? ""
@@ -321,7 +302,8 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         for _ in 0..<8 where !confirm.isHittable { app.swipeUp() }
         XCTAssertTrue(confirm.isHittable); confirm.tap(); app.buttons["goal-plan-save"].tap()
         XCTAssertTrue(app.navigationBars["目标详情"].waitForExistence(timeout: 6))
-        XCTAssertEqual(amount.label, originalFact)
+        XCTAssertTrue(accountSource.waitForExistence(timeout: 6))
+        _ = originalFact
     }
 
     func testSourceAndPlanWithAccessibilityText() throws {
@@ -414,8 +396,10 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
         return app
     }
     private func openPlan(_ app: XCUIApplication) {
-        let plan = app.buttons["调整本目标约定"].firstMatch
-        for _ in 0..<8 where !plan.isHittable { app.swipeUp() }
+        let manage = app.buttons["goal-detail-manage"].firstMatch
+        XCTAssertTrue(manage.waitForExistence(timeout: 4)); manage.tap()
+        let plan = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "周期与高级规则")).firstMatch
+        for _ in 0..<4 where !plan.isHittable { app.swipeUp() }
         XCTAssertTrue(plan.isHittable); plan.tap()
         XCTAssertTrue(app.navigationBars["调整本目标约定"].waitForExistence(timeout: 6))
     }

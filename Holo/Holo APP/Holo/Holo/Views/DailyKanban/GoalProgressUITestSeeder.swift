@@ -10,8 +10,11 @@ enum GoalProgressUITestSeeder {
         DarkModeManager.shared.currentSetting = ProcessInfo.processInfo.arguments.contains("UITEST_GOAL_DARK") ? .dark : .light
         let context = CoreDataStack.shared.viewContext
         let request = Goal.fetchRequest()
-        request.predicate = NSPredicate(format: "title == %@", "验收·北海道旅行")
-        guard (try? context.count(for: request)) == 0 else { return }
+        request.predicate = NSPredicate(format: "title == %@ AND deletedAt == nil", "验收·北海道旅行")
+        if let existing = (try? context.fetch(request))?.first {
+            UserDefaults.standard.set(existing.id.uuidString, forKey: "holo.today.focusGoalID")
+            return
+        }
         let calendar = Calendar.current, now = Date()
         func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: -offset, to: calendar.startOfDay(for: now)) ?? now }
         func habit(_ name: String, unit: String, bad: Bool = false) -> Habit {

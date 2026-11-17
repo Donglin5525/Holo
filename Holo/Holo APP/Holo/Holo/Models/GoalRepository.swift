@@ -134,7 +134,13 @@ final class GoalRepository: ObservableObject {
         goal.metricTargetValueDouble = draft.metricTargetValue
         goal.baselineValueDouble = draft.goalKind == .target ? draft.metricBaselineValue : nil
         goal.sourceHabitId = draft.metricSource == .habit ? draft.sourceHabitId : nil
-        goal.ledgerScopePayload = draft.metricSource == .ledger ? draft.ledgerScope : nil
+        if draft.metricSource == .ledger {
+            goal.ledgerScopePayload = draft.ledgerScope
+        } else if draft.metricSource == .healthKit {
+            goal.healthMetricKindEnum = draft.healthMetricKind
+        } else {
+            goal.ledgerScope = nil
+        }
         goal.baselineDate = now
     }
 
@@ -298,18 +304,127 @@ final class GoalRepository: ObservableObject {
     }
 
     func deleteGoal(_ goal: Goal) throws {
-        // 手动记录与目标无 Core Data 关系，删除目标时一并清理，避免孤儿数据
-        for log in getMetricLogs(for: goal) {
-            context.delete(log)
-        }
-        context.delete(goal)
-        try context.save()
-        loadGoals()
+        try deleteGoal(goal, deletingOwnedEntities: false)
     }
 
-    func deleteGoal(id: UUID) throws {
+    /// 删除目标时会被一并删除的「目标创建」实体清单（isGoalOwned 绑定）。
+    /// 复用/手动挂进来的旧习惯、旧任务不在其中——它们有自己的生活，只解除关联。
+    struct OwnedEntityImpact {
+        let ownedHabits: [Habit]
+        let ownedTasks: [TodoTask]
+
+        var isEmpty: Bool { ownedHabits.isEmpty && ownedTasks.isEmpty }
+
+        var summaryText: String {
+            var parts: [String] = []
+            if !ownedHabits.isEmpty {
+                parts.append(String(localized: "\(ownedHabits.count) 个习惯"))
+            }
+            if !ownedTasks.isEmpty {
+                parts.append(String(localized: "\(ownedTasks.count) 个任务"))
+            }
+            return parts.joined(separator: "、")
+        }
+    }
+
+    /// 读取当前生效计划里的目标专属绑定，解析成真实对象（已删/已归档的跳过）。
+    /// 查询全部走本仓库 context——测试注入的独立上下文同样成立，不串 shared 单例的库。
+    func ownedEntityImpact(of goal: Goal) -> OwnedEntityImpact {
+        guard let row = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context),
+              let payload = row.planPayloadV2 else {
+            return OwnedEntityImpact(ownedHabits: [], ownedTasks: [])
+        }
+        let now = Date()
+        var habits: [Habit] = []
+        var tasks: [TodoTask] = []
+        for binding in payload.activeBindings(at: now) where binding.isGoalOwned {
+            guard let entityID = binding.entityID else { continue }
+            switch binding.entityType {
+            case .habit:
+                // 自带 deletedAt == nil AND isArchived == NO 过滤
+                if let habit = GoalWorkshopCommitService.fetchHabit(id: entityID, in: context) {
+                    habits.append(habit)
+                }
+            case .task:
+                let request = TodoTask.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", entityID as CVarArg)
+                request.fetchLimit = 1
+                if let task = try? context.fetch(request).first {
+                    tasks.append(task)
+                }
+            case .budget, .account, .fundSchedule:
+                continue
+            }
+        }
+        return OwnedEntityImpact(ownedHabits: habits, ownedTasks: tasks)
+    }
+
+    /// 删除目标；deletingOwnedEntities = true 时连同目标创建的习惯（硬删，记录级联）
+    /// 与任务（软删进回收站，30 天可恢复）一起删除，其余关联实体仅解除关联。
+    /// 全程在同一 context 事务内完成；保存成功后再发各模块通知。
+    func deleteGoal(_ goal: Goal, deletingOwnedEntities: Bool) throws {
+        guard goal.deletedAt == nil else { return }
+        let now = Date()
+        let impact = deletingOwnedEntities ? ownedEntityImpact(of: goal) : nil
+        // 目标创建的任务：整批一个回收站批次（软删标记，与任务模块单删同链路可恢复）
+        if let impact, !impact.ownedTasks.isEmpty {
+            let title = goal.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let shortTitle = title.count > 16 ? String(title.prefix(16)) + "…" : title
+            let batch = RecycleBinService.makeSingleItemBatch(
+                module: .task,
+                summary: String(localized: "删除目标 · \(shortTitle.isEmpty ? String(localized: "无标题") : shortTitle)"),
+                context: context,
+                now: now
+            )
+            for task in impact.ownedTasks {
+                // 打软删标记后 goal.sortedTasks（过滤 deletedAt）就看不到它了，解绑必须在这里一并做
+                task.goal = nil
+                task.deletedFlag = true
+                task.markDeleted(batchId: batch.id)
+                task.updatedAt = now
+            }
+        }
+        // 单条软删（deletedAt != nil, deletedBatchId == nil）：
+        // 避免在 NavigationStack 退栈动画完成前 context.delete 触发 Core Data 悬空崩溃，并对齐全库 SoftDeletable 规范。
+        for log in getMetricLogs(for: goal) {
+            log.deletedAt = now
+            log.deletedBatchId = nil
+        }
+        for task in goal.sortedTasks {
+            task.goal = nil
+        }
+        for habit in goal.sortedHabits {
+            habit.goal = nil
+        }
+        // 目标创建的习惯硬删（与习惯模块单删同语义：记录随 Habit→HabitRecord 级联规则带走）
+        var deletedHabitIDs: [UUID] = []
+        if let impact {
+            for habit in impact.ownedHabits {
+                deletedHabitIDs.append(habit.id)
+                context.delete(habit)
+            }
+        }
+        if UserDefaults.standard.string(forKey: "holo.today.focusGoalID") == goal.id.uuidString {
+            UserDefaults.standard.removeObject(forKey: "holo.today.focusGoalID")
+        }
+        goal.deletedAt = now
+        goal.deletedBatchId = nil
+        goal.updatedAt = now
+        try context.save()
+        loadGoals()
+        TodoRepository.shared.loadActiveTasks()
+        HabitRepository.shared.loadActiveHabits()
+        for habitID in deletedHabitIDs {
+            HabitRepository.shared.notifyDataChange(habitId: habitID)
+        }
+        for taskID in impact?.ownedTasks.map(\.id) ?? [] {
+            TodoRepository.shared.notifyTaskChange(.deleted, taskId: taskID)
+        }
+    }
+
+    func deleteGoal(id: UUID, deletingOwnedEntities: Bool = false) throws {
         guard let goal = findGoal(by: id) else { return }
-        try deleteGoal(goal)
+        try deleteGoal(goal, deletingOwnedEntities: deletingOwnedEntities)
     }
 
     private func parseDate(_ text: String?) -> Date? {
