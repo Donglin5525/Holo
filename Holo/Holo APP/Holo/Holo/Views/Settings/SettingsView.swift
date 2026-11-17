@@ -106,6 +106,7 @@ struct SettingsView: View {
 
     // 规整后新增的二级页
     @State private var showAppearancePage = false
+    @State private var showStickerLibrary = false
     @State private var showRecycleBin = false
     @State private var showFinanceTransfer = false
     @State private var showThoughtAIScope = false
@@ -693,6 +694,21 @@ struct SettingsView: View {
                 }
                 .sheet(isPresented: $showAppearancePage) {
                     SettingsAppearancePage()
+                }
+
+                SettingsRowDivider()
+
+                // 我的贴纸：拍身边物品做成的贴纸集中在这里，供各记录复用
+                SettingsNavRow(
+                    icon: "sparkles.rectangle.stack",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "我的贴纸"),
+                    subtitle: String(localized: "自己拍的物品贴纸，各处复用")
+                ) {
+                    showStickerLibrary = true
+                }
+                .sheet(isPresented: $showStickerLibrary) {
+                    VisualAssetLibraryView()
                 }
 
                 SettingsRowDivider()
