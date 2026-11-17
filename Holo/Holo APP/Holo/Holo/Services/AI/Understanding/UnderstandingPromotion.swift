@@ -54,6 +54,16 @@ enum UnderstandingPromotion {
         }
     }
 
+    /// 直出候选判定（HabitPhaseProposer 模板措辞的公开契约）：程序从打卡数据判定、
+    /// 模板措辞零幻觉——语义是「来源直接显示」(observed→sourceLinked)，不是模型推断。
+    /// 真数据实锤（11-16）：直出的「『戒烟』习惯进行中」曾被归 inferred→
+    /// behavioralInference→无统计模板→准入 internalOnly(templateNotRegistered)，
+    /// revision 不写、记忆中心「值得确认」不可见。模型通道候选仍走 inferred
+    ///（受模板闸约束——防模型编数值规律的制度不动）。
+    static func isDeterministicOutput(_ statement: String, _ kind: ProposalCandidate.ClaimKind) -> Bool {
+        kind == .phaseState && statement.contains("习惯进行中")
+    }
+
     static func temporalKind(_ validity: EpistemicValidity) -> HoloContextTemporalKind {
         switch validity {
         case .phase, .enduring: return .ongoing
@@ -167,7 +177,8 @@ enum UnderstandingPromotion {
             contextID: "understanding-\(themeKey)-\(Int(now.timeIntervalSince1970))",
             statement: statement,
             relationText: kind.rawValue,
-            epistemicStatus: epistemicStatus(provenance),
+            epistemicStatus: isDeterministicOutput(statement, kind)
+                ? .observed : epistemicStatus(provenance),
             applicability: HoloContextApplicabilityV1(),
             temporal: HoloContextTemporalV1(
                 kind: temporalKind(validity),
