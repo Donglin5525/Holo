@@ -52,7 +52,7 @@ nonisolated enum PhotoLibraryImageLoader {
     static func progressiveLoad(from item: PhotosPickerItem) -> AsyncStream<ProgressiveEvent> {
         AsyncStream { continuation in
             let task = Task {
-                await runProgressiveLoad(item, continuation: continuation)
+                await runProgressiveLoad(item.itemIdentifier, via: item, continuation: continuation)
                 continuation.finish()
             }
             continuation.onTermination = { _ in
@@ -61,7 +61,46 @@ nonisolated enum PhotoLibraryImageLoader {
         }
     }
 
-    private static func runProgressiveLoad(_ item: PhotosPickerItem, continuation: AsyncStream<ProgressiveEvent>.Continuation) async {
+    /// 按资产标识渐进加载（PHPickerResult.assetIdentifier 直入——贴纸线 2026-11-19）：
+    /// 无读取权限等场景的传输通道兜底需要 PhotosPickerItem，此处没有时直接报不可用
+    static func loadImageData(assetIdentifier: String) async -> PhotoLoadOutcome {
+        var sawPlaceholder = false
+        for await event in progressiveEvents(assetIdentifier: assetIdentifier) {
+            if case .placeholder = event {
+                sawPlaceholder = true
+                await MainActor.run {
+                    HoloToastCenter.shared.show(
+                        String(localized: "原图在 iCloud 中，正在自动下载…"),
+                        type: .info,
+                        duration: 30
+                    )
+                }
+            }
+            if let outcome = resolve(event) {
+                if sawPlaceholder, case .data = outcome {
+                    await MainActor.run { HoloToastCenter.shared.dismiss() }
+                }
+                return outcome
+            }
+        }
+        return .unavailable
+    }
+
+    private static func progressiveEvents(assetIdentifier: String) -> AsyncStream<ProgressiveEvent> {
+        AsyncStream { continuation in
+            let task = Task {
+                await runProgressiveLoad(assetIdentifier, via: nil, continuation: continuation)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private static func runProgressiveLoad(_ identifier: String?,
+                                           via item: PhotosPickerItem?,
+                                           continuation: AsyncStream<ProgressiveEvent>.Continuation) async {
         switch PHPhotoLibrary.authorizationStatus(for: .readWrite) {
         case .authorized, .limited:
             break
@@ -75,13 +114,18 @@ nonisolated enum PhotoLibraryImageLoader {
             }
         default:
             // 「仅添加照片」等无读取权限形态：按资产取图的通道全部不可用，
-            // 回退选择器传输通道（选择器内容本身经系统授权传输，不需要读取权限）
+            // 回退选择器传输通道（选择器内容本身经系统授权传输，不需要读取权限）；
+            // 无选择器条目（按标识直入的调用方）没有该兜底，如实报不可用
             logger.error("无相册读取权限，回退选择器传输通道")
-            continuation.yield(await loadViaTransferable(item))
+            if let item {
+                continuation.yield(await loadViaTransferable(item))
+            } else {
+                continuation.yield(.failed(.unavailable))
+            }
             return
         }
 
-        guard let identifier = item.itemIdentifier,
+        guard let identifier,
               let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject else {
             // 「仅限选中的照片」权限下，不在授权子集内的照片按标识取不到资产。
             // 用户视角是「选择器里看得到、加载却失败」，与网络失败的自救动作不同，须细分。
@@ -89,7 +133,11 @@ nonisolated enum PhotoLibraryImageLoader {
                 continuation.yield(.failed(.limitedAccess))
                 return
             }
-            continuation.yield(await loadViaTransferable(item))
+            if let item {
+                continuation.yield(await loadViaTransferable(item))
+            } else {
+                continuation.yield(.failed(.unavailable))
+            }
             return
         }
 

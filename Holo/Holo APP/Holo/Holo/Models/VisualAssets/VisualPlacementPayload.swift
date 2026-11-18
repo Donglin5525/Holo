@@ -49,6 +49,10 @@ struct VisualPlacementPayload: Equatable {
         var focusY: Double = 0.5
         var scale: Double = 1.0
         var rotationDegrees: Double = 0
+        /// 贴纸在槽位内的平移（2026-11-19 确认页拖动；归一化到槽位宽/高，±0.5）。
+        /// 旧数据无此字段（DTO optional 解码回 0），渲染端 clamp 不做强校验
+        var offsetX: Double = 0
+        var offsetY: Double = 0
         var borderStyle: BorderStyle = .adaptivePaper
         var borderWeight: BorderWeight = .standard
         var softenPhotoInDark: Bool = false
@@ -178,6 +182,8 @@ private struct PayloadDTO: Codable {
         var focusY: Double
         var scale: Double
         var rotationDegrees: Double
+        var offsetX: Double?
+        var offsetY: Double?
         var borderStyle: String
         var borderWeight: String
         var softenPhotoInDark: Bool
@@ -196,6 +202,7 @@ private struct PayloadDTO: Codable {
         presentation = payload.presentation.map {
             PresentationDTO(fit: $0.fit.rawValue, focusX: $0.focusX, focusY: $0.focusY,
                             scale: $0.scale, rotationDegrees: $0.rotationDegrees,
+                            offsetX: $0.offsetX, offsetY: $0.offsetY,
                             borderStyle: $0.borderStyle.rawValue, borderWeight: $0.borderWeight.rawValue,
                             softenPhotoInDark: $0.softenPhotoInDark)
         }
@@ -227,6 +234,7 @@ private struct PayloadDTO: Codable {
                 throw VisualPlacementPayloadError.selectionTypeMismatch }
             decodedPresentation = .init(fit: fit, focusX: p.focusX, focusY: p.focusY,
                                  scale: p.scale, rotationDegrees: p.rotationDegrees,
+                                 offsetX: p.offsetX ?? 0, offsetY: p.offsetY ?? 0,
                                  borderStyle: borderStyle, borderWeight: borderWeight,
                                  softenPhotoInDark: p.softenPhotoInDark)
         }

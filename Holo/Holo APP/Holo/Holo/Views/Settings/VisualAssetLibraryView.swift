@@ -29,6 +29,8 @@ struct VisualAssetLibraryView: View {
 
     @State private var tab: Tab = .recent
     @State private var assets: [VisualAsset] = []
+    /// 搜索词（按贴纸名过滤；11-19 需求 3）
+    @State private var searchText = ""
     @State private var renameTarget: VisualAsset?
     @State private var renameText = ""
     @State private var deleteTarget: VisualAsset?
@@ -49,6 +51,30 @@ struct VisualAssetLibraryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(.holoToolTextSecondary)
+                    TextField(String(localized: "搜索贴纸名称"), text: $searchText)
+                        .font(.system(size: 13.5))
+                        .foregroundColor(.holoToolText)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Color.holoToolSurface)
+                .cornerRadius(11)
+                .padding(.horizontal)
                 Picker("分栏", selection: $tab) {
                     ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
@@ -65,7 +91,7 @@ struct VisualAssetLibraryView: View {
                 HStack(spacing: 8) {
                     libraryButton(icon: "camera", title: "拍照制作") { launchCamera() }
                     libraryButton(icon: "photo.on.rectangle", title: "从相册选") {
-                        activeMediaSource = .photoLibrary
+                        launchPhotoLibrary()
                     }
                     libraryButton(icon: "doc", title: "从文件导入") {
                         activeMediaSource = .document
@@ -122,6 +148,7 @@ struct VisualAssetLibraryView: View {
         }
         .task { reload() }
         .onChange(of: tab) { _ in reload() }
+        .onChange(of: searchText) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
             reload()
         }
@@ -157,8 +184,13 @@ struct VisualAssetLibraryView: View {
 
     // MARK: - 采集 → 确认页（拆套娃：跳过选择器首屏直达制作）
 
-    private func startConfirm(with data: Data) async {
+    private func startConfirm(with data: Data, editing asset: VisualAsset? = nil) async {
         let model = StickerMakerModel()
+        if let asset {
+            // 编辑模式：原地更新（11-19 需求 4），载入现有名
+            model.editTargetAssetID = asset.value(forKey: "id") as? UUID
+            model.name = (asset.value(forKey: "displayName") as? String) ?? ""
+        }
         confirmModel = model
         await model.ingestSmart(data: data)
     }
@@ -182,6 +214,14 @@ struct VisualAssetLibraryView: View {
         }
     }
 
+    /// 相册入口：读取权限一次性前置（iCloud 原图渐进下载的前提，想法模块同款）
+    private func launchPhotoLibrary() {
+        Task {
+            await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+            activeMediaSource = .photoLibrary
+        }
+    }
+
     // MARK: - 数据
 
     private func reload() {
@@ -197,22 +237,40 @@ struct VisualAssetLibraryView: View {
             request.predicate = NSPredicate(format: "libraryVisibility == %@ AND isFavorite == YES", "visible")
             request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         }
-        assets = (try? context.fetch(request)) ?? []
+        let fetched = (try? context.fetch(request)) ?? []
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if keyword.isEmpty {
+            assets = fetched
+        } else {
+            assets = fetched.filter { name in
+                (name.value(forKey: "displayName") as? String)?
+                    .localizedCaseInsensitiveContains(keyword) == true
+            }
+        }
     }
 
-    // MARK: - 空态（不预生成任何内容）
+    // MARK: - 空态（不预生成任何内容；搜索无结果与空库分开说）
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "sparkles")
+            Image(systemName: searchText.isEmpty ? "sparkles" : "magnifyingglass")
                 .font(.system(size: 28))
                 .foregroundColor(.holoToolTextSecondary)
-            Text("把身边的一件东西做成贴纸")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.holoToolTextSecondary)
-            Text("耳机、水杯、书、跑鞋——拍下来就是你的")
-                .font(.system(size: 11.5))
-                .foregroundColor(.holoToolTextSecondary)
+            if searchText.isEmpty {
+                Text("把身边的一件东西做成贴纸")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoToolTextSecondary)
+                Text("耳机、水杯、书、跑鞋——拍下来就是你的")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.holoToolTextSecondary)
+            } else {
+                Text("没有找到与「\(searchText)」相关的贴纸")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoToolTextSecondary)
+                Text("换个关键词，或清空搜索看看全部")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -242,6 +300,9 @@ struct VisualAssetLibraryView: View {
         return Menu {
             Button { renameTarget = asset; renameText = (asset.value(forKey: "displayName") as? String) ?? "" } label: {
                 Label("重命名", systemImage: "pencil")
+            }
+            Button { editAsset(asset) } label: {
+                Label("编辑贴纸", systemImage: "slider.horizontal.3")
             }
             Button {
                 asset.setValue(!(asset.value(forKey: "isFavorite") as? Bool ?? false), forKey: "isFavorite")
@@ -327,33 +388,24 @@ struct VisualAssetLibraryView: View {
         }
     }
 
-    /// 二段删除第一段：墓碑 + 清 Binary（同事务）；远端收到墓碑后同样清理
+    /// 二段删除第一段：走共享管理通道（墓碑+清缓存+广播）
     private func hardDelete(_ asset: VisualAsset) {
-        guard let assetID = asset.value(forKey: "id") as? UUID else { return }
-        context.performAndWait {
-            do {
-                _ = try VisualAssetRepository.shared.writeTombstone(operationID: UUID(), assetID: assetID, in: context)
-                for key in ["sourceData", "maskData", "contentData", "thumbnailData"] {
-                    asset.setValue(nil, forKey: key)
-                }
-                asset.setValue("recordOnly", forKey: "libraryVisibility")
-                try context.save()
-                VisualRenderCache.removeImages(assetID: assetID)
-                let generation = VisualCommitCoordinator.shared.scopeGeneration
-                NotificationCenter.default.post(
-                    name: .visualAssetsDidChange,
-                    object: nil,
-                    userInfo: [
-                        "scopeGeneration": generation,
-                        "assetIDs": [assetID.uuidString],
-                        "changeKind": "delete",
-                    ])
-            } catch {
-                toast = "删除没有完成，请重试"
-            }
+        do {
+            try VisualAssetManagement.hardDelete(asset: asset, in: context)
+        } catch {
+            toast = "删除没有完成，请重试"
         }
         deleteTarget = nil
         reload()
+    }
+
+    /// 编辑贴纸（11-19 需求 4）：载原图进确认页原地更新
+    private func editAsset(_ asset: VisualAsset) {
+        guard let sourceData = asset.value(forKey: "sourceData") as? Data else {
+            toast = "这张素材没有可编辑的原图"
+            return
+        }
+        Task { await startConfirm(with: sourceData, editing: asset) }
     }
 
     // MARK: - 子弹层

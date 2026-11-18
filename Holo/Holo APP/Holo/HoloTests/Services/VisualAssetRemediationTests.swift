@@ -372,3 +372,102 @@ final class VisualAppearanceDraftCommitTests: XCTestCase {
         XCTAssertEqual(after.assetID, asset2)
     }
 }
+
+
+// MARK: - 11-19：编辑贴纸原地更新 + presentation offset 兼容
+
+final class VisualAssetUpdateAndOffsetTests: XCTestCase {
+
+    var context: NSManagedObjectContext!
+
+    override func setUp() {
+        super.setUp()
+        context = CoreDataTestSupport.sharedTestContainer.viewContext
+        try? CoreDataTestSupport.clearEntities(context, ["VisualAsset", "VisualPlacementRevision", "VisualAssetTombstone"])
+    }
+
+    /// 编辑贴纸=原地更新：assetID 不变、像素字段被覆盖、引用位置无需迁移
+    func testUpdateAssetOverwritesInPlaceKeepingID() async throws {
+        let operationID = UUID()
+        let ctx = CGContext(data: nil, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(CGColor(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                 components: [0.2, 0.6, 0.9, 1])!)
+        ctx.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        let working = try VisualAssetImageProcessor.prepareWorkingImage(
+            from: VisualAssetImageProcessor.encodePNG(ctx.makeImage()!)!)
+
+        let create = try await VisualCommitCoordinator.shared.commit(
+            .createAssetOnly(operationID: operationID) { asset in
+                StickerMakerModel.fill(asset: asset, kind: .sticker, working: working, mask: nil)
+                asset.setValue("原名", forKey: "displayName")
+            }, in: CoreDataTestSupport.sharedTestContainer)
+        let assetID = try XCTUnwrap(create.assetID)
+
+        // 原地更新：改名+重写像素（颜色改红证明覆盖）
+        ctx.setFillColor(CGColor(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                 components: [0.9, 0.2, 0.2, 1])!)
+        ctx.fill(CGRect(x: 0, y: 0, width: 100, height: 100))
+        let working2 = try VisualAssetImageProcessor.prepareWorkingImage(
+            from: VisualAssetImageProcessor.encodePNG(ctx.makeImage()!)!)
+        let update = try await VisualCommitCoordinator.shared.commit(
+            .updateAsset(operationID: UUID(), assetID: assetID) { asset in
+                StickerMakerModel.fill(asset: asset, kind: .sticker, working: working2, mask: nil)
+                asset.setValue("新名", forKey: "displayName")
+            }, in: CoreDataTestSupport.sharedTestContainer)
+        XCTAssertEqual(update.assetID, assetID, "原地更新后 assetID 不变（引用位置无需迁移）")
+
+        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        request.predicate = NSPredicate(format: "id == %@", assetID as CVarArg)
+        let rows = try context.fetch(request)
+        XCTAssertEqual(rows.count, 1, "更新不新增行")
+        XCTAssertEqual(rows.first?.value(forKey: "displayName") as? String, "新名")
+        XCTAssertEqual(rows.first?.value(forKey: "libraryVisibility") as? String, "visible")
+    }
+
+    /// updateAsset 对不存在的 assetID 抛错（不静默新建）
+    func testUpdateMissingAssetThrows() async throws {
+        do {
+            _ = try await VisualCommitCoordinator.shared.commit(
+                .updateAsset(operationID: UUID(), assetID: UUID()) { _ in },
+                in: CoreDataTestSupport.sharedTestContainer)
+            XCTFail("更新不存在的素材应抛错")
+        } catch {
+            // 预期路径
+        }
+    }
+
+    /// presentation offset 编解码：旧 JSON（无 offsetX/Y）解码回 0；新数据往返保持
+    func testPresentationOffsetCodecRoundtripAndLegacy() throws {
+        var p = VisualPlacementPayload.Presentation(scale: 0.9, offsetX: -0.25, offsetY: 0.4,
+                                                    borderStyle: .white)
+        let payload = VisualPlacementPayload.setAsset(.asset(UUID()), presentation: p)
+        let json = String(data: try VisualPlacementCoding.canonicalData(payload), encoding: .utf8)!
+        let decoded = try VisualPlacementCoding.decode(from: json)
+        XCTAssertEqual(decoded.presentation?.offsetX ?? 99, -0.25)
+        XCTAssertEqual(decoded.presentation?.offsetY ?? 99, 0.4)
+
+        // 旧数据（手工去掉 offset 字段的 JSON 形状）→ 解码回 0
+        let legacy = json
+            .replacingOccurrences(of: ",\"offsetX\":-0.25,\"offsetY\":0.4", with: "")
+            .replacingOccurrences(of: ",\"offsetX\":-0.25", with: "")
+            .replacingOccurrences(of: ",\"offsetY\":0.4", with: "")
+        let decodedLegacy = try VisualPlacementCoding.decode(from: legacy)
+        XCTAssertEqual(decodedLegacy.presentation?.offsetX ?? 99, 0, "旧数据无 offset 字段应回 0")
+        XCTAssertEqual(decodedLegacy.presentation?.offsetY ?? 99, 0)
+        _ = p
+    }
+
+    /// 缓存 key 含 offset：位移变化产生不同 key（重渲染保证）
+    func testCacheKeyIncludesOffset() {
+        let id = UUID()
+        var p = VisualPlacementPayload.Presentation()
+        let k1 = VisualRenderCache.key(assetID: id, role: .icon, appearance: .light,
+                                       increasedContrast: false, displayScale: 3, presentation: p)
+        p.offsetX = 0.3
+        let k2 = VisualRenderCache.key(assetID: id, role: .icon, appearance: .light,
+                                       increasedContrast: false, displayScale: 3, presentation: p)
+        XCTAssertNotEqual(k1, k2)
+    }
+}

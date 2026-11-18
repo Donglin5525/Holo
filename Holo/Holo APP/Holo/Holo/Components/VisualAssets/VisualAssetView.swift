@@ -26,13 +26,18 @@ struct VisualAssetView: View {
             let image = displayImage ?? VisualRenderCache.image(for: fastKey)
             Group {
                 if let image {
-                    let scale = min(max(descriptor.presentation?.scale ?? 1.0, 0.6), 1.2)
+                    let p = descriptor.presentation
+                    let scale = min(max(p?.scale ?? 1.0, 0.6), 1.2)
+                    let ox = min(max(p?.offsetX ?? 0, -0.5), 0.5)
+                    let oy = min(max(p?.offsetY ?? 0, -0.5), 0.5)
                     Image(uiImage: UIImage(cgImage: image))
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
                         .scaleEffect(scale)
+                        .offset(x: ox * geo.size.width, y: oy * geo.size.height)
                         .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
                 } else {
                     // 像素未就绪：中性占位（区分「还没到」与「坏了」由外层状态负责）
                     RoundedRectangle(cornerRadius: roleCornerRadius)

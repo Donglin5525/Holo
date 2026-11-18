@@ -36,6 +36,11 @@ enum VisualCommitCommand {
     /// 只创建素材（存入素材库，暂不用于任何位置）
     case createAssetOnly(operationID: UUID,
                          assignAsset: (VisualAsset) -> Void)
+    /// 原地更新既有素材（「编辑贴纸」重做裁剪/修边/纸边后覆盖像素字段；
+    /// assetID 不变，引用它的位置无需迁移，缓存按 assetID 精准失效）
+    case updateAsset(operationID: UUID,
+                     assetID: UUID,
+                     assignAsset: (VisualAsset) -> Void)
 }
 
 enum VisualCommitError: Error, Equatable {
@@ -109,6 +114,19 @@ final class VisualCommitCoordinator {
                 assetID = asset.value(forKey: "id") as! UUID
             }
             if context.hasChanges { try context.save() }
+            postChange(generation: generation, operationID: operationID, assetIDs: [assetID],
+                       ownerKeys: [])
+            return VisualCommitReceipt(operationID: operationID, ownerKey: "",
+                                       assetID: assetID, revisionID: operationID)
+
+        case let .updateAsset(operationID, assetID, assignAsset):
+            guard let asset = try repo.findAsset(byID: assetID, in: context) else {
+                throw VisualCommitError.ownerUnavailable
+            }
+            assignAsset(asset)
+            try context.save()
+            // 派生缓存精准失效（removeImages 自带锁，线程安全）：同 assetID 全角色档重建
+            VisualRenderCache.removeImages(assetID: assetID)
             postChange(generation: generation, operationID: operationID, assetIDs: [assetID],
                        ownerKeys: [])
             return VisualCommitReceipt(operationID: operationID, ownerKey: "",

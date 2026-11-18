@@ -52,6 +52,10 @@ final class StickerMakerModel: ObservableObject {
     @Published var borderStyle: VisualPlacementPayload.Presentation.BorderStyle = .adaptivePaper
     @Published var borderWeight: VisualPlacementPayload.Presentation.BorderWeight = .standard
     @Published var scale: Double = 1.0
+    /// 确认页拖动贴纸的平移（pt，保存时归一化到预览框尺寸入 offsetX/Y）
+    @Published var offset: CGSize = .zero
+    /// 贴纸命名（确认页输入；空=存默认名「贴纸 MMDD」）
+    @Published var name: String = ""
     @Published var libraryAssets: [VisualAsset] = []
     @Published var saveErrorMessage: String?
 
@@ -70,6 +74,9 @@ final class StickerMakerModel: ObservableObject {
     /// 修边真源：基线遮罩 + 笔画历史（撤销=重放）
     private var baselineMask: CVPixelBuffer?
     private var strokes: [(points: [CGPoint], erase: Bool, brush: CGFloat)] = []
+
+    /// 编辑模式目标（「编辑贴纸」原地更新；nil=新建另存）
+    var editTargetAssetID: UUID?
 
     init(initialMode: Mode = .sticker) {
         mode = initialMode
@@ -392,10 +399,22 @@ final class StickerMakerModel: ObservableObject {
         let kind: VisualAssetKind = mode == .sticker ? .sticker : .photo
         let mask = mode == .sticker ? occupancyMask : nil
         do {
+            let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let assign: (VisualAsset) -> Void = { asset in
+                Self.fill(asset: asset, kind: kind, working: working, mask: mask)
+                if !displayName.isEmpty {
+                    asset.setValue(displayName, forKey: "displayName")
+                    asset.setValue(Date(), forKey: "metadataUpdatedAt")
+                }
+            }
+            let command: VisualCommitCommand
+            if let editID = editTargetAssetID {
+                command = .updateAsset(operationID: operationID, assetID: editID, assignAsset: assign)
+            } else {
+                command = .createAssetOnly(operationID: operationID, assignAsset: assign)
+            }
             let receipt = try await VisualCommitCoordinator.shared.commit(
-                .createAssetOnly(operationID: operationID) { asset in
-                    Self.fill(asset: asset, kind: kind, working: working, mask: mask)
-                }, in: CoreDataStack.shared.persistentContainer)
+                command, in: CoreDataStack.shared.persistentContainer)
             phase = .editing
             return receipt.assetID
         } catch {
@@ -458,6 +477,8 @@ struct VisualAppearancePickerView: View {
     @State private var cameraDenied = false
     @State private var libraryTab: VisualAssetLibraryView.Tab = .recent
     @State private var selectedAssetID: UUID?
+    /// 长按删除的确认目标（11-19 需求 4）
+    @State private var deleteTarget: VisualAsset?
 
     init(isPushed: Bool = false,
          initialMode: StickerMakerModel.Mode = .sticker,
@@ -480,6 +501,9 @@ struct VisualAppearancePickerView: View {
     var body: some View {
         root
             .visualMediaPresenter(activeSource: $activeMediaSource) { data in
+                // 新采集=新建语义：清掉长按「编辑贴纸」的目标，防止新图覆盖旧贴纸
+                model.editTargetAssetID = nil
+                model.name = ""
                 await model.ingestSmart(data: data)
             }
             .alert(String(localized: "无法访问相机"),
@@ -493,7 +517,46 @@ struct VisualAppearancePickerView: View {
             } message: {
                 Text(String(localized: "请在系统设置里允许 Holo 使用相机，或改用相册/文件导入"))
             }
+            .alert(String(localized: "删除这张贴纸？"),
+                   isPresented: Binding(
+                    get: { deleteTarget != nil },
+                    set: { if !$0 { deleteTarget = nil } })) {
+                Button(String(localized: "取消"), role: .cancel) {}
+                Button(String(localized: "删除"), role: .destructive) {
+                    if let target = deleteTarget {
+                        do {
+                            try VisualAssetManagement.hardDelete(asset: target,
+                                                                 in: CoreDataStack.shared.viewContext)
+                            if selectedAssetID == (target.value(forKey: "id") as? UUID) {
+                                selectedAssetID = nil
+                            }
+                        } catch {
+                            HoloToastCenter.shared.show(String(localized: "删除没有完成，请重试"), type: .error)
+                        }
+                        deleteTarget = nil
+                        model.reloadLibrary(tab: libraryTab)
+                    }
+                }
+            } message: {
+                Text(String(localized: "正在使用这张贴纸的地方会回退到默认图标。"))
+            }
             .onAppear { model.reloadLibrary(tab: libraryTab) }
+    }
+
+    /// 选择器长按管理（11-19 需求 4）：编辑=载原图原地更新；删除=确认后彻底删
+    private func handleManage(_ asset: VisualAsset, action: VisualAssetGrid.ManageAction) {
+        switch action {
+        case .edit:
+            guard let sourceData = asset.value(forKey: "sourceData") as? Data else {
+                HoloToastCenter.shared.show(String(localized: "这张素材没有可编辑的原图"), type: .error)
+                return
+            }
+            model.editTargetAssetID = asset.value(forKey: "id") as? UUID
+            model.name = (asset.value(forKey: "displayName") as? String) ?? ""
+            Task { await model.ingestSmart(data: sourceData) }
+        case .delete:
+            deleteTarget = asset
+        }
     }
 
     /// 弹层模式自带 NavigationStack；推入模式复用调用方的栈。
@@ -544,7 +607,7 @@ struct VisualAppearancePickerView: View {
                     HStack(spacing: 8) {
                         capsuleButton(icon: "camera", title: String(localized: "拍照")) { launchCamera() }
                         capsuleButton(icon: "photo.on.rectangle", title: String(localized: "相册")) {
-                            activeMediaSource = .photoLibrary
+                            launchPhotoLibrary()
                         }
                         capsuleButton(icon: "doc", title: String(localized: "文件")) {
                             activeMediaSource = .document
@@ -566,7 +629,11 @@ struct VisualAppearancePickerView: View {
                     } else {
                         VisualAssetGrid(assets: model.libraryAssets,
                                         selectedAssetID: $selectedAssetID,
-                                        inUseAssetID: inUseAssetID) { _ in }
+                                        inUseAssetID: inUseAssetID,
+                                        onPick: { _ in },
+                                        onManage: { asset, action in
+                                            handleManage(asset, action: action)
+                                        })
                             .padding(.top, 4)
                     }
                 }
@@ -644,6 +711,15 @@ struct VisualAppearancePickerView: View {
             } else {
                 cameraDenied = true
             }
+        }
+    }
+
+    /// 相册入口：读取权限一次性前置（iCloud 原图渐进下载的前提，想法模块同款）；
+    /// 被拒不阻断——选择器传输通道兜底，只是 iCloud 图无法自动下载
+    private func launchPhotoLibrary() {
+        Task {
+            await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+            activeMediaSource = .photoLibrary
         }
     }
 }

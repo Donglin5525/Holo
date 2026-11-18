@@ -134,6 +134,13 @@ struct VisualAssetGrid: View {
     /// 当前生效（「使用中」chip，不预选）
     var inUseAssetID: UUID?
     var onPick: (VisualAsset) -> Void
+    /// 长按管理动作（nil=无长按菜单；东林 11-19 需求 4：选择器里也能编辑/删除贴纸）
+    var onManage: ((VisualAsset, ManageAction) -> Void)? = nil
+
+    enum ManageAction {
+        case edit
+        case delete
+    }
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
@@ -145,57 +152,84 @@ struct VisualAssetGrid: View {
         .animation(nil, value: selectedAssetID)
     }
 
+    @ViewBuilder
     private func cell(_ asset: VisualAsset) -> some View {
         let assetID = (asset.value(forKey: "id") as? UUID) ?? UUID()
         let isSelected = selectedAssetID == assetID
         let isInUse = inUseAssetID == assetID
+        let card = cardLabel(asset, assetID: assetID, isSelected: isSelected, isInUse: isInUse)
+        // 单击=选中（B10 语义）；长按=编辑/删除菜单（primaryAction 模式两者不冲突）
+        if let onManage {
+            Menu {
+                Button {
+                    onManage(asset, .edit)
+                } label: {
+                    Label(String(localized: "编辑贴纸"), systemImage: "slider.horizontal.3")
+                }
+                Button(role: .destructive) {
+                    onManage(asset, .delete)
+                } label: {
+                    Label(String(localized: "删除贴纸"), systemImage: "trash")
+                }
+            } label: {
+                card
+            } primaryAction: {
+                selectedAssetID = assetID
+            }
+        } else {
+            Button {
+                // 单击=选中高亮，底部主按钮确认（B10 修复：取消选中分支不再误调 onPick）
+                selectedAssetID = assetID
+            } label: {
+                card
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func cardLabel(_ asset: VisualAsset, assetID: UUID, isSelected: Bool, isInUse: Bool) -> some View {
         let descriptor = VisualDescriptor(assetID: assetID, winningRevisionID: assetID,
                                           kind: VisualAssetKind.from(raw: asset.value(forKey: "kind") as? String) ?? .sticker,
                                           presentation: nil)
-        return Button {
-            // 单击=选中高亮，底部主按钮确认（B10 修复：取消选中分支不再误调 onPick）
-            selectedAssetID = assetID
-        } label: {
-            VStack(spacing: 4) {
-                VisualAssetView(descriptor: descriptor, role: .icon)
-                    .frame(height: 84)
-                Text(defaultName(asset))
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .padding(8)
-            .frame(maxWidth: .infinity, minHeight: 112)
-            .background(Color.holoToolSurface)
-            .cornerRadius(14)
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.holoToolAction, lineWidth: 2)
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                if isSelected {
-                    ZStack {
-                        Circle().fill(Color.holoToolAction).frame(width: 18, height: 18)
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.holoToolOnAction)
-                    }
-                    .padding(5)
-                } else if isInUse {
-                    Text(String(localized: "使用中"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.holoToolInset)
-                        .cornerRadius(6)
-                        .padding(5)
-                }
+        VStack(spacing: 4) {
+            VisualAssetView(descriptor: descriptor, role: .icon)
+                .frame(height: 84)
+            Text(defaultName(asset))
+                .font(.system(size: 11))
+                .foregroundColor(.holoToolTextSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: 112)
+        .background(Color.holoToolSurface)
+        .cornerRadius(14)
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.holoToolAction, lineWidth: 2)
             }
         }
-        .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                ZStack {
+                    Circle().fill(Color.holoToolAction).frame(width: 18, height: 18)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.holoToolOnAction)
+                }
+                .padding(5)
+            } else if isInUse {
+                Text(String(localized: "使用中"))
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.holoToolInset)
+                    .cornerRadius(6)
+                    .padding(5)
+            }
+        }
     }
 
     private func defaultName(_ asset: VisualAsset) -> String {
@@ -265,5 +299,35 @@ struct VisualCurrentAppearanceCard: View {
             return String(localized: "贴纸同步中")
         }
         return String(localized: "分类图标，还没设置贴纸")
+    }
+}
+
+
+// MARK: - 素材管理动作（素材库/选择器共用）
+
+enum VisualAssetManagement {
+
+    /// 彻底删除：墓碑 + 清 Binary（同事务）；派生缓存按 assetID 精准失效 + 变更广播。
+    /// 供「我的贴纸」与选择器长按删除共用（东林 11-19 需求 4）
+    static func hardDelete(asset: VisualAsset, in context: NSManagedObjectContext) throws {
+        guard let assetID = asset.value(forKey: "id") as? UUID else { return }
+        try context.performAndWait {
+            _ = try VisualAssetRepository.shared.writeTombstone(operationID: UUID(), assetID: assetID, in: context)
+            for key in ["sourceData", "maskData", "contentData", "thumbnailData"] {
+                asset.setValue(nil, forKey: key)
+            }
+            asset.setValue("recordOnly", forKey: "libraryVisibility")
+            try context.save()
+        }
+        VisualRenderCache.removeImages(assetID: assetID)
+        let generation = VisualCommitCoordinator.shared.scopeGeneration
+        NotificationCenter.default.post(
+            name: .visualAssetsDidChange,
+            object: nil,
+            userInfo: [
+                "scopeGeneration": generation,
+                "assetIDs": [assetID.uuidString],
+                "changeKind": "delete",
+            ])
     }
 }

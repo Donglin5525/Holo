@@ -30,6 +30,11 @@ struct StickerConfirmEditorView: View {
     @State private var showCrop = false
     @State private var showBrush = false
     @State private var brushSnapshot: StickerMakerModel.MaskSessionSnapshot?
+    /// 拖动/捏合的基线（手势 translation/magnification 是从起点的总量，基线+增量合成）
+    @State private var dragBase: CGSize = .zero
+    @State private var pinchBase: CGFloat = 1
+    /// 预览框尺寸（保存时把拖动 pt 归一化成 offsetX/Y 的分母）
+    @State private var previewSize: CGSize = .zero
 
     var body: some View {
         Group {
@@ -133,6 +138,7 @@ struct StickerConfirmEditorView: View {
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .scaleEffect(model.scale)
+                            .offset(model.offset)
                             .padding(14)
                     } else if let preview = model.renderedPreview {
                         Image(uiImage: UIImage(cgImage: preview))
@@ -140,6 +146,7 @@ struct StickerConfirmEditorView: View {
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .scaleEffect(model.scale)   // 大小滑块只动缩放，零重算（B5）
+                            .offset(model.offset)
                             .padding(14)
                     } else if model.isRenderingPreview {
                         ProgressView()
@@ -147,6 +154,29 @@ struct StickerConfirmEditorView: View {
                 }
                 .frame(height: 264)
                 .clipped()
+                .background {
+                    GeometryReader { g in
+                        Color.clear.onAppear { previewSize = g.size }
+                            .onChange(of: g.size) { previewSize = $0 }
+                    }
+                }
+                // 直接拖动贴纸（东林 11-19 需求 2）：单指拖=平移
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            model.offset = clampOffset(CGSize(width: dragBase.width + value.translation.width,
+                                                              height: dragBase.height + value.translation.height))
+                        }
+                        .onEnded { _ in dragBase = model.offset }
+                )
+                // 双指捏合=缩放（与滑块同一 model.scale，量程一致 0.6–1.2）
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            model.scale = min(max(pinchBase * value, 0.6), 1.2)
+                        }
+                        .onEnded { _ in pinchBase = model.scale }
+                )
 
                 // 大小调整（02 §4.4 scale ∈ [0.6, 1.2]）：纯 scaleEffect，60fps
                 HStack(spacing: 10) {
@@ -162,6 +192,21 @@ struct StickerConfirmEditorView: View {
                         .font(.system(size: 12).monospacedDigit())
                         .foregroundColor(.holoToolTextSecondary)
                         .frame(width: 40, alignment: .trailing)
+                }
+
+                // 贴纸命名（东林 11-19 需求 3：不命名分不清「在干什么」）
+                HStack(spacing: 10) {
+                    Text(String(localized: "名称"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                    TextField(String(localized: "不填自动按日期命名"), text: $model.name)
+                        .font(.system(size: 13))
+                        .foregroundColor(.holoToolText)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 10).padding(.vertical, 7)
+                        .background(Color.holoToolSurface)
+                        .cornerRadius(9)
+                        .submitLabel(.done)
                 }
 
                 if model.mode == .sticker {
@@ -241,14 +286,11 @@ struct StickerConfirmEditorView: View {
             Button {
                 Task {
                     if let assetID = await model.commit() {
-                        onUse(assetID, VisualPlacementPayload.Presentation(
-                            scale: model.scale,
-                            borderStyle: model.borderStyle,
-                            borderWeight: model.borderWeight))
+                        onUse(assetID, buildPresentation())
                     }
                 }
             } label: {
-                Text(useTitle)
+                Text(editButtonTitle)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.holoToolOnAction)
                     .frame(maxWidth: .infinity)
@@ -260,6 +302,28 @@ struct StickerConfirmEditorView: View {
             .padding(.vertical, 10)
             .background(.ultraThinMaterial)
         }
+    }
+
+    /// 保存时的 presentation：缩放/纸边 + 拖动位移归一化（预览框尺寸为分母，±0.5 clamp）
+    private func buildPresentation() -> VisualPlacementPayload.Presentation {
+        let w = max(previewSize.width, 1), h = max(previewSize.height, 1)
+        return VisualPlacementPayload.Presentation(
+            scale: model.scale,
+            offsetX: min(max(model.offset.width / w, -0.5), 0.5),
+            offsetY: min(max(model.offset.height / h, -0.5), 0.5),
+            borderStyle: model.borderStyle,
+            borderWeight: model.borderWeight)
+    }
+
+    /// 拖动范围 clamp（预览框内自由移动，±框半宽/半高）
+    private func clampOffset(_ size: CGSize) -> CGSize {
+        CGSize(width: min(max(size.width, -previewSize.width / 2), previewSize.width / 2),
+               height: min(max(size.height, -previewSize.height / 2), previewSize.height / 2))
+    }
+
+    /// 编辑模式用「保存修改」文案（原地更新语义）
+    private var editButtonTitle: String {
+        model.editTargetAssetID != nil ? String(localized: "保存修改") : useTitle
     }
 
     private func actionRow(icon: String, title: String, caption: String,
@@ -333,10 +397,7 @@ struct StickerConfirmEditorView: View {
                 Button(String(localized: "重试保存")) {
                     Task {
                         if let assetID = await model.commit() {
-                            onUse(assetID, VisualPlacementPayload.Presentation(
-                                scale: model.scale,
-                                borderStyle: model.borderStyle,
-                                borderWeight: model.borderWeight))
+                            onUse(assetID, buildPresentation())
                         }
                     }
                 }

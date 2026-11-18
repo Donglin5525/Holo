@@ -294,6 +294,8 @@ enum VisualRenderCache {
             + "-y\(Int((p.focusY * 100).rounded()))"
             + "-s\(Int((p.scale * 100).rounded()))"
             + "-r\(Int((p.rotationDegrees * 10).rounded()))"
+            + "-ox\(Int((p.offsetX * 100).rounded()))"
+            + "-oy\(Int((p.offsetY * 100).rounded()))"
             + "-b\(p.borderStyle.rawValue)"
             + "-w\(p.borderWeight.rawValue)"
             + "-sft\(p.softenPhotoInDark ? 1 : 0)"
