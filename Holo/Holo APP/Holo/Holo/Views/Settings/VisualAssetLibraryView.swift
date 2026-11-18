@@ -186,13 +186,25 @@ struct VisualAssetLibraryView: View {
 
     private func startConfirm(with data: Data, editing asset: VisualAsset? = nil) async {
         let model = StickerMakerModel()
-        if let asset {
-            // 编辑模式：原地更新（11-19 需求 4），载入现有名
-            model.editTargetAssetID = asset.value(forKey: "id") as? UUID
-            model.name = (asset.value(forKey: "displayName") as? String) ?? ""
-        }
         confirmModel = model
-        await model.ingestSmart(data: data)
+        if let asset {
+            // 编辑模式（正确语义）：载入已抠好的主体+遮罩，保留修过的形状；
+            // 原图字节留给 commit 回写（「重新制作一份」仍走原图）
+            let subjectData = (asset.value(forKey: "contentData") as? Data) ?? data
+            let loaded = model.loadEdited(subjectData: subjectData,
+                                          maskData: asset.value(forKey: "maskData") as? Data)
+            if loaded {
+                model.editTargetAssetID = asset.value(forKey: "id") as? UUID
+                model.name = (asset.value(forKey: "displayName") as? String) ?? ""
+                if let source = asset.value(forKey: "sourceData") as? Data {
+                    model.preservedSource = (source, (asset.value(forKey: "sourceUTType") as? String) ?? UTType.png.identifier)
+                }
+            } else {
+                await model.ingestSmart(data: data)
+            }
+        } else {
+            await model.ingestSmart(data: data)
+        }
     }
 
     /// 长按「重新制作一份」：载入原图重做（无原图如实提示）
@@ -399,13 +411,15 @@ struct VisualAssetLibraryView: View {
         reload()
     }
 
-    /// 编辑贴纸（11-19 需求 4）：载原图进确认页原地更新
+    /// 编辑贴纸：载入已抠好的主体原地更新（原图只留给「重新制作一份」）
     private func editAsset(_ asset: VisualAsset) {
-        guard let sourceData = asset.value(forKey: "sourceData") as? Data else {
-            toast = "这张素材没有可编辑的原图"
+        let subjectData = (asset.value(forKey: "contentData") as? Data)
+            ?? (asset.value(forKey: "sourceData") as? Data)
+        guard let subjectData, !subjectData.isEmpty else {
+            toast = "这张素材没有可编辑的主体，请用「重新制作一份」"
             return
         }
-        Task { await startConfirm(with: sourceData, editing: asset) }
+        Task { await startConfirm(with: subjectData, editing: asset) }
     }
 
     // MARK: - 子弹层

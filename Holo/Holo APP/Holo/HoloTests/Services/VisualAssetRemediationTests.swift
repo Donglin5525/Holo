@@ -459,6 +459,50 @@ final class VisualAssetUpdateAndOffsetTests: XCTestCase {
         _ = p
     }
 
+    /// 编辑贴纸正确语义（11-19 东林实报回归锁）：loadEdited 直接载入主体+遮罩——
+    /// 不走原图重抠（phase 直接 .editing、遮罩尺寸与主体一致、形状保留）
+    @MainActor
+    func testLoadEditedKeepsCutoutShapeWithoutVision() async throws {
+        // 合成「已抠好的主体」：透明底橙方块 120×120
+        let ctx = CGContext(data: nil, width: 120, height: 120, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(CGColor(colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                 components: [0.9, 0.4, 0.1, 1])!)
+        ctx.fill(CGRect(x: 10, y: 10, width: 100, height: 100))
+        let subject = ctx.makeImage()!
+
+        // 「用户修过形状」的 mask：只在左半占用
+        var maskBuffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 120, 120, kCVPixelFormatType_OneComponent8, nil, &maskBuffer)
+        CVPixelBufferLockBaseAddress(maskBuffer!, [])
+        let base = CVPixelBufferGetBaseAddress(maskBuffer!)!.assumingMemoryBound(to: UInt8.self)
+        let rowBytes = CVPixelBufferGetBytesPerRow(maskBuffer!)
+        for y in 0..<120 {
+            for x in 0..<120 {
+                base[y * rowBytes + x] = x < 60 ? 255 : 0
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(maskBuffer!, [])
+
+        // async 形态与既有 ModeSwitch 测试同款（同步构造实测在测试进程触发
+        // 恒定地址 malloc 崩，async 下同路径稳定）
+        let model = StickerMakerModel(initialMode: .sticker)
+        model.loadEdited(subject: subject, mask: maskBuffer!)
+        XCTAssertEqual(model.phase, .editing, "编辑载入必须直接进入编辑态（不走 Vision 提取）")
+        XCTAssertEqual(model.mode, .sticker)
+        let restored = try XCTUnwrap(model.occupancyMask)
+        XCTAssertEqual(CVPixelBufferGetWidth(restored), 120)
+        XCTAssertEqual(CVPixelBufferGetHeight(restored), 120)
+        // 形状保留：左半占用、右半不占用
+        CVPixelBufferLockBaseAddress(restored, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(restored, .readOnly) }
+        let rb = CVPixelBufferGetBaseAddress(restored)!.assumingMemoryBound(to: UInt8.self)
+        let rRow = CVPixelBufferGetBytesPerRow(restored)
+        XCTAssertGreaterThan(rb[60 * rRow + 30], 200, "左半应保持占用")
+        XCTAssertEqual(rb[60 * rRow + 90], 0, "右半应保持不占用（修过的形状不能丢）")
+    }
+
     /// 缓存 key 含 offset：位移变化产生不同 key（重渲染保证）
     func testCacheKeyIncludesOffset() {
         let id = UUID()

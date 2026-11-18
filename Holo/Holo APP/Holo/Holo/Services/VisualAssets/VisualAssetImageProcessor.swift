@@ -175,29 +175,33 @@ enum VisualAssetImageProcessor {
         CVPixelBufferCreate(kCFAllocatorDefault, w, h,
                             kCVPixelFormatType_OneComponent8, nil, &buffer)
         guard let pb = buffer else { return nil }
-        // 2026-11-18 根治：旧实现 colorMatrix 把 alpha 搬进 rgb、输出 alpha 置 0——
-        // CI 预乘语义下 alpha=0 会把灰度通道一并清零，实测遮罩全零（透明 PNG 直通
-        // 导入的贴纸一直渲染空白）。改纯 CPU 读 RGBA 后取 alpha 字节，确定性无语义坑
-        var rgba = [UInt8](repeating: 0, count: w * h * 4)
-        guard let ctx = CGContext(data: &rgba, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+        // 2026-11-19 二次根治：上一版把 Swift 数组的 & 指针直接交给 CGContext(data:)——
+        // 指针在调用后失效属未定义行为（单测实测 malloc 崩：pointer being freed was not
+        // allocated；透明 PNG 直通路径每次都踩）。改显式堆分配 + 手动释放，杜绝悬垂
+        let bytesPerRow = w * 4
+        let rgbaBuffer = UnsafeMutableRawPointer.allocate(byteCount: bytesPerRow * h, alignment: 64)
+        guard let ctx = CGContext(data: rgbaBuffer, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: bytesPerRow,
                                   space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            rgbaBuffer.deallocate()
             return pb
         }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let rgba = rgbaBuffer.assumingMemoryBound(to: UInt8.self)
         CVPixelBufferLockBaseAddress(pb, [])
         if let base = CVPixelBufferGetBaseAddress(pb)?.assumingMemoryBound(to: UInt8.self) {
-            let rowBytes = CVPixelBufferGetBytesPerRow(pb)
+            let dstRowBytes = CVPixelBufferGetBytesPerRow(pb)
             for y in 0..<h {
-                let srcRow = y * w * 4
-                let dstRow = y * rowBytes
+                let srcRow = y * bytesPerRow
+                let dstRow = y * dstRowBytes
                 for x in 0..<w {
                     base[dstRow + x] = rgba[srcRow + x * 4 + 3]
                 }
             }
         }
         CVPixelBufferUnlockBaseAddress(pb, [])
+        rgbaBuffer.deallocate()
         return pb
     }
 

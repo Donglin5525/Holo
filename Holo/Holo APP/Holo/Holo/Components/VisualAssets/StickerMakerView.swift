@@ -77,6 +77,9 @@ final class StickerMakerModel: ObservableObject {
 
     /// 编辑模式目标（「编辑贴纸」原地更新；nil=新建另存）
     var editTargetAssetID: UUID?
+    /// 编辑时保留的原图字节（commit 后回写 sourceData：原图是「重新制作」重抠的唯一通道，
+    /// 不能被紧裁主体覆盖——11-19 东林实报「编辑把抠图干没了」的对偶防线）
+    var preservedSource: (data: Data, utType: String)?
 
     init(initialMode: Mode = .sticker) {
         mode = initialMode
@@ -198,6 +201,40 @@ final class StickerMakerModel: ObservableObject {
         reloadLibrary(tab: .recent)
     }
 
+    /// 编辑现有贴纸（正确语义 11-19 修复）：直接载入**已抠好的主体+遮罩**——
+    /// 保留用户修过的形状；不走原图重跑 Vision（旧实现把抠图成果整个丢掉）。
+    /// 原 sourceData 字节另行保留，commit 时回写（见 preservedSource）。
+    func loadEdited(subjectData: Data, maskData: Data?) -> Bool {
+        guard let subject = VisualAssetImageProcessor.decodeWorkingCGImage(from: subjectData) else {
+            return false
+        }
+        let mask: CVPixelBuffer?
+        if let maskData,
+           let decoded = VisualAssetImageProcessor.decodeMask(from: maskData,
+                                                              width: subject.width,
+                                                              height: subject.height),
+           CVPixelBufferGetWidth(decoded) == subject.width,
+           CVPixelBufferGetHeight(decoded) == subject.height {
+            mask = decoded
+        } else {
+            // 遮罩缺失/尺寸不符：按主体 alpha 重建（紧裁主体通常全占用，等价无损）
+            mask = VisualAssetImageProcessor.occupancyMask(fromAlphaOf: subject)
+        }
+        loadEdited(subject: subject, mask: mask)
+        return true
+    }
+
+    /// 缓冲直入版（测试/内存态调用）：载入已抠好的主体与遮罩，立即进入编辑态
+    func loadEdited(subject: CGImage, mask: CVPixelBuffer?) {
+        workingImage = VisualWorkingImage(cgImage: subject, hasAlpha: true)
+        occupancyMask = mask
+        baselineMask = copyMask(mask)
+        strokes = []
+        mode = .sticker
+        phase = .editing
+        bumpPreviewInputs()
+    }
+
     // MARK: - 重新裁剪
 
     func recrop(normalizedRect: CGRect) async {
@@ -297,7 +334,7 @@ final class StickerMakerModel: ObservableObject {
     private func copyMask(_ source: CVPixelBuffer?) -> CVPixelBuffer? {
         guard let source else { return nil }
         var buffer: CVPixelBuffer?
-        CVPixelBufferCreate(nil, CVPixelBufferGetWidth(source), CVPixelBufferGetHeight(source),
+        CVPixelBufferCreate(kCFAllocatorDefault, CVPixelBufferGetWidth(source), CVPixelBufferGetHeight(source),
                             kCVPixelFormatType_OneComponent8, nil, &buffer)
         guard let copy = buffer else { return nil }
         copyInto(source, copy)
@@ -400,11 +437,19 @@ final class StickerMakerModel: ObservableObject {
         let mask = mode == .sticker ? occupancyMask : nil
         do {
             let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let preserved = preservedSource
             let assign: (VisualAsset) -> Void = { asset in
                 Self.fill(asset: asset, kind: kind, working: working, mask: mask)
                 if !displayName.isEmpty {
                     asset.setValue(displayName, forKey: "displayName")
                     asset.setValue(Date(), forKey: "metadataUpdatedAt")
+                }
+                // 编辑模式：原图字节回写（fill 存的是紧裁主体；sourceWidth/Height 保持
+                // 紧裁尺寸与 mask 对齐，渲染主路径走 contentData 不受影响）
+                if let preserved {
+                    asset.setValue(preserved.data, forKey: "sourceData")
+                    asset.setValue(preserved.utType, forKey: "sourceUTType")
+                    asset.setValue(VisualAssetDraftStore.sha256(preserved.data), forKey: "sourceHash")
                 }
             }
             let command: VisualCommitCommand
@@ -547,15 +592,31 @@ struct VisualAppearancePickerView: View {
     private func handleManage(_ asset: VisualAsset, action: VisualAssetGrid.ManageAction) {
         switch action {
         case .edit:
-            guard let sourceData = asset.value(forKey: "sourceData") as? Data else {
-                HoloToastCenter.shared.show(String(localized: "这张素材没有可编辑的原图"), type: .error)
-                return
-            }
-            model.editTargetAssetID = asset.value(forKey: "id") as? UUID
-            model.name = (asset.value(forKey: "displayName") as? String) ?? ""
-            Task { await model.ingestSmart(data: sourceData) }
+            beginEditing(asset, model: model)
         case .delete:
             deleteTarget = asset
+        }
+    }
+
+    /// 编辑贴纸（正确语义）：载入已抠好的主体+遮罩；主体缺失才退回原图重做提示
+    private func beginEditing(_ asset: VisualAsset, model: StickerMakerModel) {
+        guard let assetID = asset.value(forKey: "id") as? UUID else { return }
+        let subjectData = (asset.value(forKey: "contentData") as? Data)
+            ?? (asset.value(forKey: "sourceData") as? Data)
+        guard let subjectData, !subjectData.isEmpty else {
+            HoloToastCenter.shared.show(String(localized: "这张素材没有可编辑的主体，请用「重新制作一份」"), type: .error)
+            return
+        }
+        let loaded = model.loadEdited(subjectData: subjectData,
+                                      maskData: asset.value(forKey: "maskData") as? Data)
+        guard loaded else {
+            HoloToastCenter.shared.show(String(localized: "贴纸内容无法读取，请用「重新制作一份」"), type: .error)
+            return
+        }
+        model.editTargetAssetID = assetID
+        model.name = (asset.value(forKey: "displayName") as? String) ?? ""
+        if let source = asset.value(forKey: "sourceData") as? Data {
+            model.preservedSource = (source, (asset.value(forKey: "sourceUTType") as? String) ?? UTType.png.identifier)
         }
     }
 
