@@ -27,7 +27,13 @@ struct SpendingProjectsView: View {
                     projectSection(String(localized: "一次性购买"), projects.filter { !$0.isRecurring })
                 }
                 .padding(.horizontal, HoloSpacing.lg)
-                .padding(.vertical, HoloSpacing.md)
+                .padding(.top, HoloSpacing.md)
+                // 底部避让（2026-11-18 东林实报「划不到最底层」根因修复）：
+                // NavigationStack 根 ScrollView 在本容器里不会把财务底栏的
+                // safeAreaInset 变成滚动避让——内容停靠时零间隙压在不透明底栏
+                // 下面（像素实测：最后一行被栏盖住 2/3 字身）。与设置页
+                // .padding(.bottom, 100) 同款同病灶；120=底栏实测高（122pt 圆整）
+                .padding(.bottom, 120)
             }
             .background(Color.holoBackground)
             .navigationTitle("固定支出")
@@ -709,3 +715,4 @@ struct AddSpendingProjectSheet: View {
         } catch { errorMessage = String(localized: "保存失败，请稍后重试") }
     }
 }
+
