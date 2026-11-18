@@ -13,6 +13,7 @@
 import Foundation
 import Vision
 import CoreVideo
+import CoreImage
 
 enum SubjectExtractionError: Error, Equatable {
     /// 没有找到清晰主体（用户可裁近重试、换图或改用照片——保持可继续）
@@ -94,11 +95,32 @@ final class SubjectExtractionService {
         }
         guard !chosen.isEmpty else { throw SubjectExtractionError.noSubjectFound }
         do {
-            // 系统缩放蒙版（高质量 alpha）；实例标签图不是 alpha，不得直接用（02 §3.2）
-            let mask = try observation.generateScaledMaskForImage(forInstances: IndexSet(chosen), from: handler)
+            // 系统缩放蒙版（高质量 alpha，通常为 OneComponent32Float）；统一转为 OneComponent8
+            // 供修边、紧裁与 PNG 编码使用，避免后续按 1 字节步长读取 4 字节浮点缓冲导致画面错切。
+            let rawMask = try observation.generateScaledMaskForImage(forInstances: IndexSet(chosen), from: handler)
+            let mask = try convertToOneComponent8(rawMask)
             return SubjectExtractionResult(instanceIndices: chosen, occupancyMask: mask)
         } catch {
             throw SubjectExtractionError.requestFailed("\(error)")
         }
+    }
+
+    private static let maskCIContext = CIContext(options: [.cacheIntermediates: false])
+
+    private static func convertToOneComponent8(_ source: CVPixelBuffer) throws -> CVPixelBuffer {
+        if CVPixelBufferGetPixelFormatType(source) == kCVPixelFormatType_OneComponent8 {
+            return source
+        }
+        let w = CVPixelBufferGetWidth(source)
+        let h = CVPixelBufferGetHeight(source)
+        var out: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_OneComponent8, nil, &out)
+        guard let target = out else {
+            throw SubjectExtractionError.requestFailed("无法分配 8bit 遮罩缓冲")
+        }
+        let ci = CIImage(cvPixelBuffer: source)
+        maskCIContext.render(ci, to: target, bounds: CGRect(x: 0, y: 0, width: w, height: h),
+                             colorSpace: CGColorSpaceCreateDeviceGray())
+        return target
     }
 }

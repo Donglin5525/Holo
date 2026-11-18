@@ -251,8 +251,13 @@ final class VisualAssetRepository {
     }
 
     /// 供协调器把「建素材 + 版本 + save」整体包进同一把串行锁（sync 不可重入，内部版不加锁）
-    func performCommitLocked(_ body: () -> Void) {
-        commitQueue.sync { body() }
+    func performCommitLocked<T>(_ body: () throws -> T) rethrows -> T {
+        try commitQueue.sync(execute: body)
+    }
+
+    /// 异步版串行锁（commitQueue.async），避免在 @MainActor 上同步阻塞主线程
+    func performCommitLockedAsync(_ body: @escaping () -> Void) {
+        commitQueue.async { body() }
     }
 
     /// 按素材 id 精确查询（导入端复用判定）
@@ -278,6 +283,20 @@ final class VisualAssetRepository {
                                       slot: String,
                                       payload: VisualPlacementPayload,
                                       in context: NSManagedObjectContext) throws -> VisualPlacementRevision {
+        let revision = try stageRevisionLocked(operationID: operationID, ownerKind: ownerKind, ownerKey: rawOwnerKey,
+                                               slot: slot, payload: payload, in: context)
+        if context.hasChanges { try context.save() }
+        return revision
+    }
+
+    /// 在提交锁内暂存位置版本，供绑定对象与贴纸位置一次保存。
+    @discardableResult
+    func stageRevisionLocked(operationID: UUID,
+                             ownerKind: String,
+                             ownerKey rawOwnerKey: String,
+                             slot: String,
+                             payload: VisualPlacementPayload,
+                             in context: NSManagedObjectContext) throws -> VisualPlacementRevision {
         let ownerKey = VisualPlacementCoding.normalizedOwnerKey(rawOwnerKey)
         let placementKey = VisualPlacementCoding.placementKey(ownerKind: ownerKind, ownerKey: ownerKey, slot: slot)
         let canonical = try VisualPlacementCoding.canonicalData(payload)
@@ -297,7 +316,6 @@ final class VisualAssetRepository {
         revision.setValue(String(data: canonical, encoding: .utf8), forKey: "payloadJSON")
         revision.setValue(hash, forKey: "payloadHash")
         revision.setValue(Date(), forKey: "changedAt")
-        if context.hasChanges { try context.save() }
         return revision
     }
 

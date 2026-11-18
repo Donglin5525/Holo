@@ -92,10 +92,23 @@ class HomeIconConfigRepository: ObservableObject {
 
     // MARK: - Load Data
 
-    /// 从数据库加载配置
+    /// 从数据库加载配置（2026-11-18：内容签名未变不重发布——CloudKit remote change
+    /// 防抖后仍会周期触发 loadConfigs，无变化时不再写 @Published，止住同步期间
+    /// 每 3 秒冲击整棵 HomeView 视图树的无效重绘风暴）
     func loadConfigs() {
-        allConfigs = uniqByIconId(HomeIconConfig.fetchAllConfigs(in: context))
-        visibleConfigs = uniqByIconId(HomeIconConfig.fetchVisibleConfigs(in: context))
+        let all = uniqByIconId(HomeIconConfig.fetchAllConfigs(in: context))
+        let visible = uniqByIconId(HomeIconConfig.fetchVisibleConfigs(in: context))
+        guard signature(all) != signature(allConfigs) || signature(visible) != signature(visibleConfigs) else {
+            return
+        }
+        allConfigs = all
+        visibleConfigs = visible
+    }
+
+    /// 行内容签名：iconId + 排序 + 可见性 + 自定义名一致视为「未变化」
+    private func signature(_ configs: [HomeIconConfig]) -> String {
+        configs.map { "\($0.iconId)|\($0.sortOrder)|\($0.isVisible)|\($0.customName ?? "")" }
+            .joined(separator: ";")
     }
 
     /// 加载兜底：同一 iconId 只保留一行，重复行（云同步竞态残留）不进布局计算

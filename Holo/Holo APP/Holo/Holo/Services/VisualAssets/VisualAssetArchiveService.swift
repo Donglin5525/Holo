@@ -99,6 +99,9 @@ enum VisualAssetArchiveService {
             for revision in (try? context.fetch(request)) ?? [] {
                 let ownerKind = revision.value(forKey: "ownerKind") as? String ?? ""
                 let ownerKey = revision.value(forKey: "ownerKey") as? String ?? ""
+                if ownerKind == HabitFolder.visualOwnerKind, !ownerExists(ownerKind, ownerKey, in: context) {
+                    continue
+                }
                 let slot = revision.value(forKey: "slot") as? String ?? ""
                 let dedupe = "\(ownerKind)|\(ownerKey)|\(slot)"
                 guard !seen.contains(dedupe) else { continue }
@@ -275,6 +278,8 @@ enum VisualAssetArchiveService {
             r.predicate = NSPredicate(format: "id == %@", key as CVarArg)
             r.fetchLimit = 1
             return ((try? context.count(for: r)) ?? 0) > 0
+        case HabitFolder.visualOwnerKind:
+            return ((try? context.count(for: HabitFolder.fetchRequest(id: key))) ?? 0) > 0
         default:
             return false
         }

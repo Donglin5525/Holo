@@ -2,18 +2,24 @@
 //  VisualAssetLibraryView.swift
 //  Holo
 //
-//  「我的贴纸」素材库（方案 01 §4，原型场景二 1:1）：
+//  「我的贴纸」素材库（方案 01 §4；2026-11-18 拆套娃重构 · 方案模块四）：
 //  最近使用 / 全部 / 收藏三分栏；长按菜单（重命名/收藏/查看使用位置/重新制作/
-//  导出透明 PNG/移出素材库/彻底删除）；底部三入口（拍照制作/从相册选/从文件导入）。
-//  空态只说一句「把身边的一件东西做成贴纸」，不预生成内容；默认名「贴纸 1、贴纸 2…」。
+//  导出透明 PNG/移出素材库/彻底删除）。
+//  - 底部三入口直拉对应系统选择器（相机/相册/文件），拿到图直接栈内 push 确认页——
+//    不再弹出重复的选择器首屏（拍板第 3 点：彻底消灭套娃）
+//  - 长按「重新制作一份」载入该素材原图，进确认页重做后另存
+//  - 导出走 SwiftUI .sheet 包装 UIActivityViewController（rootViewController.present
+//    在 sheet 上会静默失败，B9）
+//  - 空态只说一句「把身边的一件东西做成贴纸」，不预生成内容；默认名「贴纸 1、贴纸 2…」
 //
 
 import SwiftUI
 import CoreData
+import UniformTypeIdentifiers
 
 struct VisualAssetLibraryView: View {
-    @Environment(\.managedObjectContext) private var context
     @Environment(\.dismiss) private var dismiss
+    private var context: NSManagedObjectContext { CoreDataStack.shared.viewContext }
 
     enum Tab: String, CaseIterable {
         case recent = "最近使用"
@@ -26,14 +32,22 @@ struct VisualAssetLibraryView: View {
     @State private var renameTarget: VisualAsset?
     @State private var renameText = ""
     @State private var deleteTarget: VisualAsset?
-    @State private var showMaker = false
     @State private var toast: String?
     @State private var usageTarget: VisualAsset?
+    /// 媒体采集：三入口直拉系统选择器（互斥）
+    @State private var activeMediaSource: VisualMediaSource?
+    @State private var cameraDenied = false
+    /// 确认页模型：拿到图后栈内 push（跳过选择器首屏，拆套娃）
+    @State private var confirmModel: StickerMakerModel?
+    @State private var exportShareItem: ExportShareItem?
+
+    struct ExportShareItem: Identifiable {
+        let id = UUID()
+        let url: URL
+    }
 
     var body: some View {
-        HoloSheetScaffold(title: "我的贴纸",
-                          onClose: { dismiss() },
-                          primaryTitle: nil) {
+        NavigationStack {
             VStack(spacing: 10) {
                 Picker("分栏", selection: $tab) {
                     ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -47,33 +61,78 @@ struct VisualAssetLibraryView: View {
                     grid
                 }
 
-                // 底部三入口（01 §3.1：与拍照同为一等公民）
+                // 底部三入口：直拉对应系统选择器（01 §3.1：与拍照同为一等公民）
                 HStack(spacing: 8) {
-                    libraryButton(icon: "camera", title: "拍照制作") { showMaker = true }
-                    libraryButton(icon: "photo.on.rectangle", title: "从相册选") { showMaker = true }
-                    libraryButton(icon: "doc", title: "从文件导入") { showMaker = true }
+                    libraryButton(icon: "camera", title: "拍照制作") { launchCamera() }
+                    libraryButton(icon: "photo.on.rectangle", title: "从相册选") {
+                        activeMediaSource = .photoLibrary
+                    }
+                    libraryButton(icon: "doc", title: "从文件导入") {
+                        activeMediaSource = .document
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 6)
             }
             .padding(.top, 6)
+            .background(Color.holoToolBackground)
+            .navigationTitle("我的贴纸")
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+                    .accessibilityLabel(Text("关闭"))
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { confirmModel != nil },
+                set: { if !$0 { confirmModel = nil } }
+            )) {
+                if let confirmModel {
+                    StickerConfirmEditorView(model: confirmModel,
+                                             useTitle: String(localized: "保存到我的贴纸"),
+                                             supportsPhotoMode: false) { _, _ in
+                        self.confirmModel = nil
+                        reload()
+                    }
+                }
+            }
+        }
+        .visualMediaPresenter(activeSource: $activeMediaSource) { data in
+            await startConfirm(with: data)
+        }
+        .alert(String(localized: "无法访问相机"),
+               isPresented: $cameraDenied) {
+            Button(String(localized: "去设置")) {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button(String(localized: "取消"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "请在系统设置里允许 Holo 使用相机，或改用相册/文件导入"))
         }
         .task { reload() }
         .onChange(of: tab) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
             reload()
         }
-        .sheet(isPresented: $showMaker) {
-            StickerMakerView(pickerTitle: String(localized: "制作贴纸")) { _, _ in
-                reload()
-            }
-            .presentationDetents([.medium, .large])
-        }
         .sheet(item: $renameTarget) { asset in
             renameSheet(asset)
         }
         .sheet(item: $usageTarget) { asset in
             usageSheet(asset)
+        }
+        .sheet(item: $exportShareItem) { item in
+            ShareSheet(items: [item.url])
         }
         .alert("彻底删除这张贴纸？", isPresented: Binding(
             get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })) {
@@ -92,6 +151,33 @@ struct VisualAssetLibraryView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                     .padding(.top, 4)
                     .transition(.opacity)
+            }
+        }
+    }
+
+    // MARK: - 采集 → 确认页（拆套娃：跳过选择器首屏直达制作）
+
+    private func startConfirm(with data: Data) async {
+        let model = StickerMakerModel()
+        confirmModel = model
+        await model.ingestSmart(data: data)
+    }
+
+    /// 长按「重新制作一份」：载入原图重做（无原图如实提示）
+    private func remake(_ asset: VisualAsset) {
+        guard let sourceData = asset.value(forKey: "sourceData") as? Data else {
+            toast = "这张素材没有可重做的原图"
+            return
+        }
+        Task { await startConfirm(with: sourceData) }
+    }
+
+    private func launchCamera() {
+        Task {
+            if await VisualMediaAcquisition.requestCameraAccess() {
+                activeMediaSource = .camera
+            } else {
+                cameraDenied = true
             }
         }
     }
@@ -147,8 +233,10 @@ struct VisualAssetLibraryView: View {
     }
 
     private func cell(_ asset: VisualAsset) -> some View {
-        let descriptor = VisualDescriptor(assetID: (asset.value(forKey: "id") as? UUID) ?? UUID(),
-                                          winningRevisionID: UUID(),
+        // winningRevisionID 用稳定 assetID（不每次 body 生成新 UUID 触发无谓 diff）
+        let assetID = (asset.value(forKey: "id") as? UUID) ?? UUID()
+        let descriptor = VisualDescriptor(assetID: assetID,
+                                          winningRevisionID: assetID,
                                           kind: VisualAssetKind.from(raw: asset.value(forKey: "kind") as? String) ?? .sticker,
                                           presentation: nil)
         return Menu {
@@ -170,7 +258,7 @@ struct VisualAssetLibraryView: View {
             Button { exportPNG(asset) } label: {
                 Label("导出透明 PNG", systemImage: "square.and.arrow.up")
             }
-            Button { showMaker = true } label: {
+            Button { remake(asset) } label: {
                 Label("重新制作一份", systemImage: "arrow.triangle.2.circlepath")
             }
             Button {
@@ -232,11 +320,8 @@ struct VisualAssetLibraryView: View {
             .appendingPathComponent("贴纸-\(UUID().uuidString.prefix(6)).png")
         do {
             try png.write(to: url)
-            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-            let root = scenes.first?.keyWindow?.rootViewController
-            root?.present(activity, animated: true)
-            toast = nil
+            // SwiftUI sheet 包装分享：rootViewController.present 在 sheet 上会静默失败（B9）
+            exportShareItem = ExportShareItem(url: url)
         } catch {
             toast = "导出没有完成"
         }
@@ -253,6 +338,16 @@ struct VisualAssetLibraryView: View {
                 }
                 asset.setValue("recordOnly", forKey: "libraryVisibility")
                 try context.save()
+                VisualRenderCache.removeImages(assetID: assetID)
+                let generation = VisualCommitCoordinator.shared.scopeGeneration
+                NotificationCenter.default.post(
+                    name: .visualAssetsDidChange,
+                    object: nil,
+                    userInfo: [
+                        "scopeGeneration": generation,
+                        "assetIDs": [assetID.uuidString],
+                        "changeKind": "delete",
+                    ])
             } catch {
                 toast = "删除没有完成，请重试"
             }
@@ -338,6 +433,17 @@ struct VisualAssetLibraryView: View {
             let kind = revision.value(forKey: "ownerKind") as? String ?? ""
             let key = revision.value(forKey: "ownerKey") as? String ?? ""
             let slot = revision.value(forKey: "slot") as? String ?? ""
+            let usageKey = "\(kind)|\(key)|\(slot)"
+            if kind == HabitFolder.visualOwnerKind {
+                guard slot == HabitFolder.visualSlot, let folderID = UUID(uuidString: key),
+                      let folder = try? context.fetch(HabitFolder.fetchRequest(id: folderID)).first,
+                      case .assetReady(let descriptor) = HabitFolder.resolveSticker(id: folderID, in: context),
+                      descriptor.assetID == assetID,
+                      !rows.contains(where: { $0.ownerKey == usageKey }) else { continue }
+                rows.append(UsageRow(ownerKey: usageKey, title: folder.name,
+                                     detail: String(localized: "习惯文件夹"), icon: "folder"))
+                continue
+            }
             let title: String
             let icon: String
             switch kind {
@@ -346,7 +452,7 @@ struct VisualAssetLibraryView: View {
             case "galleryDay": title = "长廊日封面"; icon = "calendar"
             default: title = kind.isEmpty ? "其他位置" : kind; icon = "square.on.square"
             }
-            rows.append(UsageRow(ownerKey: "\(kind)|\(key)|\(slot)", title: title,
+            rows.append(UsageRow(ownerKey: usageKey, title: title,
                                  detail: key.isEmpty ? slot : key, icon: icon))
         }
         return rows

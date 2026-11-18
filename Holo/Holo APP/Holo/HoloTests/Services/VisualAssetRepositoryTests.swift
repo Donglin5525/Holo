@@ -341,6 +341,62 @@ final class VisualAssetRepositoryTests: XCTestCase {
     func testWriterIDStableAndUUIDShaped() {
         XCTAssertTrue(UUID(uuidString: VisualAssetRepository.writerID) != nil, "writerID 是安装级 UUID 串")
     }
+
+    @MainActor
+    func testCreateAssetOnlyAsyncCommitPersistsAndIsVisibleInViewContext() async throws {
+        // 11-17 回归锁：主线程调用 VisualCommitCoordinator.commit(.createAssetOnly) 异步落库后，
+        // viewContext 必须能查到该贴纸且 libraryVisibility == "visible"
+        let op = UUID()
+        let receipt = try await VisualCommitCoordinator.shared.commit(
+            .createAssetOnly(operationID: op) { asset in
+                asset.setValue("sticker", forKey: "kind")
+                asset.setValue("visible", forKey: "libraryVisibility")
+            },
+            in: CoreDataTestSupport.sharedTestContainer)
+        guard let assetID = receipt.assetID else {
+            return XCTFail("createAssetOnly 必须返回 assetID")
+        }
+        let fetched = repo.findAsset(byID: assetID, in: context)
+        XCTAssertNotNil(fetched, "viewContext 应能立即查到新建贴纸")
+        XCTAssertEqual(fetched?.value(forKey: "libraryVisibility") as? String, "visible")
+    }
+
+    func testReplacingExistingPlacementWithExpectedWinnerSucceeds() async throws {
+        // 11-17 回归锁：已有贴纸的固定支出重新选贴纸时，传入当前赢家 revisionID 应覆盖成功；传 nil 应报 conflict
+        let ownerKey = "p-replace-\(UUID().uuidString)"
+        let asset1 = UUID(), asset2 = UUID()
+        _ = try await VisualCommitCoordinator.shared.commit(
+            .createAssetAndApply(operationID: UUID(), ownerKind: "spendingProject", ownerKey: ownerKey,
+                                 slot: "primaryVisual", expectedSlotWinnerRevisionID: nil,
+                                 payload: .setAsset(.asset(asset1), presentation: nil)) { _ in },
+            in: CoreDataTestSupport.sharedTestContainer)
+        guard case .assetReady(let first) = repo.resolvePlacement(
+            ownerKind: "spendingProject", ownerKey: ownerKey, slot: "primaryVisual", in: context) else {
+            return XCTFail("首次应用应 assetReady")
+        }
+
+        do {
+            _ = try await VisualCommitCoordinator.shared.commit(
+                .applyPlacement(operationID: UUID(), ownerKind: "spendingProject", ownerKey: ownerKey,
+                                slot: "primaryVisual", expectedSlotWinnerRevisionID: nil,
+                                payload: .setAsset(.asset(asset2), presentation: nil)),
+                in: CoreDataTestSupport.sharedTestContainer)
+            XCTFail("已有赢家时传 nil 基线必须抛出 conflict")
+        } catch VisualCommitError.conflict(let currentID) {
+            XCTAssertEqual(currentID, first.winningRevisionID)
+        }
+
+        let receipt2 = try await VisualCommitCoordinator.shared.commit(
+            .createAssetAndApply(operationID: UUID(), ownerKind: "spendingProject", ownerKey: ownerKey,
+                                 slot: "primaryVisual", expectedSlotWinnerRevisionID: first.winningRevisionID,
+                                 payload: .setAsset(.asset(asset2), presentation: nil)) { _ in },
+            in: CoreDataTestSupport.sharedTestContainer)
+        guard case .assetReady(let second) = repo.resolvePlacement(
+            ownerKind: "spendingProject", ownerKey: ownerKey, slot: "primaryVisual", in: context) else {
+            return XCTFail("传入正确赢家基线后覆盖应成功")
+        }
+        XCTAssertEqual(second.assetID, receipt2.assetID)
+    }
 }
 
 /// 测试用 ISO 日期

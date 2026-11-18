@@ -317,6 +317,10 @@ struct ThoughtEditorView: View {
         .sheet(isPresented: $showHeroMaker) {
             heroMakerSheet
         }
+        // 头图刷新由纯视觉提交通知驱动（不靠盲 bump 猜异步落库时机）
+        .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+            heroRevisionBump += 1
+        }
         .sheet(isPresented: $showStylePicker) {
             ThoughtStylePicker(style: selectedStyle, content: content, photoCount: editingAttachments.count + pendingImageItems.count, createdAt: currentThoughtObject?.createdAt ?? Date(), nodes: editorNodesLoaded ? editorNodes : nil, photos: paperPhotoSources) { style in
                 guard selectedStyle != style else { return }
@@ -1511,32 +1515,39 @@ struct ThoughtEditorView: View {
         _ = persistContent(shouldDismiss: false, notifyDataChange: false)
     }
 
-    /// 头图区：已落库且有显式头图才渲染；添加/更换走菜单弹出的制作页（01 §6.3）
+    /// 头图区：已落库且有显式头图才渲染；点击头图直达更换（…菜单入口保留）
     @ViewBuilder
     private var heroSection: some View {
         if let currentThoughtId,
            let thought = try? thoughtRepository.fetchById(currentThoughtId) {
-            ThoughtHeroView(placement: thought.resolveHeroVisual(in: viewContext))
-                .id(heroRevisionBump)
+            Button {
+                ensureThoughtPersistedForHero()
+                showHeroMaker = true
+            } label: {
+                ThoughtHeroView(placement: thought.resolveHeroVisual(in: viewContext))
+            }
+            .buttonStyle(.plain)
+            .id(heroRevisionBump)
         }
     }
 
     private var viewContext: NSManagedObjectContext { CoreDataStack.shared.viewContext }
 
-    /// 头图选择器（新交互）：回执即绑定（立即生效）；标题动态「头图」
+    /// 头图选择器：单层 Sheet + 栈内编辑；回执即绑定（想法编辑器是自动保存型，直改语义）
     private var heroMakerSheet: some View {
         let current = heroCurrentPlacement
         var inUse: UUID?
         if case .assetReady(let d) = current { inUse = d.assetID }
-        return StickerMakerView(initialMode: .photo,
-                                pickerTitle: String(localized: "头图"),
-                                currentPlacement: current,
-                                fallbackIcon: "photo.on.rectangle",
-                                inUseAssetID: inUse,
-                                onRestoreDefault: { applyHeroPayload(.clear) }) { assetID, presentation in
+        return VisualAppearancePickerView(isPushed: false,
+                                          initialMode: .photo,
+                                          pickerTitle: String(localized: "头图"),
+                                          currentPlacement: current,
+                                          fallbackIcon: "photo.on.rectangle",
+                                          inUseAssetID: inUse,
+                                          onRestoreDefault: { applyHeroPayload(.clear) }) { assetID, presentation in
             applyHeroPayload(.setAsset(.asset(assetID), presentation: presentation))
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 
     private var heroCurrentPlacement: ResolvedPlacement? {
@@ -1545,21 +1556,25 @@ struct ThoughtEditorView: View {
         return thought.resolveHeroVisual(in: viewContext)
     }
 
-    /// 头图绑定（立即生效）+ 本地 bump 即时刷新
+    /// 头图绑定：失败如实提示（不吞错）；刷新由 .visualAssetsDidChange 通知驱动
     private func applyHeroPayload(_ payload: VisualPlacementPayload) {
         guard let currentThoughtId,
               let thought = try? thoughtRepository.fetchById(currentThoughtId) else { return }
         guard let ownerKey = thought.visualOwnerKey else { return }
-        heroRevisionBump += 1
+        let baseline = heroBaselineRevisionID
         Task {
-            _ = try? await VisualCommitCoordinator.shared.commit(
-                .applyPlacement(operationID: UUID(),
-                                ownerKind: Thought.visualOwnerKind,
-                                ownerKey: ownerKey,
-                                slot: Thought.visualSlot,
-                                expectedSlotWinnerRevisionID: nil,
-                                payload: payload),
-                in: CoreDataStack.shared.persistentContainer)
+            do {
+                _ = try await VisualCommitCoordinator.shared.commit(
+                    .applyPlacement(operationID: UUID(),
+                                    ownerKind: Thought.visualOwnerKind,
+                                    ownerKey: ownerKey,
+                                    slot: Thought.visualSlot,
+                                    expectedSlotWinnerRevisionID: baseline,
+                                    payload: payload),
+                    in: CoreDataStack.shared.persistentContainer)
+            } catch {
+                HoloToastCenter.shared.show(String(localized: "头图没有设置成功，请重试"), type: .error)
+            }
         }
     }
 

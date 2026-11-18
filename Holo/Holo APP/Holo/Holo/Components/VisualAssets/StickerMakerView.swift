@@ -2,12 +2,14 @@
 //  StickerMakerView.swift
 //  Holo
 //
-//  统一外观选择器（2026-11-17 交互重设计 · ios-design 方案 · 东林拍板立即生效）：
-//  一个弹层回答三件事——现在用的是什么、从哪来新图（拍/相册/文件/复用）、确认能不能用。
-//  - picking 阶段=选择器：当前外观卡 + 三入口 + 「最近使用/我的贴纸」网格
-//  - 确认页（同弹层换相）：模式分段 + 贴纸/原图对照 + 纸边三档×厚度 + 重新裁剪 + 修边 + 换一张
-//  - 回执语义：选择器不绑业务对象——onPick(assetID) 给调用方；
-//    编辑场景调用方立即 applyPlacement（立即生效），新增场景暂存 draft 随保存绑定
+//  统一外观选择器（2026-11-18 全链路修复重构 · 方案 §2.2）：
+//  VisualAppearancePickerView 只回答两件事——现在用的是什么、从哪来新图
+//  （拍照 / 相册 / 文件 / 复用已有贴纸）；采到新图后同栈 push 进
+//  StickerConfirmEditorView 做确认主体 / 裁剪 / 修边，不再叠二层 Sheet。
+//  - 推入模式（isPushed: true）：嵌入调用方已有 NavigationStack（编辑表单等），零新增弹层
+//  - 弹层模式（isPushed: false）：自带 NavigationStack 的单层 Sheet（详情直达等）
+//  - 回执语义：选择器不绑业务对象——onPick(assetID, presentation) 给调用方收口
+//  - 交互口径（东林 11-18 拍板）：表单场景草稿随「保存」统一生效；详情直达场景立即生效
 //  - 透明 PNG 导入不二次抠图；无主体给「裁近重试/换一张/改用照片」出口，不卡死
 //
 
@@ -49,11 +51,21 @@ final class StickerMakerModel: ObservableObject {
     @Published var showOriginal = false
     @Published var borderStyle: VisualPlacementPayload.Presentation.BorderStyle = .adaptivePaper
     @Published var borderWeight: VisualPlacementPayload.Presentation.BorderWeight = .standard
+    @Published var scale: Double = 1.0
     @Published var libraryAssets: [VisualAsset] = []
+    @Published var saveErrorMessage: String?
 
-    private(set) var workingImage: VisualWorkingImage?
+    @Published private(set) var workingImage: VisualWorkingImage?
+    /// 异步预览缓存（B5 根治）：拖「大小」滑块只动 scaleEffect，零 CoreImage 重算；
+    /// workingImage/mask/纸边变化由后台 Task 重算（generation 防旧结果覆盖）
+    @Published private(set) var renderedPreview: CGImage?
+    @Published private(set) var isRenderingPreview = false
+    /// 预览输入版本号：素材/遮罩变化时 +1，确认页据此触发一次异步重算
+    @Published private(set) var previewInputsStamp = 0
+
     private(set) var occupancyMask: CVPixelBuffer?
     private(set) var instanceCount = 1
+    private var previewGeneration = 0
 
     /// 修边真源：基线遮罩 + 笔画历史（撤销=重放）
     private var baselineMask: CVPixelBuffer?
@@ -84,6 +96,17 @@ final class StickerMakerModel: ObservableObject {
 
     // MARK: - 输入接管
 
+    /// 采集统一入口：透明 PNG 直通（免二次抠图），其余按模式走 Vision 提取/照片
+    func ingestSmart(data: Data) async {
+        if let type = VisualAssetImageProcessor.probeUTType(of: data), type.conforms(to: .png),
+           let working = try? VisualAssetImageProcessor.prepareWorkingImage(from: data),
+           working.hasAlpha {
+            await ingestTransparentPNG(data: data)
+        } else {
+            await ingest(data: data)
+        }
+    }
+
     func ingest(data: Data) async {
         phase = .acquiring
         do {
@@ -97,6 +120,7 @@ final class StickerMakerModel: ObservableObject {
                 occupancyMask = nil
                 phase = .editing
             }
+            bumpPreviewInputs()
         } catch VisualAssetImageError.tooLarge {
             phase = .failed(.tooLarge)
         } catch {
@@ -119,6 +143,7 @@ final class StickerMakerModel: ObservableObject {
             borderStyle = .none
             mode = .sticker
             phase = .editing
+            bumpPreviewInputs()
         } catch {
             phase = .failed(.corrupted)
         }
@@ -133,6 +158,7 @@ final class StickerMakerModel: ObservableObject {
             strokes = []
             instanceCount = result.instanceIndices.count
             phase = .editing
+            bumpPreviewInputs()
         } catch SubjectExtractionError.noSubjectFound {
             phase = .failed(.noSubjectFound)
         } catch {
@@ -140,10 +166,24 @@ final class StickerMakerModel: ObservableObject {
         }
     }
 
+    /// 模式切换（B8 根治）：照片 → 贴纸且遮罩缺失时自动补跑主体提取
+    func switchMode(_ newMode: Mode) {
+        guard newMode != mode else { return }
+        mode = newMode
+        if newMode == .sticker, occupancyMask == nil, let working = workingImage {
+            phase = .processing   // 立即反馈（提取在后台补跑）
+            Task { await extractSubject(from: working) }
+        } else if newMode == .photo {
+            if workingImage != nil { phase = .editing }
+            bumpPreviewInputs()
+        }
+    }
+
     func fallBackToPhoto() {
         mode = .photo
         occupancyMask = nil
         if workingImage != nil { phase = .editing }
+        bumpPreviewInputs()
     }
 
     func backToPicker() {
@@ -169,6 +209,7 @@ final class StickerMakerModel: ObservableObject {
         } else {
             occupancyMask = nil
             phase = .editing
+            bumpPreviewInputs()
         }
     }
 
@@ -180,6 +221,7 @@ final class StickerMakerModel: ObservableObject {
         Self.paint(points: points, erase: erase, brush: brush,
                    on: mask, width: working.width, height: working.height)
         occupancyMask = mask
+        bumpPreviewInputs()
     }
 
     func undoStroke() {
@@ -191,6 +233,7 @@ final class StickerMakerModel: ObservableObject {
                        on: mask, width: working.width, height: working.height)
         }
         occupancyMask = mask
+        bumpPreviewInputs()
     }
 
     func resetMask() {
@@ -198,6 +241,29 @@ final class StickerMakerModel: ObservableObject {
         copyInto(baseline, mask)
         strokes = []
         occupancyMask = mask
+        bumpPreviewInputs()
+    }
+
+    // MARK: - 修边会话快照（取消回滚，B6）
+
+    struct MaskSessionSnapshot {
+        let mask: CVPixelBuffer
+        let baseline: CVPixelBuffer
+        let strokes: [(points: [CGPoint], erase: Bool, brush: CGFloat)]
+    }
+
+    func snapshotMaskSession() -> MaskSessionSnapshot? {
+        guard let mask = occupancyMask, let baseline = baselineMask,
+              let maskCopy = copyMask(mask) else { return nil }
+        return MaskSessionSnapshot(mask: maskCopy, baseline: baseline, strokes: strokes)
+    }
+
+    /// 取消修边：整段回滚到进入前的遮罩/笔画状态
+    func restoreMaskSession(_ snapshot: MaskSessionSnapshot) {
+        occupancyMask = snapshot.mask
+        baselineMask = snapshot.baseline
+        strokes = snapshot.strokes
+        bumpPreviewInputs()
     }
 
     static func paint(points: [CGPoint], erase: Bool, brush: CGFloat,
@@ -249,15 +315,58 @@ final class StickerMakerModel: ObservableObject {
         }
     }
 
-    // MARK: - 预览
+    // MARK: - 预览（异步缓存，B5/B6 根治）
 
-    func previewImage() -> CGImage? {
+    private func bumpPreviewInputs() {
+        previewInputsStamp += 1
+    }
+
+    /// 确认页异步预览：捕获值快照 → 后台 ≤960px 合成；generation 序号防旧结果覆盖
+    func schedulePreviewRender() {
+        previewGeneration += 1
+        let generation = previewGeneration
+        guard let working = workingImage else {
+            renderedPreview = nil
+            return
+        }
+        let subject = working.cgImage
+        let mask = mode == .sticker ? occupancyMask : nil
+        let style = borderStyle
+        let weight = borderWeight
+        isRenderingPreview = true
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let image: CGImage? = Self.composePreview(subject: subject, mask: mask,
+                                                      style: style, weight: weight)
+            await MainActor.run {
+                guard let self, self.previewGeneration == generation else { return }
+                self.renderedPreview = image
+                self.isRenderingPreview = false
+            }
+        }
+    }
+
+    /// 修边页重算预览：松手/撤销/重置后各调一次（拖动中绝不调用）
+    func renderPreviewAsync() async -> CGImage? {
         guard let working = workingImage else { return nil }
-        if mode == .photo { return working.cgImage }
-        guard let mask = occupancyMask else { return nil }
-        return StickerRenderer.renderDisplayImageForPreview(
-            subject: working.cgImage, mask: mask,
-            presentation: .init(borderStyle: borderStyle, borderWeight: borderWeight))
+        let subject = working.cgImage
+        let mask = mode == .sticker ? occupancyMask : nil
+        let style = borderStyle
+        let weight = borderWeight
+        return await Task.detached(priority: .userInitiated) {
+            Self.composePreview(subject: subject, mask: mask, style: style, weight: weight)
+        }.value
+    }
+
+    nonisolated private static func composePreview(subject: CGImage, mask: CVPixelBuffer?,
+                                       style: VisualPlacementPayload.Presentation.BorderStyle,
+                                       weight: VisualPlacementPayload.Presentation.BorderWeight) -> CGImage? {
+        if let mask {
+            return StickerRenderer.renderConfirmPreview(
+                subject: subject, mask: mask,
+                presentation: .init(borderStyle: style, borderWeight: weight))
+        }
+        // 照片模式：直接降采样显示原图
+        return VisualAssetImageProcessor.downscale(subject, targetLongest: 960)
     }
 
     func originalPreview() -> CGImage? {
@@ -267,7 +376,17 @@ final class StickerMakerModel: ObservableObject {
     // MARK: - 提交（素材入库，绑定由调用方收口）
 
     func commit() async -> UUID? {
-        guard let working = workingImage else { return nil }
+        guard let working = workingImage else {
+            saveErrorMessage = String(localized: "未找到可保存的图片")
+            phase = .failed(.saveFailed)
+            return nil
+        }
+        if mode == .sticker && occupancyMask == nil {
+            saveErrorMessage = String(localized: "贴纸遮罩尚未就绪，请重试")
+            phase = .failed(.saveFailed)
+            return nil
+        }
+        saveErrorMessage = nil
         phase = .committing
         let operationID = UUID()
         let kind: VisualAssetKind = mode == .sticker ? .sticker : .photo
@@ -280,6 +399,7 @@ final class StickerMakerModel: ObservableObject {
             phase = .editing
             return receipt.assetID
         } catch {
+            saveErrorMessage = error.localizedDescription
             phase = .failed(.saveFailed)
             return nil
         }
@@ -287,23 +407,28 @@ final class StickerMakerModel: ObservableObject {
 
     static func fill(asset: VisualAsset, kind: VisualAssetKind,
                      working: VisualWorkingImage, mask: CVPixelBuffer?) {
+        asset.setValue(kind.rawValue, forKey: "kind")
+        asset.setValue(kind == .sticker ? "visible" : "recordOnly", forKey: "libraryVisibility")
         guard let sourcePNG = VisualAssetImageProcessor.encodePNG(working.cgImage) else { return }
         asset.setValue(sourcePNG, forKey: "sourceData")
         asset.setValue(UTType.png.identifier, forKey: "sourceUTType")
         asset.setValue(VisualAssetDraftStore.sha256(sourcePNG), forKey: "sourceHash")
         asset.setValue(working.width, forKey: "sourceWidth")
         asset.setValue(working.height, forKey: "sourceHeight")
-        if kind == .sticker, let mask,
-           let maskPNG = VisualAssetImageProcessor.encodeMaskPNG(mask) {
-            asset.setValue(maskPNG, forKey: "maskData")
-            asset.setValue(VisualAssetDraftStore.sha256(maskPNG), forKey: "maskHash")
-            if let tight = VisualAssetImageProcessor.tightCrop(working.cgImage, mask: mask, maxLongest: 1536),
-               let tightPNG = VisualAssetImageProcessor.encodePNG(tight) {
+        if kind == .sticker, let mask {
+            if let tight = VisualAssetImageProcessor.tightCropWithMask(working.cgImage, mask: mask, maxLongest: 1536),
+               let tightPNG = VisualAssetImageProcessor.encodePNG(tight.image),
+               let tightMaskPNG = VisualAssetImageProcessor.encodeMaskPNG(tight.mask) {
                 asset.setValue(tightPNG, forKey: "contentData")
                 asset.setValue(UTType.png.identifier, forKey: "contentUTType")
                 asset.setValue(VisualAssetDraftStore.sha256(tightPNG), forKey: "contentHash")
-                asset.setValue(tight.width, forKey: "contentWidth")
-                asset.setValue(tight.height, forKey: "contentHeight")
+                asset.setValue(tight.image.width, forKey: "contentWidth")
+                asset.setValue(tight.image.height, forKey: "contentHeight")
+                asset.setValue(tightMaskPNG, forKey: "maskData")
+                asset.setValue(VisualAssetDraftStore.sha256(tightMaskPNG), forKey: "maskHash")
+            } else if let maskPNG = VisualAssetImageProcessor.encodeMaskPNG(mask) {
+                asset.setValue(maskPNG, forKey: "maskData")
+                asset.setValue(VisualAssetDraftStore.sha256(maskPNG), forKey: "maskHash")
             }
         }
         if let thumbPNG = VisualAssetImageProcessor.encodePNG(
@@ -311,15 +436,15 @@ final class StickerMakerModel: ObservableObject {
             asset.setValue(thumbPNG, forKey: "thumbnailData")
             asset.setValue(VisualAssetDraftStore.sha256(thumbPNG), forKey: "thumbnailHash")
         }
-        asset.setValue(kind.rawValue, forKey: "kind")
-        asset.setValue(kind == .sticker ? "visible" : "recordOnly", forKey: "libraryVisibility")
     }
 }
 
-// MARK: - 统一外观选择器视图
+// MARK: - 统一外观选择器（推入/弹层双态）
 
-struct StickerMakerView: View {
+struct VisualAppearancePickerView: View {
     @StateObject private var model: StickerMakerModel
+    /// true=嵌入调用方 NavigationStack（表单 push）；false=自带 NavigationStack 的单层 Sheet
+    var isPushed: Bool = false
     let onPick: (UUID, VisualPlacementPayload.Presentation?) -> Void
     var pickerTitle: String = String(localized: "外观")
     var currentPlacement: ResolvedPlacement? = nil
@@ -329,16 +454,13 @@ struct StickerMakerView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showCamera = false
-    @State private var showLibrary = false
-    @State private var showDocument = false
-    @State private var showCrop = false
-    @State private var showBrush = false
+    @State private var activeMediaSource: VisualMediaSource?
+    @State private var cameraDenied = false
     @State private var libraryTab: VisualAssetLibraryView.Tab = .recent
     @State private var selectedAssetID: UUID?
-    @State private var previewRev = 0
 
-    init(initialMode: StickerMakerModel.Mode = .sticker,
+    init(isPushed: Bool = false,
+         initialMode: StickerMakerModel.Mode = .sticker,
          pickerTitle: String = String(localized: "外观"),
          currentPlacement: ResolvedPlacement? = nil,
          fallbackIcon: String = "bag.fill",
@@ -346,6 +468,7 @@ struct StickerMakerView: View {
          onRestoreDefault: (() -> Void)? = nil,
          onPick: @escaping (UUID, VisualPlacementPayload.Presentation?) -> Void) {
         _model = StateObject(wrappedValue: StickerMakerModel(initialMode: initialMode))
+        self.isPushed = isPushed
         self.pickerTitle = pickerTitle
         self.currentPlacement = currentPlacement
         self.fallbackIcon = fallbackIcon
@@ -355,439 +478,167 @@ struct StickerMakerView: View {
     }
 
     var body: some View {
-        HoloSheetScaffold(title: scaffoldTitle,
-                          onClose: { dismiss() },
-                          primaryTitle: primaryTitle,
-                          primaryAction: primaryAction,
-                          primaryDisabled: primaryDisabled,
-                          primaryHint: primaryHint) {
-            content
-        }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraCaptureView { data in
-                if let data { Task { await model.ingest(data: data) } }
-            }
-            .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showLibrary) {
-            PhotoLibraryPicker { data in
-                if let data { Task { await model.ingest(data: data) } }
-            }
-        }
-        .fileImporter(isPresented: $showDocument, allowedContentTypes: [.image],
-                      allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                let secured = url.startAccessingSecurityScopedResource()
-                defer { if secured { url.stopAccessingSecurityScopedResource() } }
-                if let data = try? Data(contentsOf: url) {
-                    let isTransparentPNG: Bool
-                    if let type = VisualAssetImageProcessor.probeUTType(of: data), type.conforms(to: .png),
-                       let working = try? VisualAssetImageProcessor.prepareWorkingImage(from: data) {
-                        isTransparentPNG = working.hasAlpha
-                    } else {
-                        isTransparentPNG = false
-                    }
-                    Task {
-                        if isTransparentPNG {
-                            await model.ingestTransparentPNG(data: data)
-                        } else {
-                            await model.ingest(data: data)
-                        }
-                    }
+        root
+            .navigationDestination(isPresented: confirmActive) {
+                StickerConfirmEditorView(model: model,
+                                         useTitle: String(localized: "使用这张贴纸")) { assetID, presentation in
+                    finish(with: assetID, presentation: presentation)
                 }
             }
-        }
-        .sheet(isPresented: $showCrop) {
-            if let image = model.originalPreview() {
-                StickerCropView(image: image,
-                                onCancel: { showCrop = false }) { rect in
-                    showCrop = false
-                    Task { await model.recrop(normalizedRect: rect) }
-                }
-                .presentationDetents([.large])
+            .visualMediaPresenter(activeSource: $activeMediaSource) { data in
+                await model.ingestSmart(data: data)
             }
-        }
-        .sheet(isPresented: $showBrush) {
-            MaskBrushEditor(previewProvider: { model.previewImage() },
-                            onStroke: { points, erase, brush in
-                                model.applyStroke(points, erase: erase, brush: brush)
-                            },
-                            onUndo: { model.undoStroke() },
-                            onReset: { model.resetMask() },
-                            onDone: { showBrush = false },
-                            onCancel: { showBrush = false })
-                .presentationDetents([.large])
-        }
-        .onAppear { model.reloadLibrary(tab: libraryTab) }
+            .alert(String(localized: "无法访问相机"),
+                   isPresented: $cameraDenied) {
+                Button(String(localized: "去设置")) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button(String(localized: "取消"), role: .cancel) {}
+            } message: {
+                Text(String(localized: "请在系统设置里允许 Holo 使用相机，或改用相册/文件导入"))
+            }
+            .onAppear { model.reloadLibrary(tab: libraryTab) }
     }
 
-    private var scaffoldTitle: String {
-        switch model.phase {
-        case .editing: return model.mode == .sticker ? String(localized: "确认主体") : String(localized: "调整照片")
-        default: return pickerTitle
+    /// 弹层模式自带 NavigationStack；推入模式复用调用方的栈
+    private var root: some View {
+        Group {
+            if isPushed {
+                pickerContent
+            } else {
+                NavigationStack { pickerContent }
+            }
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        switch model.phase {
-        case .picking:
-            pickerContent
-        case .acquiring:
-            ProgressView(String(localized: "正在读取照片…"))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .processing:
-            processingView
-        case .editing:
-            confirmView
-        case .committing:
-            ProgressView(String(localized: "正在保存…"))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .failed(let failure):
-            failureView(failure)
-        }
+    /// 确认页激活 = 素材在途/处理/编辑中；系统返回手势把 phase 收回 picking
+    private var confirmActive: Binding<Bool> {
+        .init(get: { model.phase != .picking },
+              set: { if !$0 { model.backToPicker() } })
     }
+
+    private func finish(with assetID: UUID, presentation: VisualPlacementPayload.Presentation?) {
+        onPick(assetID, presentation)
+        model.backToPicker()
+        // 推入模式：弹出由调用方在 onPick 回执里收 binding 驱动——在推入页上调
+        // dismiss() 会与 navigationDestination 的 binding 弹出竞争，把宿主 Sheet
+        // 一起关掉（2026-11-18 走查实锤：新增表单被整体关闭）；弹层模式才 dismiss
+        if !isPushed { dismiss() }
+    }
+
+    // MARK: - 选择器首屏
 
     private var pickerContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if let currentPlacement {
-                    VisualCurrentAppearanceCard(currentPlacement: currentPlacement,
-                                                fallbackIcon: fallbackIcon) {
-                        onRestoreDefault?()
-                        dismiss()
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // 当前外观条：仅已有贴纸/非默认时占一行（紧凑 44pt 预览）
+                    if let currentPlacement {
+                        VisualCurrentAppearanceCard(currentPlacement: currentPlacement,
+                                                    fallbackIcon: fallbackIcon,
+                                                    compact: true) {
+                            onRestoreDefault?()
+                            if !isPushed { dismiss() }
+                        }
                     }
-                }
-                HStack(spacing: 10) {
-                    sourceOption(icon: "camera", title: String(localized: "拍照制作"),
-                                 caption: String(localized: "直接拍一件物品")) {
-                        showCamera = true
+                    // 一行轻量采集操作栏（把首屏主体让给贴纸网格）
+                    HStack(spacing: 8) {
+                        capsuleButton(icon: "camera", title: String(localized: "拍照")) { launchCamera() }
+                        capsuleButton(icon: "photo.on.rectangle", title: String(localized: "相册")) {
+                            activeMediaSource = .photoLibrary
+                        }
+                        capsuleButton(icon: "doc", title: String(localized: "文件")) {
+                            activeMediaSource = .document
+                        }
                     }
-                    sourceOption(icon: "photo.on.rectangle", title: String(localized: "从相册选"),
-                                 caption: String(localized: "选手机里的图")) {
-                        showLibrary = true
-                    }
-                    sourceOption(icon: "doc", title: String(localized: "从文件导入"),
-                                 caption: String(localized: "支持透明 PNG")) {
-                        showDocument = true
-                    }
-                }
-                Picker(String(localized: "素材"), selection: $libraryTab) {
-                    Text(String(localized: "最近使用")).tag(VisualAssetLibraryView.Tab.recent)
-                    Text(String(localized: "我的贴纸")).tag(VisualAssetLibraryView.Tab.all)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: libraryTab) { _ in model.reloadLibrary(tab: libraryTab) }
-
-                if model.libraryAssets.isEmpty {
-                    Text(String(localized: "还没有贴纸。拍一件身边的东西试试——耳机、水杯、跑鞋都行"))
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
-                } else {
-                    VisualAssetGrid(assets: model.libraryAssets,
-                                    selectedAssetID: $selectedAssetID,
-                                    inUseAssetID: inUseAssetID) { _ in }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 6)
-            .padding(.bottom, 10)
-        }
-    }
-
-    private func sourceOption(icon: String, title: String, caption: String,
-                              action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(.holoToolAction)
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolText)
-                Text(caption)
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(Color.holoToolSurface)
-            .cornerRadius(12)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.holoToolBorder, lineWidth: 0.8))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var processingView: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text(String(localized: "正在提取主体…"))
-                .font(.system(size: 13))
-                .foregroundColor(.holoToolTextSecondary)
-            Button(String(localized: "取消")) {
-                model.backToPicker()
-            }
-            .font(.system(size: 13))
-            .foregroundColor(.holoToolTextSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var confirmView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Picker(String(localized: "模式"), selection: Binding(
-                    get: { model.mode }, set: { model.mode = $0 })) {
-                    Text(String(localized: "贴纸")).tag(StickerMakerModel.Mode.sticker)
-                    Text(String(localized: "照片")).tag(StickerMakerModel.Mode.photo)
-                }
-                .pickerStyle(.segmented)
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.holoToolInset)
-                    if let image = model.showOriginal ? model.originalPreview() : model.previewImage() {
-                        Image(uiImage: UIImage(cgImage: image))
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .padding(14)
-                            .id(previewRev)
-                    }
-                }
-                .frame(height: 264)
-
-                if model.mode == .sticker {
-                    Picker(String(localized: "对照"), selection: Binding(
-                        get: { model.showOriginal }, set: { model.showOriginal = $0 })) {
-                        Text(String(localized: "贴纸（已去背景）")).tag(false)
-                        Text(String(localized: "原图")).tag(true)
+                    Picker(String(localized: "素材"), selection: $libraryTab) {
+                        Text(String(localized: "最近使用")).tag(VisualAssetLibraryView.Tab.recent)
+                        Text(String(localized: "我的贴纸")).tag(VisualAssetLibraryView.Tab.all)
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: libraryTab) { _ in model.reloadLibrary(tab: libraryTab) }
 
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(String(localized: "纸边风格"))
-                            .font(.system(size: 11.5, weight: .medium))
+                    if model.libraryAssets.isEmpty {
+                        Text(String(localized: "还没有贴纸。拍一件身边的东西试试——耳机、水杯、跑鞋都行"))
+                            .font(.system(size: 13))
                             .foregroundColor(.holoToolTextSecondary)
-                        Picker(String(localized: "纸边"), selection: Binding(
-                            get: { model.borderStyle },
-                            set: { model.borderStyle = $0; previewRev += 1 })) {
-                            Text(String(localized: "自适应")).tag(VisualPlacementPayload.Presentation.BorderStyle.adaptivePaper)
-                            Text(String(localized: "纯白")).tag(VisualPlacementPayload.Presentation.BorderStyle.white)
-                            Text(String(localized: "无")).tag(VisualPlacementPayload.Presentation.BorderStyle.none)
-                        }
-                        .pickerStyle(.segmented)
-                        HStack {
-                            Text(String(localized: "厚度"))
-                                .font(.system(size: 11.5))
-                                .foregroundColor(.holoToolTextSecondary)
-                            Picker(String(localized: "厚度"), selection: Binding(
-                                get: { model.borderWeight },
-                                set: { model.borderWeight = $0; previewRev += 1 })) {
-                                Text(String(localized: "细")).tag(VisualPlacementPayload.Presentation.BorderWeight.thin)
-                                Text(String(localized: "标准")).tag(VisualPlacementPayload.Presentation.BorderWeight.standard)
-                            }
-                            .pickerStyle(.segmented)
-                        }
+                            .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
+                            .padding(.top, 8)
+                    } else {
+                        VisualAssetGrid(assets: model.libraryAssets,
+                                        selectedAssetID: $selectedAssetID,
+                                        inUseAssetID: inUseAssetID) { _ in }
+                            .padding(.top, 4)
                     }
-
-                    VStack(spacing: 0) {
-                        confirmActionRow(icon: "crop", title: String(localized: "重新裁剪"),
-                                         caption: String(localized: "裁小范围重新识别")) {
-                            showCrop = true
-                        }
-                        Divider().padding(.leading, 40)
-                        confirmActionRow(icon: "paintbrush", title: String(localized: "修边"),
-                                         caption: String(localized: "擦掉多余，恢复误删")) {
-                            showBrush = true
-                        }
-                        Divider().padding(.leading, 40)
-                        confirmActionRow(icon: "arrow.counterclockwise", title: String(localized: "换一张"),
-                                         caption: String(localized: "重新拍照或换一张图")) {
-                            model.backToPicker()
-                        }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 12)
+            }
+        }
+        .background(Color.holoToolBackground)
+        .navigationTitle(pickerTitle)
+        #if canImport(UIKit)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            if !isPushed {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
                     }
-                    .background(Color.holoToolSurface)
-                    .cornerRadius(12)
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                guard let assetID = selectedAssetID else { return }
+                finish(with: assetID, presentation: nil)
+            } label: {
+                Text(String(localized: "使用这张贴纸"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(selectedAssetID == nil ? .holoToolTextSecondary : .holoToolOnAction)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(selectedAssetID == nil ? Color.holoToolSurface : Color.holoToolAction)
+                    .cornerRadius(13)
+            }
+            .disabled(selectedAssetID == nil)
             .padding(.horizontal, 20)
-            .padding(.top, 6)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial)
         }
     }
 
-    private func confirmActionRow(icon: String, title: String, caption: String,
-                                  action: @escaping () -> Void) -> some View {
+    private func capsuleButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 30)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 13.5))
-                        .foregroundColor(.holoToolText)
-                    Text(caption)
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary)
+            HStack(spacing: 5) {
+                Image(systemName: icon).font(.system(size: 12, weight: .medium))
+                Text(title).font(.system(size: 12.5, weight: .semibold))
             }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .contentShape(Rectangle())
+            .foregroundColor(.holoToolAction)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(Color.holoToolSurface)
+            .cornerRadius(11)
+            .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.holoToolBorder, lineWidth: 0.8))
         }
         .buttonStyle(.plain)
     }
 
-    @ViewBuilder
-    private func failureView(_ failure: StickerMakerModel.StickerMakerFailure) -> some View {
-        VStack(spacing: 12) {
-            switch failure {
-            case .noSubjectFound:
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.system(size: 30))
-                    .foregroundColor(.holoToolTextSecondary)
-                Text(String(localized: "没有找到清晰的主体，可以拍近一点再试"))
-                    .font(.system(size: 14, weight: .medium))
-                Button(String(localized: "改用普通照片")) { model.fallBackToPhoto() }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolAction)
-            case .tooLarge:
-                Text(String(localized: "这张图片太大了，换一张试试"))
-                    .font(.system(size: 14))
-            case .corrupted:
-                Text(String(localized: "图片无法读取，可能已损坏"))
-                    .font(.system(size: 14))
-            case .requestFailed:
-                Text(String(localized: "这张图片暂时无法自动制作贴纸"))
-                    .font(.system(size: 14))
-                Button(String(localized: "改用普通照片")) { model.fallBackToPhoto() }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolAction)
-            case .saveFailed:
-                Text(String(localized: "保存没有完成，已保留当前编辑"))
-                    .font(.system(size: 14))
-            }
-            Button(String(localized: "换一张")) { model.backToPicker() }
-                .font(.system(size: 13))
-                .foregroundColor(.holoToolTextSecondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var primaryTitle: String? {
-        switch model.phase {
-        case .picking: return String(localized: "使用这张贴纸")
-        case .editing: return String(localized: "使用")
-        default: return nil
-        }
-    }
-
-    private var primaryDisabled: Bool {
-        switch model.phase {
-        case .picking: return selectedAssetID == nil
-        case .editing: return false
-        default: return true
-        }
-    }
-
-    private var primaryHint: String? {
-        if case .picking = model.phase, selectedAssetID == nil {
-            return String(localized: "先在下方选一张，或拍照做一张新的")
-        }
-        if case .editing = model.phase, model.mode == .sticker, model.instanceCount > 1 {
-            return String(localized: "识别到 \(model.instanceCount) 个主体，已选全部")
-        }
-        return nil
-    }
-
-    private func primaryAction() {
-        switch model.phase {
-        case .picking:
-            guard let assetID = selectedAssetID else { return }
-            onPick(assetID, nil)
-            dismiss()
-        case .editing:
-            Task {
-                if let assetID = await model.commit() {
-                    onPick(assetID, VisualPlacementPayload.Presentation(
-                        borderStyle: model.borderStyle, borderWeight: model.borderWeight))
-                    dismiss()
-                }
-            }
-        default:
-            break
-        }
-    }
-}
-
-// MARK: - 相机
-
-struct CameraCaptureView: UIViewControllerRepresentable {
-    let onCapture: (Data?) -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            picker.sourceType = .camera
-        } else {
-            picker.sourceType = .photoLibrary
-        }
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraCaptureView
-        init(_ parent: CameraCaptureView) { self.parent = parent }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            let image = info[.originalImage] as? UIImage
-            parent.onCapture(image?.jpegData(compressionQuality: 0.92))
-            parent.dismiss()
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onCapture(nil)
-            parent.dismiss()
-        }
-    }
-}
-
-struct PhotoLibraryPicker: View {
-    let onData: (Data?) -> Void
-    @State private var item: PhotosPickerItem?
-
-    var body: some View {
-        PhotosPicker(selection: $item, matching: .images) {
-            HStack {
-                Image(systemName: "photo.on.rectangle")
-                Text(String(localized: "选择照片"))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-        }
-        .buttonStyle(.borderedProminent)
-        .padding(.horizontal, 40)
-        .presentationDetents([.medium])
-        .onChange(of: item) { newItem in
-            guard let newItem else { return }
-            Task {
-                let loaded = (try? await newItem.loadTransferable(type: Data.self)) ?? nil
-                onData(loaded)
-                item = nil
+    private func launchCamera() {
+        Task {
+            if await VisualMediaAcquisition.requestCameraAccess() {
+                activeMediaSource = .camera
+            } else {
+                cameraDenied = true
             }
         }
     }

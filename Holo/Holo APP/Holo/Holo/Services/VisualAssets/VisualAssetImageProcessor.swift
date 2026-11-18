@@ -128,26 +128,30 @@ enum VisualAssetImageProcessor {
             return render(subjectLayer, from: subjectCI.extent)
         }
 
+        // 先把 mask 补黑边扩到 baseExtent，确保紧裁贴纸触及边界的轮廓也能向外长出完整纸边
+        let blackPad = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)).cropped(to: baseExtent)
+        let paddedMask = maskCI.composited(over: blackPad).cropped(to: baseExtent)
+
         // D = dilate(M, r)；R = D × (1 − M) 只在占用边界的外环上非零
         let dilate = CIFilter.morphologyMaximum()
-        dilate.inputImage = maskCI
+        dilate.inputImage = paddedMask
         dilate.radius = Float(edge.radiusPixels)
-        let dilated = output(dilate).cropped(to: subjectCI.extent)
+        let dilated = output(dilate).cropped(to: baseExtent)
 
         let invert = CIFilter.colorMatrix()
-        invert.inputImage = maskCI
+        invert.inputImage = paddedMask
         invert.rVector = CIVector(x: -1, y: 0, z: 0, w: 0)
         invert.gVector = CIVector(x: 0, y: -1, z: 0, w: 0)
         invert.bVector = CIVector(x: 0, y: 0, z: -1, w: 0)
         // alpha 恒 1：CI 图像按预乘语义传递，alpha 反转成 0 会把已算好的 rgb 归零丢弃
         invert.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
         invert.biasVector = CIVector(x: 1, y: 1, z: 1, w: 0)
-        let invM = output(invert).cropped(to: subjectCI.extent)
+        let invM = output(invert).cropped(to: baseExtent)
 
         let multiply = CIFilter.multiplyCompositing()
         multiply.inputImage = invM
         multiply.backgroundImage = dilated
-        let ring = output(multiply).cropped(to: subjectCI.extent)
+        let ring = output(multiply).cropped(to: baseExtent)
 
         // 纸边层 = 纸边色 × R；主体在上 source-over：最终 alpha = A + R×(1−A)
         // 外部传入的 CGColor 可能未指定空间（GenericRGB 宽色域会导致纯色串色），统一转到 sRGB
@@ -171,17 +175,29 @@ enum VisualAssetImageProcessor {
         CVPixelBufferCreate(kCFAllocatorDefault, w, h,
                             kCVPixelFormatType_OneComponent8, nil, &buffer)
         guard let pb = buffer else { return nil }
-        let ci = CIImage(cgImage: image)
-        // 取 alpha 通道为灰度：out.(rgb) = in.alpha
-        let extract = CIFilter.colorMatrix()
-        extract.inputImage = ci
-        extract.rVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        extract.gVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        extract.bVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-        extract.aVector = CIVector(x: 0, y: 0, z: 0, w: 0)
-        let alphaGray = output(extract)
-        ciContext.render(alphaGray, to: pb, bounds: CGRect(x: 0, y: 0, width: w, height: h),
-                         colorSpace: CGColorSpaceCreateDeviceGray())
+        // 2026-11-18 根治：旧实现 colorMatrix 把 alpha 搬进 rgb、输出 alpha 置 0——
+        // CI 预乘语义下 alpha=0 会把灰度通道一并清零，实测遮罩全零（透明 PNG 直通
+        // 导入的贴纸一直渲染空白）。改纯 CPU 读 RGBA 后取 alpha 字节，确定性无语义坑
+        var rgba = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &rgba, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return pb
+        }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        CVPixelBufferLockBaseAddress(pb, [])
+        if let base = CVPixelBufferGetBaseAddress(pb)?.assumingMemoryBound(to: UInt8.self) {
+            let rowBytes = CVPixelBufferGetBytesPerRow(pb)
+            for y in 0..<h {
+                let srcRow = y * w * 4
+                let dstRow = y * rowBytes
+                for x in 0..<w {
+                    base[dstRow + x] = rgba[srcRow + x * 4 + 3]
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(pb, [])
         return pb
     }
 
@@ -208,13 +224,15 @@ enum VisualAssetImageProcessor {
         return pb
     }
 
-    /// photo 派生：等比降采样到目标长边（不放大——源小于目标时原样返回）
+    /// photo 派生：等比降采样到目标长边（不放大——源小于目标时原样返回）。
+    /// 2026-11-18 根治：旧写法 `scale.rounded(.up)` 把缩小系数（如 0.21）向上取整成 1，
+    /// 本函数从未真正缩小过任何图——图标位单张 ~9.4MB 内存爆仓的真正源头
     static func downscale(_ image: CGImage, targetLongest: CGFloat) -> CGImage {
         let longest = max(image.width, image.height)
         guard CGFloat(longest) > targetLongest, targetLongest > 0 else { return image }
         let scale = targetLongest / CGFloat(longest)
-        let w = max(1, Int(CGFloat(image.width) * scale.rounded(.up)))
-        let h = max(1, Int(CGFloat(image.height) * scale.rounded(.up)))
+        let w = max(1, Int((CGFloat(image.width) * scale).rounded(.up)))
+        let h = max(1, Int((CGFloat(image.height) * scale).rounded(.up)))
         let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!,
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
@@ -258,12 +276,18 @@ enum VisualAssetImageProcessor {
 
     /// 紧裁主体（sticker 的 contentData）：mask 非零区的 bounding box 裁切 + 长边限幅
     static func tightCrop(_ image: CGImage, mask: CVPixelBuffer, maxLongest: Int) -> CGImage? {
-        CVPixelBufferLockBaseAddress(mask, [])
-        defer { CVPixelBufferUnlockBaseAddress(mask, []) }
-        let w = CVPixelBufferGetWidth(mask), h = CVPixelBufferGetHeight(mask)
-        guard w == image.width, h == image.height else { return nil }
-        let base = CVPixelBufferGetBaseAddress(mask)!.assumingMemoryBound(to: UInt8.self)
-        let rowBytes = CVPixelBufferGetBytesPerRow(mask)
+        tightCropWithMask(image, mask: mask, maxLongest: maxLongest)?.image
+    }
+
+    /// 紧裁主体并同步裁剪缩放 mask，保证 contentData 与 maskData 尺寸和像素一一对应
+    static func tightCropWithMask(_ image: CGImage, mask: CVPixelBuffer, maxLongest: Int) -> (image: CGImage, mask: CVPixelBuffer)? {
+        let mask8 = ensureOneComponent8(mask)
+        CVPixelBufferLockBaseAddress(mask8, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(mask8, .readOnly) }
+        let w = CVPixelBufferGetWidth(mask8), h = CVPixelBufferGetHeight(mask8)
+        guard w == image.width, h == image.height,
+              let base = CVPixelBufferGetBaseAddress(mask8)?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        let rowBytes = CVPixelBufferGetBytesPerRow(mask8)
         var minX = w, minY = h, maxX = -1, maxY = -1
         for y in 0..<h {
             let row = base + y * rowBytes
@@ -275,11 +299,60 @@ enum VisualAssetImageProcessor {
             }
         }
         guard maxX >= minX, maxY >= minY else { return nil }
-        let cropRect = CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+        let cropW = maxX - minX + 1
+        let cropH = maxY - minY + 1
+        let cropRect = CGRect(x: minX, y: minY, width: cropW, height: cropH)
         let cropped = image.cropping(to: cropRect) ?? image
+
+        var croppedMaskBuffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, cropW, cropH, kCVPixelFormatType_OneComponent8, nil, &croppedMaskBuffer)
+        guard let croppedMask = croppedMaskBuffer else { return nil }
+        CVPixelBufferLockBaseAddress(croppedMask, [])
+        if let dstBase = CVPixelBufferGetBaseAddress(croppedMask)?.assumingMemoryBound(to: UInt8.self) {
+            let dstRowBytes = CVPixelBufferGetBytesPerRow(croppedMask)
+            for y in 0..<cropH {
+                memcpy(dstBase + y * dstRowBytes, base + (minY + y) * rowBytes + minX, cropW)
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(croppedMask, [])
+
         let longest = max(cropped.width, cropped.height)
-        guard longest > maxLongest else { return cropped }
-        return downscale(cropped, targetLongest: CGFloat(maxLongest))
+        guard longest > maxLongest else { return (cropped, croppedMask) }
+        let scaledImage = downscale(cropped, targetLongest: CGFloat(maxLongest))
+        guard let scaledMask = downscaleMask(croppedMask, width: scaledImage.width, height: scaledImage.height) else {
+            return nil
+        }
+        return (scaledImage, scaledMask)
+    }
+
+    /// 遮罩同步降采样（渲染层先降采样再合成纸边时与画面同步缩放）
+    static func downscaleMask(_ mask: CVPixelBuffer, width: Int, height: Int) -> CVPixelBuffer? {
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_OneComponent8, nil, &buffer)
+        guard let dst = buffer else { return nil }
+        let srcW = CVPixelBufferGetWidth(mask)
+        let srcH = CVPixelBufferGetHeight(mask)
+        guard srcW > 0, srcH > 0 else { return nil }
+        let scaleX = CGFloat(width) / CGFloat(srcW)
+        let scaleY = CGFloat(height) / CGFloat(srcH)
+        let ci = CIImage(cvPixelBuffer: mask).transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+        ciContext.render(ci, to: dst, bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                         colorSpace: CGColorSpaceCreateDeviceGray())
+        return dst
+    }
+
+    private static func ensureOneComponent8(_ mask: CVPixelBuffer) -> CVPixelBuffer {
+        if CVPixelBufferGetPixelFormatType(mask) == kCVPixelFormatType_OneComponent8 {
+            return mask
+        }
+        let w = CVPixelBufferGetWidth(mask), h = CVPixelBufferGetHeight(mask)
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_OneComponent8, nil, &buffer)
+        guard let dst = buffer else { return mask }
+        ciContext.render(CIImage(cvPixelBuffer: mask), to: dst,
+                         bounds: CGRect(x: 0, y: 0, width: w, height: h),
+                         colorSpace: CGColorSpaceCreateDeviceGray())
+        return dst
     }
 
     // MARK: - 私有

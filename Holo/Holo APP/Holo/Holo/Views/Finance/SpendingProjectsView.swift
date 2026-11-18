@@ -163,10 +163,21 @@ struct SpendingProjectDetailView: View {
     @State private var showEndConditionEditor = false
     @State private var showOneOffEditor = false
     @State private var pendingDeletionID: NSManagedObjectID?
+    /// 详情页直达换外观（单层 Sheet，选完立即生效——详情非表单，直改语义清晰）
+    @State private var showAppearancePicker = false
 
     var body: some View {
         Form {
-            SpendingProjectVisualSection(project: project)
+            SpendingProjectVisualSection(project: project, onTapChange: {
+                showAppearancePicker = true
+            })
+            if !hasVisualPlacement {
+                Section {
+                    Button(String(localized: "设置外观")) { showAppearancePicker = true }
+                        .foregroundColor(.holoPrimary)
+                }
+                .listRowBackground(Color.holoCardBackground)
+            }
             Section {
                 LabeledContent("类型", value: project.isRecurring ? "周期性支出" : "一次性购买")
                 LabeledContent(project.isRecurring ? String(localized: "每期金额") : String(localized: "金额"), value: NumberFormatter.currency.string(from: project.amount) ?? "¥0")
@@ -234,7 +245,51 @@ struct SpendingProjectDetailView: View {
             SpendingProjectOneOffEditorSheet(project: project) { onChanged() }
                 .presentationBackground(Color.holoBackground)
         }
+        // 详情直达换外观：单层 Sheet，立即生效，失败如实提示（不吞错）
+        .sheet(isPresented: $showAppearancePicker) {
+            appearancePickerSheet
+                .presentationBackground(Color.holoBackground)
+        }
         .onDisappear { performPendingDeletion() }
+    }
+
+    private var hasVisualPlacement: Bool {
+        if case .assetReady = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext) {
+            return true
+        }
+        return false
+    }
+
+    private var appearancePickerSheet: some View {
+        let current = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
+        var inUse: UUID?
+        if case .assetReady(let d) = current { inUse = d.assetID }
+        return VisualAppearancePickerView(isPushed: false,
+                                          pickerTitle: String(localized: "外观"),
+                                          currentPlacement: current,
+                                          inUseAssetID: inUse,
+                                          onRestoreDefault: { applyAppearance(.clear) }) { assetID, presentation in
+            applyAppearance(.setAsset(.asset(assetID), presentation: presentation))
+        }
+    }
+
+    private func applyAppearance(_ payload: VisualPlacementPayload) {
+        guard let ownerKey = project.visualOwnerKey else { return }
+        let expectedWinner = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext).winnerRevisionIDIfAny
+        Task {
+            do {
+                _ = try await VisualCommitCoordinator.shared.commit(
+                    .applyPlacement(operationID: UUID(),
+                                    ownerKind: SpendingProject.visualOwnerKind,
+                                    ownerKey: ownerKey,
+                                    slot: SpendingProject.visualSlot,
+                                    expectedSlotWinnerRevisionID: expectedWinner,
+                                    payload: payload),
+                    in: CoreDataStack.shared.persistentContainer)
+            } catch {
+                errorMessage = String(localized: "外观没有设置成功，请重试")
+            }
+        }
     }
 
     private func togglePause() { do { try SpendingProjectRepository.shared.updatePause(for: project, isPaused: !project.isPaused); onChanged() } catch { errorMessage = String(localized: "更新项目状态失败") } }
@@ -265,6 +320,8 @@ struct SpendingProjectEndConditionSheet: View {
     @State private var endDate: Date
     @State private var totalOccurrences: String
     @State private var errorMessage: String?
+    /// 外观草稿：随「保存」统一提交（东林 11-18 拍板 B 逻辑）；取消=丢弃
+    @State private var appearanceDraft: VisualAppearanceDraft = .none
     @State private var showAppearancePicker = false
     /// 金额/周期数输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
     @FocusState private var focusedField: Field?
@@ -290,20 +347,22 @@ struct SpendingProjectEndConditionSheet: View {
                         .foregroundColor(.holoTextSecondary)
                 }
                 .listRowBackground(Color.holoCardBackground)
-                Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
-                if mode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: project.startDate..., displayedComponents: .date) }
-                if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
                 Section("外观") {
-                    VisualAppearanceFormRow(draft: nil,
-                                            currentPlacement: project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)) {
+                    VisualAppearanceFormRow(draft: appearanceDraft,
+                                            placementProvider: { project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext) }) {
                         showAppearancePicker = true
                     }
                 }
                 .listRowBackground(Color.holoCardBackground)
-                .sheet(isPresented: $showAppearancePicker) {
-                    appearancePickerSheet
-                }
+                Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
+                if mode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: project.startDate..., displayedComponents: .date) }
+                if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
                 if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError) }
+            }
+            // 外观选择器走栈内 push（零二层 Sheet——Form Section 上的 .sheet 首开被
+            // cell 重排回收宿主锚点，弹窗秒关，B1 根因）
+            .navigationDestination(isPresented: $showAppearancePicker) {
+                appearanceDestination
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
@@ -335,31 +394,21 @@ struct SpendingProjectEndConditionSheet: View {
         }
     }
 
-    /// 外观选择器（周期项目也支持贴纸——东林拍板「加」）：选完立即生效
-    private var appearancePickerSheet: some View {
+    /// 外观选择器（栈内 push）：选完回草稿，随「保存」统一生效
+    private var appearanceDestination: some View {
         let current = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
         var inUse: UUID?
         if case .assetReady(let d) = current { inUse = d.assetID }
-        return StickerMakerView(pickerTitle: String(localized: "外观"),
-                                currentPlacement: current,
-                                inUseAssetID: inUse,
-                                onRestoreDefault: { applyAppearance(.clear) }) { assetID, presentation in
-            applyAppearance(.setAsset(.asset(assetID), presentation: presentation))
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func applyAppearance(_ payload: VisualPlacementPayload) {
-        guard let ownerKey = project.visualOwnerKey else { return }
-        Task {
-            _ = try? await VisualCommitCoordinator.shared.commit(
-                .applyPlacement(operationID: UUID(),
-                                ownerKind: SpendingProject.visualOwnerKind,
-                                ownerKey: ownerKey,
-                                slot: SpendingProject.visualSlot,
-                                expectedSlotWinnerRevisionID: nil,
-                                payload: payload),
-                in: CoreDataStack.shared.persistentContainer)
+        return VisualAppearancePickerView(isPushed: true,
+                                          pickerTitle: String(localized: "外观"),
+                                          currentPlacement: current,
+                                          inUseAssetID: inUse,
+                                          onRestoreDefault: {
+                                          appearanceDraft = .cleared
+                                          showAppearancePicker = false
+                                      }) { assetID, presentation in
+            appearanceDraft = .set(assetID: assetID, presentation: presentation)
+            showAppearancePicker = false
         }
     }
 
@@ -377,8 +426,31 @@ struct SpendingProjectEndConditionSheet: View {
                 endDate: mode == .endDate ? endDate : nil,
                 maxOccurrences: maxOccurrences
             )
-            onSaved(); dismiss()
+            onSaved()
+            commitAppearanceDraftThenDismiss()
         } catch { errorMessage = String(localized: "保存失败，请稍后重试") }
+    }
+
+    /// 外观草稿随保存收口：提交失败如实提示、表单不关（可重试保存）；取消则丢弃草稿
+    private func commitAppearanceDraftThenDismiss() {
+        let draft = appearanceDraft
+        guard draft != .none, let ownerKey = project.visualOwnerKey else {
+            dismiss()
+            return
+        }
+        let expectedWinner = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext).winnerRevisionIDIfAny
+        Task {
+            do {
+                try await draft.commit(ownerKind: SpendingProject.visualOwnerKind,
+                                       ownerKey: ownerKey,
+                                       slot: SpendingProject.visualSlot,
+                                       expectedSlotWinnerRevisionID: expectedWinner,
+                                       in: CoreDataStack.shared.persistentContainer)
+                dismiss()
+            } catch {
+                errorMessage = String(localized: "项目已保存，但外观没有设置成功，可以重试保存")
+            }
+        }
     }
 }
 
@@ -391,6 +463,8 @@ struct SpendingProjectOneOffEditorSheet: View {
     @State private var purchaseDate: Date
     @State private var selectedCategory: Category?
     @State private var errorMessage: String?
+    /// 外观草稿：随「保存」统一提交；取消=丢弃
+    @State private var appearanceDraft: VisualAppearanceDraft = .none
     @State private var showAppearancePicker = false
     /// 金额输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
     @FocusState private var isAmountFocused: Bool
@@ -413,20 +487,17 @@ struct SpendingProjectOneOffEditorSheet: View {
                     DatePicker(String(localized: "购买日期"), selection: $purchaseDate, displayedComponents: .date)
                 }
                 .listRowBackground(Color.holoCardBackground)
-                Section("分类") {
-                    CategoryPicker(selectedCategory: $selectedCategory, transactionType: .constant(.expense), showsTypeTabs: false)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.holoCardBackground)
-                }
                 Section("外观") {
-                    VisualAppearanceFormRow(draft: nil,
-                                            currentPlacement: project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)) {
+                    VisualAppearanceFormRow(draft: appearanceDraft,
+                                            placementProvider: { project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext) }) {
                         showAppearancePicker = true
                     }
                 }
                 .listRowBackground(Color.holoCardBackground)
-                .sheet(isPresented: $showAppearancePicker) {
-                    appearancePickerSheet
+                Section("分类") {
+                    CategoryPicker(selectedCategory: $selectedCategory, transactionType: .constant(.expense), showsTypeTabs: false)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.holoCardBackground)
                 }
                 Section {
                     Text("仅用于计算持有天数和日均成本，不会生成账本流水，也不会计入消费或余额。")
@@ -435,6 +506,9 @@ struct SpendingProjectOneOffEditorSheet: View {
                 }
                 .listRowBackground(Color.holoCardBackground)
                 if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoToolError) }.listRowBackground(Color.holoCardBackground) }
+            }
+            .navigationDestination(isPresented: $showAppearancePicker) {
+                appearanceDestination
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
@@ -466,31 +540,21 @@ struct SpendingProjectOneOffEditorSheet: View {
         }
     }
 
-    /// 外观选择器：编辑场景选完立即生效（东林拍板），表单行靠通知自动刷新
-    private var appearancePickerSheet: some View {
+    /// 外观选择器（栈内 push）：选完回草稿，随「保存」统一生效
+    private var appearanceDestination: some View {
         let current = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
         var inUse: UUID?
         if case .assetReady(let d) = current { inUse = d.assetID }
-        return StickerMakerView(pickerTitle: String(localized: "外观"),
-                                currentPlacement: current,
-                                inUseAssetID: inUse,
-                                onRestoreDefault: { applyAppearance(.clear) }) { assetID, presentation in
-            applyAppearance(.setAsset(.asset(assetID), presentation: presentation))
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func applyAppearance(_ payload: VisualPlacementPayload) {
-        guard let ownerKey = project.visualOwnerKey else { return }
-        Task {
-            _ = try? await VisualCommitCoordinator.shared.commit(
-                .applyPlacement(operationID: UUID(),
-                                ownerKind: SpendingProject.visualOwnerKind,
-                                ownerKey: ownerKey,
-                                slot: SpendingProject.visualSlot,
-                                expectedSlotWinnerRevisionID: nil,
-                                payload: payload),
-                in: CoreDataStack.shared.persistentContainer)
+        return VisualAppearancePickerView(isPushed: true,
+                                          pickerTitle: String(localized: "外观"),
+                                          currentPlacement: current,
+                                          inUseAssetID: inUse,
+                                          onRestoreDefault: {
+                                          appearanceDraft = .cleared
+                                          showAppearancePicker = false
+                                      }) { assetID, presentation in
+            appearanceDraft = .set(assetID: assetID, presentation: presentation)
+            showAppearancePicker = false
         }
     }
 
@@ -504,9 +568,31 @@ struct SpendingProjectOneOffEditorSheet: View {
         do {
             try SpendingProjectRepository.shared.updateOneOffProject(project, name: name, amount: value, purchaseDate: purchaseDate, category: selectedCategory)
             onSaved()
-            dismiss()
+            commitAppearanceDraftThenDismiss()
         } catch {
             errorMessage = String(localized: "保存失败，请稍后重试")
+        }
+    }
+
+    /// 外观草稿随保存收口：提交失败如实提示、表单不关（可重试保存）；取消则丢弃草稿
+    private func commitAppearanceDraftThenDismiss() {
+        let draft = appearanceDraft
+        guard draft != .none, let ownerKey = project.visualOwnerKey else {
+            dismiss()
+            return
+        }
+        let expectedWinner = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext).winnerRevisionIDIfAny
+        Task {
+            do {
+                try await draft.commit(ownerKind: SpendingProject.visualOwnerKind,
+                                       ownerKey: ownerKey,
+                                       slot: SpendingProject.visualSlot,
+                                       expectedSlotWinnerRevisionID: expectedWinner,
+                                       in: CoreDataStack.shared.persistentContainer)
+                dismiss()
+            } catch {
+                errorMessage = String(localized: "项目已保存，但外观没有设置成功，可以重试保存")
+            }
         }
     }
 }
@@ -538,6 +624,13 @@ struct AddSpendingProjectSheet: View {
                     TextField(kind == .recurring ? String(localized: "每期金额") : String(localized: "购买金额"), text: $amount).keyboardType(.decimalPad)
                 }
                 .listRowBackground(Color.holoCardBackground)
+                Section("外观") {
+                    VisualAppearanceFormRow(draft: appearanceDraft, currentPlacement: nil,
+                                            fallbackIcon: selectedCategory.map { _ in "bag.fill" } ?? "bag.fill") {
+                        showAppearancePicker = true
+                    }
+                }
+                .listRowBackground(Color.holoCardBackground)
                 Section("分类") {
                     CategoryPicker(selectedCategory: $selectedCategory, transactionType: .constant(.expense), showsTypeTabs: false)
                         .listRowInsets(EdgeInsets())
@@ -560,21 +653,18 @@ struct AddSpendingProjectSheet: View {
                     }
                 }
                 .listRowBackground(Color.holoCardBackground)
-                Section("外观") {
-                    VisualAppearanceFormRow(draft: appearanceDraft, currentPlacement: nil,
-                                            fallbackIcon: selectedCategory.map { _ in "bag.fill" } ?? "bag.fill") {
-                        showAppearancePicker = true
-                    }
-                }
-                .listRowBackground(Color.holoCardBackground)
-                .sheet(isPresented: $showAppearancePicker) {
-                    StickerMakerView(pickerTitle: String(localized: "外观"),
-                                     onRestoreDefault: { appearanceDraft = .cleared }) { assetID, presentation in
-                        appearanceDraft = .set(assetID: assetID, presentation: presentation)
-                    }
-                    .presentationDetents([.medium, .large])
-                }
                 if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError).listRowBackground(Color.holoCardBackground) }
+            }
+            .navigationDestination(isPresented: $showAppearancePicker) {
+                VisualAppearancePickerView(isPushed: true,
+                                           pickerTitle: String(localized: "外观"),
+                                           onRestoreDefault: {
+                                           appearanceDraft = .cleared
+                                           showAppearancePicker = false
+                                       }) { assetID, presentation in
+                    appearanceDraft = .set(assetID: assetID, presentation: presentation)
+                    showAppearancePicker = false
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
@@ -602,12 +692,18 @@ struct AddSpendingProjectSheet: View {
             let projectEndDate = kind == .recurring && endMode == .endDate ? endDate : nil
             guard kind == .oneOff || endMode == .forever || projectEndDate != nil || maxOccurrences > 0 else { errorMessage = String(localized: "请设置有效的结束条件"); return }
             let project = try SpendingProjectRepository.shared.create(name: name, kind: kind, amount: value, frequency: kind == .recurring ? frequency : nil, startDate: startDate, endDate: projectEndDate, maxOccurrences: maxOccurrences, plannedLifespanDays: 0, category: selectedCategory, account: account)
-            // 外观候选随保存收口绑定（绑定失败不阻断项目保存，如实提示）
+            // 外观候选随保存收口绑定：失败如实提示（新对象无赢家，基线 nil）
             let draft = appearanceDraft
             if let key = project.visualOwnerKey, draft != .none {
-                Task { await draft.commit(ownerKind: SpendingProject.visualOwnerKind, ownerKey: key,
-                                          slot: SpendingProject.visualSlot,
-                                          in: CoreDataStack.shared.persistentContainer) }
+                Task {
+                    do {
+                        try await draft.commit(ownerKind: SpendingProject.visualOwnerKind, ownerKey: key,
+                                               slot: SpendingProject.visualSlot,
+                                               in: CoreDataStack.shared.persistentContainer)
+                    } catch {
+                        errorMessage = String(localized: "项目已保存，但外观没有设置成功")
+                    }
+                }
             }
             onSaved(); dismiss()
         } catch { errorMessage = String(localized: "保存失败，请稍后重试") }

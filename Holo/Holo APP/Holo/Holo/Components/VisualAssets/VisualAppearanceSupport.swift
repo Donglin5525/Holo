@@ -15,29 +15,31 @@ import CoreData
 
 // MARK: - 候选值（新增表单场景）
 
-/// 外观候选：新项目还没有 id，选择完暂存、保存时绑定（东林拍板的「立即生效」
-/// 在编辑场景即时 applyPlacement；新增场景对象不存在，只能保存收口——物理限制）
+/// 外观候选：表单场景暂存、保存时统一绑定（东林 11-18 拍板：全模块统一 B 逻辑——
+/// 草稿随「保存」生效，取消丢弃；详情直达场景仍立即生效）
 enum VisualAppearanceDraft: Equatable {
     case none
     case set(assetID: UUID, presentation: VisualPlacementPayload.Presentation?)
     case cleared
 
-    /// 保存收口：给定 owner 绑定（新项目用新建的 key）
+    /// 保存收口：给定 owner 绑定（新项目用新建的 key）。
+    /// 抛错（含 conflict）：失败如实上抛由调用方提示，不静默吞（B10）
     func commit(ownerKind: String, ownerKey: String, slot: String,
-                in container: NSPersistentContainer) async {
+                expectedSlotWinnerRevisionID: UUID? = nil,
+                in container: NSPersistentContainer) async throws {
         switch self {
         case .none:
             return
         case .set(let assetID, let presentation):
-            _ = try? await VisualCommitCoordinator.shared.commit(
+            _ = try await VisualCommitCoordinator.shared.commit(
                 .applyPlacement(operationID: UUID(), ownerKind: ownerKind, ownerKey: ownerKey,
-                                slot: slot, expectedSlotWinnerRevisionID: nil,
+                                slot: slot, expectedSlotWinnerRevisionID: expectedSlotWinnerRevisionID,
                                 payload: .setAsset(.asset(assetID), presentation: presentation)),
                 in: container)
         case .cleared:
-            _ = try? await VisualCommitCoordinator.shared.commit(
+            _ = try await VisualCommitCoordinator.shared.commit(
                 .applyPlacement(operationID: UUID(), ownerKind: ownerKind, ownerKey: ownerKey,
-                                slot: slot, expectedSlotWinnerRevisionID: nil,
+                                slot: slot, expectedSlotWinnerRevisionID: expectedSlotWinnerRevisionID,
                                 payload: .clear),
                 in: container)
         }
@@ -53,6 +55,8 @@ struct VisualAppearanceFormRow: View {
     var draft: VisualAppearanceDraft?
     /// 编辑场景：当前生效位置（nil=新增场景）
     var currentPlacement: ResolvedPlacement?
+    /// 动态解析闭包：通知刷新时重新查库，避免父表单传入的快照值过期
+    var placementProvider: (() -> ResolvedPlacement)? = nil
     /// 新增场景的分类图标名（未选贴纸时的默认徽章）
     var fallbackIcon: String = "bag.fill"
     var onTap: () -> Void
@@ -83,7 +87,8 @@ struct VisualAppearanceFormRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .id(bump)
+        // 通知只驱动 body 重算（bump 状态变化），不再 .id(bump) 销毁重建整行——
+        // 行身份稳定是「首帧同步命中缓存」不闪灰块的前提（B2 关联项）
         .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
             bump += 1
         }
@@ -110,7 +115,7 @@ struct VisualAppearanceFormRow: View {
         }
     }
 
-    private var resolvedCurrent: ResolvedPlacement? { currentPlacement }
+    private var resolvedCurrent: ResolvedPlacement? { placementProvider?() ?? currentPlacement }
 
     private var valueText: String {
         if case .set = draft { return String(localized: "已选贴纸 · 保存后生效") }
@@ -137,6 +142,7 @@ struct VisualAssetGrid: View {
                 cell(asset)
             }
         }
+        .animation(nil, value: selectedAssetID)
     }
 
     private func cell(_ asset: VisualAsset) -> some View {
@@ -147,8 +153,8 @@ struct VisualAssetGrid: View {
                                           kind: VisualAssetKind.from(raw: asset.value(forKey: "kind") as? String) ?? .sticker,
                                           presentation: nil)
         return Button {
-            selectedAssetID = isSelected ? nil : assetID
-            if isSelected { onPick(asset) }
+            // 单击=选中高亮，底部主按钮确认（B10 修复：取消选中分支不再误调 onPick）
+            selectedAssetID = assetID
         } label: {
             VStack(spacing: 4) {
                 VisualAssetView(descriptor: descriptor, role: .icon)
@@ -204,17 +210,19 @@ struct VisualAssetGrid: View {
 struct VisualCurrentAppearanceCard: View {
     let currentPlacement: ResolvedPlacement
     var fallbackIcon: String = "bag.fill"
+    /// 紧凑条（44pt 预览）：外观页顶部用，把空间让给贴纸网格
+    var compact: Bool = false
     /// 恢复默认：编辑场景直接 clear（立即生效）；新增场景回执 draft=cleared
     var onRestoreDefault: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             currentThumb
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .frame(width: thumbSide, height: thumbSide)
+                .clipShape(RoundedRectangle(cornerRadius: compact ? 9 : 12))
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "当前外观"))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: compact ? 12.5 : 13, weight: .semibold))
                     .foregroundColor(.holoToolText)
                 Text(statusText)
                     .font(.system(size: 11))
@@ -229,10 +237,12 @@ struct VisualCurrentAppearanceCard: View {
                     .foregroundColor(.holoToolTextSecondary)
             }
         }
-        .padding(12)
+        .padding(compact ? 8 : 12)
         .background(Color.holoToolSurface)
-        .cornerRadius(12)
+        .cornerRadius(compact ? 10 : 12)
     }
+
+    private var thumbSide: CGFloat { compact ? 44 : 56 }
 
     @ViewBuilder
     private var currentThumb: some View {
@@ -240,9 +250,9 @@ struct VisualCurrentAppearanceCard: View {
             VisualPlacementView(placement: .assetReady(descriptor), role: .icon)
         } else {
             Image(systemName: fallbackIcon)
-                .font(.system(size: 22))
+                .font(.system(size: compact ? 18 : 22))
                 .foregroundColor(.holoToolTextSecondary)
-                .frame(width: 56, height: 56)
+                .frame(width: thumbSide, height: thumbSide)
                 .background(Color.holoToolInset)
         }
     }

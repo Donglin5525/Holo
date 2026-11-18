@@ -71,7 +71,7 @@ final class VisualCommitCoordinator {
         let context = container.newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         return try await withCheckedThrowingContinuation { cont in
-            VisualAssetRepository.shared.performCommitLocked { 
+            VisualAssetRepository.shared.performCommitLockedAsync {
                 var receipt: VisualCommitReceipt?
                 var failure: Error?
                 context.performAndWait {
@@ -167,7 +167,6 @@ final class VisualCommitCoordinator {
                 payload = VisualPlacementPayload.setAsset(selection, presentation: payload.presentation)
             }
         }
-        if context.hasChanges { try context.save() }
         let revision = try repo.commitRevisionLocked(operationID: operationID, ownerKind: ownerKind,
                                                      ownerKey: ownerKey, slot: slot, payload: payload,
                                                      in: context)

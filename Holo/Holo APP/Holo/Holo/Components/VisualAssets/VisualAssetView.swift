@@ -2,9 +2,12 @@
 //  VisualAssetView.swift
 //  Holo
 //
-//  共用视觉渲染组件（方案 02 §7）：descriptor + role 进、显示图出；
-//  渲染层不查业务模块。后台渲染 + 全维缓存 key；深浅/对比度变化自动重渲染。
-//  pending/deleted/unsupported 由调用方给出占位与文案，本组件只管「有图可显」的路径。
+//  共用视觉渲染组件（方案 02 §7；2026-11-18 全链路修复重构）：
+//  descriptor + role 进、显示图出；渲染层不查业务模块。
+//  - 首帧同步命中缓存：body 直接读 VisualRenderCache，缓存有图绝不闪灰块（B2②）
+//  - body 零 Core Data 查询：fetch 移入 .task，用纯值 fastKey 驱动（B2⑤）
+//  - 后台渲染只传 Sendable 值快照，不跨线程触碰 NSManagedObject；
+//    深浅/对比度/尺寸变化自动重渲染；迟到结果只在 key 匹配时落地
 //
 
 import SwiftUI
@@ -19,12 +22,16 @@ struct VisualAssetView: View {
 
     var body: some View {
         GeometryReader { geo in
+            // 首帧同步命中：缓存有图直接出图，重建视图不再先闪灰块（B2②）
+            let image = displayImage ?? VisualRenderCache.image(for: fastKey)
             Group {
-                if let displayImage {
-                    Image(uiImage: UIImage(cgImage: displayImage))
+                if let image {
+                    let scale = min(max(descriptor.presentation?.scale ?? 1.0, 0.6), 1.2)
+                    Image(uiImage: UIImage(cgImage: image))
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
+                        .scaleEffect(scale)
                         .frame(width: geo.size.width, height: geo.size.height)
                 } else {
                     // 像素未就绪：中性占位（区分「还没到」与「坏了」由外层状态负责）
@@ -33,8 +40,8 @@ struct VisualAssetView: View {
                 }
             }
         }
-        .task(id: renderKey ?? "missing") {
-            await render(size: displaySize)
+        .task(id: fastKey) {
+            await render()
         }
     }
 
@@ -45,12 +52,11 @@ struct VisualAssetView: View {
         }
     }
 
-    private var renderKey: String? {
-        // 增强对比走 UIKit 全局开关（isDarkerSystemColorsEnabled），进缓存 key
-        guard let proxyAsset else { return nil }
-        return VisualRenderCache.key(asset: proxyAsset, role: role, appearance: colorScheme,
-                                     increasedContrast: UIAccessibility.isDarkerSystemColorsEnabled,
-                                     displayScale: displayScale, presentation: descriptor.presentation)
+    /// 纯值签名渲染 key：不查库（B2⑤），素材/样式/主题/倍率任一变化自动重渲
+    private var fastKey: String {
+        VisualRenderCache.key(assetID: descriptor.assetID, role: role, appearance: colorScheme,
+                              increasedContrast: UIAccessibility.isDarkerSystemColorsEnabled,
+                              displayScale: displayScale, presentation: descriptor.presentation)
     }
 
     private var displayScale: CGFloat { UIScreen.main.scale }
@@ -65,27 +71,31 @@ struct VisualAssetView: View {
         return try? CoreDataStack.shared.viewContext.fetch(request).first
     }
 
-    private func render(size: CGSize) async {
-        guard let key = renderKey else { return }
+    private func render() async {
+        let key = fastKey
         if let cached = VisualRenderCache.image(for: key) {
-            await MainActor.run { displayImage = cached }
+            displayImage = cached
             return
         }
-        guard let asset = await MainActor.run(body: { proxyAsset }) else { return }
+        // fetch 只在 task 里做，body 永不查库（B2⑤）
+        guard let snapshot = await MainActor.run(body: {
+            proxyAsset.flatMap { VisualAssetRenderSnapshot(asset: $0) }
+        }) else { return }
         let scale = await MainActor.run { displayScale }
         let scheme = await MainActor.run { colorScheme }
         let contrast = await MainActor.run { UIAccessibility.isDarkerSystemColorsEnabled }
-        // 后台渲染（02 §7：不阻塞主线程；列表不读原图）
+        let presentation = descriptor.presentation
+        // 后台渲染（02 §7：不阻塞主线程；仅传 Sendable 值快照，不跨线程触碰 NSManagedObject）
         let rendered = await Task.detached(priority: .userInitiated) { () -> CGImage? in
-            StickerRenderer.renderDisplayImage(asset: asset, role: role, appearance: scheme,
+            StickerRenderer.renderDisplayImage(snapshot: snapshot, role: role, appearance: scheme,
                                                increasedContrast: contrast, displayScale: scale,
-                                               presentation: nil)
+                                               presentation: presentation)
         }.value
         guard let rendered else { return }
         VisualRenderCache.storeImage(rendered, for: key)
         // 迟到结果只在 key 仍匹配时落地（快速切换防旧图闪现）
         await MainActor.run {
-            if renderKey == key { displayImage = rendered }
+            if fastKey == key { displayImage = rendered }
         }
     }
 }

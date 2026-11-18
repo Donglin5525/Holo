@@ -243,6 +243,92 @@ final class VisualAssetImageProcessorTests: XCTestCase {
         XCTAssertEqual(out.width, fixture.subject.width + expectedPad * 2)
         XCTAssertEqual(out.height, fixture.subject.height + expectedPad * 2)
     }
+
+    func testTightCropWithMaskKeepsContentAndMaskAligned() {
+        // 11-17 回归锁：偏心主体紧裁时 content 与 mask 必须同步裁剪，否则渲染时 mask 错位导致贴纸全透明
+        let size = 100
+        let subject = makeImage(width: size, height: size) { ctx in
+            ctx.setFillColor(self.srgb(0.86, 0.31, 0.24, 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+        }
+        let mask = makeMask(width: size, height: size) { x, y in
+            (x >= 40 && x < 60 && y >= 30 && y < 60) ? 1 : 0
+        }
+        guard let cropped = VisualAssetImageProcessor.tightCropWithMask(subject, mask: mask, maxLongest: 1536) else {
+            return XCTFail("tightCropWithMask 不应返回 nil")
+        }
+        XCTAssertEqual(cropped.image.width, 20)
+        XCTAssertEqual(cropped.image.height, 30)
+        XCTAssertEqual(CVPixelBufferGetWidth(cropped.mask), 20)
+        XCTAssertEqual(CVPixelBufferGetHeight(cropped.mask), 30)
+
+        let out = VisualAssetImageProcessor.composeSticker(
+            subject: cropped.image, occupancyMask: cropped.mask, edge: .none)
+        let center = rgba(of: out, at: 10, 15)
+        XCTAssertGreaterThan(Int(center.a), 200, "同步裁剪后的中心像素应不透明")
+    }
+
+    func testFloat32MaskFromVisionNormalizesAndTightCropsWithoutShear() {
+        // 11-17 回归锁：Vision generateScaledMaskForImage 返回 OneComponent32Float（4 字节/像素），
+        // tightCropWithMask 必须先转 OneComponent8 再按 1 字节步长读取，否则发生对角错切
+        let w = 120, h = 100
+        let subject = makeImage(width: w, height: h) { ctx in
+            ctx.setFillColor(self.srgb(0.2, 0.7, 0.4, 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        var floatBuf: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_OneComponent32Float, nil, &floatBuf)
+        let fpb = floatBuf!
+        CVPixelBufferLockBaseAddress(fpb, [])
+        let base = CVPixelBufferGetBaseAddress(fpb)!
+        let rowBytes = CVPixelBufferGetBytesPerRow(fpb)
+        for y in 0..<h {
+            let row = (base + y * rowBytes).assumingMemoryBound(to: Float32.self)
+            for x in 0..<w {
+                row[x] = (x >= 30 && x < 70 && y >= 20 && y < 60) ? 1.0 : 0.0
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(fpb, [])
+
+        guard let cropped = VisualAssetImageProcessor.tightCropWithMask(subject, mask: fpb, maxLongest: 1536) else {
+            return XCTFail("Float32 mask 必须能正常紧裁")
+        }
+        XCTAssertEqual(cropped.image.width, 40)
+        XCTAssertEqual(cropped.image.height, 40)
+        XCTAssertEqual(CVPixelBufferGetPixelFormatType(cropped.mask), kCVPixelFormatType_OneComponent8)
+        XCTAssertEqual(CVPixelBufferGetWidth(cropped.mask), 40)
+        XCTAssertEqual(CVPixelBufferGetHeight(cropped.mask), 40)
+
+        let out = VisualAssetImageProcessor.composeSticker(
+            subject: cropped.image, occupancyMask: cropped.mask, edge: .none)
+        let center = rgba(of: out, at: 20, 20)
+        XCTAssertGreaterThan(Int(center.a), 240, "紧裁后主体中心必须完整不透明且无错切")
+    }
+
+    func testTightCropWithMaskDownscalesLargeCroppedSubimageAligned() {
+        // 11-17 回归锁：模拟 recrop 生成的子 CGImage 且超过 maxLongest(1536) 时，
+        // 图像与 mask 等比缩放到完全相同尺寸且中心像素不透明
+        let full = makeImage(width: 2000, height: 2000) { ctx in
+            ctx.setFillColor(self.srgb(0.9, 0.3, 0.2, 1))
+            ctx.fill(CGRect(x: 0, y: 0, width: 2000, height: 2000))
+        }
+        let recropped = full.cropping(to: CGRect(x: 100, y: 100, width: 1800, height: 1800))!
+        let mask = makeMask(width: 1800, height: 1800) { x, y in
+            (x >= 50 && x < 1750 && y >= 50 && y < 1750) ? 1 : 0
+        }
+        guard let tight = VisualAssetImageProcessor.tightCropWithMask(recropped, mask: mask, maxLongest: 1536) else {
+            return XCTFail("大图紧裁降采样不应返回 nil")
+        }
+        XCTAssertEqual(tight.image.width, 1536)
+        XCTAssertEqual(tight.image.height, 1536)
+        XCTAssertEqual(CVPixelBufferGetWidth(tight.mask), 1536)
+        XCTAssertEqual(CVPixelBufferGetHeight(tight.mask), 1536)
+
+        let out = VisualAssetImageProcessor.composeSticker(
+            subject: tight.image, occupancyMask: tight.mask, edge: .none)
+        let center = rgba(of: out, at: 768, 768)
+        XCTAssertGreaterThan(Int(center.a), 240, "降采样后主体中心必须完整不透明")
+    }
 }
 
 // MARK: - 测试辅助

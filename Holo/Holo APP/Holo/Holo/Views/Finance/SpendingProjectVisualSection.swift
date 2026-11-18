@@ -40,40 +40,41 @@ extension ResolvedPlacement {
 /// 列表图标位：有贴纸显示贴纸，否则原分类徽章（42pt 位不变，热区不变）
 struct SpendingProjectIconSlot: View {
     let project: SpendingProject
+    @State private var revisionBump = 0
 
     var body: some View {
-        let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
-        if case .assetReady(let descriptor) = resolved {
-            VisualPlacementView(placement: .assetReady(descriptor), role: .icon)
-                .frame(width: 42, height: 42)
-        } else {
-            let category = project.categoryId.flatMap { FinanceRepository.shared.findCategory(by: $0) }
-            if let category, !category.isDeleted {
-                CategoryIconBadge(category: category, diameter: 42)
+        Group {
+            let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
+            if case .assetReady(let descriptor) = resolved {
+                VisualPlacementView(placement: .assetReady(descriptor), role: .icon)
+                    .frame(width: 42, height: 42)
             } else {
-                CategoryIconBadge(iconName: "bag.fill", color: .holoTextSecondary, diameter: 42)
+                let category = project.categoryId.flatMap { FinanceRepository.shared.findCategory(by: $0) }
+                if let category, !category.isDeleted {
+                    CategoryIconBadge(category: category, diameter: 42)
+                } else {
+                    CategoryIconBadge(iconName: "bag.fill", color: .holoTextSecondary, diameter: 42)
+                }
             }
+        }
+        .id(revisionBump)
+        .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+            revisionBump += 1
         }
     }
 }
 
 struct SpendingProjectVisualSection: View {
     let project: SpendingProject
+    /// 详情页点击主视觉直达换外观（单层 Sheet 立即生效）；nil=不可点
+    var onTapChange: (() -> Void)? = nil
     @State private var revisionBump = 0
 
     var body: some View {
         let resolved = project.resolvePrimaryVisual(in: CoreDataStack.shared.viewContext)
         if case .assetReady(let descriptor) = resolved {
             Section {
-                VStack(spacing: 8) {
-                    VisualPlacementView(placement: .assetReady(descriptor), role: .hero)
-                        .frame(height: 170)
-                        .frame(maxWidth: .infinity)
-                    Text(project.name)
-                        .font(.holoTitle3)
-                        .foregroundColor(.holoTextPrimary)
-                }
-                .frame(maxWidth: .infinity)
+                heroContent(descriptor: descriptor)
             }
             .listRowBackground(Color.holoCardBackground)
             .id(revisionBump)
@@ -82,5 +83,41 @@ struct SpendingProjectVisualSection: View {
             }
         }
         // 无贴纸：整段折叠（占位/空区都不留）；pending 等状态由 VisualPlacementView 内建占位承担
+    }
+
+    @ViewBuilder
+    private func heroContent(descriptor: VisualDescriptor) -> some View {
+        if let onTapChange {
+            Button(action: onTapChange) {
+                VStack(spacing: 8) {
+                    VisualPlacementView(placement: .assetReady(descriptor), role: .hero)
+                        .frame(height: 170)
+                        .frame(maxWidth: .infinity)
+                        .overlay(alignment: .bottomTrailing) {
+                            Text(String(localized: "更换"))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.holoTextPrimary)
+                                .padding(.horizontal, 9).padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .padding(8)
+                        }
+                    Text(project.name)
+                        .font(.holoTitle3)
+                        .foregroundColor(.holoTextPrimary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+        } else {
+            VStack(spacing: 8) {
+                VisualPlacementView(placement: .assetReady(descriptor), role: .hero)
+                    .frame(height: 170)
+                    .frame(maxWidth: .infinity)
+                Text(project.name)
+                    .font(.holoTitle3)
+                    .foregroundColor(.holoTextPrimary)
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }
