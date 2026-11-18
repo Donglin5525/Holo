@@ -1558,8 +1558,15 @@ struct ThoughtEditorView: View {
 
     /// 头图绑定：失败如实提示（不吞错）；刷新由 .visualAssetsDidChange 通知驱动
     private func applyHeroPayload(_ payload: VisualPlacementPayload) {
+        // 回执时想法可能仍未落库：新建会话且正文为空（或还在输入法组合态未上屏）时
+        // persistContent 有意不建空记录（防「打开即退出」垃圾），「添加头图」菜单的
+        // 预落库对它无效——但头图即内容（与图片转正同语义），现场补落库再绑定
+        if currentThoughtId == nil, !persistHeroOnlyThought() { return }
         guard let currentThoughtId,
-              let thought = try? thoughtRepository.fetchById(currentThoughtId) else { return }
+              let thought = try? thoughtRepository.fetchById(currentThoughtId) else {
+            HoloToastCenter.shared.show(String(localized: "头图没有设置成功，请重试"), type: .error)
+            return
+        }
         guard let ownerKey = thought.visualOwnerKey else { return }
         let baseline = heroBaselineRevisionID
         Task {
@@ -1575,6 +1582,31 @@ struct ThoughtEditorView: View {
             } catch {
                 HoloToastCenter.shared.show(String(localized: "头图没有设置成功，请重试"), type: .error)
             }
+        }
+    }
+
+    /// 头图回执的空会话兜底落库：以当前正文（可为空）创建想法记录。
+    /// 已落库空正文是合法编辑态（G1 §3.4），退出不会误删；纯头图想法=图片想法
+    private func persistHeroOnlyThought() -> Bool {
+        let sessionId = newSessionThoughtId ?? UUID()
+        if newSessionThoughtId == nil { newSessionThoughtId = sessionId }
+        do {
+            let receipt = try thoughtRepository.commitEditorContent(
+                thoughtId: sessionId,
+                content: content,
+                inlineTags: InlineTagDetector.extractTags(from: content),
+                richContentJSON: nil,
+                references: [],
+                style: nil,
+                createIfMissing: true)
+            draftThoughtId = receipt.thoughtId
+            didCreateThoughtInSession = true
+            ThoughtEditingSessionRegistry.shared.beginEditing(receipt.thoughtId)
+            return true
+        } catch {
+            ThoughtLog.error("头图兜底落库失败", error.localizedDescription)
+            HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
+            return false
         }
     }
 

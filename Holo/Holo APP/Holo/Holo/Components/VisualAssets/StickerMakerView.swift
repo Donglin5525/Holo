@@ -479,12 +479,6 @@ struct VisualAppearancePickerView: View {
 
     var body: some View {
         root
-            .navigationDestination(isPresented: confirmActive) {
-                StickerConfirmEditorView(model: model,
-                                         useTitle: String(localized: "使用这张贴纸")) { assetID, presentation in
-                    finish(with: assetID, presentation: presentation)
-                }
-            }
             .visualMediaPresenter(activeSource: $activeMediaSource) { data in
                 await model.ingestSmart(data: data)
             }
@@ -502,7 +496,10 @@ struct VisualAppearancePickerView: View {
             .onAppear { model.reloadLibrary(tab: libraryTab) }
     }
 
-    /// 弹层模式自带 NavigationStack；推入模式复用调用方的栈
+    /// 弹层模式自带 NavigationStack；推入模式复用调用方的栈。
+    /// navigationDestination 必须挂在栈内容（pickerContent）上——挂在 NavigationStack
+    /// 外层注册无效：弹层模式确认页从未推入，选完图停回首屏空态（2026-11-18 东林实报
+    /// 「想法添加图片完全没有效果」的根因）
     private var root: some View {
         Group {
             if isPushed {
@@ -579,6 +576,13 @@ struct VisualAppearancePickerView: View {
             }
         }
         .background(Color.holoToolBackground)
+        // 栈内注册确认页目的地（弹层/推入两态都走这里，见 root 注释）
+        .navigationDestination(isPresented: confirmActive) {
+            StickerConfirmEditorView(model: model,
+                                     useTitle: String(localized: "使用这张贴纸")) { assetID, presentation in
+                finish(with: assetID, presentation: presentation)
+            }
+        }
         .navigationTitle(pickerTitle)
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
