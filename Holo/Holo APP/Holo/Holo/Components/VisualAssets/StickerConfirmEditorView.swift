@@ -22,6 +22,8 @@ struct StickerConfirmEditorView: View {
     /// 是否支持照片模式（素材库场景传 false：photo 素材 recordOnly 不进「我的贴纸」
     /// 列表，「保存到我的贴纸」与照片模式语义冲突，收掉照片分支）
     var supportsPhotoMode: Bool = true
+    /// 是否允许调整具体使用位置的平移/缩放（素材库模式传 false，避免「调了但素材库不存位置」的假控件感）
+    var allowsPositionAdjust: Bool = true
     /// 「换一张」入口（nil=隐藏；选择器场景传 backToPicker，素材库场景隐藏）
     var onChangeImage: (() -> Void)? = nil
     /// 确认使用：回执 (assetID, presentation)，页面关闭由调用方收口
@@ -35,6 +37,9 @@ struct StickerConfirmEditorView: View {
     @State private var pinchBase: CGFloat = 1
     /// 预览框尺寸（保存时把拖动 pt 归一化成 offsetX/Y 的分母）
     @State private var previewSize: CGSize = .zero
+    @State private var availableGroups: [String] = []
+    @State private var showNewGroupAlert = false
+    @State private var newGroupName = ""
 
     var body: some View {
         Group {
@@ -65,8 +70,16 @@ struct StickerConfirmEditorView: View {
         #endif
         .navigationDestination(isPresented: $showCrop) {
             if let image = model.originalPreview() {
-                StickerCropView(image: image) { rect in
+                StickerCropView(
+                    image: image,
+                    confirmTitle: model.mode == .sticker
+                        ? String(localized: "重新识别")
+                        : String(localized: "完成裁剪")
+                ) { rect in
                     showCrop = false
+                    model.resetTransform()
+                    dragBase = .zero
+                    pinchBase = 1
                     Task { await model.recrop(normalizedRect: rect) }
                 }
             }
@@ -74,6 +87,7 @@ struct StickerConfirmEditorView: View {
         .navigationDestination(isPresented: $showBrush) {
             MaskBrushEditor(
                 imagePixelSize: brushCanvasSize,
+                originalImage: model.originalPreview(),
                 refreshPreview: { await model.renderPreviewAsync() },
                 onStroke: { points, erase, brush in
                     model.applyStroke(points, erase: erase, brush: brush)
@@ -88,7 +102,23 @@ struct StickerConfirmEditorView: View {
                     showBrush = false
                 })
         }
-        .onAppear { model.schedulePreviewRender() }
+        .alert(String(localized: "新建分组"), isPresented: $showNewGroupAlert) {
+            TextField(String(localized: "分组名称，如：数码、咖啡"), text: $newGroupName)
+            Button(String(localized: "取消"), role: .cancel) { newGroupName = "" }
+            Button(String(localized: "创建")) {
+                if let created = VisualAssetGroupStore.addGroup(newGroupName) {
+                    availableGroups = VisualAssetGroupStore.allGroups(in: CoreDataStack.shared.viewContext)
+                    model.groupName = created
+                }
+                newGroupName = ""
+            }
+        }
+        .onAppear {
+            availableGroups = VisualAssetGroupStore.allGroups(in: CoreDataStack.shared.viewContext)
+            dragBase = model.offset
+            pinchBase = model.scale
+            model.schedulePreviewRender()
+        }
         .onChange(of: model.previewInputsStamp) { _ in model.schedulePreviewRender() }
         .onChange(of: model.borderStyle) { _ in model.schedulePreviewRender() }
         .onChange(of: model.borderWeight) { _ in model.schedulePreviewRender() }
@@ -129,98 +159,136 @@ struct StickerConfirmEditorView: View {
                     .pickerStyle(.segmented)
                 }
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.holoToolInset)
-                    if model.showOriginal, let original = model.originalPreview() {
-                        Image(uiImage: UIImage(cgImage: original))
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(model.scale)
-                            .offset(model.offset)
-                            .padding(14)
-                    } else if let preview = model.renderedPreview {
-                        Image(uiImage: UIImage(cgImage: preview))
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(model.scale)   // 大小滑块只动缩放，零重算（B5）
-                            .offset(model.offset)
-                            .padding(14)
-                    } else if model.isRenderingPreview {
-                        ProgressView()
+                previewCanvas
+
+                // 轻量横向工具条：裁剪 / 修边 / 换一张（替代旧三行大列表，把一屏空间还给预览与核心属性）
+                HStack(spacing: 8) {
+                    toolChip(icon: "crop", title: String(localized: "重新裁剪")) {
+                        showCrop = true
                     }
-                }
-                .frame(height: 264)
-                .clipped()
-                .background {
-                    GeometryReader { g in
-                        Color.clear.onAppear { previewSize = g.size }
-                            .onChange(of: g.size) { previewSize = $0 }
-                    }
-                }
-                // 直接拖动贴纸（东林 11-19 需求 2）：单指拖=平移
-                .gesture(
-                    DragGesture(minimumDistance: 1)
-                        .onChanged { value in
-                            model.offset = clampOffset(CGSize(width: dragBase.width + value.translation.width,
-                                                              height: dragBase.height + value.translation.height))
+                    if model.mode == .sticker {
+                        toolChip(icon: "paintbrush", title: String(localized: "修边")) {
+                            brushSnapshot = model.snapshotMaskSession()
+                            showBrush = true
                         }
-                        .onEnded { _ in dragBase = model.offset }
-                )
-                // 双指捏合=缩放（与滑块同一 model.scale，量程一致 0.6–1.2）
-                .simultaneousGesture(
-                    MagnificationGesture()
-                        .onChanged { value in
-                            model.scale = min(max(pinchBase * value, 0.6), 1.2)
-                        }
-                        .onEnded { _ in pinchBase = model.scale }
-                )
-
-                // 大小调整（02 §4.4 scale ∈ [0.6, 1.2]）：纯 scaleEffect，60fps
-                HStack(spacing: 10) {
-                    Text(String(localized: "大小"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoToolTextSecondary)
-                    Slider(value: Binding(
-                        get: { model.scale },
-                        set: { model.scale = $0 }
-                    ), in: 0.6...1.2, step: 0.05)
-                    .tint(.holoToolAction)
-                    Text("\(Int((model.scale * 100).rounded()))%")
-                        .font(.system(size: 12).monospacedDigit())
-                        .foregroundColor(.holoToolTextSecondary)
-                        .frame(width: 40, alignment: .trailing)
-                }
-
-                // 贴纸命名（东林 11-19 需求 3：不命名分不清「在干什么」）
-                HStack(spacing: 10) {
-                    Text(String(localized: "名称"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoToolTextSecondary)
-                    TextField(String(localized: "不填自动按日期命名"), text: $model.name)
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoToolText)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
-                        .background(Color.holoToolSurface)
-                        .cornerRadius(9)
-                        .submitLabel(.done)
-                }
-
-                if model.mode == .sticker {
-                    Picker(String(localized: "对照"), selection: Binding(
-                        get: { model.showOriginal }, set: { model.showOriginal = $0 })) {
-                        Text(String(localized: "贴纸（已去背景）")).tag(false)
-                        Text(String(localized: "原图")).tag(true)
                     }
-                    .pickerStyle(.segmented)
+                    if let onChangeImage {
+                        toolChip(icon: "arrow.counterclockwise", title: String(localized: "换一张")) {
+                            onChangeImage()
+                        }
+                    }
+                }
 
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(String(localized: "纸边风格"))
-                            .font(.system(size: 11.5, weight: .medium))
+                // 大小调整（仅业务位置使用场景展示；纯 scaleEffect 60fps，且与双指捏合基线同步）
+                if allowsPositionAdjust {
+                    HStack(spacing: 10) {
+                        Text(String(localized: "大小"))
+                            .font(.system(size: 12.5, weight: .medium))
                             .foregroundColor(.holoToolTextSecondary)
+                        Slider(value: Binding(
+                            get: { model.scale },
+                            set: {
+                                model.scale = $0
+                                pinchBase = $0
+                            }
+                        ), in: 0.6...1.2, step: 0.05)
+                        .tint(.holoToolAction)
+                        Text("\(Int((model.scale * 100).rounded()))%")
+                            .font(.system(size: 12).monospacedDigit())
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.holoToolSurface)
+                    .cornerRadius(12)
+                }
+
+                // 名称 + 分组卡片（贴纸模式支持分组，照片模式仅提示）
+                if model.mode == .sticker {
+                    VStack(spacing: 0) {
+                        HStack(spacing: 10) {
+                            Text(String(localized: "名称"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .frame(width: 36, alignment: .leading)
+                            TextField(String(localized: "不填自动按日期命名"), text: $model.name)
+                                .font(.system(size: 13.5))
+                                .foregroundColor(.holoToolText)
+                                .textFieldStyle(.plain)
+                                .submitLabel(.done)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+
+                        Divider().padding(.leading, 14)
+
+                        HStack(spacing: 10) {
+                            Text(String(localized: "分组"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .frame(width: 36, alignment: .leading)
+                            Menu {
+                                Button {
+                                    model.groupName = nil
+                                } label: {
+                                    if model.groupName == nil {
+                                        Label(String(localized: "未分组"), systemImage: "checkmark")
+                                    } else {
+                                        Text(String(localized: "未分组"))
+                                    }
+                                }
+                                if !availableGroups.isEmpty {
+                                    Divider()
+                                    ForEach(availableGroups, id: \.self) { group in
+                                        Button {
+                                            model.groupName = group
+                                        } label: {
+                                            if model.groupName == group {
+                                                Label(group, systemImage: "checkmark")
+                                            } else {
+                                                Text(group)
+                                            }
+                                        }
+                                    }
+                                }
+                                Divider()
+                                Button {
+                                    showNewGroupAlert = true
+                                } label: {
+                                    Label(String(localized: "新建分组…"), systemImage: "plus")
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text(model.groupName ?? String(localized: "未分组"))
+                                        .font(.system(size: 13.5))
+                                        .foregroundColor(model.groupName == nil ? .holoToolTextSecondary : .holoToolText)
+                                    Spacer()
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.holoToolTextSecondary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                    }
+                    .background(Color.holoToolSurface)
+                    .cornerRadius(12)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text(String(localized: "纸边风格"))
+                                .font(.system(size: 12.5, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                            Spacer()
+                            if model.instanceCount > 1 {
+                                Text(String(localized: "已识别 \(model.instanceCount) 个主体"))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.holoToolTextSecondary)
+                            }
+                        }
                         Picker(String(localized: "纸边"), selection: $model.borderStyle) {
                             Text(String(localized: "自适应")).tag(VisualPlacementPayload.Presentation.BorderStyle.adaptivePaper)
                             Text(String(localized: "纯白")).tag(VisualPlacementPayload.Presentation.BorderStyle.white)
@@ -229,9 +297,9 @@ struct StickerConfirmEditorView: View {
                         .pickerStyle(.segmented)
                         // 纸边「无」时厚度无意义，隐藏该行（B8）
                         if model.borderStyle != .none {
-                            HStack {
+                            HStack(spacing: 10) {
                                 Text(String(localized: "厚度"))
-                                    .font(.system(size: 11.5))
+                                    .font(.system(size: 12))
                                     .foregroundColor(.holoToolTextSecondary)
                                 Picker(String(localized: "厚度"), selection: $model.borderWeight) {
                                     Text(String(localized: "细")).tag(VisualPlacementPayload.Presentation.BorderWeight.thin)
@@ -241,42 +309,14 @@ struct StickerConfirmEditorView: View {
                             }
                         }
                     }
-                    if model.instanceCount > 1 {
-                        Text(String(localized: "识别到 \(model.instanceCount) 个主体，已选全部"))
-                            .font(.system(size: 11.5))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
+                    .padding(12)
+                    .background(Color.holoToolSurface)
+                    .cornerRadius(12)
                 } else {
                     Text(String(localized: "照片仅用于当前位置，不存入「我的贴纸」"))
                         .font(.system(size: 12))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-
-                VStack(spacing: 0) {
-                    actionRow(icon: "crop", title: String(localized: "重新裁剪"),
-                              caption: model.mode == .sticker
-                                  ? String(localized: "裁小范围重新识别")
-                                  : String(localized: "调整画面裁剪范围")) {
-                        showCrop = true
-                    }
-                    if model.mode == .sticker {
-                        Divider().padding(.leading, 40)
-                        actionRow(icon: "paintbrush", title: String(localized: "修边"),
-                                  caption: String(localized: "擦掉多余，恢复误删")) {
-                            brushSnapshot = model.snapshotMaskSession()
-                            showBrush = true
-                        }
-                    }
-                    if let onChangeImage {
-                        Divider().padding(.leading, 40)
-                        actionRow(icon: "arrow.counterclockwise", title: String(localized: "换一张"),
-                                  caption: String(localized: "重新拍照或换一张图")) {
-                            onChangeImage()
-                        }
-                    }
-                }
-                .background(Color.holoToolSurface)
-                .cornerRadius(12)
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
@@ -304,13 +344,134 @@ struct StickerConfirmEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private var previewCanvas: some View {
+        let hasTransform = abs(model.scale - 1.0) > 0.01
+            || abs(model.offset.width) > 1
+            || abs(model.offset.height) > 1
+        let base = ZStack {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.holoToolInset)
+            if model.showOriginal, let original = model.originalPreview() {
+                Image(uiImage: UIImage(cgImage: original))
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(allowsPositionAdjust ? model.scale : 1.0)
+                    .offset(allowsPositionAdjust ? model.offset : .zero)
+                    .padding(14)
+            } else if let preview = model.renderedPreview {
+                Image(uiImage: UIImage(cgImage: preview))
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(allowsPositionAdjust ? model.scale : 1.0)
+                    .offset(allowsPositionAdjust ? model.offset : .zero)
+                    .padding(14)
+            } else if model.isRenderingPreview {
+                ProgressView()
+            }
+        }
+        .frame(height: 256)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background {
+            GeometryReader { g in
+                Color.clear.onAppear { previewSize = g.size }
+                    .onChange(of: g.size) { previewSize = $0 }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if model.mode == .sticker {
+                Button {
+                    model.showOriginal.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: model.showOriginal ? "sparkles" : "eye")
+                            .font(.system(size: 11, weight: .medium))
+                        Text(model.showOriginal ? String(localized: "看贴纸") : String(localized: "看原图"))
+                            .font(.system(size: 11.5, weight: .semibold))
+                    }
+                    .foregroundColor(.holoToolText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if allowsPositionAdjust && hasTransform {
+                Button {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        model.resetTransform()
+                        dragBase = .zero
+                        pinchBase = 1
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 10.5, weight: .semibold))
+                        Text(String(localized: "复位"))
+                            .font(.system(size: 11.5, weight: .semibold))
+                    }
+                    .foregroundColor(.holoToolText)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+            }
+        }
+
+        if allowsPositionAdjust {
+            base
+                .gesture(
+                    DragGesture(minimumDistance: 6)
+                        .onChanged { value in
+                            model.offset = clampOffset(CGSize(width: dragBase.width + value.translation.width,
+                                                              height: dragBase.height + value.translation.height))
+                        }
+                        .onEnded { _ in dragBase = model.offset }
+                )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            model.scale = min(max(pinchBase * value, 0.6), 1.2)
+                        }
+                        .onEnded { _ in pinchBase = model.scale }
+                )
+        } else {
+            base
+        }
+    }
+
+    private func toolChip(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 12.5, weight: .medium))
+                Text(title)
+                    .font(.system(size: 12.5, weight: .medium))
+            }
+            .foregroundColor(.holoToolText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(Color.holoToolSurface)
+            .cornerRadius(11)
+            .overlay(RoundedRectangle(cornerRadius: 11).stroke(Color.holoToolBorder, lineWidth: 0.7))
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 保存时的 presentation：缩放/纸边 + 拖动位移归一化（预览框尺寸为分母，±0.5 clamp）
     private func buildPresentation() -> VisualPlacementPayload.Presentation {
         let w = max(previewSize.width, 1), h = max(previewSize.height, 1)
         return VisualPlacementPayload.Presentation(
-            scale: model.scale,
-            offsetX: min(max(model.offset.width / w, -0.5), 0.5),
-            offsetY: min(max(model.offset.height / h, -0.5), 0.5),
+            scale: allowsPositionAdjust ? model.scale : 1.0,
+            offsetX: allowsPositionAdjust ? min(max(model.offset.width / w, -0.5), 0.5) : 0,
+            offsetY: allowsPositionAdjust ? min(max(model.offset.height / h, -0.5), 0.5) : 0,
             borderStyle: model.borderStyle,
             borderWeight: model.borderWeight)
     }
@@ -321,36 +482,11 @@ struct StickerConfirmEditorView: View {
                height: min(max(size.height, -previewSize.height / 2), previewSize.height / 2))
     }
 
-    /// 编辑模式用「保存修改」文案（原地更新语义）
+    /// 编辑模式用「保存修改」，照片模式用「使用这张照片」，其余按场景文案
     private var editButtonTitle: String {
-        model.editTargetAssetID != nil ? String(localized: "保存修改") : useTitle
-    }
-
-    private func actionRow(icon: String, title: String, caption: String,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 30)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 13.5))
-                        .foregroundColor(.holoToolText)
-                    Text(caption)
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        if model.editTargetAssetID != nil { return String(localized: "保存修改") }
+        if model.mode == .photo { return String(localized: "使用这张照片") }
+        return useTitle
     }
 
     // MARK: - 失败出口（不卡死）

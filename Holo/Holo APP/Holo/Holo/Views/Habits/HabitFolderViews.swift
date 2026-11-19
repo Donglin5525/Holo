@@ -183,7 +183,11 @@ private struct HabitFolderEditor: View {
                                        pickerTitle: String(localized: "选择贴纸"),
                                        currentPlacement: previewSticker,
                                        fallbackIcon: "folder",
-                                       inUseAssetID: previewStickerAssetID) { id, presentation in
+                                       inUseAssetID: previewStickerAssetID,
+                                       onRestoreDefault: {
+                                           decoration = .clear
+                                           pushStickerPicker = false
+                                       }) { id, presentation in
                 decoration = .sticker(id, presentation)
                 pushStickerPicker = false
             }

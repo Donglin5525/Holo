@@ -191,11 +191,12 @@ struct VisualAssetGrid: View {
     private func cardLabel(_ asset: VisualAsset, assetID: UUID, isSelected: Bool, isInUse: Bool) -> some View {
         let descriptor = VisualDescriptor(assetID: assetID, winningRevisionID: assetID,
                                           kind: VisualAssetKind.from(raw: asset.value(forKey: "kind") as? String) ?? .sticker,
-                                          presentation: nil)
+                                          presentation: asset.defaultPresentation)
+        let isFav = (asset.value(forKey: "isFavorite") as? Bool) == true
         VStack(spacing: 4) {
             VisualAssetView(descriptor: descriptor, role: .icon)
                 .frame(height: 84)
-            Text(defaultName(asset))
+            Text(asset.resolvedDisplayName)
                 .font(.system(size: 11))
                 .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
@@ -209,6 +210,14 @@ struct VisualAssetGrid: View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.holoToolAction, lineWidth: 2)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if isFav {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(Color.holoStarTint)
+                    .padding(6)
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -230,12 +239,6 @@ struct VisualAssetGrid: View {
                     .padding(5)
             }
         }
-    }
-
-    private func defaultName(_ asset: VisualAsset) -> String {
-        let name = asset.value(forKey: "displayName") as? String
-        if let name, !name.isEmpty { return name }
-        return String(localized: "贴纸")
     }
 }
 
@@ -329,5 +332,303 @@ enum VisualAssetManagement {
                 "assetIDs": [assetID.uuidString],
                 "changeKind": "delete",
             ])
+    }
+
+    /// 批量彻底删除（素材库多选模式）
+    static func hardDeleteBatch(assets: [VisualAsset], in context: NSManagedObjectContext) throws {
+        var deletedIDs: [UUID] = []
+        try context.performAndWait {
+            for asset in assets {
+                guard let assetID = asset.value(forKey: "id") as? UUID else { continue }
+                _ = try VisualAssetRepository.shared.writeTombstone(operationID: UUID(), assetID: assetID, in: context)
+                for key in ["sourceData", "maskData", "contentData", "thumbnailData"] {
+                    asset.setValue(nil, forKey: key)
+                }
+                asset.setValue("recordOnly", forKey: "libraryVisibility")
+                deletedIDs.append(assetID)
+            }
+            if context.hasChanges { try context.save() }
+        }
+        for id in deletedIDs {
+            VisualRenderCache.removeImages(assetID: id)
+        }
+        let generation = VisualCommitCoordinator.shared.scopeGeneration
+        NotificationCenter.default.post(
+            name: .visualAssetsDidChange,
+            object: nil,
+            userInfo: [
+                "scopeGeneration": generation,
+                "assetIDs": deletedIDs.map(\.uuidString),
+                "changeKind": "delete",
+            ])
+    }
+}
+
+// MARK: - 贴纸分组存储 & 筛选模型
+
+enum VisualAssetFilter: Hashable {
+    case recent
+    case all
+    case favorite
+    case group(String)
+}
+
+enum VisualAssetGroupStore {
+    private static let storageKey = "holo.visual.customGroups.v1"
+
+    /// 读取所有分组（本地保序自定义组 + Core Data 中已同步贴纸的组名并集）
+    static func allGroups(in context: NSManagedObjectContext) -> [String] {
+        var result = savedLocalGroups()
+        var seen = Set(result)
+        let req = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        req.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        if let assets = try? context.fetch(req) {
+            for asset in assets {
+                if let g = asset.groupName, !seen.contains(g) {
+                    seen.insert(g)
+                    result.append(g)
+                }
+            }
+        }
+        return result
+    }
+
+    static func visibleStickerCount(in context: NSManagedObjectContext) -> Int {
+        guard let entities = context.persistentStoreCoordinator?.managedObjectModel.entitiesByName,
+              entities["VisualAsset"] != nil else { return 0 }
+        let req = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        req.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        return (try? context.count(for: req)) ?? 0
+    }
+
+    @discardableResult
+    static func addGroup(_ rawName: String) -> String? {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        var groups = savedLocalGroups()
+        if !groups.contains(name) {
+            groups.append(name)
+            UserDefaults.standard.set(groups, forKey: storageKey)
+        }
+        return name
+    }
+
+    static func renameGroup(from oldName: String, to rawNewName: String, in context: NSManagedObjectContext) {
+        let newName = rawNewName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty, newName != oldName else { return }
+        var groups = savedLocalGroups()
+        if let idx = groups.firstIndex(of: oldName) {
+            groups[idx] = newName
+        } else if !groups.contains(newName) {
+            groups.append(newName)
+        }
+        // 去重保序
+        var unique: [String] = []
+        for g in groups where !unique.contains(g) { unique.append(g) }
+        UserDefaults.standard.set(unique, forKey: storageKey)
+
+        let req = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        req.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        if let assets = try? context.fetch(req) {
+            for asset in assets where asset.groupName == oldName {
+                asset.groupName = newName
+                asset.setValue(Date(), forKey: "metadataUpdatedAt")
+            }
+            if context.hasChanges { try? context.save() }
+        }
+        NotificationCenter.default.post(name: .visualAssetsDidChange, object: nil)
+    }
+
+    /// 删除分组：将组内贴纸移回「未分组」，不删贴纸本身
+    static func deleteGroup(_ name: String, in context: NSManagedObjectContext) {
+        var groups = savedLocalGroups()
+        groups.removeAll { $0 == name }
+        UserDefaults.standard.set(groups, forKey: storageKey)
+
+        let req = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        req.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        if let assets = try? context.fetch(req) {
+            for asset in assets where asset.groupName == name {
+                asset.groupName = nil
+                asset.setValue(Date(), forKey: "metadataUpdatedAt")
+            }
+            if context.hasChanges { try? context.save() }
+        }
+        NotificationCenter.default.post(name: .visualAssetsDidChange, object: nil)
+    }
+
+    /// 按筛选条件与搜索词查询可见贴纸（选择器与素材库共用）
+    static func fetchAssets(filter: VisualAssetFilter, searchText: String, in context: NSManagedObjectContext) -> [VisualAsset] {
+        guard let entities = context.persistentStoreCoordinator?.managedObjectModel.entitiesByName,
+              entities["VisualAsset"] != nil else { return [] }
+        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+        request.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        switch filter {
+        case .recent:
+            request.sortDescriptors = [NSSortDescriptor(key: "metadataUpdatedAt", ascending: false)]
+            request.fetchLimit = 30
+        case .all, .group:
+            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        case .favorite:
+            request.predicate = NSPredicate(format: "libraryVisibility == %@ AND isFavorite == YES", "visible")
+            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        }
+        var fetched = (try? context.fetch(request)) ?? []
+        if case .group(let groupName) = filter {
+            fetched = fetched.filter { $0.groupName == groupName }
+        }
+        let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !keyword.isEmpty {
+            fetched = fetched.filter { asset in
+                asset.resolvedDisplayName.localizedCaseInsensitiveContains(keyword)
+                    || (asset.groupName?.localizedCaseInsensitiveContains(keyword) == true)
+            }
+        }
+        return fetched
+    }
+
+    private static func savedLocalGroups() -> [String] {
+        UserDefaults.standard.stringArray(forKey: storageKey) ?? []
+    }
+}
+
+// MARK: - 共用搜索 + 分组胶囊筛选条（选择器与素材库共用）
+
+struct VisualAssetFilterBar: View {
+    @Binding var searchText: String
+    @Binding var filter: VisualAssetFilter
+    let groups: [String]
+    var onAddGroup: (() -> Void)? = nil
+    var onRenameGroup: ((String) -> Void)? = nil
+    var onDeleteGroup: ((String) -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoToolTextSecondary)
+                TextField(String(localized: "搜索贴纸名称或分组"), text: $searchText)
+                    .font(.system(size: 13.5))
+                    .foregroundColor(.holoToolText)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.holoToolSurface)
+            .cornerRadius(11)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    filterChip(title: String(localized: "常用"), target: .recent)
+                    filterChip(title: String(localized: "全部"), target: .all)
+                    filterChip(title: String(localized: "收藏"), icon: "star.fill", target: .favorite)
+
+                    ForEach(groups, id: \.self) { group in
+                        groupChip(group)
+                    }
+
+                    if let onAddGroup {
+                        Button(action: onAddGroup) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                Text(String(localized: "新建分组"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundColor(.holoToolTextSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.holoToolSurface)
+                            .cornerRadius(14)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.holoToolBorder, style: StrokeStyle(lineWidth: 0.8, dash: [3, 2]))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+        }
+    }
+
+    private func filterChip(title: String, icon: String? = nil, target: VisualAssetFilter) -> some View {
+        let selected = filter == target
+        return Button {
+            filter = target
+        } label: {
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10))
+                }
+                Text(title)
+                    .font(.system(size: 12.5, weight: selected ? .semibold : .medium))
+                    .lineLimit(1)
+            }
+            .foregroundColor(selected ? .holoToolOnAction : .holoToolText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(selected ? Color.holoToolAction : Color.holoToolSurface)
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(selected ? Color.clear : Color.holoToolBorder, lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func groupChip(_ group: String) -> some View {
+        let target = VisualAssetFilter.group(group)
+        let selected = filter == target
+        let labelView = Text(group)
+            .font(.system(size: 12.5, weight: selected ? .semibold : .medium))
+            .lineLimit(1)
+            .foregroundColor(selected ? .holoToolOnAction : .holoToolText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(selected ? Color.holoToolAction : Color.holoToolSurface)
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(selected ? Color.clear : Color.holoToolBorder, lineWidth: 0.7)
+            )
+
+        if onRenameGroup != nil || onDeleteGroup != nil {
+            Menu {
+                if let onRenameGroup {
+                    Button { onRenameGroup(group) } label: {
+                        Label(String(localized: "重命名分组"), systemImage: "pencil")
+                    }
+                }
+                if let onDeleteGroup {
+                    Button(role: .destructive) { onDeleteGroup(group) } label: {
+                        Label(String(localized: "删除分组"), systemImage: "trash")
+                    }
+                }
+            } label: {
+                labelView
+            } primaryAction: {
+                filter = target
+            }
+        } else {
+            Button { filter = target } label: { labelView }
+                .buttonStyle(.plain)
+        }
     }
 }

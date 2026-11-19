@@ -56,6 +56,8 @@ final class StickerMakerModel: ObservableObject {
     @Published var offset: CGSize = .zero
     /// 贴纸命名（确认页输入；空=存默认名「贴纸 MMDD」）
     @Published var name: String = ""
+    /// 贴纸分组（确认页可选；nil=未分组）
+    @Published var groupName: String? = nil
     @Published var libraryAssets: [VisualAsset] = []
     @Published var saveErrorMessage: String?
 
@@ -88,20 +90,23 @@ final class StickerMakerModel: ObservableObject {
     // MARK: - 素材网格
 
     func reloadLibrary(tab: VisualAssetLibraryView.Tab) {
-        let context = CoreDataStack.shared.viewContext
-        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
-        request.predicate = NSPredicate(format: "libraryVisibility == %@", "visible")
+        let filter: VisualAssetFilter
         switch tab {
-        case .recent:
-            request.sortDescriptors = [NSSortDescriptor(key: "metadataUpdatedAt", ascending: false)]
-            request.fetchLimit = 30
-        case .all, .favorite:
-            if case .favorite = tab {
-                request.predicate = NSPredicate(format: "libraryVisibility == %@ AND isFavorite == YES", "visible")
-            }
-            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        case .recent: filter = .recent
+        case .all: filter = .all
+        case .favorite: filter = .favorite
         }
-        libraryAssets = (try? context.fetch(request)) ?? []
+        reloadLibrary(filter: filter, searchText: "")
+    }
+
+    func reloadLibrary(filter: VisualAssetFilter, searchText: String) {
+        libraryAssets = VisualAssetGroupStore.fetchAssets(
+            filter: filter, searchText: searchText, in: CoreDataStack.shared.viewContext)
+    }
+
+    func resetTransform() {
+        scale = 1.0
+        offset = .zero
     }
 
     // MARK: - 输入接管
@@ -437,13 +442,24 @@ final class StickerMakerModel: ObservableObject {
         let mask = mode == .sticker ? occupancyMask : nil
         do {
             let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let targetGroup = groupName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let savedBorderStyle = borderStyle
+            let savedBorderWeight = borderWeight
             let preserved = preservedSource
             let assign: (VisualAsset) -> Void = { asset in
                 Self.fill(asset: asset, kind: kind, working: working, mask: mask)
                 if !displayName.isEmpty {
                     asset.setValue(displayName, forKey: "displayName")
-                    asset.setValue(Date(), forKey: "metadataUpdatedAt")
                 }
+                // 资产级默认纸边与分组存入 transformJSON（零 Schema 改动、CloudKit 自动同步）
+                var meta = asset.visualMetadata
+                meta.groupName = (targetGroup?.isEmpty == false) ? targetGroup : nil
+                if kind == .sticker {
+                    meta.defaultBorderStyle = savedBorderStyle.rawValue
+                    meta.defaultBorderWeight = savedBorderWeight.rawValue
+                }
+                asset.visualMetadata = meta
+                asset.setValue(Date(), forKey: "metadataUpdatedAt")
                 // 编辑模式：原图字节回写（fill 存的是紧裁主体；sourceWidth/Height 保持
                 // 紧裁尺寸与 mask 对齐，渲染主路径走 contentData 不受影响）
                 if let preserved {
@@ -520,10 +536,15 @@ struct VisualAppearancePickerView: View {
 
     @State private var activeMediaSource: VisualMediaSource?
     @State private var cameraDenied = false
-    @State private var libraryTab: VisualAssetLibraryView.Tab = .recent
+    @State private var libraryFilter: VisualAssetFilter = .recent
+    @State private var searchText = ""
+    @State private var groups: [String] = []
     @State private var selectedAssetID: UUID?
     /// 长按删除的确认目标（11-19 需求 4）
     @State private var deleteTarget: VisualAsset?
+    @State private var showManageLibrary = false
+    @State private var showNewGroupAlert = false
+    @State private var newGroupName = ""
 
     init(isPushed: Bool = false,
          initialMode: StickerMakerModel.Mode = .sticker,
@@ -548,7 +569,14 @@ struct VisualAppearancePickerView: View {
             .visualMediaPresenter(activeSource: $activeMediaSource) { data in
                 // 新采集=新建语义：清掉长按「编辑贴纸」的目标，防止新图覆盖旧贴纸
                 model.editTargetAssetID = nil
+                model.preservedSource = nil
                 model.name = ""
+                model.resetTransform()
+                if case .group(let g) = libraryFilter {
+                    model.groupName = g
+                } else {
+                    model.groupName = nil
+                }
                 await model.ingestSmart(data: data)
             }
             .alert(String(localized: "无法访问相机"),
@@ -561,6 +589,17 @@ struct VisualAppearancePickerView: View {
                 Button(String(localized: "取消"), role: .cancel) {}
             } message: {
                 Text(String(localized: "请在系统设置里允许 Holo 使用相机，或改用相册/文件导入"))
+            }
+            .alert(String(localized: "新建分组"), isPresented: $showNewGroupAlert) {
+                TextField(String(localized: "分组名称，如：数码、咖啡"), text: $newGroupName)
+                Button(String(localized: "取消"), role: .cancel) { newGroupName = "" }
+                Button(String(localized: "创建")) {
+                    if let created = VisualAssetGroupStore.addGroup(newGroupName) {
+                        refreshLibrary()
+                        libraryFilter = .group(created)
+                    }
+                    newGroupName = ""
+                }
             }
             .alert(String(localized: "删除这张贴纸？"),
                    isPresented: Binding(
@@ -579,13 +618,37 @@ struct VisualAppearancePickerView: View {
                             HoloToastCenter.shared.show(String(localized: "删除没有完成，请重试"), type: .error)
                         }
                         deleteTarget = nil
-                        model.reloadLibrary(tab: libraryTab)
+                        refreshLibrary()
                     }
                 }
             } message: {
                 Text(String(localized: "正在使用这张贴纸的地方会回退到默认图标。"))
             }
-            .onAppear { model.reloadLibrary(tab: libraryTab) }
+            .sheet(isPresented: $showManageLibrary, onDismiss: { refreshLibrary() }) {
+                VisualAssetLibraryView()
+            }
+            .onAppear { refreshLibrary() }
+            .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+                refreshLibrary()
+            }
+    }
+
+    private func refreshLibrary() {
+        let context = CoreDataStack.shared.viewContext
+        groups = VisualAssetGroupStore.allGroups(in: context)
+        if case .group(let g) = libraryFilter, !groups.contains(g) {
+            libraryFilter = .all
+        }
+        model.reloadLibrary(filter: libraryFilter, searchText: searchText)
+    }
+
+    /// 仅当当前位置确实已设置贴纸或正在同步时，顶部才显示「当前外观」卡（避免未设贴纸时白占一行）
+    private var shouldShowCurrentCard: Bool {
+        guard let currentPlacement else { return false }
+        switch currentPlacement {
+        case .assetReady, .pending: return true
+        default: return false
+        }
     }
 
     /// 选择器长按管理（11-19 需求 4）：编辑=载原图原地更新；删除=确认后彻底删
@@ -598,7 +661,7 @@ struct VisualAppearancePickerView: View {
         }
     }
 
-    /// 编辑贴纸（正确语义）：载入已抠好的主体+遮罩；主体缺失才退回原图重做提示
+    /// 编辑贴纸（正确语义）：载入已抠好的主体+遮罩；回显名称、分组、默认纸边
     private func beginEditing(_ asset: VisualAsset, model: StickerMakerModel) {
         guard let assetID = asset.value(forKey: "id") as? UUID else { return }
         let subjectData = (asset.value(forKey: "contentData") as? Data)
@@ -615,6 +678,11 @@ struct VisualAppearancePickerView: View {
         }
         model.editTargetAssetID = assetID
         model.name = (asset.value(forKey: "displayName") as? String) ?? ""
+        model.groupName = asset.groupName
+        let meta = asset.visualMetadata
+        model.borderStyle = meta.resolvedBorderStyle ?? .adaptivePaper
+        model.borderWeight = meta.resolvedBorderWeight ?? .standard
+        model.resetTransform()
         if let source = asset.value(forKey: "sourceData") as? Data {
             model.preservedSource = (source, (asset.value(forKey: "sourceUTType") as? String) ?? UTType.png.identifier)
         }
@@ -655,8 +723,8 @@ struct VisualAppearancePickerView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    // 当前外观条：仅已有贴纸/非默认时占一行（紧凑 44pt 预览）
-                    if let currentPlacement {
+                    // 当前外观条：仅已有贴纸/同步中时占一行（未设贴纸不白占空间）
+                    if shouldShowCurrentCard, let currentPlacement {
                         VisualCurrentAppearanceCard(currentPlacement: currentPlacement,
                                                     fallbackIcon: fallbackIcon,
                                                     compact: true) {
@@ -674,15 +742,18 @@ struct VisualAppearancePickerView: View {
                             activeMediaSource = .document
                         }
                     }
-                    Picker(String(localized: "素材"), selection: $libraryTab) {
-                        Text(String(localized: "最近使用")).tag(VisualAssetLibraryView.Tab.recent)
-                        Text(String(localized: "我的贴纸")).tag(VisualAssetLibraryView.Tab.all)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: libraryTab) { _ in model.reloadLibrary(tab: libraryTab) }
+
+                    VisualAssetFilterBar(
+                        searchText: $searchText,
+                        filter: $libraryFilter,
+                        groups: groups,
+                        onAddGroup: { showNewGroupAlert = true }
+                    )
+                    .onChange(of: libraryFilter) { _ in refreshLibrary() }
+                    .onChange(of: searchText) { _ in refreshLibrary() }
 
                     if model.libraryAssets.isEmpty {
-                        Text(String(localized: "还没有贴纸。拍一件身边的东西试试——耳机、水杯、跑鞋都行"))
+                        Text(pickerEmptyMessage)
                             .font(.system(size: 13))
                             .foregroundColor(.holoToolTextSecondary)
                             .frame(maxWidth: .infinity, minHeight: 90, alignment: .topLeading)
@@ -707,7 +778,8 @@ struct VisualAppearancePickerView: View {
         // 栈内注册确认页目的地（弹层/推入两态都走这里，见 root 注释）
         .navigationDestination(isPresented: confirmActive) {
             StickerConfirmEditorView(model: model,
-                                     useTitle: String(localized: "使用这张贴纸")) { assetID, presentation in
+                                     useTitle: String(localized: "使用这张贴纸"),
+                                     onChangeImage: { model.backToPicker() }) { assetID, presentation in
                 finish(with: assetID, presentation: presentation)
             }
         }
@@ -728,11 +800,18 @@ struct VisualAppearancePickerView: View {
                     .accessibilityLabel(Text("关闭"))
                 }
             }
+            ToolbarItem(placement: .primaryAction) {
+                Button(String(localized: "管理")) {
+                    showManageLibrary = true
+                }
+                .font(.system(size: 14, weight: .medium))
+            }
         }
         .safeAreaInset(edge: .bottom) {
             Button {
                 guard let assetID = selectedAssetID else { return }
-                finish(with: assetID, presentation: nil)
+                let pickedAsset = model.libraryAssets.first { ($0.value(forKey: "id") as? UUID) == assetID }
+                finish(with: assetID, presentation: pickedAsset?.defaultPresentation)
             } label: {
                 Text(String(localized: "使用这张贴纸"))
                     .font(.system(size: 15, weight: .semibold))
@@ -746,6 +825,20 @@ struct VisualAppearancePickerView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
             .background(.ultraThinMaterial)
+        }
+    }
+
+    private var pickerEmptyMessage: String {
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return String(localized: "没有找到匹配的贴纸，换个关键词试试")
+        }
+        switch libraryFilter {
+        case .favorite:
+            return String(localized: "还没有收藏的贴纸")
+        case .group(let name):
+            return String(localized: "「\(name)」分组还没有贴纸，拍一张或从「管理」里移入")
+        default:
+            return String(localized: "还没有贴纸。拍一件身边的东西试试——耳机、水杯、跑鞋都行")
         }
     }
 

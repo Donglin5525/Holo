@@ -14,6 +14,8 @@ import SwiftUI
 struct StickerCropView: View {
     /// 原图（方向已摆正的工作图）
     let image: CGImage
+    /// 右上角确认按钮文案（贴纸模式=「重新识别」，照片模式=「完成裁剪」）
+    var confirmTitle: String = String(localized: "重新识别")
     /// 确认：返回归一化裁剪矩形（0...1，原点左上）
     let onConfirm: (CGRect) -> Void
     /// 取消/系统返回：无状态副作用，直接退出
@@ -51,12 +53,16 @@ struct StickerCropView: View {
                         .contentShape(Rectangle())
                         .gesture(panGesture(in: fit))
                         .position(x: rect.midX, y: rect.midY)
-                    // 裁剪框描边（不拦截触摸）
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.white, lineWidth: 1.5)
-                        .frame(width: rect.width, height: rect.height)
-                        .position(x: rect.midX, y: rect.midY)
-                        .allowsHitTesting(false)
+                    // 裁剪框描边与九宫格参考线（不拦截触摸）
+                    ZStack {
+                        CropGridShape()
+                            .stroke(Color.white.opacity(0.35), lineWidth: 0.7)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.white, lineWidth: 1.5)
+                    }
+                    .frame(width: rect.width, height: rect.height)
+                    .position(x: rect.midX, y: rect.midY)
+                    .allowsHitTesting(false)
                     // 四角手柄（手势在 position 之前：各自只响应 44×44 热区）
                     ForEach(Handle.allCases, id: \.self) { handle in
                         handleView(handle, in: fit)
@@ -80,7 +86,7 @@ struct StickerCropView: View {
                 Button(String(localized: "取消")) { onCancel?(); dismiss() }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(String(localized: "重新识别")) { onConfirm(box) }
+                Button(confirmTitle) { onConfirm(box) }
                     .font(.system(size: 14, weight: .semibold))
             }
         }
@@ -186,6 +192,22 @@ struct CropHoleShape: Shape {
         var path = Path()
         path.addRect(rect)
         path.addRect(box)
+        return path
+    }
+}
+
+/// 裁剪框三等分九宫格参考线
+private struct CropGridShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        for i in 1...2 {
+            let x = rect.minX + rect.width * CGFloat(i) / 3
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            let y = rect.minY + rect.height * CGFloat(i) / 3
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
+        }
         return path
     }
 }

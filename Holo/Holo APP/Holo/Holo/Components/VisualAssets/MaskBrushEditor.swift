@@ -15,6 +15,8 @@ import SwiftUI
 struct MaskBrushEditor: View {
     /// 归一化几何真源：工作图像素尺寸（mask 与工作图同尺寸）
     let imagePixelSize: CGSize
+    /// 原图参考底图（垫在抠图下方，避免「恢复误删」时盲涂）
+    var originalImage: CGImage? = nil
     /// 异步重算预览：进入时一次 + 松手/撤销/重置后各一次
     let refreshPreview: () async -> CGImage?
     let onStroke: (_ points: [CGPoint], _ erase: Bool, _ brush: CGFloat) -> Void
@@ -28,6 +30,10 @@ struct MaskBrushEditor: View {
     @State private var brush: CGFloat = 0.06      // 归一化直径（相对画布宽）
     @State private var canUndo = false
     @State private var cachedPreview: CGImage?
+    @State private var showResetConfirm = false
+    /// 双指缩放画布倍率（1.0~3.5x，放大后修边缘更精准）
+    @State private var zoomScale: CGFloat = 1.0
+    @State private var zoomBase: CGFloat = 1.0
 
     /// 本次会话的笔画计数（驱动 canUndo；真源 undo 在 Model）
     @State private var strokeCount = 0
@@ -40,37 +46,82 @@ struct MaskBrushEditor: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color.holoToolInset)
-                    if let cachedPreview {
-                        Image(uiImage: UIImage(cgImage: cachedPreview))
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .padding(10)
+                    ZStack {
+                        // 原图弱透明底图：恢复误删时 38% 可清晰看清轮廓，擦除时 20% 作边界参照
+                        if let originalImage {
+                            Image(uiImage: UIImage(cgImage: originalImage))
+                                .resizable()
+                                .interpolation(.medium)
+                                .aspectRatio(contentMode: .fit)
+                                .padding(10)
+                                .opacity(eraseMode ? 0.20 : 0.38)
+                        }
+                        if let cachedPreview {
+                            Image(uiImage: UIImage(cgImage: cachedPreview))
+                                .resizable()
+                                .interpolation(.high)
+                                .aspectRatio(contentMode: .fit)
+                                .padding(10)
+                        }
+                        if !activeStrokePoints.isEmpty {
+                            liveStrokeOverlay(canvasSize: geo.size)
+                                .allowsHitTesting(false)
+                        }
                     }
-                    if !activeStrokePoints.isEmpty {
-                        liveStrokeOverlay(canvasSize: geo.size)
-                            .allowsHitTesting(false)
+                    .scaleEffect(zoomScale)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(alignment: .topTrailing) {
+                    if zoomScale > 1.02 {
+                        Button {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                zoomScale = 1.0
+                                zoomBase = 1.0
+                            }
+                        } label: {
+                            Text("\(Int((zoomScale * 100).rounded()))% · 复位")
+                                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                                .foregroundColor(.holoToolText)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 5)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(10)
                     }
                 }
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            // 拖动中只更新轨迹，零合成
-                            let p = normalize(value.location, in: geo.size)
+                            // 拖动中只更新轨迹，零合成；将屏幕点逆变换回未缩放画布坐标
+                            let unscaled = unscalePoint(value.location, in: geo.size)
+                            let p = normalize(unscaled, in: geo.size)
                             activeStrokePoints.append(p)
                         }
                         .onEnded { _ in
                             guard !activeStrokePoints.isEmpty else { return }
-                            onStroke(activeStrokePoints, eraseMode, brush)
+                            onStroke(activeStrokePoints, eraseMode, brush / zoomScale)
                             activeStrokePoints.removeAll()
                             strokeCount += 1
                             canUndo = true
                             recomputePreview()
                         }
                 )
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            // 双指缩放时取消误触发的单指暂存轨迹
+                            if !activeStrokePoints.isEmpty { activeStrokePoints.removeAll() }
+                            zoomScale = min(max(zoomBase * value, 1.0), 3.5)
+                        }
+                        .onEnded { _ in
+                            zoomBase = zoomScale
+                        }
+                )
             }
-            .frame(height: 340)
+            .frame(height: 350)
+            .padding(.horizontal, 20)
 
             // 工具条
             VStack(spacing: 10) {
@@ -99,18 +150,20 @@ struct MaskBrushEditor: View {
                     .disabled(!canUndo)
                     .foregroundColor(canUndo ? .holoToolText : .holoToolTextSecondary)
                     Button {
-                        onReset()
-                        strokeCount = 0
-                        canUndo = false
-                        recomputePreview()
+                        showResetConfirm = true
                     } label: {
                         Label(String(localized: "重置"), systemImage: "arrow.counterclockwise")
                             .font(.system(size: 13))
                     }
                     .foregroundColor(.holoToolTextSecondary)
                 }
+
+                Text(String(localized: "单指涂抹修边，双指可放大细节"))
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.horizontal, 20)
+            Spacer(minLength: 0)
         }
         .padding(.top, 6)
         .background(Color.holoToolBackground)
@@ -126,6 +179,17 @@ struct MaskBrushEditor: View {
                 Button(String(localized: "完成")) { onDone() }
                     .font(.system(size: 14, weight: .semibold))
             }
+        }
+        .alert(String(localized: "重置全部修边？"), isPresented: $showResetConfirm) {
+            Button(String(localized: "取消"), role: .cancel) {}
+            Button(String(localized: "重置"), role: .destructive) {
+                onReset()
+                strokeCount = 0
+                canUndo = false
+                recomputePreview()
+            }
+        } message: {
+            Text(String(localized: "将清除本次全部涂抹记录，恢复到自动抠图结果。"))
         }
         .onAppear { recomputePreview() }
     }
@@ -167,6 +231,15 @@ struct MaskBrushEditor: View {
                       width: w, height: h)
     }
 
+    /// 将以画布中心缩放后的触点逆变换回原始画布坐标
+    private func unscalePoint(_ point: CGPoint, in size: CGSize) -> CGPoint {
+        guard zoomScale > 1.001 else { return point }
+        let cx = size.width / 2
+        let cy = size.height / 2
+        return CGPoint(x: cx + (point.x - cx) / zoomScale,
+                       y: cy + (point.y - cy) / zoomScale)
+    }
+
     private func normalize(_ point: CGPoint, in size: CGSize) -> CGPoint {
         let fit = fittedImageRect(canvasSize: size)
         guard fit.width > 0, fit.height > 0 else { return .zero }
@@ -176,7 +249,7 @@ struct MaskBrushEditor: View {
 
     private func liveStrokeOverlay(canvasSize: CGSize) -> some View {
         let fit = fittedImageRect(canvasSize: canvasSize)
-        let lineWidth = max(4, brush * fit.width)
+        let lineWidth = max(4, (brush / zoomScale) * fit.width)
         return Path { path in
             guard let first = activeStrokePoints.first else { return }
             path.move(to: CGPoint(x: fit.minX + first.x * fit.width,
@@ -186,7 +259,7 @@ struct MaskBrushEditor: View {
                                          y: fit.minY + p.y * fit.height))
             }
         }
-        .stroke(eraseMode ? Color.red.opacity(0.45) : Color.green.opacity(0.45),
+        .stroke(eraseMode ? Color.holoToolError.opacity(0.45) : Color.holoToolSuccess.opacity(0.45),
                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
     }
 }

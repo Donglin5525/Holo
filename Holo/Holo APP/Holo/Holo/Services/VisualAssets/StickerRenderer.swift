@@ -74,6 +74,8 @@ struct VisualAssetRenderSnapshot: Sendable {
     let maskData: Data?
     let sourceWidth: Int
     let sourceHeight: Int
+    let defaultBorderStyle: VisualPlacementPayload.Presentation.BorderStyle?
+    let defaultBorderWeight: VisualPlacementPayload.Presentation.BorderWeight?
 
     init?(asset: VisualAsset) {
         guard let kind = VisualAssetKind.from(raw: asset.value(forKey: "kind") as? String) else { return nil }
@@ -83,16 +85,23 @@ struct VisualAssetRenderSnapshot: Sendable {
         self.maskData = asset.value(forKey: "maskData") as? Data
         self.sourceWidth = asset.value(forKey: "sourceWidth") as? Int ?? 0
         self.sourceHeight = asset.value(forKey: "sourceHeight") as? Int ?? 0
+        let meta = asset.visualMetadata
+        self.defaultBorderStyle = meta.resolvedBorderStyle
+        self.defaultBorderWeight = meta.resolvedBorderWeight
     }
 
     init(kind: VisualAssetKind, sourceData: Data?, contentData: Data?, maskData: Data?,
-         sourceWidth: Int, sourceHeight: Int) {
+         sourceWidth: Int, sourceHeight: Int,
+         defaultBorderStyle: VisualPlacementPayload.Presentation.BorderStyle? = nil,
+         defaultBorderWeight: VisualPlacementPayload.Presentation.BorderWeight? = nil) {
         self.kind = kind
         self.sourceData = sourceData
         self.contentData = contentData
         self.maskData = maskData
         self.sourceWidth = sourceWidth
         self.sourceHeight = sourceHeight
+        self.defaultBorderStyle = defaultBorderStyle
+        self.defaultBorderWeight = defaultBorderWeight
     }
 }
 
@@ -136,11 +145,13 @@ enum StickerRenderer {
     /// 导出透明 PNG：固定浅色导出配置（用户显式选纯白/无边则遵从）
     static func renderExportImage(asset: VisualAsset,
                                   borderStyle: VisualPlacementPayload.Presentation.BorderStyle,
+                                  borderWeight: VisualPlacementPayload.Presentation.BorderWeight? = nil,
                                   displayScale: CGFloat) -> CGImage? {
         guard let snapshot = VisualAssetRenderSnapshot(asset: asset) else { return nil }
+        let weight = borderWeight ?? snapshot.defaultBorderWeight ?? .standard
         return renderSticker(snapshot: snapshot, role: .hero, appearance: .light,
                              increasedContrast: false, displayScale: displayScale,
-                             presentation: .init(borderStyle: borderStyle))
+                             presentation: .init(borderStyle: borderStyle, borderWeight: weight))
     }
 
     /// 确认页预览（不查库、不走缓存）：工作图 + 遮罩 + 当前纸边选择，先降采样到
@@ -205,7 +216,9 @@ enum StickerRenderer {
             content = decodedContent ?? decodedSource
         }
         guard let content else { return nil }
-        let p = presentation ?? VisualPlacementPayload.Presentation()
+        let p = presentation ?? VisualPlacementPayload.Presentation(
+            borderStyle: snapshot.defaultBorderStyle ?? .adaptivePaper,
+            borderWeight: snapshot.defaultBorderWeight ?? .standard)
         let edgePoints: CGFloat
         switch p.borderWeight {
         case .thin: edgePoints = role.thinEdgePoints

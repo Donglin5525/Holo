@@ -107,6 +107,7 @@ struct SettingsView: View {
     // 规整后新增的二级页
     @State private var showAppearancePage = false
     @State private var showStickerLibrary = false
+    @State private var stickerCount = 0
     @State private var showRecycleBin = false
     @State private var showFinanceTransfer = false
     @State private var showThoughtAIScope = false
@@ -698,16 +699,25 @@ struct SettingsView: View {
 
                 SettingsRowDivider()
 
-                // 我的贴纸：拍身边物品做成的贴纸集中在这里，供各记录复用
+                // 我的贴纸：拍身边物品做成的贴纸集中在这里，供各记录复用与分组管理
                 SettingsNavRow(
                     icon: "sparkles.rectangle.stack",
                     iconColor: .holoPrimary,
                     title: String(localized: "我的贴纸"),
-                    subtitle: String(localized: "自己拍的物品贴纸，各处复用")
+                    subtitle: String(localized: "管理、分组与复用已制作的贴纸"),
+                    value: stickerCount > 0 ? String(localized: "\(stickerCount) 张") : ""
                 ) {
                     showStickerLibrary = true
                 }
-                .sheet(isPresented: $showStickerLibrary) {
+                .onAppear {
+                    stickerCount = VisualAssetGroupStore.visibleStickerCount(in: CoreDataStack.shared.viewContext)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .visualAssetsDidChange)) { _ in
+                    stickerCount = VisualAssetGroupStore.visibleStickerCount(in: CoreDataStack.shared.viewContext)
+                }
+                .sheet(isPresented: $showStickerLibrary, onDismiss: {
+                    stickerCount = VisualAssetGroupStore.visibleStickerCount(in: CoreDataStack.shared.viewContext)
+                }) {
                     VisualAssetLibraryView()
                 }
 
