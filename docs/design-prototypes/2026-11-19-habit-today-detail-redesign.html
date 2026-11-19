@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Holo 习惯今日详情 · 重构设计原型</title>
+<style>
+  :root {
+    /* Holo V2 Tool Tokens — Light */
+    --bg: #FDFCF8;
+    --surface: #FFFFFF;
+    --inset: #F7F1EA;
+    --inset-soft: rgba(247, 241, 234, 0.65);
+    --text: #333333;
+    --text-secondary: #6E6E6E;
+    --text-tertiary: #9B958C;
+    --border: #E9E4DA;
+    --divider: rgba(233, 228, 218, 0.75);
+    --action: #EA580C;
+    --on-action: #FFFFFF;
+    --success: #166534;
+    --success-bg: rgba(22, 101, 52, 0.09);
+    --error: #B91C1C;
+    --error-bg: rgba(185, 28, 28, 0.09);
+    --warning: #93450A;
+    --frosted: rgba(253, 252, 248, 0.86);
+    --shadow-card: 0 1px 2px rgba(30, 24, 16, 0.03);
+    --shadow-pill: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --studio-bg: #F3EFE8;
+    --studio-card: #FFFFFF;
+    --studio-border: #E4DDD1;
+    --phone-bezel: #1B1B1E;
+    --sheet-backdrop: #E9E3D8;
+  }
+
+  [data-theme="dark"] {
+    /* Holo V2 Tool Tokens — Dark */
+    --bg: #0E0E10;
+    --surface: #1C1C1F;
+    --inset: #2A2A2E;
+    --inset-soft: rgba(42, 42, 46, 0.72);
+    --text: #F5F5F5;
+    --text-secondary: #A8A8A8;
+    --text-tertiary: #6E6E73;
+    --border: #38383C;
+    --divider: rgba(72, 72, 74, 0.55);
+    --action: #FF8A5C;
+    --on-action: #1C1C1E;
+    --success: #86EFAC;
+    --success-bg: rgba(134, 239, 172, 0.13);
+    --error: #FCA5A5;
+    --error-bg: rgba(252, 165, 165, 0.13);
+    --warning: #FFBE6A;
+    --frosted: rgba(14, 14, 16, 0.86);
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25);
+    --shadow-pill: 0 1px 4px rgba(0, 0, 0, 0.35);
+    --studio-bg: #111113;
+    --studio-card: #1A1A1D;
+    --studio-border: #2C2C30;
+    --phone-bezel: #09090B;
+    --sheet-backdrop: #1B1B1E;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", sans-serif;
+    background: var(--studio-bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Studio Top Bar */
+  .studio-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--studio-card) 88%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--studio-border);
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .studio-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .studio-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--action);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--action) 16%, transparent);
+  }
+
+  .studio-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .studio-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-left: 4px;
+  }
+
+  .studio-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .scenario-group {
+    display: flex;
+    flex-wrap: wrap;
+    background: var(--inset);
+    padding: 3px;
+    border-radius: 11px;
+    gap: 2px;
+  }
+
+  .scenario-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 11px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+
+  .scenario-btn:hover {
+    color: var(--text);
+  }
+
+  .scenario-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow-pill);
+  }
+
+  .theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.18s ease;
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--action);
+  }
+
+  /* Main Stage */
+  .stage {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 24px 48px;
+    display: grid;
+    grid-template-columns: 405px 1fr;
+    gap: 36px;
+    align-items: start;
+  }
+
+  @media (max-width: 960px) {
+    .stage {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+    .notes-panel {
+      width: 100%;
+      max-width: 540px;
+    }
+  }
+
+  /* iPhone 16 Pro Frame */
+  .phone-wrap {
+    position: sticky;
+    top: 76px;
+  }
+
+  .phone {
+    width: 393px;
+    height: 820px;
+    background: var(--phone-bezel);
+    border-radius: 52px;
+    padding: 10px;
+    box-shadow:
+      0 28px 65px rgba(20, 16, 12, 0.22),
+      0 4px 14px rgba(20, 16, 12, 0.1),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    position: relative;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: var(--sheet-backdrop);
+    border-radius: 42px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* iOS Status Bar */
+  .status-bar {
+    height: 48px;
+    padding: 14px 26px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .dynamic-island {
+    position: absolute;
+    left: 50%;
+    top: 10px;
+    transform: translateX(-50%);
+    width: 112px;
+    height: 30px;
+    background: #000;
+    border-radius: 20px;
+  }
+
+  .status-icons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* Underlying Today page hint */
+  .backdrop-card {
+    margin: 0 18px;
+    height: 10px;
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    border-radius: 12px 12px 0 0;
+    flex-shrink: 0;
+  }
+
+  /* Sheet Shell (.holoSheetShell) */
+  .sheet {
+    flex: 1;
+    min-height: 0;
+    background: var(--bg);
+    border-radius: 28px 28px 0 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .drag-indicator {
+    width: 36px;
+    height: 4.5px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--text-secondary) 32%, transparent);
+    margin: 8px auto 2px;
+    flex-shrink: 0;
+  }
+
+  /* Top Chrome — Zero Duplicate Title */
+  .sheet-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px 8px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--inset);
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.14s ease, background 0.15s ease;
+    position: relative;
+  }
+
+  /* 44pt hit target */
+  .icon-btn::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
+
+  .icon-btn:active {
+    transform: scale(0.93);
+  }
+
+  .nav-date-pill {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 99px;
+    background: var(--inset-soft);
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Lifecycle Menu Popover */
+  .popover-menu {
+    position: absolute;
+    top: 46px;
+    right: 16px;
+    width: 176px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+    padding: 6px;
+    z-index: 40;
+    display: none;
+  }
+
+  .popover-menu.open {
+    display: block;
+    animation: popIn 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.94) translateY(-4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .menu-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .menu-item:hover {
+    background: var(--inset);
+  }
+
+  .menu-item.danger {
+    color: var(--error);
+  }
+
+  .menu-sep {
+    height: 0.5px;
+    background: var(--divider);
+    margin: 4px 6px;
+  }
+
+  /* Scrollable Sheet Body */
+  .sheet-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 20px 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scrollbar-width: none;
+  }
+
+  .sheet-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 1. Identity Header */
+  .identity {
+    display: flex;
+    align-items: flex-start;
+    gap: 13px;
+    padding-top: 2px;
+  }
+
+  .habit-icon-box {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+  }
+
+  .identity-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .habit-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .habit-name {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--text);
+  }
+
+  .status-tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2.5px 8px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+
+  .habit-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px;
+  }
+
+  .meta-chip {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    background: var(--inset);
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+
+  .habit-desc {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+  }
+
+  /* 2. Core KPI Strip (.independent surface) */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 14px 4px;
+    position: relative;
+  }
+
+  .kpi-cell {
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    position: relative;
+  }
+
+  .kpi-cell:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 0.5px;
+    background: var(--divider);
+  }
+
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .kpi-value {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .kpi-value .unit {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-left: 2px;
+  }
+
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kpi-sub.up { color: var(--success); font-weight: 500; }
+  .kpi-sub.down { color: var(--error); font-weight: 500; }
+
+  /* Progress bar inside count KPI card */
+  .count-progress-wrap {
+    padding: 0 14px 13px;
+    margin-top: -4px;
+  }
+
+  .progress-track {
+    height: 6px;
+    background: var(--inset);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* 3. Interactive Rhythm & Chart Card */
+  .viz-card {
+    padding: 14px 15px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* §8.8.3 Unique Holo Segmented Control */
+  .holo-seg {
+    display: inline-flex;
+    background: var(--inset);
+    padding: 2.5px;
+    border-radius: 9px;
+    gap: 2px;
+  }
+
+  .holo-seg-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.16s ease;
+    white-space: nowrap;
+  }
+
+  .holo-seg-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow-pill);
+  }
+
+  /* Calendar Grid */
+  .cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+
+  .cal-cell {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    border: 1.5px solid transparent;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.12s ease, border-color 0.15s ease;
+    user-select: none;
+  }
+
+  .cal-cell:active {
+    transform: scale(0.92);
+  }
+
+  .cal-cell.empty {
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .cal-cell.before,
+  .cal-cell.future {
+    color: var(--text-tertiary);
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .cal-cell.missed {
+    background: var(--inset-soft);
+    color: var(--text-secondary);
+  }
+
+  .cal-cell.paused {
+    border: 1px dashed var(--border);
+    color: var(--text-tertiary);
+  }
+
+  .cal-cell.done {
+    color: #FFFFFF;
+    font-weight: 600;
+  }
+
+  .cal-cell.retro {
+    font-weight: 600;
+  }
+
+  .cal-cell.today {
+    box-shadow: 0 0 0 1.5px var(--accent-color);
+  }
+
+  .cal-cell.selected {
+    box-shadow: 0 0 0 2px var(--text);
+    z-index: 2;
+  }
+
+  .cal-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 3px;
+  }
+
+  /* 30-day compact matrix */
+  .matrix-30 {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 6px;
+  }
+
+  .m30-cell {
+    aspect-ratio: 1;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.12s ease;
+  }
+
+  .m30-cell:active { transform: scale(0.9); }
+  .m30-cell.selected { box-shadow: 0 0 0 2px var(--text); }
+
+  /* Inline Day Inspector */
+  .day-inspector {
+    background: var(--inset-soft);
+    border-radius: 11px;
+    padding: 9px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+
+  .day-inspector-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .day-inspector-main {
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .day-inspector-note {
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .inline-retro-btn {
+    border: none;
+    background: var(--surface);
+    color: var(--accent-color);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: var(--shadow-card);
+    flex-shrink: 0;
+  }
+
+  /* Legend + Full Review Footer */
+  .viz-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 2px;
+  }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+
+  .review-link {
+    border: none;
+    background: transparent;
+    color: var(--accent-color);
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 4px 0;
+  }
+
+  /* Chart Readout Bar (V3 Chart Standard) */
+  .chart-readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 2px 0;
+  }
+
+  .readout-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .readout-meta {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .chart-svg-wrap {
+    width: 100%;
+    position: relative;
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: 136px;
+    display: block;
+    overflow: visible;
+  }
+
+  /* 4. Rhythm Insight Strip */
+  .rhythm-strip {
+    background: var(--inset-soft);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .rhythm-strip.single {
+    grid-template-columns: 1fr;
+  }
+
+  .rhythm-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .rhythm-col:first-child:not(:only-child) {
+    border-right: 0.5px solid var(--divider);
+    padding-right: 10px;
+  }
+
+  .rhythm-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .rhythm-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .spark-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2.5px;
+    height: 16px;
+    margin-top: 3px;
+  }
+
+  .spark-bar {
+    flex: 1;
+    border-radius: 2px;
+    min-height: 2px;
+  }
+
+  .weekday-pills {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  /* 5. Records & Notes Section */
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 2px 0;
+  }
+
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .count-badge {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--inset);
+    padding: 1.5px 7px;
+    border-radius: 99px;
+  }
+
+  .records-list {
+    overflow: hidden;
+  }
+
+  .record-row {
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    position: relative;
+  }
+
+  .record-row:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 0;
+    height: 0.5px;
+    background: var(--divider);
+  }
+
+  .record-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .record-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .date-tag {
+    background: var(--inset);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-weight: 500;
+  }
+
+  .retro-tag {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+
+  .record-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .record-note {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    background: var(--inset-soft);
+    padding: 6px 9px;
+    border-radius: 8px;
+    margin-top: 2px;
+  }
+
+  .record-edit-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .record-edit-btn:hover {
+    background: var(--inset);
+    color: var(--text);
+  }
+
+  .empty-records {
+    padding: 16px 14px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Inline Note Composer */
+  .note-composer {
+    padding: 10px 14px 12px;
+    border-top: 0.5px solid var(--divider);
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--inset-soft);
+  }
+
+  .note-composer.open {
+    display: flex;
+  }
+
+  .note-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .note-input:focus {
+    border-color: var(--accent-color);
+  }
+
+  .note-composer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .mini-btn {
+    border: none;
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .mini-btn.ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .mini-btn.primary {
+    background: var(--accent-color);
+    color: #fff;
+  }
+
+  /* 6. Sticky Bottom Action Bar */
+  .bottom-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 20px 22px;
+    background: var(--frosted);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-top: 0.5px solid var(--divider);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 20;
+  }
+
+  .primary-cta {
+    flex: 1;
+    min-height: 46px;
+    border: none;
+    border-radius: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: transform 0.14s ease, opacity 0.15s ease;
+  }
+
+  .primary-cta:active {
+    transform: scale(0.98);
+  }
+
+  .secondary-cta {
+    min-width: 46px;
+    height: 46px;
+    padding: 0 13px;
+    border-radius: 13px;
+    border: 0.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.14s ease, background 0.15s ease;
+  }
+
+  .secondary-cta:active {
+    transform: scale(0.95);
+  }
+
+  .secondary-cta.danger-ghost {
+    color: var(--error);
+    border-color: color-mix(in srgb, var(--error) 25%, transparent);
+    background: var(--error-bg);
+  }
+
+  .home-indicator {
+    position: absolute;
+    bottom: 7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 128px;
+    height: 4.5px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--text) 24%, transparent);
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  /* Toast feedback inside phone */
+  .phone-toast {
+    position: absolute;
+    top: 58px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 99px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.22s ease;
+    z-index: 60;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  }
+
+  .phone-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Right Side Design Rationale Panel */
+  .notes-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .rationale-card {
+    background: var(--studio-card);
+    border: 1px solid var(--studio-border);
+    border-radius: 18px;
+    padding: 20px 22px;
+  }
+
+  .rationale-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--action);
+    margin-bottom: 6px;
+  }
+
+  .rationale-h2 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+  }
+
+  .rationale-p {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  .diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .diff-grid { grid-template-columns: 1fr; }
+  }
+
+  .diff-box {
+    background: var(--inset-soft);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .diff-box h4 {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .diff-box ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .upgrade-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .upgrade-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .upgrade-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--action) 13%, transparent);
+    color: var(--action);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .upgrade-body strong {
+    display: block;
+    font-size: 13.5px;
+    margin-bottom: 2px;
+    color: var(--text);
+  }
+
+  .upgrade-body span {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .try-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--action) 7%, var(--studio-card));
+    border: 1px dashed color-mix(in srgb, var(--action) 35%, transparent);
+    border-radius: 12px;
+    padding: 11px 14px;
+  }
+</style>
+</head>
+<body>
+
+<header class="studio-header">
+  <div class="studio-brand">
+    <span class="studio-dot"></span>
+    <span class="studio-title">Holo 习惯 · 今日详情抽屉重构原型</span>
+    <span class="studio-sub">HabitTodayRecordSheet V3 提案</span>
+  </div>
+  <div class="studio-controls">
+    <div class="scenario-group" id="scenarioGroup">
+      <button class="scenario-btn active" data-scenario="checkin-rich">打卡 · 饱满态</button>
+      <button class="scenario-btn" data-scenario="checkin-sparse">打卡 · 稀疏态(2天)</button>
+      <button class="scenario-btn" data-scenario="count">计数型</button>
+      <button class="scenario-btn" data-scenario="measure">测量型</button>
+      <button class="scenario-btn" data-scenario="bad">坏习惯</button>
+    </div>
+    <button class="theme-toggle" id="themeToggle" title="切换深浅模式">
+      <span id="themeIcon">◐</span>
+      <span id="themeLabel">深色模式</span>
+    </button>
+  </div>
+</header>
+
+<main class="stage">
+  <!-- Left: Interactive iPhone 16 Pro Prototype -->
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen" id="screen">
+        <div class="status-bar">
+          <span class="tabular">12:45</span>
+          <div class="dynamic-island"></div>
+          <div class="status-icons">
+            <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><rect x="0" y="7" width="2.5" height="4" rx="0.8"/><rect x="4" y="5" width="2.5" height="6" rx="0.8"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="0.8"/><rect x="12" y="0" width="2.5" height="11" rx="0.8"/></svg>
+            <svg width="22" height="11" viewBox="0 0 22 11" fill="none"><rect x="0.7" y="0.7" width="18" height="9.6" rx="2.6" stroke="currentColor" stroke-width="1.2"/><rect x="2.4" y="2.4" width="13.5" height="6.2" rx="1.2" fill="currentColor"/><rect x="19.6" y="3.5" width="1.8" height="4" rx="0.8" fill="currentColor"/></svg>
+          </div>
+        </div>
+        <div class="backdrop-card"></div>
+
+        <div class="sheet" id="sheet">
+          <div class="phone-toast" id="toast"></div>
+          <div class="drag-indicator"></div>
+
+          <!-- Top Chrome -->
+          <div class="sheet-nav">
+            <button class="icon-btn" id="closeBtn" aria-label="关闭">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M4 4l8 8M12 4l-8 8"/>
+              </svg>
+            </button>
+            <div class="nav-date-pill" id="navDatePill">11月19日 周四</div>
+            <div class="nav-right">
+              <button class="icon-btn" id="menuBtn" aria-label="习惯管理">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="3.2" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="12.8" cy="8" r="1.4"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Lifecycle Menu -->
+            <div class="popover-menu" id="popoverMenu">
+              <button class="menu-item" data-toast="打开习惯设置（频率、目标、提醒、结算时间）"><span>习惯设置</span><span>›</span></button>
+              <button class="menu-item" data-toast="打开补录弹层（选择窗口内漏卡日）"><span>补录漏卡</span><span>›</span></button>
+              <button class="menu-item" data-toast="跳转单习惯完整回顾页"><span>完整回顾</span><span>›</span></button>
+              <div class="menu-sep"></div>
+              <button class="menu-item" data-toast="打开暂停习惯设置"><span>暂停习惯</span></button>
+              <button class="menu-item" data-toast="归档后历史记录全部保留"><span>归档习惯</span></button>
+              <div class="menu-sep"></div>
+              <button class="menu-item danger" data-toast="弹出删除二次确认"><span>删除习惯</span></button>
+            </div>
+          </div>
+
+          <!-- Scrollable Content -->
+          <div class="sheet-scroll" id="sheetScroll"></div>
+
+          <!-- Sticky Bottom Bar -->
+          <div class="bottom-bar" id="bottomBar"></div>
+          <div class="home-indicator"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Design Rationale & Interaction Guide -->
+  <section class="notes-panel">
+    <div class="try-hint">
+      <span>💡</span>
+      <span>左侧是<strong>可交互原型</strong>：点击顶部切换 5 种真实数据态（含最惨稀疏态）与深色模式；点击日历格/图表柱点查看当日明细，点底部按钮可直接打卡、+1、写备注。</span>
+    </div>
+
+    <div class="rationale-card">
+      <div class="rationale-kicker">现状诊断 · 为什么之前觉得「没东西看」</div>
+      <h2 class="rationale-h2">从「单点打卡确认层」升级为「习惯今日驾驶舱」</h2>
+      <p class="rationale-p">
+        当前 <code>HabitTodayRecordSheet</code> 在今天页点开后，只放了「1 个大数字卡 + 7 个小圆点 + 今天的记录」。用户刚在今天页已经看过近 7 天小条，点进来几乎没有新增信息量，想看本月表现、最长记录、习惯规律都必须再跳一层去「完整回顾」。
+      </p>
+      <div class="diff-grid">
+        <div class="diff-box">
+          <h4>旧版痛点</h4>
+          <ul>
+            <li>· 导航栏与头部重复显示两遍习惯名</li>
+            <li>· 大数字卡只有 1 个指标，缺本月/历史上下文</li>
+            <li>· 打卡型只给 7 个 7pt 细圆点，与列表页重复</li>
+            <li>· 打卡后底部主按钮变成刺眼的红色「取消打卡」</li>
+            <li>· 计数型点「记数量」必须先关抽屉再开新弹层</li>
+          </ul>
+        </div>
+        <div class="diff-box">
+          <h4>新版升级（100% 复用现有本地数据）</h4>
+          <ul>
+            <li>· 顶部去重：日期/结算口径居中，习惯名一次立稳</li>
+            <li>· 3 列 KPI 胶囊卡：连续 / 本月进度 / 累计与对比</li>
+            <li>· <strong>交互式本月日历</strong>（可切换近 30 天）+ 点按即看/补录</li>
+            <li>· 新增本地「节律观察」：常记录时段 + 工作日/周末规律</li>
+            <li>· 打卡后主区转为温和的「写备注」，撤销退居次位</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="rationale-card">
+      <div class="rationale-kicker">设计准则与克制边界</div>
+      <h2 class="rationale-h2">5 个关键审美与体验决策</h2>
+      <div class="upgrade-list">
+        <div class="upgrade-item">
+          <div class="upgrade-num">1</div>
+          <div class="upgrade-body">
+            <strong>一屏扫完核心信息，不把抽屉做成重型报表</strong>
+            <span>保留「今日详情抽屉」的轻快定位：核心 KPI（3 项）+ 当月/近期可视锚点 + 今日记录，深度跨月对比和历史筛选依然留给右上/卡片里的「完整回顾 ›」。</span>
+          </div>
+        </div>
+        <div class="upgrade-item">
+          <div class="upgrade-num">2</div>
+          <div class="upgrade-body">
+            <strong>点按日历格即联动：看得懂、能行动</strong>
+            <span>点任意已打卡日立即展开当日时间与备注；点漏卡日直接给出内联「补录这天」，省去翻菜单找补录的路径。</span>
+          </div>
+        </div>
+        <div class="upgrade-item">
+          <div class="upgrade-num">3</div>
+          <div class="upgrade-body">
+            <strong>纯本地可算的「节律观察」，有温度但不装聪明</strong>
+            <span>仅用 <code>HabitRecord.recordedAt</code> 计算常记录时段微缩图与工作日/周末完成率；数据不足（稀疏态）时自动降级为温和的里程碑提示，绝不硬算无意义百分比。</span>
+          </div>
+        </div>
+        <div class="upgrade-item">
+          <div class="upgrade-num">4</div>
+          <div class="upgrade-body">
+            <strong>严格遵守 Holo V2 色板、图表 V3 与「挑刺儿」闸门</strong>
+            <span>暖纸底 <code>#FDFCF8</code> + 纯白 0.5pt 描边 <code>.independent</code> 卡片，零卡片嵌套；柱宽封顶防孤柱顶格；灰轨白块唯一分段控件；深浅模式双套语义色。</span>
+          </div>
+        </div>
+        <div class="upgrade-item">
+          <div class="upgrade-num">5</div>
+          <div class="upgrade-body">
+            <strong>更符合人性的底部主操作</strong>
+            <span>打卡完成后不再用大红「取消打卡」破坏成就感，改为「写一条备注」+ 侧边轻撤销；计数型直接在底栏支持 <code>-1 / +1</code>，记录与反馈同屏完成。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+// 2026年11月真实日历：11月1日是周日，今天是11月19日周四
+const TODAY_DAY = 19;
+const NOV_DAYS = 30;
+// 2026-11-01 is Sunday -> in Mon..Sun grid, offset = 6
+const NOV_START_OFFSET = 6;
+const WEEKDAYS_CN = ['周日','周一','周二','周三','周四','周五','周六'];
+
+function weekdayOfNov(day) {
+  // Nov 1 = Sun (0)
+  return WEEKDAYS_CN[(day - 1) % 7];
+}
+
+// 5 Real Scenarios (including worst-case sparse state per 2026-10-12 redline)
+const SCENARIOS = {
+  'checkin-rich': {
+    type: 'checkIn',
+    isBad: false,
+    name: '睡前阅读',
+    icon: 'book',
+    accent: '#EA580C',
+    datePill: '11月19日 周四 · 02:00 结算',
+    chips: ['每日打卡', '提醒 22:00', '成长'],
+    desc: '每天至少读 15 页纸质书或 Kindle，睡前放下手机。',
+    todayDone: true,
+    streak: 14,
+    bestStreak: 21,
+    monthDone: 17,
+    monthElapsed: 19,
+    monthDelta: '↑12% 较上月',
+    totalDays: 128,
+    sinceText: '始于 6月12日',
+    createdNovDay: 0, // before Nov
+    vizMode: 'calendar', // 'calendar' | '30d'
+    selectedDay: 19,
+    // Nov 1..19 statuses
+    novMap: {
+      1:'done', 2:'done', 3:'missed', 4:'done', 5:'missed',
+      6:'done', 7:'done', 8:'retro', 9:'done', 10:'done',
+      11:'done', 12:'done', 13:'done', 14:'done', 15:'done',
+      16:'done', 17:'done', 18:'done', 19:'done'
+    },
+    dayDetails: {
+      19: { time: '22:14', note: '读完《思考，快与慢》第 14 章，系统 1 的启发式偏差很有共鸣。' },
+      18: { time: '22:36', note: 'Kindle 20 分钟，困了但还是坚持看完了这一节。' },
+      16: { time: '21:55', note: '地铁上顺便把白天没读完的章节补上了。' },
+      8:  { time: '次日补录', retro: true, note: '周日看完忘记打卡，次日早起补记。' }
+    },
+    rhythm: {
+      timeLabel: '21:30 – 23:00',
+      timeDist: [0,0,0,0,0,0,0,1,2,1,4,10], // 12 two-hour buckets
+      weekdayText: '工作日 94% · 周末 75%',
+      weekdaySub: '周末偶有推迟到零点前'
+    },
+    records: [
+      { id: 1, date: '今天', time: '22:14', title: '已完成打卡', note: '读完《思考，快与慢》第 14 章，系统 1 的启发式偏差很有共鸣。', retro: false }
+    ]
+  },
+
+  'checkin-sparse': {
+    type: 'checkIn',
+    isBad: false,
+    sparse: true,
+    name: '晨间拉伸',
+    icon: 'sun',
+    accent: '#2E7D5B',
+    datePill: '11月19日 周四',
+    chips: ['每日打卡', '提醒 07:30'],
+    desc: '起床后 10 分钟肩颈与脊柱拉伸，唤醒身体。',
+    todayDone: false,
+    streak: 2,
+    bestStreak: 2,
+    monthDone: 2,
+    monthElapsed: 3,
+    monthDelta: '创建第 3 天',
+    totalDays: 2,
+    sinceText: '始于 11月17日',
+    createdNovDay: 17,
+    vizMode: 'calendar',
+    selectedDay: 19,
+    novMap: {
+      17:'done', 18:'done', 19:'missed'
+    },
+    dayDetails: {
+      18: { time: '07:42', note: '跟练 8 分钟肩颈放松，脖子轻松很多。' },
+      17: { time: '07:50', note: '第一天开始，动作有点僵。' }
+    },
+    rhythm: {
+      sparseHint: '刚起步第 3 天 · 今天完成就能达成「连续 3 天」小里程碑'
+    },
+    records: [
+      { id: 11, date: '11月18日', time: '07:42', title: '已完成打卡', note: '跟练 8 分钟肩颈放松，脖子轻松很多。', retro: false },
+      { id: 12, date: '11月17日', time: '07:50', title: '已完成打卡', note: '第一天开始，动作有点僵。', retro: false }
+    ]
+  },
+
+  'count': {
+    type: 'count',
+    isBad: false,
+    name: '喝水',
+    icon: 'drop',
+    accent: '#2563EB',
+    datePill: '11月19日 周四',
+    chips: ['每日计数', '目标 8 杯/天', '健康'],
+    desc: '每杯约 250ml，保持全天水分充足。',
+    unit: '杯',
+    target: 8,
+    todayValue: 5,
+    monthAvg: 7.2,
+    monthTargetDays: 14,
+    monthTotal: 136,
+    monthDelta: '↑8% 较上月',
+    vizMode: 'chart', // 'chart' | 'calendar'
+    selectedBarIdx: 9,
+    series: [
+      { day: '11/10', val: 7 },
+      { day: '11/11', val: 8 },
+      { day: '11/12', val: 6 },
+      { day: '11/13', val: 9 },
+      { day: '11/14', val: 8 },
+      { day: '11/15', val: 5 },
+      { day: '11/16', val: 8 },
+      { day: '11/17', val: 8 },
+      { day: '11/18', val: 9 },
+      { day: '今天',  val: 5 }
+    ],
+    novMap: {
+      1:'done',2:'done',3:'done',4:'missed',5:'done',6:'done',7:'done',
+      8:'done',9:'done',10:'done',11:'done',12:'done',13:'done',14:'done',
+      15:'done',16:'done',17:'done',18:'done',19:'done'
+    },
+    selectedDay: 19,
+    dayDetails: {
+      19: { time: '截至 12:30', note: '今日已喝 5 杯，距目标还差 3 杯。' },
+      18: { time: '共 9 杯', note: '超额完成 1 杯。' }
+    },
+    rhythm: {
+      timeLabel: '10:00 – 16:00',
+      timeDist: [0,0,0,1,4,8,7,9,6,3,1,0],
+      weekdayText: '工作日 7.8 杯 · 周末 5.6 杯',
+      weekdaySub: '周末在家容易忘记补水'
+    },
+    records: [
+      { id: 21, date: '今天', time: '12:30', title: '+2 杯', note: '午饭后温水', retro: false },
+      { id: 22, date: '今天', time: '10:15', title: '+2 杯', note: '', retro: false },
+      { id: 23, date: '今天', time: '08:20', title: '+1 杯', note: '早起第一杯', retro: false }
+    ]
+  },
+
+  'measure': {
+    type: 'measure',
+    isBad: false,
+    name: '晨起体重',
+    icon: 'scale',
+    accent: '#0F766E',
+    datePill: '11月19日 周四',
+    chips: ['每日测量', '单位 kg', '目标 70.0 kg'],
+    desc: '早晨空腹测量，观察长期趋势而非单日波动。',
+    unit: 'kg',
+    target: 70.0,
+    latestVal: 72.4,
+    prevVal: 72.8,
+    prevDate: '11月16日',
+    avgVal: 72.9,
+    minVal: 72.1,
+    maxVal: 73.6,
+    vizMode: 'chart',
+    selectedPointIdx: 6,
+    // Real-time spaced measurement points (daysOffset from start)
+    points: [
+      { day: '10/24', xPos: 0.00, val: 73.6, note: '聚餐后偏高' },
+      { day: '10/29', xPos: 0.19, val: 73.2, note: '' },
+      { day: '11/02', xPos: 0.35, val: 73.0, note: '开始控制晚饭碳水' },
+      { day: '11/09', xPos: 0.62, val: 72.7, note: '出差一周后回测' },
+      { day: '11/12', xPos: 0.73, val: 72.9, note: '' },
+      { day: '11/16', xPos: 0.88, val: 72.8, note: '' },
+      { day: '今天',  xPos: 1.00, val: 72.4, note: '本周最低值' }
+    ],
+    rhythm: {
+      timeLabel: '07:15 – 08:10',
+      timeDist: [0,0,0,9,4,0,0,0,0,0,0,0],
+      weekdayText: '平均每 3.8 天测一次',
+      weekdaySub: '近 30 天稳步下降 1.2 kg'
+    },
+    records: [
+      { id: 31, date: '今天', time: '07:35', title: '72.4 kg', note: '本周最低值，昨晚散步 40 分钟。', retro: false },
+      { id: 32, date: '11月16日', time: '07:48', title: '72.8 kg', note: '', retro: false }
+    ]
+  },
+
+  'bad': {
+    type: 'checkIn',
+    isBad: true,
+    name: '熬夜刷手机',
+    icon: 'moon',
+    accent: '#9A3412',
+    datePill: '11月19日 周四 · 04:00 结算',
+    chips: ['想减少的事', '零点后记一次'],
+    desc: '超过 00:00 仍在床上刷短视频时如实记录。',
+    todayDone: false, // false = 未发生（好事！）
+    streak: 6, // 连续克制 6 天
+    bestStreak: 11,
+    monthOccurred: 3,
+    monthDelta: '↓50% 较上月',
+    restraintRate: '84%',
+    sinceText: '近 30 天',
+    createdNovDay: 0,
+    vizMode: 'calendar',
+    selectedDay: 19,
+    // For bad habits: 'done' means occurred, 'missed' means clean/restrained
+    novMap: {
+      1:'missed',2:'missed',3:'done',4:'missed',5:'missed',
+      6:'missed',7:'done',8:'missed',9:'missed',10:'missed',
+      11:'missed',12:'missed',13:'done',14:'missed',15:'missed',
+      16:'missed',17:'missed',18:'missed',19:'missed'
+    },
+    dayDetails: {
+      19: { time: '今日未发生', note: '已连续 6 天保持零点前放下手机。' },
+      13: { time: '01:12', note: '周五晚刷 B 站停不下来，下次设 23:45 应用限额。' },
+      7:  { time: '00:48', note: '周六熬夜看球赛集锦。' },
+      3:  { time: '00:35', note: '加班回家太晚，报复性刷手机。' }
+    },
+    rhythm: {
+      timeLabel: '多发于 00:30 – 01:30',
+      timeDist: [8,3,0,0,0,0,0,0,0,0,0,2],
+      weekdayText: '工作日 1 次 · 周末 2 次',
+      weekdaySub: '周五/周六晚最容易破戒'
+    },
+    records: [
+      { id: 41, date: '11月13日', time: '01:12', title: '记录发生', note: '周五晚刷 B 站停不下来，下次设 23:45 应用限额。', retro: false },
+      { id: 42, date: '11月7日', time: '00:48', title: '记录发生', note: '周六熬夜看球赛集锦。', retro: false }
+    ]
+  }
+};
+
+let currentKey = 'checkin-rich';
+let state = JSON.parse(JSON.stringify(SCENARIOS[currentKey]));
+let noteComposerOpen = false;
+let toastTimer = null;
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2100);
+}
+
+function getIconSVG(name) {
+  const map = {
+    book: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+    sun:  `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`,
+    drop: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>`,
+    scale:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 10a4 4 0 0 1 8 0"/><path d="M12 10l2-2.5"/></svg>`,
+    moon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+  };
+  return map[name] || map.book;
+}
+
+function renderKPI() {
+  const s = state;
+  if (s.type === 'checkIn' && !s.isBad) {
+    const rate = Math.round((s.monthDone / s.monthElapsed) * 100);
+    return `
+      <div class="card">
+        <div class="kpi-strip">
+          <div class="kpi-cell">
+            <span class="kpi-label">当前连续</span>
+            <span class="kpi-value tabular" style="color:${s.accent}">${s.streak}<span class="unit">天</span></span>
+            <span class="kpi-sub">${s.sparse ? '正在起步' : `最长 ${s.bestStreak} 天`}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">${s.sparse ? '创建至今' : '本月完成'}</span>
+            <span class="kpi-value tabular">${s.monthDone}<span class="unit">/${s.monthElapsed}天</span></span>
+            <span class="kpi-sub ${s.sparse ? '' : 'up'}">${s.sparse ? s.monthDelta : `${rate}% · ${s.monthDelta}`}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">累计坚持</span>
+            <span class="kpi-value tabular">${s.totalDays}<span class="unit">天</span></span>
+            <span class="kpi-sub">${s.sinceText}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (s.type === 'checkIn' && s.isBad) {
+    return `
+      <div class="card">
+        <div class="kpi-strip">
+          <div class="kpi-cell">
+            <span class="kpi-label">已连续克制</span>
+            <span class="kpi-value tabular" style="color:var(--success)">${s.streak}<span class="unit">天</span></span>
+            <span class="kpi-sub">最长 ${s.bestStreak} 天</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">本月发生</span>
+            <span class="kpi-value tabular">${s.monthOccurred}<span class="unit">次</span></span>
+            <span class="kpi-sub up">${s.monthDelta}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">克制率</span>
+            <span class="kpi-value tabular">${s.restraintRate}</span>
+            <span class="kpi-sub">${s.sinceText}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (s.type === 'count') {
+    const pct = Math.min(100, Math.round((s.todayValue / s.target) * 100));
+    const met = s.todayValue >= s.target;
+    return `
+      <div class="card">
+        <div class="kpi-strip">
+          <div class="kpi-cell">
+            <span class="kpi-label">今日进度</span>
+            <span class="kpi-value tabular" style="color:${s.accent}">${s.todayValue}<span class="unit">/${s.target}${s.unit}</span></span>
+            <span class="kpi-sub ${met ? 'up' : ''}">${met ? '今日已达标 ✓' : `还差 ${s.target - s.todayValue} ${s.unit}`}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">本月日均</span>
+            <span class="kpi-value tabular">${s.monthAvg}<span class="unit">${s.unit}</span></span>
+            <span class="kpi-sub">达标 ${s.monthTargetDays} 天</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">本月累计</span>
+            <span class="kpi-value tabular">${s.monthTotal}<span class="unit">${s.unit}</span></span>
+            <span class="kpi-sub up">${s.monthDelta}</span>
+          </div>
+        </div>
+        <div class="count-progress-wrap">
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${pct}%; background:${s.accent}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (s.type === 'measure') {
+    const diff = (s.latestVal - s.prevVal).toFixed(1);
+    const sign = diff > 0 ? '+' : '';
+    return `
+      <div class="card">
+        <div class="kpi-strip">
+          <div class="kpi-cell">
+            <span class="kpi-label">最新记录</span>
+            <span class="kpi-value tabular" style="color:${s.accent}">${s.latestVal}<span class="unit">${s.unit}</span></span>
+            <span class="kpi-sub up">较上次 ${sign}${diff}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">近 7 次均值</span>
+            <span class="kpi-value tabular">${s.avgVal}<span class="unit">${s.unit}</span></span>
+            <span class="kpi-sub">距目标 ${(s.latestVal - s.target).toFixed(1)}</span>
+          </div>
+          <div class="kpi-cell">
+            <span class="kpi-label">区间范围</span>
+            <span class="kpi-value tabular" style="font-size:16px; padding-top:3px">${s.minVal}–${s.maxVal}</span>
+            <span class="kpi-sub">共 ${s.points.length} 次记录</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function renderCalendar() {
+  const s = state;
+  let cells = '';
+  for (let i = 0; i < NOV_START_OFFSET; i++) {
+    cells += `<div class="cal-cell empty"></div>`;
+  }
+  for (let d = 1; d <= NOV_DAYS; d++) {
+    const isFuture = d > TODAY_DAY;
+    const isBefore = s.createdNovDay && d < s.createdNovDay;
+    const status = s.novMap[d];
+    const isToday = d === TODAY_DAY;
+    const isSelected = d === s.selectedDay;
+
+    let cls = 'cal-cell tabular';
+    let style = '';
+    if (isBefore) cls += ' before';
+    else if (isFuture) cls += ' future';
+    else if (status === 'done') {
+      cls += ' done';
+      style = `background:${s.accent};`;
+    } else if (status === 'retro') {
+      cls += ' retro';
+      style = `background:color-mix(in srgb, ${s.accent} 13%, transparent); border-color:${s.accent}; color:${s.accent};`;
+    } else {
+      cls += ' missed';
+    }
+
+    if (isToday) cls += ' today';
+    if (isSelected) cls += ' selected';
+
+    const dot = (status === 'retro') ? `<span class="cal-dot" style="background:${s.accent}"></span>` : '';
+    const clickable = (!isBefore && !isFuture) ? `data-day="${d}"` : '';
+    cells += `<button class="${cls}" style="${style}" ${clickable}>${d}${dot}</button>`;
+  }
+
+  // Inspector for selected day
+  const sel = s.selectedDay || TODAY_DAY;
+  const st = s.novMap[sel];
+  const detail = (s.dayDetails && s.dayDetails[sel]) || null;
+  let mainText = '';
+  let noteText = '';
+  let actionHtml = '';
+
+  if (s.isBad) {
+    if (st === 'done') {
+      mainText = `11月${sel}日 ${weekdayOfNov(sel)} · 记录发生${detail?.time ? ' ' + detail.time : ''}`;
+      noteText = detail?.note || '无备注';
+    } else {
+      mainText = `11月${sel}日 ${weekdayOfNov(sel)} · 未发生（保持克制）`;
+      noteText = detail?.note || (sel === TODAY_DAY ? '今天继续保持' : '安稳度过这一天');
+    }
+  } else {
+    if (st === 'done' || st === 'retro') {
+      mainText = `11月${sel}日 ${weekdayOfNov(sel)} · ${st === 'retro' ? '已补录' : '已打卡'}${detail?.time ? ' · ' + detail.time : ''}`;
+      noteText = detail?.note || '点击下方记录可补充备注';
+    } else {
+      mainText = `11月${sel}日 ${weekdayOfNov(sel)} · 未打卡`;
+      noteText = sel === TODAY_DAY ? '今天还未完成打卡' : '这天漏卡了，可以在窗口内补录';
+      if (sel < TODAY_DAY && (!s.createdNovDay || sel >= s.createdNovDay)) {
+        actionHtml = `<button class="inline-retro-btn" data-retro-day="${sel}">补录这天</button>`;
+      }
+    }
+  }
+
+  const legend = s.isBad
+    ? `<span class="legend-item"><i class="legend-swatch" style="background:${s.accent}"></i>发生</span>
+       <span class="legend-item"><i class="legend-swatch" style="background:var(--inset)"></i>未发生</span>`
+    : `<span class="legend-item"><i class="legend-swatch" style="background:${s.accent}"></i>已完成</span>
+       <span class="legend-item"><i class="legend-swatch" style="border:1.5px solid ${s.accent}; background:color-mix(in srgb, ${s.accent} 13%, transparent)"></i>补录</span>
+       <span class="legend-item"><i class="legend-swatch" style="background:var(--inset)"></i>未记录</span>`;
+
+  return `
+    <div>
+      <div class="cal-weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+      <div class="cal-grid">${cells}</div>
+    </div>
+    <div class="day-inspector">
+      <div class="day-inspector-text">
+        <span class="day-inspector-main">${mainText}</span>
+        <span class="day-inspector-note">${noteText}</span>
+      </div>
+      ${actionHtml}
+    </div>
+    <div class="viz-footer">
+      <div class="legend">${legend}</div>
+      <button class="review-link" data-toast="进入「${s.name}」完整回顾整页">完整回顾 ›</button>
+    </div>
+  `;
+}
+
+function renderMatrix30() {
+  const s = state;
+  // 30 days ending Nov 19
+  let cells = '';
+  for (let i = 0; i < 30; i++) {
+    const dayOffset = i - 29; // -29 .. 0
+    const novDay = TODAY_DAY + dayOffset;
+    let status = 'missed';
+    if (novDay >= 1) {
+      if (s.createdNovDay && novDay < s.createdNovDay) status = 'before';
+      else status = s.novMap[novDay] || 'missed';
+    } else {
+      // Oct days mock for rich habits
+      if (s.sparse) status = 'before';
+      else if (s.isBad) status = (i === 4 || i === 10) ? 'done' : 'missed';
+      else status = (i % 4 === 2) ? 'missed' : 'done';
+    }
+    let bg = 'var(--inset)';
+    if (status === 'before') bg = 'transparent; border:1px dashed var(--border); opacity:0.35';
+    else if (status === 'done') bg = s.accent;
+    else if (status === 'retro') bg = `color-mix(in srgb, ${s.accent} 25%, transparent); border:1.5px solid ${s.accent}`;
+    cells += `<div class="m30-cell" style="background:${bg}" title="第 ${i+1} 天"></div>`;
+  }
+  return `
+    <div class="matrix-30">${cells}</div>
+    <div class="viz-footer">
+      <span class="legend">${s.sparse ? '仅显示创建后日期，不虚构历史' : '过去 30 天节奏一览（从左到右至今天）'}</span>
+      <button class="review-link" data-toast="进入「${s.name}」完整回顾整页">完整回顾 ›</button>
+    </div>
+  `;
+}
+
+function renderCountChart() {
+  const s = state;
+  const idx = s.selectedBarIdx ?? (s.series.length - 1);
+  const sel = s.series[idx];
+  const maxVal = Math.max(s.target + 2, ...s.series.map(d => d.val));
+  const W = 310, H = 112, padTop = 10, padBot = 22;
+  const chartH = H - padTop - padBot;
+  const targetY = padTop + chartH * (1 - s.target / maxVal);
+  const slotW = W / s.series.length;
+  const barW = Math.min(16, slotW * 0.56); // Chart V3: capped <= 18pt
+
+  const bars = s.series.map((d, i) => {
+    const h = Math.max(4, (d.val / maxVal) * chartH);
+    const x = i * slotW + (slotW - barW) / 2;
+    const y = padTop + chartH - h;
+    const isSel = i === idx;
+    const opacity = isSel ? 1 : (d.val >= s.target ? 0.72 : 0.35);
+    return `
+      <g class="chart-bar-hit" data-bar-idx="${i}" style="cursor:pointer">
+        <rect x="${i * slotW}" y="0" width="${slotW}" height="${H}" fill="transparent"/>
+        <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="5" fill="${s.accent}" fill-opacity="${opacity}"/>
+        ${isSel ? `<rect x="${(x - 1.5).toFixed(1)}" y="${(y - 1.5).toFixed(1)}" width="${(barW + 3).toFixed(1)}" height="${(h + 3).toFixed(1)}" rx="6" fill="none" stroke="var(--text)" stroke-width="1.3"/>` : ''}
+        <text x="${(i * slotW + slotW / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle" font-size="9.5" fill="${isSel ? 'var(--text)' : 'var(--text-tertiary)'}" font-weight="${isSel ? '600' : '400'}">${i === s.series.length - 1 ? '今' : d.day.slice(3)}</text>
+      </g>
+    `;
+  }).join('');
+
+  return `
+    <div class="chart-readout">
+      <span class="readout-val tabular">${sel.val} <span style="font-size:12px;font-weight:500;color:var(--text-secondary)">${s.unit}</span></span>
+      <span class="readout-meta">${sel.day} · ${sel.val >= s.target ? '已达目标' : `距目标差 ${s.target - sel.val} ${s.unit}`}</span>
+    </div>
+    <div class="chart-svg-wrap">
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <line x1="0" y1="${targetY.toFixed(1)}" x2="${W}" y2="${targetY.toFixed(1)}" stroke="${s.accent}" stroke-opacity="0.45" stroke-width="1" stroke-dasharray="3 3"/>
+        <text x="${W - 2}" y="${(targetY - 4).toFixed(1)}" text-anchor="end" font-size="9.5" fill="${s.accent}">目标 ${s.target}</text>
+        ${bars}
+      </svg>
+    </div>
+    <div class="viz-footer">
+      <span class="legend">点击任意柱查看当日数值</span>
+      <button class="review-link" data-toast="进入「${s.name}」完整回顾整页">完整回顾 ›</button>
+    </div>
+  `;
+}
+
+function renderMeasureChart() {
+  const s = state;
+  const idx = s.selectedPointIdx ?? (s.points.length - 1);
+  const sel = s.points[idx];
+  const minV = 71.5, maxV = 74.0;
+  const W = 310, H = 114, padX = 14, padTop = 12, padBot = 24;
+  const plotW = W - padX * 2;
+  const plotH = H - padTop - padBot;
+
+  const coords = s.points.map(p => ({
+    ...p,
+    x: padX + p.xPos * plotW,
+    y: padTop + (1 - (p.val - minV) / (maxV - minV)) * plotH
+  }));
+
+  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const areaD = `${pathD} L ${coords[coords.length - 1].x.toFixed(1)} ${padTop + plotH} L ${coords[0].x.toFixed(1)} ${padTop + plotH} Z`;
+
+  const dots = coords.map((c, i) => {
+    const isSel = i === idx;
+    return `
+      <g data-pt-idx="${i}" style="cursor:pointer">
+        <circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="14" fill="transparent"/>
+        ${isSel ? `<line x1="${c.x.toFixed(1)}" y1="${padTop}" x2="${c.x.toFixed(1)}" y2="${padTop + plotH}" stroke="${s.accent}" stroke-opacity="0.3" stroke-dasharray="2 2"/>` : ''}
+        <circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="${isSel ? 5 : 3.5}" fill="${isSel ? s.accent : 'var(--surface)'}" stroke="${s.accent}" stroke-width="2"/>
+        ${(i === 0 || i === coords.length - 1 || isSel) ? `<text x="${c.x.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="9.5" fill="${isSel ? 'var(--text)' : 'var(--text-tertiary)'}" font-weight="${isSel ? '600' : '400'}">${c.day}</text>` : ''}
+      </g>
+    `;
+  }).join('');
+
+  return `
+    <div class="chart-readout">
+      <span class="readout-val tabular">${sel.val} <span style="font-size:12px;font-weight:500;color:var(--text-secondary)">${s.unit}</span></span>
+      <span class="readout-meta">${sel.day}${sel.note ? ' · ' + sel.note : ''}</span>
+    </div>
+    <div class="chart-svg-wrap">
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${s.accent}" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="${s.accent}" stop-opacity="0.01"/>
+          </linearGradient>
+        </defs>
+        <path d="${areaD}" fill="url(#areaGrad)"/>
+        <path d="${pathD}" fill="none" stroke="${s.accent}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+      </svg>
+    </div>
+    <div class="viz-footer">
+      <span class="legend">按真实记录日期排布，断档如实拉开</span>
+      <button class="review-link" data-toast="进入「${s.name}」完整回顾整页">完整回顾 ›</button>
+    </div>
+  `;
+}
+
+function renderVizCard() {
+  const s = state;
+  let title = '11 月日历';
+  let segs = '';
+  let body = '';
+
+  if (s.type === 'checkIn') {
+    title = s.vizMode === 'calendar' ? '11 月打卡日历' : '近 30 天节奏';
+    segs = `
+      <div class="holo-seg">
+        <button class="holo-seg-btn ${s.vizMode === 'calendar' ? 'active' : ''}" data-viz="calendar">本月</button>
+        <button class="holo-seg-btn ${s.vizMode === '30d' ? 'active' : ''}" data-viz="30d">近30天</button>
+      </div>
+    `;
+    body = s.vizMode === 'calendar' ? renderCalendar() : renderMatrix30();
+  } else if (s.type === 'count') {
+    title = s.vizMode === 'chart' ? '近 10 天走势' : '11 月记录日历';
+    segs = `
+      <div class="holo-seg">
+        <button class="holo-seg-btn ${s.vizMode === 'chart' ? 'active' : ''}" data-viz="chart">走势</button>
+        <button class="holo-seg-btn ${s.vizMode === 'calendar' ? 'active' : ''}" data-viz="calendar">月历</button>
+      </div>
+    `;
+    body = s.vizMode === 'chart' ? renderCountChart() : renderCalendar();
+  } else {
+    title = '最近记录走势';
+    segs = `<span class="meta-chip" style="font-size:11px">10/24 – 今天</span>`;
+    body = renderMeasureChart();
+  }
+
+  return `
+    <div class="card viz-card">
+      <div class="card-head">
+        <span class="card-title">${title}</span>
+        ${segs}
+      </div>
+      ${body}
+    </div>
+  `;
+}
+
+function renderRhythm() {
+  const s = state;
+  if (s.rhythm.sparseHint) {
+    return `
+      <div class="rhythm-strip single">
+        <div class="rhythm-col">
+          <span class="rhythm-label">起步阶段</span>
+          <span class="rhythm-value">${s.rhythm.sparseHint}</span>
+        </div>
+      </div>
+    `;
+  }
+  const maxB = Math.max(...s.rhythm.timeDist, 1);
+  const bars = s.rhythm.timeDist.map(v => {
+    const h = Math.max(15, Math.round((v / maxB) * 100));
+    const op = v === 0 ? 0.14 : (0.35 + (v / maxB) * 0.65);
+    return `<span class="spark-bar" style="height:${h}%; background:${s.accent}; opacity:${op.toFixed(2)}"></span>`;
+  }).join('');
+
+  return `
+    <div class="rhythm-strip">
+      <div class="rhythm-col">
+        <span class="rhythm-label">${s.isBad ? '高发时段' : '常记录时段'}</span>
+        <span class="rhythm-value tabular">${s.rhythm.timeLabel}</span>
+        <div class="spark-bars" aria-hidden="true">${bars}</div>
+      </div>
+      <div class="rhythm-col">
+        <span class="rhythm-label">节律观察</span>
+        <span class="rhythm-value">${s.rhythm.weekdayText}</span>
+        <span class="weekday-pills">${s.rhythm.weekdaySub}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderRecords() {
+  const s = state;
+  const hasToday = s.records.some(r => r.date === '今天');
+  const title = hasToday ? '今天的记录' : '最近的记录';
+
+  const rows = s.records.length === 0
+    ? `<div class="empty-records">还没有记录，点击下方按钮开始第一笔。</div>`
+    : s.records.map(r => `
+        <div class="record-row">
+          <div class="record-left">
+            <div class="record-meta">
+              ${r.date !== '今天' ? `<span class="date-tag">${r.date}</span>` : ''}
+              <span class="tabular">${r.time}</span>
+              ${r.retro ? `<span class="retro-tag" style="color:${s.accent}; border-color:color-mix(in srgb, ${s.accent} 40%, transparent)">补录</span>` : ''}
+            </div>
+            <div class="record-title">${r.title}</div>
+            ${r.note ? `<div class="record-note">${r.note}</div>` : ''}
+          </div>
+          <button class="record-edit-btn" data-toast="编辑或删除这条记录" aria-label="编辑记录">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.2" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.8" cy="8" r="1.2"/></svg>
+          </button>
+        </div>
+      `).join('');
+
+  return `
+    <div>
+      <div class="section-head">
+        <span class="section-title">${title} <span class="count-badge tabular">${s.records.length} 条</span></span>
+        <button class="review-link" id="openNoteInline" style="font-weight:500">+ 写备注</button>
+      </div>
+      <div class="card records-list" style="margin-top:8px">
+        ${rows}
+        <div class="note-composer ${noteComposerOpen ? 'open' : ''}" id="noteComposer">
+          <input class="note-input" id="noteInput" type="text" placeholder="记录一点此刻的感受或细节…" />
+          <div class="note-composer-actions">
+            <button class="mini-btn ghost" id="cancelNoteBtn">取消</button>
+            <button class="mini-btn primary" id="saveNoteBtn">保存备注</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderBottomBar() {
+  const s = state;
+  const bar = document.getElementById('bottomBar');
+
+  if (s.type === 'checkIn' && !s.isBad) {
+    if (s.todayDone) {
+      bar.innerHTML = `
+        <button class="primary-cta" id="ctaNote" style="background:color-mix(in srgb, ${s.accent} 13%, var(--surface)); color:${s.accent}; border:0.5px solid color-mix(in srgb, ${s.accent} 28%, transparent)">
+          <span>✓ 今日已完成 · 写条备注</span>
+        </button>
+        <button class="secondary-cta danger-ghost" id="ctaUndo">撤销</button>
+      `;
+    } else {
+      bar.innerHTML = `
+        <button class="primary-cta" id="ctaCheckIn" style="background:${s.accent}; color:#fff">
+          <span>✓ 完成今天打卡</span>
+        </button>
+        <button class="secondary-cta" id="ctaRetro" data-toast="打开补录漏卡弹层">补录</button>
+      `;
+    }
+    return;
+  }
+
+  if (s.type === 'checkIn' && s.isBad) {
+    if (s.todayDone) {
+      bar.innerHTML = `
+        <button class="primary-cta" id="ctaBadUndo" style="background:var(--inset); color:var(--text)">
+          <span>撤销今日发生记录</span>
+        </button>
+      `;
+    } else {
+      bar.innerHTML = `
+        <button class="primary-cta" id="ctaBadLog" style="background:color-mix(in srgb, ${s.accent} 14%, var(--surface)); color:${s.accent}; border:0.5px solid color-mix(in srgb, ${s.accent} 30%, transparent)">
+          <span>如实记录今天发生</span>
+        </button>
+      `;
+    }
+    return;
+  }
+
+  if (s.type === 'count') {
+    bar.innerHTML = `
+      <button class="secondary-cta" id="ctaDec" aria-label="减1">−1</button>
+      <button class="primary-cta" id="ctaInc" style="background:${s.accent}; color:#fff">
+        <span>+ 1 ${s.unit}</span>
+      </button>
+      <button class="secondary-cta" data-toast="打开自定义数量与备注输入">记一笔</button>
+    `;
+    return;
+  }
+
+  if (s.type === 'measure') {
+    bar.innerHTML = `
+      <button class="primary-cta" id="ctaMeasure" style="background:${s.accent}; color:#fff">
+        <span>+ 再记录一次数值</span>
+      </button>
+    `;
+  }
+}
+
+function render() {
+  const s = state;
+  const sheet = document.getElementById('sheet');
+  sheet.style.setProperty('--accent-color', s.accent);
+  document.getElementById('navDatePill').textContent = s.datePill;
+
+  let statusTag = '';
+  if (s.type === 'checkIn' && !s.isBad) {
+    statusTag = s.todayDone
+      ? `<span class="status-tag" style="background:var(--success-bg); color:var(--success)">今日已打卡</span>`
+      : `<span class="status-tag" style="background:var(--inset); color:var(--text-secondary)">今日待打卡</span>`;
+  } else if (s.isBad) {
+    statusTag = s.todayDone
+      ? `<span class="status-tag" style="background:var(--error-bg); color:var(--error)">今日已记录发生</span>`
+      : `<span class="status-tag" style="background:var(--success-bg); color:var(--success)">今日未发生</span>`;
+  }
+
+  const scroll = document.getElementById('sheetScroll');
+  scroll.innerHTML = `
+    <div class="identity">
+      <div class="habit-icon-box" style="background:color-mix(in srgb, ${s.accent} 13%, transparent); color:${s.accent}">
+        ${getIconSVG(s.icon)}
+      </div>
+      <div class="identity-main">
+        <div class="habit-title-row">
+          <h1 class="habit-name">${s.name}</h1>
+          ${statusTag}
+        </div>
+        <div class="habit-meta-row">
+          ${s.chips.map(c => `<span class="meta-chip">${c}</span>`).join('')}
+        </div>
+        ${s.desc ? `<p class="habit-desc">${s.desc}</p>` : ''}
+      </div>
+    </div>
+    ${renderKPI()}
+    ${renderVizCard()}
+    ${renderRhythm()}
+    ${renderRecords()}
+  `;
+
+  renderBottomBar();
+  bindDynamicEvents();
+}
+
+function bindDynamicEvents() {
+  // Segmented switch
+  document.querySelectorAll('[data-viz]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.vizMode = btn.dataset.viz;
+      render();
+    });
+  });
+
+  // Calendar day selection
+  document.querySelectorAll('[data-day]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.selectedDay = Number(btn.dataset.day);
+      render();
+    });
+  });
+
+  // Inline retroactive check-in from calendar
+  document.querySelectorAll('[data-retro-day]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = Number(btn.dataset.retroDay);
+      state.novMap[d] = 'retro';
+      state.monthDone += 1;
+      state.totalDays += 1;
+      state.dayDetails[d] = { time: '刚刚补录', retro: true, note: '通过日历直接补录' };
+      showToast(`已补录 11月${d}日`);
+      render();
+    });
+  });
+
+  // Bar chart tap
+  document.querySelectorAll('[data-bar-idx]').forEach(g => {
+    g.addEventListener('click', () => {
+      state.selectedBarIdx = Number(g.dataset.barIdx);
+      render();
+    });
+  });
+
+  // Measure point tap
+  document.querySelectorAll('[data-pt-idx]').forEach(g => {
+    g.addEventListener('click', () => {
+      state.selectedPointIdx = Number(g.dataset.ptIdx);
+      render();
+    });
+  });
+
+  // Toast triggers
+  document.querySelectorAll('[data-toast]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('popoverMenu').classList.remove('open');
+      showToast(el.dataset.toast);
+    });
+  });
+
+  // Note composer
+  const openNote = document.getElementById('openNoteInline');
+  if (openNote) {
+    openNote.addEventListener('click', () => {
+      noteComposerOpen = !noteComposerOpen;
+      render();
+      if (noteComposerOpen) {
+        setTimeout(() => document.getElementById('noteInput')?.focus(), 40);
+      }
+    });
+  }
+  const cancelNote = document.getElementById('cancelNoteBtn');
+  if (cancelNote) {
+    cancelNote.addEventListener('click', () => {
+      noteComposerOpen = false;
+      render();
+    });
+  }
+  const saveNote = document.getElementById('saveNoteBtn');
+  if (saveNote) {
+    saveNote.addEventListener('click', () => {
+      const val = document.getElementById('noteInput')?.value.trim();
+      if (!val) return showToast('请输入备注内容');
+      if (state.records.length > 0 && state.records[0].date === '今天') {
+        state.records[0].note = val;
+      } else {
+        state.records.unshift({ id: Date.now(), date: '今天', time: '12:45', title: '今日备注', note: val, retro: false });
+      }
+      noteComposerOpen = false;
+      showToast('备注已保存');
+      render();
+    });
+  }
+
+  // Bottom CTA handlers
+  document.getElementById('ctaCheckIn')?.addEventListener('click', () => {
+    state.todayDone = true;
+    state.streak += 1;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
+    state.monthDone += 1;
+    state.totalDays += 1;
+    state.novMap[TODAY_DAY] = 'done';
+    state.selectedDay = TODAY_DAY;
+    state.dayDetails[TODAY_DAY] = { time: '12:45', note: '' };
+    state.records.unshift({ id: Date.now(), date: '今天', time: '12:45', title: '已完成打卡', note: '', retro: false });
+    showToast('今天打卡已完成');
+    render();
+  });
+
+  document.getElementById('ctaUndo')?.addEventListener('click', () => {
+    state.todayDone = false;
+    state.streak = Math.max(0, state.streak - 1);
+    state.monthDone = Math.max(0, state.monthDone - 1);
+    state.totalDays = Math.max(0, state.totalDays - 1);
+    state.novMap[TODAY_DAY] = 'missed';
+    state.records = state.records.filter(r => r.date !== '今天');
+    showToast('已撤销今日打卡');
+    render();
+  });
+
+  document.getElementById('ctaNote')?.addEventListener('click', () => {
+    noteComposerOpen = true;
+    render();
+    const scroll = document.getElementById('sheetScroll');
+    scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'smooth' });
+    setTimeout(() => document.getElementById('noteInput')?.focus(), 120);
+  });
+
+  document.getElementById('ctaInc')?.addEventListener('click', () => {
+    state.todayValue += 1;
+    state.monthTotal += 1;
+    state.series[state.series.length - 1].val = state.todayValue;
+    state.selectedBarIdx = state.series.length - 1;
+    state.records.unshift({ id: Date.now(), date: '今天', time: '12:45', title: `+1 ${state.unit}`, note: '', retro: false });
+    showToast(`已记录 +1 ${state.unit}（今日 ${state.todayValue}/${state.target}）`);
+    render();
+  });
+
+  document.getElementById('ctaDec')?.addEventListener('click', () => {
+    if (state.todayValue <= 0) return;
+    state.todayValue -= 1;
+    state.monthTotal -= 1;
+    state.series[state.series.length - 1].val = state.todayValue;
+    state.selectedBarIdx = state.series.length - 1;
+    showToast(`已减 1 ${state.unit}`);
+    render();
+  });
+
+  document.getElementById('ctaMeasure')?.addEventListener('click', () => {
+    showToast('打开数值输入键盘（支持补填备注）');
+  });
+
+  document.getElementById('ctaBadLog')?.addEventListener('click', () => {
+    state.todayDone = true;
+    state.streak = 0;
+    state.monthOccurred += 1;
+    state.novMap[TODAY_DAY] = 'done';
+    state.selectedDay = TODAY_DAY;
+    state.dayDetails[TODAY_DAY] = { time: '12:45', note: '已如实记录' };
+    state.records.unshift({ id: Date.now(), date: '今天', time: '12:45', title: '记录发生', note: '', retro: false });
+    showToast('已如实记录，明天重新开始');
+    render();
+  });
+
+  document.getElementById('ctaBadUndo')?.addEventListener('click', () => {
+    state.todayDone = false;
+    state.streak = 6;
+    state.monthOccurred = Math.max(0, state.monthOccurred - 1);
+    state.novMap[TODAY_DAY] = 'missed';
+    state.records = state.records.filter(r => r.date !== '今天');
+    showToast('已撤销今日发生记录');
+    render();
+  });
+}
+
+// Scenario Switcher
+document.getElementById('scenarioGroup').addEventListener('click', e => {
+  const btn = e.target.closest('.scenario-btn');
+  if (!btn) return;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentKey = btn.dataset.scenario;
+  state = JSON.parse(JSON.stringify(SCENARIOS[currentKey]));
+  noteComposerOpen = false;
+  render();
+});
+
+// Theme Toggle
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeLabel').textContent = isDark ? '深色模式' : '浅色模式';
+});
+
+// Menu Popover
+document.getElementById('menuBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('popoverMenu').classList.toggle('open');
+});
+document.addEventListener('click', () => {
+  document.getElementById('popoverMenu').classList.remove('open');
+});
+document.getElementById('closeBtn').addEventListener('click', () => {
+  showToast('收起抽屉，返回「习惯 · 今天」');
+});
+
+render();
+</script>
+</body>
+</html>

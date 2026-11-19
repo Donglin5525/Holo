@@ -19,6 +19,8 @@ struct HoloMiniTrendChart: View {
     /// nil = 中性色（测量类——「跌=好」取决于目标方向，不预设立场）
     var deltaRisingIsBad: Bool? = nil
     var height: CGFloat = 46
+    /// 单点图前缀文案（同日多条记录按日聚合为 1 个点时，调用方可传「当日最新」避免与多条明细打架）
+    var singlePointPrefix: String = String(localized: "唯一记录")
 
     private var calendar: Calendar { .current }
 
@@ -37,22 +39,33 @@ struct HoloMiniTrendChart: View {
                 miniChart
                 dateRow
             } else if let only = points.first {
-                // 单点：读数照常，线退化为居中一个点
+                // 单点：读数照常，虚线轨道居中落一颗 10pt 点，底部附日期锚点
                 HStack(spacing: 8) {
-                    Text("唯一记录 \(HoloChartFormat.date(only.date))")
+                    Text("\(singlePointPrefix) \(HoloChartFormat.date(only.date))")
                         .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
                     Text(valueText(only.value)).font(.headline.weight(.semibold))
                         .monospacedDigit().foregroundStyle(Color.holoToolText)
                 }
                 Chart {
+                    RuleMark(y: .value("基线", only.value))
+                        .foregroundStyle(color.opacity(0.22))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     PointMark(x: .value("时间", 0), y: .value("数值", only.value))
                         .foregroundStyle(color)
-                        .symbol { Circle().fill(color).stroke(Color.holoToolSurface, lineWidth: 1.5) }
+                        // 自定义 symbol 不吃 symbolSize，必须 frame 定径（与末点 10pt 选中点语言一致）
+                        .symbol {
+                            Circle().fill(color).stroke(Color.holoToolSurface, lineWidth: 1.5)
+                                .frame(width: 10, height: 10)
+                        }
                 }
                 .chartXScale(domain: -1...1)
                 .chartYScale(domain: (only.value - 1)...(only.value + 1))
                 .chartXAxis(.hidden).chartYAxis(.hidden).chartLegend(.hidden)
-                .frame(height: height)
+                .frame(height: min(height, 28))
+                Text(HoloChartFormat.date(only.date))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .accessibilityElement(children: .ignore)
