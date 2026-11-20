@@ -158,6 +158,21 @@ nonisolated final class DiscoveryTopicStore {
         Set(deferredTopics.filter { $0.until > now }.map(\.key))
     }
 
+    // MARK: - v4 首启迁移（2026-11-21 真机实报：库存旧卡把 v4 挡在门外）
+
+    /// 首次启用 v4 时一次性清空 v3 库存队列。
+    ///
+    /// 背景（真机实报定谳）：补货守卫是「队列空才跑 v4」，而存量 v3 卡（基线打分
+    /// 定谳为纯复述垃圾）一张张出会把 v4 挡在门外最长两周，用户每天先吃一张旧垃圾卡。
+    /// v3 的兜底角色是「v4 失败时现算一张」（03-I3），不是吃库存——库存一律丢弃；
+    /// 已展示/拒绝历史保留（recentTopics 语义不受影响）。
+    func discardLegacyQueueIfNeeded() {
+        let key = "holo.discovery.insight.v4QueueCleared.v1"
+        guard !defaults.bool(forKey: key) else { return }
+        defaults.set(true, forKey: key)
+        writeQueue([])
+    }
+
     // MARK: - v4 洞察线（2026-11-20 方案 03-I5：角度记忆 + 当日判定标记）
 
     private let insightShownAngleKey = "holo.discovery.insight.shownAngles.v1"

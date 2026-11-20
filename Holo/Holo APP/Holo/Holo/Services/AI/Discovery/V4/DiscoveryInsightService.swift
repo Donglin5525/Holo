@@ -30,6 +30,8 @@ enum DiscoveryInsightService {
             return await DiscoveryTopicService.refreshIfNeeded(proposals: proposals, now: now)
         }
         guard !store.insightV2NoneWorthwhileToday(now: now) else { return false }
+        // 首启迁移：一次性丢弃 v3 库存队列（真机实报：库存卡把 v4 挡门外+每天喂旧垃圾卡）。
+        store.discardLegacyQueueIfNeeded()
         guard !store.insightV2AttemptedToday(now: now) else { return false }
         guard store.queue.isEmpty else { return false }
         guard HoloAIDataProcessingConsent.shared.isGranted else { return false }

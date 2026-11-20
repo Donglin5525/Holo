@@ -308,6 +308,25 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertNil(decoded.angleKey)
     }
 
+    func testTopicStoreDiscardLegacyQueueOnce() {
+        let store = makeStore()
+        let now = Date()
+        store.enqueue(DiscoveryTopicStore.QueuedCard(
+            observationId: "obs-legacy", topicKey: "k-legacy", title: "t", body: "b",
+            isModelCopy: false, selectedAt: now, windowEnd: now.addingTimeInterval(6 * 7 * 86_400)
+        ))
+        XCTAssertFalse(store.queue.isEmpty)
+        store.discardLegacyQueueIfNeeded()
+        XCTAssertTrue(store.queue.isEmpty, "首启应清空库存")
+        // 幂等：清空后新入队的卡不被二次清掉
+        store.enqueue(DiscoveryTopicStore.QueuedCard(
+            observationId: "obs-new", topicKey: "k-new", title: "t", body: "b",
+            isModelCopy: true, selectedAt: now, windowEnd: now.addingTimeInterval(86_400)
+        ))
+        store.discardLegacyQueueIfNeeded()
+        XCTAssertEqual(store.queue.count, 1)
+    }
+
     func testTopicStoreQuotaWallMarker() {
         let store = makeStore()
         let now = Date()
