@@ -702,6 +702,27 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_DISCOVERY_TOPIC_REQUESTS_PER_DAY ?? 5),
       },
     },
+    // v4 洞察化（2026-11-20 方案 02-B1）：画像+特征+意图 → 一条及格线洞察。
+    // 模型与 portrait_synthesis 同档（Flash 档）；reasoning=low——none 档会输出坏 JSON
+    // （02-B1 明示）；每设备每天 ≤3 次（每天一条 + 重试余量）。
+    discovery_insight_v2: {
+      provider: process.env.HOLO_DISCOVERY_INSIGHT_PROVIDER
+        ?? process.env.HOLO_PORTRAIT_SYNTHESIS_PROVIDER
+        ?? process.env.HOLO_UNDERSTANDING_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DISCOVERY_INSIGHT_MODEL
+        ?? process.env.HOLO_PORTRAIT_SYNTHESIS_MODEL
+        ?? process.env.HOLO_UNDERSTANDING_MODEL
+        ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DISCOVERY_INSIGHT_TEMPERATURE ?? 0.4),
+      // 输出=一个 selected 对象（≤90 字正文+≤3 条证据模板），2048 富余。
+      maxTokens: Number(process.env.HOLO_DISCOVERY_INSIGHT_MAX_TOKENS ?? 2048),
+      reasoningEffort: process.env.HOLO_DISCOVERY_INSIGHT_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_INSIGHT_REQUESTS_PER_MINUTE ?? 1),
+        perDay: Number(process.env.HOLO_DISCOVERY_INSIGHT_REQUESTS_PER_DAY ?? 3),
+      },
+    },
   },
   // HoloAI「一个发现」服务端总开关与预算初值（2026-10-23 实施包 §3/§4）。
   // enabled 默认 false：kill switch——质量或成本问题时改 env 重启即全量停新调用（T49）。
@@ -710,6 +731,9 @@ const DEFAULT_CONFIG = {
     // v3 选题端点独立灰度闸（2026-11-08 方案）：与旧批链路开关互不影响；
     // 旧 enabled 已关闸退役，新端点单独放量。回退=env 改 false 重启。
     topicEnabled: process.env.HOLO_DISCOVERY_TOPIC_ENABLED === "true",
+    // v4 洞察灰度闸（2026-11-20 方案 02-B5）：默认 false；关闭时 discovery_insight_v2
+    // 返回 noneReason="disabled"，iOS 回落 v3 链路。回退=env 改 false 重启。
+    insightV2Enabled: process.env.HOLO_DISCOVERY_INSIGHT_V2_ENABLED === "true",
     topicMaxCandidates: Number(process.env.HOLO_DISCOVERY_TOPIC_MAX_CANDIDATES ?? 30),
     policyVersion: process.env.HOLO_DISCOVERY_POLICY_VERSION ?? "v1",
     allowedDomains: ["thought", "task", "habit"],

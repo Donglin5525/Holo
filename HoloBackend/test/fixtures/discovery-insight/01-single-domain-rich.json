@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_coffee",
+      "dimension": "longTermPattern",
+      "confidence": "confirmed",
+      "statement": "长期每天喝咖啡",
+      "evidenceSummary": "近半年消费记录",
+      "sourceDomains": [
+        "finance"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_concept_coffee",
+      "domain": "finance",
+      "description": "反复出现的「咖啡」消费，多发生在下午",
+      "direction": "up",
+      "slots": [
+        {
+          "name": "recentCount",
+          "unit": "times"
+        },
+        {
+          "name": "totalCount",
+          "unit": "times"
+        }
+      ]
+    },
+    {
+      "id": "f_concept_milktea",
+      "domain": "finance",
+      "description": "反复出现的「奶茶」消费，多发生在晚间",
+      "direction": "stable",
+      "slots": [
+        {
+          "name": "recentCount",
+          "unit": "times"
+        },
+        {
+          "name": "totalCount",
+          "unit": "times"
+        }
+      ]
+    },
+    {
+      "id": "f_concept_latenight",
+      "domain": "finance",
+      "description": "深夜时段「外卖」消费模式与平时不同",
+      "direction": "divergent",
+      "slots": [
+        {
+          "name": "latePct",
+          "unit": "percent"
+        },
+        {
+          "name": "lateCount",
+          "unit": "times"
+        }
+      ]
+    }
+  ],
+  "userIntents": []
+}

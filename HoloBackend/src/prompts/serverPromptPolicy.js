@@ -66,6 +66,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   discovery_verify_v1: "discovery_verify_v1",
   // v3 选题+文案填空（2026-11-08）：模板回填后用户直接阅读
   discovery_topic_v1: "discovery_topic_v1",
+  // v4 洞察化（2026-11-20 方案 02-B2）：走通用 chat 网关（缓冲校验+SSE 心跳，见 app.js）
+  discovery_insight_v2: "discovery_insight_v2",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
@@ -100,6 +102,8 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   "discovery_verify_v1",
   // v3 选题模板（2026-11-08）：按请求 language 生成对应语言文案
   "discovery_topic_v1",
+  // v4 洞察（2026-11-20）：headline/insight 用户直接阅读 → 多语言
+  "discovery_insight_v2",
 ]);
 
 // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：

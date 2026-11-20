@@ -53,6 +53,10 @@ import { createDiscoveryRunStore } from "./discovery/discoveryRunStore.js";
 import { createDiscoveryStageJobStore } from "./discovery/discoveryStageJobStore.js";
 import { registerDiscoveryRoutes, DISCOVERY_PURPOSES } from "./discovery/discoveryController.js";
 import { registerTopicSelectionRoutes } from "./discovery/discoveryTopicController.js";
+import {
+  validateInsightPacket, parseModelDraft, evaluateInsightDraft, repairInsightDraft,
+  buildDraftEnvelope, extractModelJson,
+} from "./discovery/insightGate.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
@@ -1024,6 +1028,19 @@ export function createApp(overrides = {}) {
           return streamModerationBlocked({ requestId: logId, quotaType });
         }
         return context.json(moderationRefusalCompletion(), 200);
+      }
+
+      // 「一个发现」v4 洞察（2026-11-20 方案 02-B4 方案 A）：缓冲后校验模式——
+      // 不透传模型原始流（闸门必须在完整输出上跑），对客户端以 SSE 心跳保活，
+      // 收齐 → insightGate → 轻量修复/拒因重试一次 → 单个最终 chunk 输出校验过的
+      // InsightDraft JSON。iOS SSEParser 跳过 ": hb" 注释行，天然兼容。
+      if (purpose === "discovery_insight_v2") {
+        return await handleInsightV2Completion(context, {
+          request, upstreamRequest, provider, route, config,
+          language: context.req.header("x-holo-language"),
+          logId, captureAiCallLogs, adminLogStore,
+          quotaReservation, quotaActionLedgerStore,
+        });
       }
 
       if (upstreamRequest.stream) {
@@ -2633,6 +2650,164 @@ function extractUsageFromSseChunk(chunk) {
   return null;
 }
 
+// 「一个发现」v4 洞察：缓冲校验 + SSE 心跳（2026-11-20 方案 02-B4 方案 A）。
+// 闸门权威在服务端（insightGate 六检查 + 拒因重试一次）；对客户端流只发
+// 心跳（SSE 注释行，iOS SSEParser 自动跳过）与一个最终 chunk（校验过的
+// InsightDraft JSON）。stream=false（curl/测试）→ 普通 completion JSON。
+// 心跳间隔 5s：端到端字节流动防 NAT 切断（>20s AI 调用必须流式的红线）。
+async function handleInsightV2Completion(context, deps) {
+  const {
+    request, upstreamRequest, provider, config, language,
+    logId, captureAiCallLogs, adminLogStore, quotaReservation, quotaActionLedgerStore,
+  } = deps;
+
+  const finishLog = (status, extra = {}) => {
+    if (!captureAiCallLogs || !logId) return;
+    adminLogStore.finishAiCall(logId, { status, ...extra });
+  };
+  const commit = () => commitQuota(quotaActionLedgerStore, quotaReservation);
+  const release = () => releaseQuota(quotaActionLedgerStore, quotaReservation);
+
+  // 输入包：user message 是 InsightInputPacket JSON（与 portrait_synthesis 同模式）。
+  const lastUser = [...request.messages].reverse().find((message) => message.role === "user");
+  let packet;
+  try {
+    packet = validateInsightPacket(extractModelJson(String(lastUser?.content ?? "")));
+  } catch (error) {
+    release();
+    finishLog("error", { error: serializeError(error) });
+    throw error; // 400 由外层 catch 统一返回
+  }
+
+  // 灰度闸（02-B5）：关闭时返回 noneReason="disabled"（iOS 收到即回落 v3），不调上游。
+  if (config.discovery?.insightV2Enabled !== true) {
+    const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "disabled" });
+    commit();
+    finishLog("success", { response: { text: draftJSON }, gate: { disabled: true } });
+    return insightCompletionResponse(context, draftJSON, upstreamRequest.stream, logId);
+  }
+
+  const invoke = typeof provider.completeViaStream === "function"
+    ? provider.completeViaStream.bind(provider)
+    : provider.complete.bind(provider);
+  const callUpstream = async (messages) => {
+    const result = await invoke({
+      ...upstreamRequest,
+      messages,
+      stream: false, // 上游缓冲拉取：闸门必须看完整输出
+      responseFormat: upstreamRequest.responseFormat ?? { type: "json_object" },
+    });
+    return { text: result?.choices?.[0]?.message?.content ?? "", usage: result?.usage ?? null };
+  };
+  // 重试时用归一化后的 packet 重建消息（拒因以 retryHint 注入，v3 qwen 教训）。
+  const buildMessages = (retryHint) => injectServerPrompt("discovery_insight_v2", [
+    { role: "user", content: JSON.stringify(retryHint ? { ...packet, retryHint } : packet) },
+  ], { language }).messages;
+
+  const generate = async () => {
+    let lastReason = "not_json";
+    let accepted = null;
+    let retried = false;
+    let lastUsage = null;
+    for (let attempt = 0; attempt < 2 && !accepted; attempt += 1) {
+      if (attempt > 0) retried = true;
+      const { text, usage } = await callUpstream(buildMessages(
+        attempt === 0
+          ? null
+          : `上一次输出被拒，拒因=${lastReason}。请修复后重新输出完整 JSON。`
+      ));
+      lastUsage = usage ?? lastUsage;
+      const parsed = parseModelDraft(text);
+      if (!parsed.ok) { lastReason = parsed.reason; continue; }
+      if (parsed.none) { accepted = { noneReason: parsed.noneReason }; break; }
+      let check = evaluateInsightDraft(parsed.draft, packet);
+      if (!check.ok) {
+        const repaired = repairInsightDraft(parsed.draft, packet);
+        check = evaluateInsightDraft(repaired, packet);
+        if (check.ok) parsed.draft = repaired;
+      }
+      if (!check.ok) { lastReason = check.reason; continue; }
+      accepted = { selected: parsed.draft };
+    }
+    const gate = {
+      accepted: !!accepted?.selected,
+      reason: accepted ? null : lastReason,
+      noneReason: accepted?.noneReason ?? (accepted?.selected ? null : "gate_rejected"),
+      criteria: accepted?.selected?.criteria ?? null,
+      retried,
+    };
+    const draftJSON = accepted?.selected
+      ? buildDraftEnvelope({ selected: accepted.selected })
+      : buildDraftEnvelope({ selected: null, noneReason: accepted?.noneReason ?? "gate_rejected" });
+    return { draftJSON, gate, usage: lastUsage };
+  };
+
+  if (!upstreamRequest.stream) {
+    try {
+      const { draftJSON, gate, usage } = await generate();
+      commit();
+      finishLog("success", { response: { text: draftJSON }, usage, gate });
+      return insightCompletionResponse(context, draftJSON, false, logId);
+    } catch (error) {
+      release();
+      finishLog("error", { error: serializeError(error) });
+      throw error;
+    }
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const heartbeat = setInterval(() => {
+        try { controller.enqueue(encoder.encode(": hb\n\n")); } catch { /* 流已关闭 */ }
+      }, 5000);
+      try {
+        const { draftJSON, gate, usage } = await generate();
+        clearInterval(heartbeat);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: draftJSON } }] })}\n\n`));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        commit();
+        finishLog("success", { response: { text: draftJSON }, usage, gate });
+        controller.close();
+      } catch (error) {
+        clearInterval(heartbeat);
+        release();
+        finishLog("error", { error: serializeError(error) });
+        const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
+        try {
+          controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
+          controller.close();
+        } catch { /* 流已关闭（客户端断连）：清理已完成 */ }
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "cache-control": "no-cache",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream; charset=UTF-8",
+      ...(logId ? { "x-holo-request-id": logId } : {}),
+    },
+  });
+}
+
+function insightCompletionResponse(context, draftJSON, stream, requestId) {
+  if (stream) {
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content: draftJSON } }] })}\n\ndata: [DONE]\n\n`,
+      {
+        headers: {
+          "content-type": "text/event-stream; charset=UTF-8",
+          ...(requestId ? { "x-holo-request-id": requestId } : {}),
+        },
+      },
+    );
+  }
+  context.header("Cache-Control", "no-store");
+  if (requestId) context.header("X-Holo-Request-Id", requestId);
+  return context.json({ choices: [{ message: { role: "assistant", content: draftJSON }, finish_reason: "stop" }] });
+}
+
 function streamChat(context, provider, request, options = {}) {
   const stream = new ReadableStream({
     async start(controller) {
@@ -2750,6 +2925,8 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "personal_context_extraction" || purpose === "personal_context_verification") return null;
   if (purpose === "understanding_proposal") return null; // 理解引擎提案：后台桶（与个人情境同口径）
   if (purpose === "portrait_synthesis") return null; // 全局画像与跨模块洞察合成：后台桶
+  // v4 洞察（2026-11-20）：每天一条的后台生成，不占会员池（route 另有 3 次/日兜量）。
+  if (purpose === "discovery_insight_v2") return null;
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;

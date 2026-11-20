@@ -114,17 +114,29 @@ struct DiscoveryReviewSheet: View {
                     title: "今日一条",
                     trailing: Date().formatted(.dateTime.month().day().weekday(.wide))
                 )
-                DiscoveryTodayCard(
-                    card: card,
-                    evidence: matchedItem(for: card).flatMap { item in
-                        item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot
-                    },
-                    showsEvidence: $showsTodayEvidence,
-                    isDisabled: actionTask != nil,
-                    onConfirm: { applyToday(.confirm, card: card) },
-                    onInaccurate: { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) },
-                    onDefer: { applyToday(.deferCooldown, card: card) }
-                )
+                if card.isV4 {
+                    // v4 洞察卡（2026-11-20 方案 03-I6）：判断/依据/提问结构，反馈走画像回流。
+                    DiscoveryInsightCardView(
+                        card: card,
+                        showsEvidence: $showsTodayEvidence,
+                        isDisabled: actionTask != nil,
+                        onConfirm: { applyV4Today(.confirm, card: card) },
+                        onInaccurate: { applyV4Today(.inaccurate, card: card) },
+                        onDefer: { applyV4Today(.defer, card: card) }
+                    )
+                } else {
+                    DiscoveryTodayCard(
+                        card: card,
+                        evidence: matchedItem(for: card).flatMap { item in
+                            item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot
+                        },
+                        showsEvidence: $showsTodayEvidence,
+                        isDisabled: actionTask != nil,
+                        onConfirm: { applyToday(.confirm, card: card) },
+                        onInaccurate: { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) },
+                        onDefer: { applyToday(.deferCooldown, card: card) }
+                    )
+                }
             }
             .padding(.top, HoloSpacing.lg)
         }
@@ -227,7 +239,9 @@ struct DiscoveryReviewSheet: View {
             let value = try await service.review(ignoresCache: force)
             try Task.checkCancellation()
             result = value
-            await DiscoveryTopicService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
+            // v4 洞察优先（2026-11-20 方案 03-I3）：内部自管回落（disabled/闸门失败/
+            // 网络错误 → v3 refreshIfNeeded；none_worthwhile → 当天不出卡）。
+            await DiscoveryInsightService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
             try Task.checkCancellation()
             todayCard = DiscoveryTopicStore.shared.todayCard()
             if let card = todayCard {
@@ -245,7 +259,34 @@ struct DiscoveryReviewSheet: View {
         }
     }
 
-    // MARK: - 今日一条（v3 每日一卡）
+    // MARK: - 今日一条（v4 洞察卡：反馈走画像回流桥，不经知识控制流）
+
+    private enum InsightAction { case confirm, inaccurate, `defer` }
+
+    private func applyV4Today(_ action: InsightAction, card: DiscoveryTopicStore.QueuedCard) {
+        guard actionTask == nil else { return }
+        let actionLabel = action == .confirm ? "confirm" : (action == .inaccurate ? "inaccurate" : "defer")
+        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": actionLabel, "version": "4"])
+        receipt = nil
+        actionTask = Task {
+            defer { actionTask = nil }
+            switch action {
+            case .confirm:
+                _ = DiscoveryInsightFeedbackBridge.confirm(card: card)
+                receipt = Receipt(kind: .success, text: "已记住，可以在「Holo 记住的你」里找到。")
+                HapticManager.success()
+            case .inaccurate:
+                _ = DiscoveryInsightFeedbackBridge.reject(card: card)
+                receipt = Receipt(kind: .success, text: "这个角度近期不会再拿来问你。")
+                HapticManager.light()
+            case .`defer`:
+                _ = DiscoveryInsightFeedbackBridge.deferCard(card: card)
+                receipt = Receipt(kind: .success, text: "先放着，这几天不再提这个角度。")
+                HapticManager.light()
+            }
+            withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
+        }
+    }
 
     private func matchedItem(for card: DiscoveryTopicStore.QueuedCard) -> DiscoveryMemoryReviewService.Item? {
         result?.items.first {
@@ -479,7 +520,7 @@ private struct DiscoveryPendingCard: View {
 
 // MARK: - 决定区（一行两键 + 文字按钮「先放一放」）
 
-private struct DiscoveryDecisionControls: View {
+struct DiscoveryDecisionControls: View {
     var elevated: Bool
     var isDisabled: Bool
     var idPrefix: String

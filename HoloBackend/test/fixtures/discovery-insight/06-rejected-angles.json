@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [
+    "sleep×coffee"
+  ],
+  "rejectedAngles": [
+    "sleep×lateNight",
+    "health-steps×weekend"
+  ],
+  "portrait": [
+    {
+      "id": "p_1",
+      "dimension": "crossDomainInsight",
+      "confidence": "inferred",
+      "statement": "晚睡与咖啡可能相关",
+      "evidenceSummary": "跨域信号",
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_sleep_later",
+      "domain": "health",
+      "description": "入睡时间比之前更晚",
+      "direction": "up",
+      "slots": [
+        {
+          "name": "shiftMinutes",
+          "unit": "minutes"
+        }
+      ]
+    },
+    {
+      "id": "f_coffee_up",
+      "domain": "habit",
+      "description": "数值习惯「咖啡」的记录值在变多",
+      "direction": "up",
+      "slots": [
+        {
+          "name": "recentValue",
+          "unit": "杯"
+        }
+      ]
+    }
+  ],
+  "userIntents": []
+}

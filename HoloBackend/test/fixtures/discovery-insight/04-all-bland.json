@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_stable",
+      "dimension": "longTermPattern",
+      "confidence": "inferred",
+      "statement": "作息规律",
+      "evidenceSummary": "长期记录",
+      "sourceDomains": [
+        "health"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_sleep_stable",
+      "domain": "health",
+      "description": "近期平均睡眠时长与之前相当",
+      "direction": "stable",
+      "slots": [
+        {
+          "name": "recentHours",
+          "unit": "hours"
+        }
+      ]
+    },
+    {
+      "id": "f_walk_stable",
+      "domain": "health",
+      "description": "近期日均步数与之前相当",
+      "direction": "stable",
+      "slots": [
+        {
+          "name": "recentAvgSteps",
+          "unit": "steps"
+        }
+      ]
+    },
+    {
+      "id": "f_buy_stable",
+      "domain": "finance",
+      "description": "反复出现的「日用品」消费",
+      "direction": "stable",
+      "slots": [
+        {
+          "name": "totalCount",
+          "unit": "times"
+        }
+      ]
+    }
+  ],
+  "userIntents": []
+}

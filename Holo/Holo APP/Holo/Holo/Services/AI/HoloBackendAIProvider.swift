@@ -505,6 +505,40 @@ final class HoloBackendAIProvider: AIProvider {
         }
     }
 
+    /// 「一个发现」v4 洞察生成（2026-11-20 方案 03-I3）：必须流式（>20s AI 调用红线）。
+    /// 后端为缓冲校验模式（02-B4 方案 A）：流上只有 SSE 心跳注释行（解析器自动跳过）
+    /// 与一个最终 chunk——累积内容即后端闸门校验过的 InsightDraft JSON。
+    /// 结构化 purpose：不注入 UserContext（与画像合成同模式）。
+    func chatInsightStreaming(
+        messages: [ChatMessageDTO],
+        purpose: HoloBackendPurpose,
+        responseFormat: ResponseFormat? = .jsonObject
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try ensureDataProcessingConsent()
+                    let request = buildRequest(
+                        purpose: purpose,
+                        messages: messages,
+                        stream: true,
+                        responseFormat: responseFormat
+                    )
+                    for try await chunk in apiClient.sendStreaming(request) {
+                        continuation.yield(chunk)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            // 消费端取消时传导给内部 Task，中断下层网络连接（同 chatStreaming）。
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
+
     // MARK: - Request Building
 
     private func sendCompletion(_ request: APIRequest) async throws -> (ChatCompletionResponse, String?) {
@@ -540,7 +574,10 @@ final class HoloBackendAIProvider: AIProvider {
         let longTimeoutPurposes: Set<HoloBackendPurpose> = [
             .agentLoop, .personalContextPlanning, .personalContextExtraction, .personalContextVerification
         ]
-        let timeout: TimeInterval? = longTimeoutPurposes.contains(purpose) ? 180 : nil
+        // v4 洞察：后端闸门含一次拒因重试（两次上游调用），60s 默认值偏紧；
+        // SSE 心跳（5s 间隔）保证等待期字节流动，90s 覆盖两轮生成。
+        let timeout: TimeInterval? = longTimeoutPurposes.contains(purpose) ? 180
+            : (purpose == .discoveryInsightV2 ? 90 : nil)
         // 个人档案通道：档案原文随「用户直接阅读输出」的 purpose 上行，
         // 后端统一注入（本 Provider 不再在客户端消息里拼档案，防双重注入）。
         // loadProfile 带缓存，每次调用只做一次文件读。
@@ -753,6 +790,9 @@ enum HoloBackendPurpose: String {
     /// 全局用户画像与跨模块洞察合成（2026-11-20 重构 Phase 2）：七域特征包+当前画像+黑名单→五维度画像增量。
     /// 结构化合成类：不带 profileBrief（档案摘要已由特征包携带）。
     case portraitSynthesis = "portrait_synthesis"
+    /// 「一个发现」v4 洞察生成（2026-11-20 方案 02/03）：画像+特征+意图→一条及格线洞察。
+    /// 结构化合成类：不带 profileBrief；走后端缓冲校验+SSE 心跳模式（app.js 方案 A）。
+    case discoveryInsightV2 = "discovery_insight_v2"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"
@@ -776,7 +816,7 @@ enum HoloBackendPurpose: String {
              .memoryCrossDomainFusion, .financeActionParser, .taskActionParser, .thoughtOrganization,
              .thoughtTaskExtraction, .thoughtTagConvergence, .categoryPatternInduction,
              .personalContextExtraction, .personalContextVerification, .understandingProposal, .portraitSynthesis,
-             .billColumnMapping, .billCategorization:
+             .discoveryInsightV2, .billColumnMapping, .billCategorization:
             return false
         }
     }

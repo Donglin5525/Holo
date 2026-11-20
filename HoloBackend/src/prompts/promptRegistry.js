@@ -94,6 +94,9 @@ const PROMPT_VERSIONS = {
   discovery_verify_v1: 3,
   // v3 选题+文案填空（2026-11-08 方案 §5.2）：模型只做选择题与措辞，数字一律空位。
   discovery_topic_v1: 1,
+  // v4 洞察化（2026-11-20 方案 02-B2）：画像+特征+意图→一条及格线洞察（N1-N3+D1-D4），
+  // 判断句无数字，evidence 模板带 {slot} 空位由端侧回填。闸门=src/discovery/insightGate.js。
+  discovery_insight_v2: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

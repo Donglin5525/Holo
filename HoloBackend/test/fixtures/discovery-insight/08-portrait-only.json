@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_a",
+      "dimension": "identity",
+      "confidence": "confirmed",
+      "statement": "养猫",
+      "evidenceSummary": "长期猫粮购买",
+      "sourceDomains": [
+        "finance"
+      ]
+    },
+    {
+      "id": "p_b",
+      "dimension": "preference",
+      "confidence": "inferred",
+      "statement": "偏好简洁的回复",
+      "evidenceSummary": "对话习惯",
+      "sourceDomains": [
+        "conversation"
+      ]
+    },
+    {
+      "id": "p_c",
+      "dimension": "longTermPattern",
+      "confidence": "inferred",
+      "statement": "周末更喜欢宅家",
+      "evidenceSummary": "消费与打卡",
+      "sourceDomains": [
+        "finance",
+        "habit"
+      ]
+    }
+  ],
+  "features": [],
+  "userIntents": []
+}

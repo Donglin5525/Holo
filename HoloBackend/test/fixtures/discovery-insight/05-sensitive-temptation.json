@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_mood",
+      "dimension": "recentState",
+      "confidence": "inferred",
+      "statement": "最近情绪不高",
+      "evidenceSummary": "想法记录",
+      "sourceDomains": [
+        "thought"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_night_buy",
+      "domain": "finance",
+      "description": "深夜时段「购物」消费明显变多",
+      "direction": "up",
+      "slots": [
+        {
+          "name": "lateCount",
+          "unit": "times"
+        }
+      ]
+    },
+    {
+      "id": "f_sleep_short",
+      "domain": "health",
+      "description": "近期睡眠偏短，不足七小时的天数占多数",
+      "direction": "down",
+      "slots": [
+        {
+          "name": "avgHours",
+          "unit": "hours"
+        }
+      ]
+    }
+  ],
+  "userIntents": [
+    {
+      "id": "u_1",
+      "source": "thought",
+      "text": "感觉最近很累提不起劲"
+    }
+  ]
+}

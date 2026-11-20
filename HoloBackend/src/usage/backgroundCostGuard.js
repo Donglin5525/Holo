@@ -23,6 +23,8 @@ export const BACKGROUND_PURPOSES = new Set([
   "discovery_candidate_v1", "discovery_verify_v1",
   // v3 选题（2026-11-08）：一次调用级厘级成本，与旧发现两阶段共发现池。
   "discovery_topic_v1",
+  // v4 洞察化（2026-11-20）：每天一条的洞察生成，后台成本桶（与画像合成同口径）。
+  "discovery_insight_v2",
 ]);
 
 export const BACKGROUND_PATHS = {

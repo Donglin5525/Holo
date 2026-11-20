@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_focus",
+      "dimension": "preference",
+      "confidence": "confirmed",
+      "statement": "希望工作更专注",
+      "evidenceSummary": "档案自述",
+      "sourceDomains": [
+        "profile"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_task_overdue",
+      "domain": "task",
+      "description": "断签的日子任务更容易逾期",
+      "direction": "divergent",
+      "slots": [
+        {
+          "name": "overdueDays",
+          "unit": "days"
+        }
+      ]
+    },
+    {
+      "id": "f_habit_down",
+      "domain": "habit",
+      "description": "打卡习惯「冥想」近期完成比之前少",
+      "direction": "down",
+      "slots": [
+        {
+          "name": "recentCount",
+          "unit": "times"
+        },
+        {
+          "name": "baselineCount",
+          "unit": "times"
+        }
+      ]
+    }
+  ],
+  "userIntents": [
+    {
+      "id": "u_1",
+      "source": "goal",
+      "text": "这季度想养成冥想的习惯"
+    },
+    {
+      "id": "u_2",
+      "source": "thought",
+      "text": "总觉得精力不够用，想找回状态"
+    }
+  ]
+}

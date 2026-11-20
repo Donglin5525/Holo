@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "kind": "insightInput",
+  "requestId": "eval-req",
+  "window": {
+    "days": 28
+  },
+  "recentTopics": [],
+  "rejectedAngles": [],
+  "portrait": [
+    {
+      "id": "p_walk",
+      "dimension": "longTermPattern",
+      "confidence": "inferred",
+      "statement": "偶尔散步",
+      "evidenceSummary": "少量打卡",
+      "sourceDomains": [
+        "habit"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "f_steps",
+      "domain": "health",
+      "description": "近期日均步数与之前相当",
+      "direction": "stable",
+      "slots": [
+        {
+          "name": "recentAvgSteps",
+          "unit": "steps"
+        }
+      ]
+    }
+  ],
+  "userIntents": []
+}
