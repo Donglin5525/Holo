@@ -22,8 +22,9 @@ function argValue(flag, fallback) {
 const base = argValue("--base", "http://localhost:8787").replace(/\/$/, "");
 const rounds = Number(argValue("--rounds", 3));
 const outDir = argValue("--out", join(HERE, "..", "eval-output", "discovery-insight"));
-// 评测设备头：非 36 位 UUID 格式，与生产脚本甄别口径一致（ai_call_logs 不计入真实用户）。
-const deviceId = "eval-insight-v2";
+// 评测设备头：非 36 位 UUID 格式，与生产脚本甄别口径一致（ai_call_logs 不计真实用户）。
+// 每组×每轮独立设备 id：route 限流 3 次/日/设备，8 组 × 3 轮共用一个 id 会撞 429。
+const deviceIdPrefix = "eval-insight-v2";
 
 function loadFixtures() {
   return readdirSync(FIXTURE_DIR)
@@ -35,7 +36,7 @@ function loadFixtures() {
     }));
 }
 
-async function callOnce(packet) {
+async function callOnce(packet, deviceId) {
   const started = Date.now();
   const response = await fetch(`${base}/v1/ai/chat/completions`, {
     method: "POST",
@@ -75,7 +76,7 @@ async function main() {
     for (let round = 0; round < rounds; round += 1) {
       let result;
       try {
-        result = await callOnce(packet);
+        result = await callOnce(packet, `${deviceIdPrefix}-${name}-${round}`);
       } catch (error) {
         errors += 1;
         transcripts.push({ fixture: name, round, error: String(error) });

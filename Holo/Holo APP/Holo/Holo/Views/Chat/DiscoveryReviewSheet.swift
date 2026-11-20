@@ -40,7 +40,8 @@ struct DiscoveryReviewSheet: View {
 
     var body: some View {
         HoloSheetScaffold(title: "一个发现", onClose: onClose) {
-            ScrollView {
+            // 03-I6：ScrollView 隐藏滚动条（设计规范；v4 卡上线时补齐，v3 同页受益）。
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Holo 每天从你的记录里挑一件反复出现的事来问你，你确认了才会记住。")
                         .holoText(.supporting)

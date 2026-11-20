@@ -425,8 +425,6 @@
 		D0610E492DB85A4243D32A08 /* GoalWorkshopStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E327032994706FD4FC11CD /* GoalWorkshopStateTests.swift */; };
 		D0ED1557A1919415F23F2245 /* HoloProjectToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB210CE9AF03AFD0A87E2C06 /* HoloProjectToolTests.swift */; };
 		D1A1000000000000000000E1 /* DiscoveryTopicServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1000000000000000000E2 /* DiscoveryTopicServiceTests.swift */; };
-		D1A1000000000000000000E3 /* DiscoveryInsightBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1000000000000000000E4 /* DiscoveryInsightBuilderTests.swift */; };
-		D1A1000000000000000000E5 /* DiscoveryInsightContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A1000000000000000000E6 /* DiscoveryInsightContractTests.swift */; };
 		D1BEE1E6F714E068F4F7D45E /* ThoughtThemeConstraintStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B1991E19157158837A6069 /* ThoughtThemeConstraintStandaloneTests.swift */; };
 		D27A992F79B75465169DAB53 /* HoloMemoryPromotionPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3158B7C4C51722CA029EB52E /* HoloMemoryPromotionPolicyStandaloneTests.swift */; };
 		D669092C18BE55D12C99DCC0 /* ThoughtTagPresentationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BD1A30F4413A5FA65CE4E6 /* ThoughtTagPresentationStandaloneTests.swift */; };
@@ -986,8 +984,6 @@
 		CFA39F23CC5A4A2498DD4BB0 /* VisualAssetArchiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VisualAssetArchiveService.swift; path = Holo/Services/VisualAssets/VisualAssetArchiveService.swift; sourceTree = "<group>"; };
 		CTORGA000000000000000A2 /* ThoughtOrganizationContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtOrganizationContractTests.swift; sourceTree = "<group>"; };
 		D1A1000000000000000000E2 /* DiscoveryTopicServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoveryTopicServiceTests.swift; sourceTree = "<group>"; };
-		D1A1000000000000000000E4 /* DiscoveryInsightBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoveryInsightBuilderTests.swift; sourceTree = "<group>"; };
-		D1A1000000000000000000E6 /* DiscoveryInsightContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoveryInsightContractTests.swift; sourceTree = "<group>"; };
 		D4889D3D170C48FEA3C8B654 /* VisualAppearanceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VisualAppearanceSupport.swift; path = Holo/Components/VisualAssets/VisualAppearanceSupport.swift; sourceTree = "<group>"; };
 		D531892A7D014FFC9E0B398D /* TimelineAxisLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineAxisLayoutTests.swift; sourceTree = "<group>"; };
 		DBB9FD65AF0381026EDE40C0 /* StandaloneExecutableBridgeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StandaloneExecutableBridgeTests.swift; sourceTree = "<group>"; };
@@ -1832,8 +1828,6 @@
 			isa = PBXGroup;
 			children = (
 				D1A1000000000000000000E2 /* DiscoveryTopicServiceTests.swift */,
-				D1A1000000000000000000E4 /* DiscoveryInsightBuilderTests.swift */,
-				D1A1000000000000000000E6 /* DiscoveryInsightContractTests.swift */,
 			);
 			path = Discovery;
 			sourceTree = "<group>";
@@ -2607,8 +2601,6 @@
 				CE8EA9314BCBBF4B8B250B2F /* HoloObserverTriggerPolicyTests.swift in Sources */,
 				8E1F7038888690763108E482 /* HoloPatternMinerTests.swift in Sources */,
 				D1A1000000000000000000E1 /* DiscoveryTopicServiceTests.swift in Sources */,
-				D1A1000000000000000000E3 /* DiscoveryInsightBuilderTests.swift in Sources */,
-				D1A1000000000000000000E5 /* DiscoveryInsightContractTests.swift in Sources */,
 				B823CFF61B19E8075CC1CB35 /* HoloProfileToolTests.swift in Sources */,
 				D0ED1557A1919415F23F2245 /* HoloProjectToolTests.swift in Sources */,
 				B31834F8A17B44F309DB752C /* HoloTaskToolTests.swift in Sources */,
