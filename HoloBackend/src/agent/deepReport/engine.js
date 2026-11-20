@@ -100,7 +100,7 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
     parsed = assertReportShape(report);
   }
 
-  const stats = { profileSource: compiledProfile.source, profileDirectives: compiledProfile.directives.length, flaggedNumbers: 0, semanticProblems: 0, deleted: [], secondCheckProblems: 0 };
+  const stats = { checkerSkipped: 0, profileSource: compiledProfile.source, profileDirectives: compiledProfile.directives.length, flaggedNumbers: 0, semanticProblems: 0, deleted: [], secondCheckProblems: 0 };
   // 已删句子永不复活：修复轮若原样吐回旧稿（实测会发生），把删过的句子再剥一次
   const stripDeleted = (text) => stats.deleted.reduce((acc, d) => (acc.includes(d) ? acc.replace(d, "") : acc), text);
 
@@ -127,12 +127,24 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
     { role: "system", content: checkerSystemPrompt },
     { role: "user", content: `${profileBlock}${confirmedBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` },
   ];
-  const first = parseJSONLoose(await callModel(checkMessages, { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
+  // 核对员空输出（推理模型把输出上限全用在思考上，2026-11-21 评测 5/27 次撞顶）只跳过该轮核对：
+  // 数字核对已在前面完成，报告照常交付；写作/修复空输出仍按失败处理
+  const runChecker = async (msgs) => {
+    try {
+      return parseJSONLoose(await callModel(msgs, { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
+    } catch (error) {
+      if (String(error?.message ?? error) !== "EMPTY_MODEL_OUTPUT") throw error;
+      stats.checkerSkipped += 1;
+      log("深度报告核对员空输出，跳过该轮语义核对");
+      return null;
+    }
+  };
+  const first = await runChecker(checkMessages);
   const problems1 = semanticProblemsOf(first);
   stats.semanticProblems = problems1.length;
   if (problems1.length) {
     report = stripDeleted(await callModel([...messages, { role: "assistant", content: report }, { role: "user", content: `核对员发现下面这些句子与事实清单不符：\n${problems1.map((f) => `- 「${f.sentence}」：${f.issue}`).join("\n")}\n请只改这些句子，让它们与事实清单一致（可以改写、改成更准确的说法，或删掉）；不要新增事实清单里没有的内容或比较；其他内容一字不改。直接输出修改后的完整全文，不要解释。` }], { purpose: "cloud_deep_report_repair", route: routes.writer }));
-    const second = parseJSONLoose(await callModel(checkMessages.slice(0, 1).concat([{ role: "user", content: `${confirmedBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` }]), { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
+    const second = await runChecker(checkMessages.slice(0, 1).concat([{ role: "user", content: `${confirmedBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` }]));
     const problems2 = semanticProblemsOf(second);
     stats.secondCheckProblems = problems2.length;
     const both = problems2.filter((p2) => problems1.some((p1) => p1.sentence === p2.sentence)).map((p) => p.sentence);
@@ -144,7 +156,7 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
     assertReportShape(report);
   }
 
-  log(`深度报告完成 flaggedNumbers=${stats.flaggedNumbers} semantic=${stats.semanticProblems} second=${stats.secondCheckProblems} deleted=${stats.deleted.length} whitelist=${allowed.length}`);
+  log(`深度报告完成 flaggedNumbers=${stats.flaggedNumbers} semantic=${stats.semanticProblems} second=${stats.secondCheckProblems} deleted=${stats.deleted.length} checkerSkipped=${stats.checkerSkipped} whitelist=${allowed.length}`);
 
   // 4) 映射旧契约
   const mapped = mapReportToResult({ reportText: report, sheet, window, snapshotCoverage: null });

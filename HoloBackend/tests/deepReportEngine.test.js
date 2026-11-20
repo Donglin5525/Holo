@@ -294,3 +294,50 @@ test("没有确认理解时不出现该区块（不编造已确认内容）", as
   });
   assert.doesNotMatch(seen[0].text, /用户确认过的理解/);
 });
+
+function pipelineWith(handlers) {
+  let i = 0;
+  return async (messages, { purpose }) => {
+    if ((messages?.[0]?.content ?? "").includes("逐条执行指令")) return JSON.stringify({ directives: [] });
+    const h = handlers[i++];
+    if (!h) throw new Error(`多余调用：${purpose}`);
+    return h(purpose);
+  };
+}
+const EMPTY = () => { throw new Error("EMPTY_MODEL_OUTPUT"); };
+
+test("核对员空输出（推理吃光上限）不拖垮整份报告：跳过该轮核对并计数", async () => {
+  const callModel = pipelineWith([
+    () => "# 标题\n\n导语段。\n\n对了 5000 元。\n\n数据说明：无。",
+    EMPTY,
+  ]);
+  const { result, stats } = await generateDeepReport({
+    snapshot: snapshot(), question: "q", callModel,
+    buildWriterMessages: (u) => [{ role: "user", content: u }], checkerSystemPrompt: "c", routes: ROUTES,
+  });
+  assert.ok(result.claims.length >= 1);
+  assert.equal(stats.checkerSkipped, 1);
+});
+
+test("复核空输出：保留修复后的报告，不删句不失败", async () => {
+  const callModel = pipelineWith([
+    () => "# 标题\n\n导语段。\n\n对了 5000 元。\n\n数据说明：无。",
+    () => JSON.stringify({ problems: [{ sentence: "对了 5000 元。", issue: "x" }] }),
+    () => "# 标题\n\n导语段。\n\n房租 5000 元。\n\n数据说明：无。",
+    EMPTY,
+  ]);
+  const { stats } = await generateDeepReport({
+    snapshot: snapshot(), question: "q", callModel,
+    buildWriterMessages: (u) => [{ role: "user", content: u }], checkerSystemPrompt: "c", routes: ROUTES,
+  });
+  assert.equal(stats.checkerSkipped, 1);
+  assert.equal(stats.deleted.length, 0);
+});
+
+test("写作空输出仍然失败（只对核对员放宽）", async () => {
+  const callModel = pipelineWith([EMPTY]);
+  await assert.rejects(generateDeepReport({
+    snapshot: snapshot(), question: "q", callModel,
+    buildWriterMessages: (u) => [{ role: "user", content: u }], checkerSystemPrompt: "c", routes: ROUTES,
+  }), /EMPTY_MODEL_OUTPUT/);
+});

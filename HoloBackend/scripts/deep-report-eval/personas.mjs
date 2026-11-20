@@ -173,7 +173,7 @@ function personaZhou() {
   const finance = [], habit = [], sleep = [];
   for (let d = HISTORY_DAYS - 1; d >= 0; d -= 1) {
     const recent = d < WINDOW_DAYS;
-    const fridayFeast = d === 6 || d === 20; // 两个周五聚餐
+    const fridayFeast = d === 7 || d === 21; // 两个周五聚餐（11-13、10-30）
     finance.push(...routineSpend(r, d));
     if (fridayFeast) finance.push(tx(d, 21, 0, 268 + r() * 60, "餐饮", "同事聚餐"));
     if (!recent && r() < 0.6) finance.push(tx(d, 18, 0, 25, "烟酒", "香烟"));

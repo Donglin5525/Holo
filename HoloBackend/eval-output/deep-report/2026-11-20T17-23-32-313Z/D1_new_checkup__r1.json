@@ -1,0 +1,349 @@
+{
+  "id": "D1_new_checkup",
+  "round": 1,
+  "status": "completed",
+  "seconds": 55,
+  "calls": 5,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 10721,
+      "usage": {
+        "prompt_tokens": 2987,
+        "completion_tokens": 1879,
+        "total_tokens": 4866,
+        "prompt_tokens_details": {
+          "cached_tokens": 2816
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1233
+        },
+        "prompt_cache_hit_tokens": 2816,
+        "prompt_cache_miss_tokens": 171
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1008,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 2656,
+      "usage": {
+        "prompt_tokens": 3726,
+        "completion_tokens": 646,
+        "total_tokens": 4372,
+        "prompt_tokens_details": {
+          "cached_tokens": 2944
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 2944,
+        "prompt_cache_miss_tokens": 782
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1009,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 22802,
+      "usage": {
+        "prompt_tokens": 2699,
+        "completion_tokens": 4539,
+        "total_tokens": 7238,
+        "prompt_tokens_details": {
+          "cached_tokens": 768
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 4197
+        },
+        "prompt_cache_hit_tokens": 768,
+        "prompt_cache_miss_tokens": 1931
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 612,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 11011,
+      "usage": {
+        "prompt_tokens": 4014,
+        "completion_tokens": 2491,
+        "total_tokens": 6505,
+        "prompt_tokens_details": {
+          "cached_tokens": 3072
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1851
+        },
+        "prompt_cache_hit_tokens": 3072,
+        "prompt_cache_miss_tokens": 942
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 988,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 7423,
+      "usage": {
+        "prompt_tokens": 2693,
+        "completion_tokens": 1557,
+        "total_tokens": 4250,
+        "prompt_tokens_details": {
+          "cached_tokens": 1920
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1469
+        },
+        "prompt_cache_hit_tokens": 1920,
+        "prompt_cache_miss_tokens": 773
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 158,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 16119,
+    "cached": 11520,
+    "completion": 11112
+  },
+  "costCNY": 0.115,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=1 semantic=5 second=1 deleted=0 whitelist=37"
+  ],
+  "result": {
+    "title": "这个月的支出只有 20 笔小额，几乎都花在吃饭上",
+    "narrativeSummary": "先回答你的问题：这次体检能查的部分不多。账单部分有数据，睡眠、步数、目标进度、预算这四块本次都没有记录，所以没法判断。真正有内容的只有账单，而账单本身很单纯：最近 30 天 20 笔、共 463 元，没有一笔超过 50 元，96% 都花在了餐饮上。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "钱具体去了哪",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "和过去的自己比",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "体检里缺席的几块",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "四",
+          "title": "一个容易做到的小切口",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p4"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本次仅有 2026 年 10 月 22 日至 11 月 20 日的支出快照，前四个自然月显示为 0，本期与它们的比较只能作参考；睡眠、步数、目标进度、预算均无数据，所以作息、活动量、进度和预算这四方面，本次都无法判断；所有结论都限于这 30 天和这一份账单，不代表更长时间的样子。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "餐饮 446 元、18 笔，交通只有 17 元、2 趟地铁，加起来刚好是这 20 笔的全部；也就是说，这个月除了吃饭和两次地铁，没有别的支出，也没有大额和一次性的东西。按备注归并，早餐 10 次共 176 元，平均一次不到 18 元；午饭 8 次共 270 元，平均一次将近 34 元。单笔最大的 10 笔全是早饭和午饭，集中在 11 月 12 日到 20 日这几天，午饭从 25 元到 43 元不等。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "7 月到 10 月，日常支出每个月都是 0，紧挨着的上一个月也是 0。所以这个月谈不上“花多了”，也谈不上“花少了”——前期没有可对照的支出水平。过去 3 个完整自然月的月均和中位数都是 0，本期 463 元放进去排第 4，涨幅没法算，只能看结构。结构上很清楚：日常的吃，加上两趟地铁，20 笔全在 50 元以下。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "睡眠和步数这次没有快照，作息和活动量都判断不了；目标进度和预算同样没有记录，所以不能说超预算或达成预算，也说不出你离想做的事近了还是远了。按天对齐的同步变化检查也做了，本期没有发现达到标准的关联——就现有数据看，没有哪两项是明显一起动的，这一点我没有更多可讲。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "从记录看，备注里出现的只有早饭和午饭，晚饭没有一条记录；地铁 2 次，其他出行也没有记录。这可能是记录习惯，也可能就是生活本来的样子，我说不准。如果你希望下次体检真有东西可看，不必一次补齐，只要先把睡眠或步数其中一项接进来就够——四项全空的时候，任何判断都只能停在“账很干净”这一层。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F001",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期支出合计 463.34 元，共 20 笔。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F002",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "上期支出合计 0.00 元，共 0 笔；总支出比上期多了 463.34 元（上期为 0，无法算幅度）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F003",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 446.04 元（18 笔，占本期支出 96.3%）；上期 0.00 元（0 笔）；多了 446.04 元（上期为 0，无法算幅度）；差额约合 18.0 笔该类的平均消费（两期平均每笔 24.78 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F004",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "交通：本期 17.30 元（2 笔，占本期支出 3.7%）；上期 0.00 元（0 笔）；多了 17.30 元（上期为 0，无法算幅度）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F005",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：20 笔，合计 463.34 元，占本期支出 100.0%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F006",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：0 笔，合计 0.00 元，占本期支出 0.0%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-14 42.81 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-19 34.65 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F016",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-13 25.46 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F019",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「早餐」：10 次，合计 175.90 元，平均每次 17.59 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F026",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "11月（1-20日）日常支出 463.34 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F028",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期（约 30 天）日常支出 463.34 元，比这 3 个月的中位数多了 463.34 元（上期为 0，无法算幅度）；和这 3 个月放在一起从低到高排第 4。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 20,
+        "providedRows": 20,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-20T17:26:22.471Z",
+    "engine": "deep-report-v1"
+  }
+}

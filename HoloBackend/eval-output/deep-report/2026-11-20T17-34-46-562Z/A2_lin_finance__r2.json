@@ -1,0 +1,438 @@
+{
+  "id": "A2_lin_finance",
+  "round": 2,
+  "status": "completed",
+  "seconds": 106,
+  "calls": 6,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 1553,
+      "usage": {
+        "prompt_tokens": 247,
+        "completion_tokens": 241,
+        "total_tokens": 488,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 211
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 247
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 61,
+      "head": "你把用户亲手写的个人档案转写成逐条执行指令，供一位 AI 助手照办。规则：\n1."
+    },
+    {
+      "ms": 8521,
+      "usage": {
+        "prompt_tokens": 4384,
+        "completion_tokens": 1310,
+        "total_tokens": 5694,
+        "prompt_tokens_details": {
+          "cached_tokens": 4096
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 658
+        },
+        "prompt_cache_hit_tokens": 4096,
+        "prompt_cache_miss_tokens": 288
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 985,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 2900,
+      "usage": {
+        "prompt_tokens": 5151,
+        "completion_tokens": 766,
+        "total_tokens": 5917,
+        "prompt_tokens_details": {
+          "cached_tokens": 4352
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 112
+        },
+        "prompt_cache_hit_tokens": 4352,
+        "prompt_cache_miss_tokens": 799
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 991,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 33682,
+      "usage": {
+        "prompt_tokens": 4098,
+        "completion_tokens": 7434,
+        "total_tokens": 11532,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 6815
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 3458
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 1068,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 14231,
+      "usage": {
+        "prompt_tokens": 5686,
+        "completion_tokens": 3068,
+        "total_tokens": 8754,
+        "prompt_tokens_details": {
+          "cached_tokens": 4608
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2332
+        },
+        "prompt_cache_hit_tokens": 4608,
+        "prompt_cache_miss_tokens": 1078
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1108,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 45446,
+      "usage": {
+        "prompt_tokens": 4122,
+        "completion_tokens": 9372,
+        "total_tokens": 13494,
+        "prompt_tokens_details": {
+          "cached_tokens": 3200
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 9027
+        },
+        "prompt_cache_hit_tokens": 3200,
+        "prompt_cache_miss_tokens": 922
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 592,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 23688,
+    "cached": 16896,
+    "completion": 22191
+  },
+  "costCNY": 0.2218,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=1 semantic=7 second=4 deleted=0 checkerSkipped=0 whitelist=142"
+  ],
+  "result": {
+    "title": "这个月多花的钱几乎全在吃上，房租没变，深夜外卖是最显眼的那一笔",
+    "narrativeSummary": "小林，先直接回答：最近 30 天一共花了将近 6000 元、92 笔，比上期多了 431 元。但这里面一半以上是 11 月 17 日那笔 3200 元的房租，和上期完全一样。这 30 天的支出是 5940 元，比过去三个完整自然月的中位数 5405 元多出 534 元，涨了将近一成，把这四个月放在一起排是最高的一个月。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "真正变的是餐饮",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1",
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "钱以外的部分，只顺带说一句",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "只给你一个建议",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p4"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本期为 2026 年 10 月 22 日至 11 月 20 日，上期为紧挨着的前 30 天。快照里没有目标和预算数据，所以无法判断是否超支或达成目标；任务和想法的内容不在数据里，相关原因无从判断；消费与任务、想法之间按天对齐的同步变化，本期没有发现达到标准的项。睡眠部分只评估时长与结构，不做质量上的判断。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "餐饮本期 1957 元、64 笔，比上期多了 423 元，涨幅 27.6%，是唯一一个变化明显的分类。多出来的这 423 元，约合 14.6 笔餐饮的平均消费；但笔数上只从上期的 56 笔到本期的 64 笔，多了 8 笔。单笔金额段也说明不是某一笔特别贵：200 元以上的消费除了房租一笔都没有，50 到 200 元这一档从上期 8 笔涨到 15 笔，多出来的正是这类中等的吃饭和买东西。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "再往里看，本期午饭 28 次、早餐 27 次，是这个月出现次数最多的两类。另外单看深夜外卖：本期 9 次、532 元，平均每次 59 元。清单里没有上期同类的数据，所以看不出这一档是不是比之前多了。不过你自己确认过一条规律：加班的那几周，深夜外卖会明显变多；清单里没有记录这个月哪些天在加班，所以这里对不上具体是哪几周。其他几项反而是收敛的：交通从 27 笔降到 19 笔，少了 65 元；购物多了 72 元，日用品 8 次，是正常的补给。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "这个月你的任务完成了 107 个，上期是 55 个，几乎翻倍。同时睡眠从 7.5 小时降到 6.4 小时，健身从 11 天掉到 4 天，最近一次是 11 月 5 日，之后到现在已经有 14 天没有完成。这几项都落在同一段时间里，但清单按天对齐的检查没有发现达到标准的同步变化，所以看不出谁引起了谁，只能放在一起看：这个月任务完成量上去了，睡眠时长和健身天数都下来了。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "如果下个月想把餐饮压回来，最省力的地方不是午饭和早餐，是深夜外卖那一档：在你知道要加班的那几天之前，家里先放一点打开就能吃的东西。这一档只有 9 次，次数不多，动起来最省力，也正好是你确认过跟加班一起变多的地方。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F002",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "上期支出合计 5508.99 元，共 93 笔；总支出比上期多了 431.20 元（+7.8%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F006",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 1957.27 元（64 笔，占本期支出 32.9%）；上期 1533.73 元（56 笔）；多了 423.54 元（+27.6%）；差额约合 14.6 笔该类的平均消费（两期平均每笔 29.09 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "购物：本期 655.56 元（8 笔，占本期支出 11.0%）；上期 583.13 元（9 笔）；多了 72.43 元（+12.4%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F008",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "交通：本期 127.36 元（19 笔，占本期支出 2.1%）；上期 192.13 元（27 笔）；少了 64.77 元（-33.7%）；差额约合 9.3 笔该类的平均消费（两期平均每笔 6.95 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：76 笔，合计 1632.14 元，占本期支出 27.5%；上期 84 笔，合计 1733.66 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：15 笔，合计 1108.05 元，占本期支出 18.7%；上期 8 笔，合计 575.33 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F011",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔200–1000 元：0 笔，合计 0.00 元，占本期支出 0.0%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F018",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-10-27 73.03 元，分类 购物，备注「日用品」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F022",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-19 65.53 元，分类 餐饮，备注「深夜外卖」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F023",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「午饭」：28 次，合计 959.03 元，平均每次 34.25 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F036",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身（打卡型，目标 3）：本期完成 4 天，约每周 0.9 次；上期完成 11 天，约每周 2.6 次；完成天数少了 7 天（-63.6%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F038",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身按月：7月（23日起） 完成 3 天；8月 完成 11 天；9月 完成 10 天；10月 完成 11 天；11月（1-20日） 完成 1 天。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F040",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：快照内完成 36 次；完成次数按星期 周日 0、周一 14、周二 0、周三 12、周四 1、周五 0、周六 9，最多的是周一。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F041",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：最近一次完成是 11-05（周四），之后到昨天已有 14 天没有完成（今天不算）；过去中断 4 天以上共 7 次，中断天数中位数 4 天、最长 7 天，其中比这次更长的有 0 次；中断后恢复的那天最常见的是周一（7 次里有 5 次）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F043",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期完成任务 107 个，分布在 27 天（其中高优先级 30 个）；上期 55 个，分布在 24 天；多了 52 个（+94.5%）。任务内容不在数据里，原因不能判断。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F046",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "想法记录按月：7月（23日起） 1 条；8月 9 条；9月 11 条；10月 13 条；11月（1-20日） 4 条。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 357,
+        "providedRows": 357,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "habit.daily": {
+        "totalRows": 240,
+        "providedRows": 240,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "health.sleep": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "health.steps": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "task.daily": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "thought.daily": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-20T17:38:50.953Z",
+    "engine": "deep-report-v1"
+  }
+}

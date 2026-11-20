@@ -306,3 +306,10 @@ test("未配深度分析通道时 writer/checker 回退 agent_loop（provider/mo
   assert.equal(routes.deep_report_writer.provider, "qwen");
   assert.equal(routes.deep_report_writer.model, "qwen3.7-flash");
 });
+
+test("深度报告 writer/checker 输出上限容得下推理模型的思考（回归：deepseek-flash 4096 被思考吃光致空输出）", async () => {
+  const routes = await routesWithCloudDeepAnalysis({ HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER: "deepseek", HOLO_DR_PROBE: "budget" });
+  assert.ok(routes.deep_report_writer.maxTokens >= 8192, "writer 上限需容纳思考 + 正文");
+  assert.ok(routes.deep_report_checker.maxTokens >= 16384, "checker 上限需容纳思考 + JSON（8192 实测仍有 5/27 撞顶）");
+  assert.equal(routes.deep_report_checker.reasoningEffort, "low", "核对只挑错，思考强度 low 控成本");
+});

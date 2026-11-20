@@ -1,0 +1,550 @@
+{
+  "id": "A1_lin_checkup",
+  "round": 2,
+  "status": "completed",
+  "seconds": 133,
+  "calls": 7,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 1387,
+      "usage": {
+        "prompt_tokens": 247,
+        "completion_tokens": 245,
+        "total_tokens": 492,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 210
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 247
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 64,
+      "head": "你把用户亲手写的个人档案转写成逐条执行指令，供一位 AI 助手照办。规则：\n1."
+    },
+    {
+      "ms": 19611,
+      "usage": {
+        "prompt_tokens": 4399,
+        "completion_tokens": 3498,
+        "total_tokens": 7897,
+        "prompt_tokens_details": {
+          "cached_tokens": 1408
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2549
+        },
+        "prompt_cache_hit_tokens": 1408,
+        "prompt_cache_miss_tokens": 2991
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1443,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 5430,
+      "usage": {
+        "prompt_tokens": 5533,
+        "completion_tokens": 1348,
+        "total_tokens": 6881,
+        "prompt_tokens_details": {
+          "cached_tokens": 4352
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 422
+        },
+        "prompt_cache_hit_tokens": 4352,
+        "prompt_cache_miss_tokens": 1181
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1419,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 43340,
+      "usage": {
+        "prompt_tokens": 4373,
+        "completion_tokens": 8192,
+        "total_tokens": 12565,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 8192
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 3733
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "length",
+      "contentLen": 0,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 20501,
+      "usage": {
+        "prompt_tokens": 4373,
+        "completion_tokens": 4403,
+        "total_tokens": 8776,
+        "prompt_tokens_details": {
+          "cached_tokens": 4224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 4028
+        },
+        "prompt_cache_hit_tokens": 4224,
+        "prompt_cache_miss_tokens": 149
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 659,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 7666,
+      "usage": {
+        "prompt_tokens": 5742,
+        "completion_tokens": 1655,
+        "total_tokens": 7397,
+        "prompt_tokens_details": {
+          "cached_tokens": 4608
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 713
+        },
+        "prompt_cache_hit_tokens": 4608,
+        "prompt_cache_miss_tokens": 1134
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1458,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 33688,
+      "usage": {
+        "prompt_tokens": 4328,
+        "completion_tokens": 6140,
+        "total_tokens": 10468,
+        "prompt_tokens_details": {
+          "cached_tokens": 3200
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 5818
+        },
+        "prompt_cache_hit_tokens": 3200,
+        "prompt_cache_miss_tokens": 1128
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 578,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 28995,
+    "cached": 18432,
+    "completion": 25481
+  },
+  "costCNY": 0.2629,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=3 semantic=4 second=4 deleted=0 whitelist=142"
+  ],
+  "result": {
+    "title": "这个月任务量翻了近一倍，睡眠和健身却先退了一步",
+    "narrativeSummary": "小林，整体看，这个月是往前冲的一个月：完成任务从 55 个涨到 107 个，几乎翻倍，分布在 27 天里。但睡眠、健身、步数三条线同时在往下走。钱没有失控，多花的部分基本都在吃上面。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "钱：多出来的支出几乎都在餐饮",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1",
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "身体：睡眠和健身同时往下走",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3",
+            "p4"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "任务：翻倍是真的，而且没有靠拖时间",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p5",
+            "p6"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "四",
+          "title": "一起发生的事：能看到重合，看不到因果",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p7"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "五",
+          "title": "一个建议",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p8"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本报告覆盖 2026 年 10 月 22 日至 11 月 20 日约 30 天，对比对象是紧邻的前 30 天。任务内容和想法正文不在数据里，因此涉及它们的主题和原因都无法判断；睡眠只评估了时长和阶段结构，不构成睡眠质量的医学判断；快照中没有目标进度和预算记录，所以不能说超预算或目标达成与否；同段时间内的变化只表示同时发生，不代表因果。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "这一期总支出将近 5940 元、92 笔，比上期多 431 元。真正拉动的是餐饮：64 笔合计 1957 元，比上期多了 423 元，涨幅 27.6%，也就是说，总支出多出的那 431 元，几乎都能在餐饮这一项里找到。住房还是那笔 3200 元房租，和上期一样，清单显示它每月同一金额、像是分期或固定订阅，不是一次性购买；交通反而少了 65 元，19 次地铁；购物多了几十元，主要是 8 次日用品。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "餐饮里最值得单独看的是深夜外卖：9 次、532 元，平均一次 59 元，比你午饭的 34 元、早餐的 17 元都高，本期餐饮单笔金额最大的几笔也全是它。你自己确认过一条规律：加班的那几周，深夜外卖会明显变多。不过清单里没有加班记录，也没有深夜外卖按周或按天的分布，所以这条规律在这个月是否成立，数据核对不了，只能把这 9 次记下来。放在你自己的历史里，这个月也是近几个月日常支出最高的一个月，比过去三个月的中位数高出将近一成。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "睡眠是这个月变化最明显的一项：日均 6.4 小时，比上期少了 1.1 小时，30 晚里有 13 晚不足 6 小时。步数从日均 10042 掉到 6871。喝水从日均 7.7 杯降到 6.8 杯，11 月以来的日均还在往下走。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "健身的情况更直接：本期只完成 4 天，上期是 11 天，少了 7 天。最近一次是 11 月 5 日，之后 14 天没有打卡。看你自己的历史，过去中断超过 4 天一共 7 次，中位数 4 天、最长 7 天，没有一次比这次长。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "这 107 个任务分布在 27 天，其中高优先级 30 个。8 月到 10 月每个月都在 59 个上下，11 月以来已经到 88 个。这是这个月最实在的一件好事，值得记一笔。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "想法记录从 13 条降到 8 条。记录的内容数据里看不到，只能把这个数字记下来，不下判断。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p7",
+        "type": "observation",
+        "displayText": "按天对齐的检查里，本期没有发现达到标准的两两同步变化。这个月任务量翻倍、睡眠减少、健身中断，是分别记录下来的三件事，但清单不支持把它们说成彼此关联或互为原因；深夜外卖也没有上期的数据可比，无法判断是不是变多了，所以这里只把这些变化并排放着，原因留给你自己判断。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p8",
+        "type": "observation",
+        "displayText": "只给一个：下周一，去做一次健身，哪怕只练一小会儿。依据来自你自己的数据：过去 7 次中断后，有 5 次是在周一恢复的，周一也是你完成次数最多的那天。这次中断已经 14 天，比以往任何一次都长，先把这一次补上就好，睡眠和喝水不用一起改。这个月你在任务上多做了 52 个，这件事本身很扎实，现在只是把被挤掉的那部分慢慢找回来。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F001",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期支出合计 5940.19 元，共 92 笔。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F002",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "上期支出合计 5508.99 元，共 93 笔；总支出比上期多了 431.20 元（+7.8%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F005",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "住房：本期 3200.00 元（1 笔，占本期支出 53.9%）；上期 3200.00 元（1 笔）；持平。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F006",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 1957.27 元（64 笔，占本期支出 32.9%）；上期 1533.73 元（56 笔）；多了 423.54 元（+27.6%）；差额约合 14.6 笔该类的平均消费（两期平均每笔 29.09 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "购物：本期 655.56 元（8 笔，占本期支出 11.0%）；上期 583.13 元（9 笔）；多了 72.43 元（+12.4%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F008",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "交通：本期 127.36 元（19 笔，占本期支出 2.1%）；上期 192.13 元（27 笔）；少了 64.77 元（-33.7%）；差额约合 9.3 笔该类的平均消费（两期平均每笔 6.95 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：76 笔，合计 1632.14 元，占本期支出 27.5%；上期 84 笔，合计 1733.66 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：15 笔，合计 1108.05 元，占本期支出 18.7%；上期 8 笔，合计 575.33 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔1000 元及以上：1 笔，合计 3200.00 元，占本期支出 53.9%；上期 1 笔，合计 3200.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F023",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「午饭」：28 次，合计 959.03 元，平均每次 34.25 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F024",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「早餐」：27 次，合计 466.13 元，平均每次 17.26 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F026",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「深夜外卖」：9 次，合计 532.11 元，平均每次 59.12 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F035",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期（约 30 天）日常支出 5940.19 元，比这 3 个月的中位数多了 534.62 元（+9.9%）；和这 3 个月放在一起从低到高排第 4。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F036",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身（打卡型，目标 3）：本期完成 4 天，约每周 0.9 次；上期完成 11 天，约每周 2.6 次；完成天数少了 7 天（-63.6%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F038",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身按月：7月（23日起） 完成 3 天；8月 完成 11 天；9月 完成 10 天；10月 完成 11 天；11月（1-20日） 完成 1 天。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F040",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：快照内完成 36 次；完成次数按星期 周日 0、周一 14、周二 0、周三 12、周四 1、周五 0、周六 9，最多的是周一。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F041",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：最近一次完成是 11-05（周四），之后到昨天已有 14 天没有完成（今天不算）；过去中断 4 天以上共 7 次，中断天数中位数 4 天、最长 7 天，其中比这次更长的有 0 次；中断后恢复的那天最常见的是周一（7 次里有 5 次）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F043",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期完成任务 107 个，分布在 27 天（其中高优先级 30 个）；上期 55 个，分布在 24 天；多了 52 个（+94.5%）。任务内容不在数据里，原因不能判断。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F044",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "任务按月：7月（23日起） 15 个；8月 59 个；9月 60 个；10月 59 个；11月（1-20日） 88 个。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F045",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期记录想法 8 条，分布在 8 天；上期 13 条，分布在 13 天；少了 5 条（-38.5%）。想法正文不在数据里，主题和原因不能判断。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 357,
+        "providedRows": 357,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "habit.daily": {
+        "totalRows": 240,
+        "providedRows": 240,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "health.sleep": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "health.steps": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "task.daily": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "thought.daily": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-20T17:28:15.100Z",
+    "engine": "deep-report-v1"
+  }
+}

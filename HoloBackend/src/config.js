@@ -610,8 +610,8 @@ const DEFAULT_CONFIG = {
     deep_report_checker: {
       ...deepReportTarget("CHECKER"),
       temperature: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TEMPERATURE ?? 0),
-      maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 8192),
-      reasoningEffort: process.env.HOLO_DEEP_REPORT_CHECKER_REASONING_EFFORT ?? "medium",
+      maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 16384),
+      reasoningEffort: process.env.HOLO_DEEP_REPORT_CHECKER_REASONING_EFFORT ?? "low",
       timeoutMs: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TIMEOUT_MS ?? 120_000),
       requestLimits: {
         perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),

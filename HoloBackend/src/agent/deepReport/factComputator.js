@@ -83,12 +83,14 @@ class Sheet {
     this.entries = [];
     this.headers = [];
     this.n = 0;
+    this.currentSection = null;
   }
   header(text) {
     this.headers.push(text);
     this.lines.push(text);
   }
   section(title) {
+    this.currentSection = title;
     this.lines.push("", `【${title}】`);
   }
   note(text) {
@@ -97,7 +99,7 @@ class Sheet {
   add(text) {
     this.n += 1;
     const id = `F${String(this.n).padStart(3, "0")}`;
-    this.entries.push({ id, text });
+    this.entries.push({ id, text, section: this.currentSection });
     this.lines.push(`${id} ${text}`);
     return id;
   }
@@ -136,7 +138,10 @@ function financeRows(snapshot) {
 }
 
 const inWin = (t, s, e) => t >= s && t <= e;
-const isProj = (r) => Boolean(r.project);
+// 固定支出（周期自动扣款，iOS 端标 fixed=true）不是一次性项目——绑了 SpendingProject
+// 也不能进「一次性项目拆分」剔除日常支出（2026-11-21，与 fixed 标记同批交付）
+const isFixed = (r) => r.fixed === true;
+const isProj = (r) => Boolean(r.project) && !isFixed(r);
 const expense = (r) => r.type === "expense";
 const total = (rs) => rs.reduce((a, r) => a + (Number(r.amount) || 0), 0);
 const byCat = (rs) => {
@@ -163,6 +168,9 @@ function financeSection(S, snapshot, rows, w) {
   const prev = w.hasPrev ? rows.filter((r) => expense(r) && inWin(r.t, w.prevStartMs, w.startMs - 1)) : [];
   S.section("财务·总览（全部支出，含一次性项目）");
   S.add(`本期支出合计 ${fmt2(total(cur))} 元，共 ${cur.length} 笔。`);
+  if (w.noPrevRecords) {
+    S.add(`上期没有记账记录（第一条账单在 ${ymd(w.firstFinMs)}），本期不做和上期的增减对比；没记账不等于没花钱。`);
+  }
   if (w.hasPrev) {
     S.add(`上期支出合计 ${fmt2(total(prev))} 元，共 ${prev.length} 笔；总支出比上期${delta(total(cur), total(prev))}。`);
   }
@@ -187,6 +195,17 @@ function financeSection(S, snapshot, rows, w) {
       S.add(`拆开看：项目支出${delta(total(cur.filter(isProj)), total(prev.filter(isProj)))}，日常支出${delta(total(dailyCur), total(dailyPrev))}，两者方向相反，不能合并归因。`);
     }
   }
+  // 固定支出单独成节（2026-11-21 东林拍板：AI 要能识别哪些消费来自固定支出）
+  const fixedCur = cur.filter(isFixed);
+  if (fixedCur.length) {
+    const fixedPrev = prev.filter(isFixed);
+    S.section("财务·固定支出（周期自动扣款，如房租、订阅）");
+    S.add(`本期固定支出自动记账 ${fixedCur.length} 笔，合计 ${fmt2(total(fixedCur))} 元${w.hasPrev ? `；上期 ${fixedPrev.length} 笔，合计 ${fmt2(total(fixedPrev))} 元` : ""}。这些记录的时刻是系统生成时写入的（常见为 00:00），不代表实际扣款时间，也不是手动补记。`);
+    const topFixed = [...fixedCur].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    for (const r of topFixed) {
+      S.add(`固定支出：${r.project ? `项目「${r.project}」` : `分类 ${r.category}`}，每期 ${fmt2(r.amount)} 元。`);
+    }
+  }
   incomeSection(S, rows, w);
   categorySection(S, dailyCur, dailyPrev, w, hasProj);
   bandsSection(S, dailyCur, dailyPrev, w, hasProj);
@@ -205,10 +224,30 @@ function financeSection(S, snapshot, rows, w) {
   const rep = [...notes.entries()].filter(([, v]) => v.n >= 2).sort((a, b) => b[1].n - a[1].n || b[1].sum - a[1].sum).slice(0, 10);
   if (rep.length) {
     S.section("财务·本期出现次数最多的消费（备注完全相同的归并）");
-    for (const [k, v] of rep) S.add(`「${k}」：${v.n} 次，合计 ${fmt2(v.sum)} 元，平均每次 ${fmt2(v.sum / v.n)} 元。`);
+    const prevNotes = new Map();
+    for (const r of prev) {
+      const key = (r.text || "").trim() || `（无备注·${r.category}）`;
+      prevNotes.set(key, (prevNotes.get(key) ?? 0) + 1);
+    }
+    for (const [k, v] of rep) S.add(`「${k}」：${v.n} 次，合计 ${fmt2(v.sum)} 元，平均每次 ${fmt2(v.sum / v.n)} 元${w.hasPrev ? `；上期 ${prevNotes.get(k) ?? 0} 次` : ""}。`);
   }
+  lateNightSection(S, cur, prev, w);
   tokenSection(S, cur, "本期", total(cur));
   return { cur, prev, dailyCur, dailyPrev, hasProj };
+}
+
+/** 22 点到次日 4 点的消费（排除 00:00 整的补记默认时刻） */
+function lateNightSection(S, cur, prev, w) {
+  const late = (rs) => rs.filter((r) => {
+    const hm = r.occurredAt.slice(11, 16);
+    if (hm === "00:00") return false;
+    const h = localDate(r.t).getUTCHours();
+    return h >= 22 || h < 4;
+  });
+  const lc = late(cur);
+  const lp = late(prev);
+  if (lc.length + lp.length < 3) return;
+  S.add(`22 点到次日 4 点之间的消费（不含 00:00 整的补记）：本期 ${lc.length} 笔，合计 ${fmt2(total(lc))} 元${w.hasPrev ? `；上期 ${lp.length} 笔，合计 ${fmt2(total(lp))} 元` : ""}。`);
 }
 
 function incomeSection(S, rows, w) {
@@ -354,12 +393,16 @@ function fixedLargeCategories(spans, rows) {
 }
 
 function historySection(S, snapshot, rows, w) {
-  const spans = monthSpans(snapshot);
-  const hist = monthlyDailySpend(snapshot, rows);
+  // 开始记账前的月份不算「花了 0 元」：月初 3 天内已有账单才算覆盖
+  const covered = (s) => Number.isFinite(w.firstFinMs) && s.start >= w.firstFinMs - 3 * 86400_000;
+  const spans = monthSpans(snapshot).filter(covered);
+  const hist = monthlyDailySpend(snapshot, rows).filter((h, i) => covered(monthSpans(snapshot)[i]));
   const full = hist.filter((h) => h.full);
   if (full.length < 2) return null;
   const fixed = fixedLargeCategories(spans, rows);
   S.section("财务·个人历史（自然月，剔除项目后的日常支出）");
+  const before = monthSpans(snapshot).filter((s) => !covered(s));
+  if (before.length) S.note(`${before.map((s) => s.label).join("、")}：没有完整的记账记录，不参与下面的比较`);
   for (const s of spans) {
     const xs = rows.filter((r) => expense(r) && !isProj(r) && r.t >= s.start && r.t < s.end);
     const big = xs.filter((r) => r.amount >= 1000 && !fixed.includes(r.category)).sort((a, b) => b.amount - a.amount);
@@ -422,6 +465,7 @@ function habitSection(S, snapshot, w, rows, skipCurrent) {
         const over = cur.filter((r) => h.goal && r.value > h.goal).length;
         S.add(`${name}（计数型，${h.polarity === "negative" ? "每日上限" : "每日目标"} ${h.goal} ${h.unit || ""}）：本期累计 ${g(tw)} ${h.unit || ""}，日均 ${(tw / days).toFixed(1)} ${h.unit || ""}，超过上限 ${over} 天${w.hasPrev ? `；上期累计 ${g(tp)} ${h.unit || ""}，日均 ${(tp / days).toFixed(1)} ${h.unit || ""}，超过上限 ${prev.filter((r) => h.goal && r.value > h.goal).length} 天` : ""}。`);
         if (h.polarity === "negative") quitJuxtapose(S, name, cur, tw, rows, w, h);
+        overGoalDays(S, name, cur, rows, h);
       } else if (h.type === "measure") {
         const mv = cur.filter((r) => typeof r.value === "number" && r.value > 0).map((r) => r.value);
         const mp = prev.filter((r) => typeof r.value === "number" && r.value > 0).map((r) => r.value);
@@ -490,6 +534,20 @@ function habitSection(S, snapshot, w, rows, skipCurrent) {
     }
     S.add(`${line}。`);
   }
+}
+
+/** 计数型习惯超标的日子 + 同日较大支出（≥100 元）并列，只并列不推算 */
+function overGoalDays(S, name, cur, rows, h) {
+  if (!h.goal) return;
+  const days = cur.filter((r) => r.value > h.goal).sort((a, b) => a.t - b.t);
+  if (!days.length || days.length > 8) return;
+  const parts = days.map((d) => {
+    const key = ymd(d.t);
+    const same = rows.filter((r) => expense(r) && ymd(r.t) === key && r.amount >= 100).sort((a, b) => b.amount - a.amount).slice(0, 2);
+    const spend = same.length ? `，当天较大支出：${same.map((r) => `${r.text || r.category} ${fmt2(r.amount)} 元`).join("、")}` : "";
+    return `${md(d.t)}（${weekday(d.t)}，${g(d.value)} ${h.unit || ""}${spend}）`;
+  });
+  S.add(`${name}本期超过上限的日子：${parts.join("、")}。同一天的支出只并列，不推算原因。`);
 }
 
 /** 戒断类习惯与相关消费并列（只并列不推算） */
@@ -572,7 +630,10 @@ function comovementSection(S, snapshot, w) {
       }
     }
   }
-  const series = [["每日支出", spend], ["完成任务数", tasks], ["想法条数", thoughts], ["达标习惯数", met]].filter(([, m]) => m.size >= 10);
+  const sleepHours = seriesOf("health.sleep", (r) => (typeof r.value === "number" ? r.value : null));
+  const bedtime = seriesOf("health.sleep", (r) => (typeof r.bedtimeMinutes === "number" ? fromSix(r.bedtimeMinutes) : null));
+  const steps = seriesOf("health.steps", (r) => (typeof r.value === "number" ? r.value : null));
+  const series = [["每日支出", spend], ["完成任务数", tasks], ["想法条数", thoughts], ["达标习惯数", met], ["睡眠时长", sleepHours], ["入睡时间（越大越晚）", bedtime], ["步数", steps]].filter(([, m]) => m.size >= 10);
   const hasHealth = Boolean(snapshot?.datasets?.["health.sleep"]?.rows?.length || snapshot?.datasets?.["health.steps"]?.rows?.length);
   S.section("一起变化检查（按天对齐）");
   if (!series.length) {
@@ -598,6 +659,24 @@ function comovementSection(S, snapshot, w) {
   }
 }
 
+// bedtimeMinutes = 当地零点起的分钟数；以 18:00 为起点展开后再平均，避免 23:50 与 00:10 平均成正午
+const fromSix = (m) => (m - 1080 + 1440) % 1440;
+const clock = (x) => { const m = (x + 1080) % 1440; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`; };
+
+function bedtimeLine(S, cur, prev) {
+  const bt = (rs) => rs.filter((r) => typeof r.bedtimeMinutes === "number").map((r) => fromSix(r.bedtimeMinutes));
+  const c = bt(cur);
+  if (c.length < 5) return;
+  const p = bt(prev);
+  const afterMidnight = c.filter((x) => x >= 360).length;
+  let line = `入睡时间：本期平均 ${clock(mean(c))}（${c.length} 晚），零点以后才入睡的有 ${afterMidnight} 晚`;
+  if (p.length >= 5) {
+    const diff = Math.round(mean(c) - mean(p));
+    line += `；上期平均 ${clock(mean(p))}（${p.length} 晚）；${diff === 0 ? "基本持平" : diff > 0 ? `推迟了约 ${diff} 分钟` : `提前了约 ${-diff} 分钟`}`;
+  }
+  S.add(`${line}。`);
+}
+
 function healthSection(S, snapshot, w) {
   const sleep = (snapshot?.datasets?.["health.sleep"]?.rows ?? [])
     .map((r) => ({ ...r, t: Date.parse(r.occurredAt) }))
@@ -610,6 +689,7 @@ function healthSection(S, snapshot, w) {
       S.section("健康·睡眠（时长单位小时；结构字段缺失代表设备没记录，不是 0）");
       S.add(`本期睡眠日均 ${mean(vals).toFixed(1)} 小时，共 ${vals.length} 晚；最短 ${Math.min(...vals).toFixed(1)} 小时、最长 ${Math.max(...vals).toFixed(1)} 小时，不足 6 小时 ${vals.filter((v) => v < 6).length} 晚。`);
       if (prev.length) S.add(`上期日均 ${mean(prev.map((r) => r.value)).toFixed(1)} 小时（${prev.length} 晚）；${delta(mean(vals), mean(prev.map((r) => r.value)), "小时", 1)}。`);
+      bedtimeLine(S, cur, prev);
       const withStage = cur.filter((r) => typeof r.deepHours === "number");
       if (withStage.length) {
         S.add(`睡眠结构（${withStage.length} 晚有阶段数据）：深睡日均 ${mean(withStage.map((r) => r.deepHours)).toFixed(1)} 小时、REM 日均 ${mean(withStage.map((r) => r.remHours)).toFixed(1)} 小时${cur.some((r) => typeof r.efficiency === "number") ? `，睡眠效率均值 ${mean(cur.filter((r) => typeof r.efficiency === "number").map((r) => r.efficiency)).toFixed(0)}` : ""}。只能评估时长与结构，不做睡眠质量的医学判断。`);
@@ -638,10 +718,15 @@ function contextSection(S, snapshot, rows) {
   }
   S.add("目标进度：快照里没有目标进度记录，不能判断。");
   S.add("预算：快照里没有预算数据，不能说超预算或达成预算。");
-  const midnight = rows.filter((r) => r.occurredAt.slice(11, 16) === "00:00").length;
+  const midnightManual = rows.filter((r) => !isFixed(r) && r.occurredAt.slice(11, 16) === "00:00").length;
+  const fixedRows = rows.filter(isFixed);
   if (rows.length) {
-    const share = Math.round((midnight / rows.length) * 100);
-    if (share >= 5) S.add(`账单里 ${share}% 的记录时刻是 00:00 整（补记的默认时刻），不能据此判断几点花的钱。`);
+    const manualShare = Math.round((midnightManual / rows.length) * 100);
+    if (manualShare >= 5) S.add(`账单里 ${manualShare}% 的记录时刻是 00:00 整（手动补记的默认时刻），不能据此判断几点花的钱。`);
+    if (fixedRows.length) {
+      const fixedShare = Math.round((fixedRows.length / rows.length) * 100);
+      S.add(`另有 ${fixedShare}% 的账单是固定支出的自动记账（房租、订阅这类周期扣款），不是你手动补记的，时段分析已把它们单独排除。`);
+    }
   }
   for (const r of (datasets["anniversary.events"]?.rows ?? []).slice(0, 3)) {
     if (r.title) S.add(`纪念日：${r.title} 还有 ${r.daysUntil} 天（${String(r.occurredAt).slice(0, 10)}）。`);
@@ -658,9 +743,12 @@ export function computeFactSheet(snapshot) {
   const today = localDate(w.genMs);
   S.header(`分析范围：${ymd(w.startMs)} ${localDate(w.startMs).toISOString().slice(11, 16)} 至 ${ymd(w.endMs)} ${localDate(w.endMs).toISOString().slice(11, 16)}（${w.label}，约 ${Math.round((w.endMs - w.startMs) / 86400_000)} 天）。${w.hasPrev ? `「上期」= 紧挨着的前一段同样长度：${ymd(w.prevStartMs)} 至 ${ymd(w.startMs - 1)}。` : "本题没有指定时间，范围是快照全部数据，不做上期对比。"}今天是 ${ymd(w.genMs)}（${weekday(w.genMs)}）。`);
   const rows = financeRows(snapshot);
-  financeSection(S, snapshot, rows, w);
+  const firstFinMs = rows.length ? Math.min(...rows.map((r) => r.t)) : NaN;
+  const noPrevRecords = w.hasPrev && rows.length > 0 && firstFinMs >= w.startMs;
+  const wFin = { ...w, firstFinMs, noPrevRecords, hasPrev: w.hasPrev && !noPrevRecords };
+  financeSection(S, snapshot, rows, wFin);
   projectSection(S, snapshot, rows);
-  historySection(S, snapshot, rows, w);
+  historySection(S, snapshot, rows, wFin);
   // 快照自带的 crossDomainCheckup/financeEvidenceLedger 台账刻意不进清单：
   // 台账按 29 天窗、清单按问句冻结窗，两套数字同页会让模型混用口径（评测实锤）；
   // 习惯的每周目标语义因此退化为按天折算，与实验验证配置一致。台账仍随快照留存。

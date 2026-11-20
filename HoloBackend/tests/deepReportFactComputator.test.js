@@ -124,3 +124,40 @@ test("个人历史：月度序列与中位数", () => {
   assert.match(sheet.text, /中位数/);
   assert.match(sheet.text, /从低到高排第/);
 });
+
+test("固定支出：fixed 标记成节说明，不再当一次性项目剔除日常", () => {
+  const snap = buildSnapshot();
+  const rows = snap.datasets["finance.transactions"].rows;
+  // 本期固定支出：房租（00:00 自动落账，带 project 也不算一次性项目）+ 订阅
+  rows.unshift({ occurredAt: iso(Date.parse("2026-10-25T00:00:00+08:00")), amount: 4800, type: "expense", category: "房租", text: "", account: "现金", project: "住房", fixed: true });
+  rows.unshift({ occurredAt: iso(Date.parse("2026-10-25T00:00:00+08:00")), amount: 25, type: "expense", category: "订阅", text: "", account: "现金", fixed: true });
+  const sheet = computeFactSheet(snap);
+  const text = sheet.text;
+  // 固定支出单独成节，含系统生成时刻说明
+  assert.match(text, /财务·固定支出（周期自动扣款/);
+  assert.match(text, /本期固定支出自动记账 2 笔，合计 4825\.00 元/);
+  assert.match(text, /时刻是系统生成时写入的/);
+  assert.match(text, /项目「住房」，每期 4800\.00 元/);
+  // 挂项目的固定支出不进「一次性项目拆分」（固定行 fixed=true 时 isProj=false）
+  assert.doesNotMatch(text, /项目「住房」：本期/);
+  // 数据说明：00:00 补记口径只数非固定行——本例非固定 00:00 仅基础快照 11-01 房租 1 笔（1/17≈6%），
+  // 固定行（25 日两笔）不计入补记占比；固定支出另有单独说明句
+  assert.match(text, /账单里 6% 的记录时刻是 00:00 整（手动补记的默认时刻）/);
+  assert.match(text, /固定支出的自动记账（房租、订阅这类周期扣款），不是你手动补记的/);
+});
+
+test("00:00 补记句只统计非固定行，固定行不抬高补记占比", () => {
+  const snap = buildSnapshot();
+  const rows = snap.datasets["finance.transactions"].rows;
+  // 10 笔手动 00:00 补记 + 1 笔固定 00:00：占比按 10/总行数，而非 11
+  const before = rows.length;
+  for (let i = 0; i < 10; i += 1) {
+    rows.push({ occurredAt: iso(Date.parse(`2026-10-1${i}T00:00:00+08:00`)), amount: 30, type: "expense", category: "餐", text: "夜宵补记", account: "现金" });
+  }
+  rows.push({ occurredAt: iso(Date.parse("2026-10-26T00:00:00+08:00")), amount: 4800, type: "expense", category: "房租", text: "", account: "现金", fixed: true });
+  const sheet = computeFactSheet(snap);
+  // 基础快照本身有一笔 00:00 非固定房租 → 手动补记 11 笔；固定行不计入
+  const share = Math.round((11 / (before + 11)) * 100);
+  assert.match(sheet.text, new RegExp(`账单里 ${share}% 的记录时刻是 00:00 整（手动补记的默认时刻）`));
+  assert.doesNotMatch(sheet.text, new RegExp(`账单里 ${Math.round((12 / (before + 11)) * 100)}% 的记录时刻是 00:00 整`));
+});

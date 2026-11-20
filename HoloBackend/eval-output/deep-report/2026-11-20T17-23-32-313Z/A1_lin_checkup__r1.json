@@ -1,0 +1,173 @@
+{
+  "id": "A1_lin_checkup",
+  "round": 1,
+  "status": "failed",
+  "seconds": 150,
+  "calls": 7,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 1800,
+      "usage": {
+        "prompt_tokens": 247,
+        "completion_tokens": 239,
+        "total_tokens": 486,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 204
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 247
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 66,
+      "head": "你把用户亲手写的个人档案转写成逐条执行指令，供一位 AI 助手照办。规则：\n1."
+    },
+    {
+      "ms": 13470,
+      "usage": {
+        "prompt_tokens": 4399,
+        "completion_tokens": 2141,
+        "total_tokens": 6540,
+        "prompt_tokens_details": {
+          "cached_tokens": 1408
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1412
+        },
+        "prompt_cache_hit_tokens": 1408,
+        "prompt_cache_miss_tokens": 2991
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1143,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 5544,
+      "usage": {
+        "prompt_tokens": 5313,
+        "completion_tokens": 1244,
+        "total_tokens": 6557,
+        "prompt_tokens_details": {
+          "cached_tokens": 4352
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 522
+        },
+        "prompt_cache_hit_tokens": 4352,
+        "prompt_cache_miss_tokens": 961
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1137,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 39949,
+      "usage": {
+        "prompt_tokens": 4169,
+        "completion_tokens": 8101,
+        "total_tokens": 12270,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 7718
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 3529
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 726,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 6091,
+      "usage": {
+        "prompt_tokens": 5537,
+        "completion_tokens": 1268,
+        "total_tokens": 6805,
+        "prompt_tokens_details": {
+          "cached_tokens": 4352
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 521
+        },
+        "prompt_cache_hit_tokens": 4352,
+        "prompt_cache_miss_tokens": 1185
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1182,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 40586,
+      "usage": {
+        "prompt_tokens": 4133,
+        "completion_tokens": 8192,
+        "total_tokens": 12325,
+        "prompt_tokens_details": {
+          "cached_tokens": 3200
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 8192
+        },
+        "prompt_cache_hit_tokens": 3200,
+        "prompt_cache_miss_tokens": 933
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "length",
+      "contentLen": 0,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 39659,
+      "usage": {
+        "prompt_tokens": 4133,
+        "completion_tokens": 8192,
+        "total_tokens": 12325,
+        "prompt_tokens_details": {
+          "cached_tokens": 3968
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 8192
+        },
+        "prompt_cache_hit_tokens": 3968,
+        "prompt_cache_miss_tokens": 165
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 8192,
+      "finish": "length",
+      "contentLen": 0,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 27931,
+    "cached": 17920,
+    "completion": 29377
+  },
+  "costCNY": 0.2962,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}
