@@ -177,12 +177,18 @@ struct DiscoveryReviewSheet: View {
             }
             .padding(.top, HoloSpacing.xl)
         } else if todayCard == nil {
-            // 空态：刚做完最后一个决定 →「看完了」；本来就没有 →「今天没有」。
-            DiscoveryEmptyCard(
-                style: receipt != nil ? .doneToday : .noneToday,
-                onOpenMemory: { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
-            )
-            .padding(.top, HoloSpacing.xl)
+            // 预算墙（2026-11-21）：每周额度用完 → 升级引导卡（优先于普通空态展示）。
+            if DiscoveryTopicStore.shared.isInsightQuotaWalledToday() {
+                DiscoveryQuotaWallCard()
+                    .padding(.top, HoloSpacing.xl)
+            } else {
+                // 空态：刚做完最后一个决定 →「看完了」；本来就没有 →「今天没有」。
+                DiscoveryEmptyCard(
+                    style: receipt != nil ? .doneToday : .noneToday,
+                    onOpenMemory: { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
+                )
+                .padding(.top, HoloSpacing.xl)
+            }
         }
     }
 

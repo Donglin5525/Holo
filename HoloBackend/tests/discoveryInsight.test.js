@@ -242,3 +242,67 @@ test("限流配置：purpose 走 route requestLimits（perDay=1 第二次 429）
   const second = await post(app);
   assert.equal(second.status, 429);
 });
+
+// ============ 预算墙（2026-11-21 东林拍板：送达计数 / 7 天滚动 / 免费1 Plus5） ============
+
+test("预算墙·免费：第 1 张送达后第 2 次请求直接 quota_exhausted，零上游调用", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft()));
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app, database } = makeApp({}, stub);
+  const first = await post(app);
+  assert.equal(first.status, 200);
+  assert.equal(JSON.parse((await first.json()).choices[0].message.content).selected.angleKey, "sleep×lateNight");
+  const second = await post(app);
+  assert.equal(second.status, 200);
+  const draft = JSON.parse((await second.json()).choices[0].message.content);
+  assert.equal(draft.selected, null);
+  assert.equal(draft.noneReason, "quota_exhausted");
+  assert.equal(stub.calls.length, 1, "撞墙后不得再调模型");
+  // 台账只有一条送达记录
+  const count = database.db.prepare("SELECT COUNT(*) c FROM insight_deliveries").get().c;
+  assert.equal(count, 1);
+});
+
+test("预算墙·计数口径：none_worthwhile 与 gate_rejected 不烧名额", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput({ schemaVersion: 1, kind: "insightDraft", selected: null, noneReason: "none_worthwhile" }));
+  stub.enqueue("根本不是 JSON");
+  stub.enqueue("根本不是 JSON");
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app } = makeApp({}, stub);
+  const first = await post(app);
+  assert.equal(JSON.parse((await first.json()).choices[0].message.content).noneReason, "none_worthwhile");
+  const second = await post(app);  // 两次坏稿 → gate_rejected，未送达
+  assert.equal(JSON.parse((await second.json()).choices[0].message.content).noneReason, "gate_rejected");
+  const third = await post(app);   // 名额未被烧 → 仍能生成
+  assert.equal(JSON.parse((await third.json()).choices[0].message.content).selected.angleKey, "sleep×lateNight");
+});
+
+test("预算墙·Plus：5 条/周，第 6 次撞墙", async () => {
+  const stub = insightStub();
+  for (let i = 0; i < 6; i += 1) stub.enqueue(modelOutput(goodDraft()));
+  const { app, database } = makeApp({}, stub);
+  database.db
+    .prepare("INSERT INTO subscription_acceptance_overrides (device_id, tier, updated_at) VALUES (?, 'plus', CURRENT_TIMESTAMP)")
+    .run(DEVICE);
+  for (let i = 0; i < 5; i += 1) {
+    const res = await post(app);
+    assert.equal(JSON.parse((await res.json()).choices[0].message.content).selected.angleKey, "sleep×lateNight");
+  }
+  const sixth = await post(app);
+  assert.equal(JSON.parse((await sixth.json()).choices[0].message.content).noneReason, "quota_exhausted");
+  assert.equal(stub.calls.length, 5);
+});
+
+test("预算墙·参数：freeWeekly=0 表示不限（内测/排查用）", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft()));
+  stub.enqueue(modelOutput(goodDraft()));
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app } = makeApp({ discovery: { insightV2Enabled: true, insightFreeWeekly: 0 } }, stub);
+  for (let i = 0; i < 3; i += 1) {
+    const res = await post(app);
+    assert.equal(JSON.parse((await res.json()).choices[0].message.content).selected.angleKey, "sleep×lateNight");
+  }
+});

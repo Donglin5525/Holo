@@ -594,8 +594,7 @@ const DEFAULT_CONFIG = {
     // 深度报告 C 方案（2026-11-07 设计）：writer/checker 与 agent_loop 同档；
     // writer 单次输出约 1-2 千字、实测 20-60s，默认超时放宽到 120s（provider 支持按调用覆盖）
     deep_report_writer: {
-      provider: process.env.HOLO_DEEP_REPORT_WRITER_PROVIDER ?? process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
-      model: process.env.HOLO_DEEP_REPORT_WRITER_MODEL ?? process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      ...deepReportTarget("WRITER"),
       temperature: Number(process.env.HOLO_DEEP_REPORT_WRITER_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_DEEP_REPORT_WRITER_MAX_TOKENS ?? 4096),
       reasoningEffort: process.env.HOLO_DEEP_REPORT_WRITER_REASONING_EFFORT ?? "medium",
@@ -606,8 +605,7 @@ const DEFAULT_CONFIG = {
       },
     },
     deep_report_checker: {
-      provider: process.env.HOLO_DEEP_REPORT_CHECKER_PROVIDER ?? process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
-      model: process.env.HOLO_DEEP_REPORT_CHECKER_MODEL ?? process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      ...deepReportTarget("CHECKER"),
       temperature: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 4096),
       reasoningEffort: process.env.HOLO_DEEP_REPORT_CHECKER_REASONING_EFFORT ?? "medium",
@@ -734,6 +732,10 @@ const DEFAULT_CONFIG = {
     // v4 洞察灰度闸（2026-11-20 方案 02-B5）：默认 false；关闭时 discovery_insight_v2
     // 返回 noneReason="disabled"，iOS 回落 v3 链路。回退=env 改 false 重启。
     insightV2Enabled: process.env.HOLO_DISCOVERY_INSIGHT_V2_ENABLED === "true",
+    // 预算墙（2026-11-21 东林拍板）：按「实际送达的卡」计数，7 天滚动窗口；
+    // 撞墙返回 noneReason="quota_exhausted"（不调上游、iOS 不回落 v3、展示升级引导）。
+    insightFreeWeekly: Number(process.env.HOLO_DISCOVERY_INSIGHT_FREE_WEEKLY ?? 1),
+    insightPlusWeekly: Number(process.env.HOLO_DISCOVERY_INSIGHT_PLUS_WEEKLY ?? 5),
     topicMaxCandidates: Number(process.env.HOLO_DISCOVERY_TOPIC_MAX_CANDIDATES ?? 30),
     policyVersion: process.env.HOLO_DISCOVERY_POLICY_VERSION ?? "v1",
     allowedDomains: ["thought", "task", "habit"],
@@ -985,6 +987,28 @@ export function discoveryRouteTarget(env, stage) {
   };
 }
 
+/**
+ * 深度报告新引擎 writer/checker 的 provider/model（成对选取，防错配）：
+ * 自身 env 优先 → 深度分析专用通道（2026-11-10 东林拍板深度分析走 deepseek-flash）→ agent_loop 链。
+ * 2026-11-20 补：此前只有旧引擎跟随专用通道，新引擎仍落 qwen。
+ */
+function deepReportTarget(role) {
+  const env = process.env;
+  if (env[`HOLO_DEEP_REPORT_${role}_PROVIDER`]) {
+    return {
+      provider: env[`HOLO_DEEP_REPORT_${role}_PROVIDER`],
+      model: env[`HOLO_DEEP_REPORT_${role}_MODEL`] ?? env.HOLO_AGENT_LOOP_MODEL ?? env.HOLO_CHAT_MODEL ?? "holo-mock",
+    };
+  }
+  if (env.HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER) {
+    return { provider: env.HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER, model: env.HOLO_CLOUD_DEEP_ANALYSIS_MODEL ?? "deepseek-flash" };
+  }
+  return {
+    provider: env.HOLO_AGENT_LOOP_PROVIDER ?? env.HOLO_CHAT_PROVIDER ?? "mock",
+    model: env.HOLO_AGENT_LOOP_MODEL ?? env.HOLO_CHAT_MODEL ?? "holo-mock",
+  };
+}
+
 export function loadConfig(overrides = {}) {
   return {
     // 后台维护止损预算，采用高于当前 Flash 账单价的保守费率；不是会员展示额度。
@@ -1032,6 +1056,11 @@ export function loadConfig(overrides = {}) {
     visionPersonalTransfer: {
       ...DEFAULT_CONFIG.visionPersonalTransfer,
       ...overrides.visionPersonalTransfer,
+    },
+    // 2026-11-20 补并：11-07 起此键漏并入，运行时总闸恒为 undefined，新引擎从未在生产生效
+    deepReportEngine: {
+      ...DEFAULT_CONFIG.deepReportEngine,
+      ...overrides.deepReportEngine,
     },
     routes: {
       ...DEFAULT_CONFIG.routes,

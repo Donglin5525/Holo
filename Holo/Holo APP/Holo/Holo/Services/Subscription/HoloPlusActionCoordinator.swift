@@ -68,6 +68,8 @@ enum HoloPlusGateContext: Equatable {
     case habitPause
     case billImportAI
     case taskSplit
+    /// 「一个发现」洞察每周额度用完（预算墙，2026-11-21）
+    case discoveryInsightWeekly
 
     var title: String {
         switch self {
@@ -103,6 +105,8 @@ enum HoloPlusGateContext: Equatable {
             return String(localized: "升级 Holo Plus，使用账单智能导入")
         case .taskSplit:
             return String(localized: "升级 Holo Plus，继续使用任务拆解")
+        case .discoveryInsightWeekly:
+            return String(localized: "升级 Holo Plus，每周看更多条发现")
         }
     }
 }

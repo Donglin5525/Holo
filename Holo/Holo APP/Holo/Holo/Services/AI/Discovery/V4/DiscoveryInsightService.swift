@@ -84,6 +84,11 @@ enum DiscoveryInsightService {
                 store.markInsightV2NoneWorthwhile(now: now)
                 logger.info("v4 判定无值得说的洞察(\(draft.noneReason ?? "?", privacy: .public))，当天不出卡")
                 return false
+            case "quota_exhausted":
+                // 预算墙（2026-11-21）：不回落 v3（墙语义）、不出卡；评审页展示升级引导。
+                store.markInsightQuotaWalled(now: now)
+                logger.info("v4 预算墙：每周额度已用完，展示升级引导")
+                return false
             case "disabled":
                 DiscoveryFeatureFlags.markDisabledByServer()
                 return await fallbackToV3(proposals: proposals, now: now, reason: "后端开关关")

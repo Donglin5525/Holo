@@ -143,3 +143,43 @@ private extension Array {
         indices.contains(index) ? self[index] : nil
     }
 }
+
+// MARK: - 预算墙卡（2026-11-21 东林拍板：免费 1 条/周、Plus 5 条/周）
+
+/// 「今日一条」空位上的升级引导卡：只替换空态，不打断「等你确认」列表。
+struct DiscoveryQuotaWallCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: HoloSpacing.xs) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.footnote)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                Text("本周的一条发现已看完")
+                    .holoText(.metadata)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
+            Text("Holo Plus 每周可以看更多条你自己的记录里长出来的洞察。")
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: openPlus) {
+                Text("了解 Holo Plus")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(HoloActionStyle(role: .secondary))
+            .accessibilityIdentifier("chat.discovery.insight.quotaWall.plus")
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .holoSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chat.discovery.insight.quotaWall")
+    }
+
+    private func openPlus() {
+        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "quota_wall_plus_tap"])
+        HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly)
+    }
+}

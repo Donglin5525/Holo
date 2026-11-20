@@ -85,8 +85,8 @@ nonisolated struct InsightInputPacket: Codable, Equatable, Sendable {
 nonisolated struct InsightDraft: Equatable, Sendable {
     let schemaVersion: Int
     let selected: Selected?
-    /// 后端取值：none_worthwhile / insufficient_data / gate_rejected / disabled
-    /// （前两个来自模型，后两个由后端闸门/开关合成；selected 与 noneReason 互斥）。
+    /// 后端取值：none_worthwhile / insufficient_data / gate_rejected / disabled / quota_exhausted
+    /// （前两个来自模型，后三个由后端闸门/开关/预算墙合成；selected 与 noneReason 互斥）。
     let noneReason: String?
 
     nonisolated struct Selected: Equatable, Sendable {

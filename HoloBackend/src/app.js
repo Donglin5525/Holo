@@ -57,6 +57,7 @@ import {
   validateInsightPacket, parseModelDraft, evaluateInsightDraft, repairInsightDraft,
   buildDraftEnvelope, extractModelJson,
 } from "./discovery/insightGate.js";
+import { createInsightDeliveryStore } from "./discovery/insightDeliveryStore.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
@@ -481,6 +482,9 @@ export function createApp(overrides = {}) {
     backgroundCostGuard,
     captureAiCallLogs,
   });
+  // v4 洞察送达台账（预算墙计数；自迁移表，只存 device_id+时间戳）。
+  const insightDeliveryStore = createInsightDeliveryStore(database.db);
+
   // v3 选题端点（2026-11-08 方案）：独立灰度闸 config.discovery.topicEnabled，默认关。
   registerTopicSelectionRoutes(app, {
     config,
@@ -1038,6 +1042,8 @@ export function createApp(overrides = {}) {
         return await handleInsightV2Completion(context, {
           request, upstreamRequest, provider, route, config,
           language: context.req.header("x-holo-language"),
+          deviceId, entitlement,
+          insightDeliveryStore,
           logId, captureAiCallLogs, adminLogStore,
           quotaReservation, quotaActionLedgerStore,
         });
@@ -2658,6 +2664,7 @@ function extractUsageFromSseChunk(chunk) {
 async function handleInsightV2Completion(context, deps) {
   const {
     request, upstreamRequest, provider, config, language,
+    deviceId, entitlement, insightDeliveryStore,
     logId, captureAiCallLogs, adminLogStore, quotaReservation, quotaActionLedgerStore,
   } = deps;
 
@@ -2684,6 +2691,25 @@ async function handleInsightV2Completion(context, deps) {
     const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "disabled" });
     commit();
     finishLog("success", { response: { text: draftJSON, gate: { disabled: true } } });
+    return insightCompletionResponse(context, draftJSON, upstreamRequest.stream, logId);
+  }
+
+  // 预算墙（2026-11-21 东林拍板）：7 天滚动窗口按「实际送达」计数；撞墙零上游成本。
+  // 免费 1 条/周、Plus 5 条/周（config 可调）；iOS 收到 quota_exhausted 展示升级引导、不回落 v3。
+  const plusActive = entitlement?.isPlusActive === true;
+  const weeklyLimit = plusActive
+    ? (config.discovery?.insightPlusWeekly ?? 5)
+    : (config.discovery?.insightFreeWeekly ?? 1);
+  const usedCount = insightDeliveryStore.countLastWeek(deviceId);
+  if (weeklyLimit > 0 && usedCount >= weeklyLimit) {
+    const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "quota_exhausted" });
+    commit();
+    finishLog("success", {
+      response: {
+        text: draftJSON,
+        gate: { quota: { used: usedCount, limit: weeklyLimit, tier: plusActive ? "plus" : "free" } },
+      },
+    });
     return insightCompletionResponse(context, draftJSON, upstreamRequest.stream, logId);
   }
 
@@ -2728,6 +2754,8 @@ async function handleInsightV2Completion(context, deps) {
       }
       if (!check.ok) { lastReason = check.reason; continue; }
       accepted = { selected: parsed.draft };
+      // 预算墙计数：闸门放行 = 送达（none/被拒不计数）。
+      insightDeliveryStore.record(deviceId);
     }
     const gate = {
       accepted: !!accepted?.selected,

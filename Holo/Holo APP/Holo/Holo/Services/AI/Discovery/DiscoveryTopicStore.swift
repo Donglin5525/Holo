@@ -164,6 +164,7 @@ nonisolated final class DiscoveryTopicStore {
     private let insightRejectedAngleKey = "holo.discovery.insight.rejectedAngles.v1"
     private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v1"
     private let insightNoneDayKey = "holo.discovery.insight.noneDay.v1"
+    private let insightQuotaWallDayKey = "holo.discovery.insight.quotaWallDay.v1"
     /// recentAngleKeys 的回看窗口：30 天（总纲 §5.1 recentTopics 语义）。
     static let angleRecentDays = 30
 
@@ -179,6 +180,17 @@ nonisolated final class DiscoveryTopicStore {
 
     func markInsightV2Attempted(now: Date = Date(), calendar: Calendar = .current) {
         defaults.set(dayStamp(now, calendar: calendar), forKey: insightAttemptDayKey)
+    }
+
+    /// v4 预算墙（2026-11-21）：今天服务端判定每周额度用完（免费 1 条/周、Plus 5 条/周）。
+    /// 评审页据此在「今日一条」空位展示升级引导卡；次日首次打开会重新探一次（服务端权威）。
+    func isInsightQuotaWalledToday(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        let day = defaults.double(forKey: insightQuotaWallDayKey)
+        return day > 0 && day == dayStamp(now, calendar: calendar)
+    }
+
+    func markInsightQuotaWalled(now: Date = Date(), calendar: Calendar = .current) {
+        defaults.set(dayStamp(now, calendar: calendar), forKey: insightQuotaWallDayKey)
     }
 
     /// v4 今天是否已判「无值得说的」（宁缺毋滥：当天 v3 也不补卡）。

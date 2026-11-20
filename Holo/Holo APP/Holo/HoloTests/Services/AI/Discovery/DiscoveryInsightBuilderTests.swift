@@ -308,6 +308,16 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertNil(decoded.angleKey)
     }
 
+    func testTopicStoreQuotaWallMarker() {
+        let store = makeStore()
+        let now = Date()
+        XCTAssertFalse(store.isInsightQuotaWalledToday(now: now))
+        store.markInsightQuotaWalled(now: now)
+        XCTAssertTrue(store.isInsightQuotaWalledToday(now: now))
+        // 次日重新探（服务端权威，客户端只做当日展示标记）
+        XCTAssertFalse(store.isInsightQuotaWalledToday(now: now.addingTimeInterval(2 * 86_400)))
+    }
+
     func testTopicStoreAngleMemoryAndDayMarkers() {
         let store = makeStore()
         let now = Date()
