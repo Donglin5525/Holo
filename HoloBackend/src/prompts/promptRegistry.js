@@ -96,7 +96,8 @@ const PROMPT_VERSIONS = {
   discovery_topic_v1: 1,
   // v4 洞察化（2026-11-20 方案 02-B2）：画像+特征+意图→一条及格线洞察（N1-N3+D1-D4），
   // 判断句无数字，evidence 模板带 {slot} 空位由端侧回填。闸门=src/discovery/insightGate.js。
-  discovery_insight_v2: 1,
+  // v2：补「平淡数据情绪化包装」反例（离线评测 04-all-bland 组实锤出伪洞察）。
+  discovery_insight_v2: 2,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

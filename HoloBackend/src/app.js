@@ -2683,7 +2683,7 @@ async function handleInsightV2Completion(context, deps) {
   if (config.discovery?.insightV2Enabled !== true) {
     const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "disabled" });
     commit();
-    finishLog("success", { response: { text: draftJSON }, gate: { disabled: true } });
+    finishLog("success", { response: { text: draftJSON, gate: { disabled: true } } });
     return insightCompletionResponse(context, draftJSON, upstreamRequest.stream, logId);
   }
 
@@ -2746,7 +2746,7 @@ async function handleInsightV2Completion(context, deps) {
     try {
       const { draftJSON, gate, usage } = await generate();
       commit();
-      finishLog("success", { response: { text: draftJSON }, usage, gate });
+      finishLog("success", { response: { text: draftJSON, gate }, usage });
       return insightCompletionResponse(context, draftJSON, false, logId);
     } catch (error) {
       release();
@@ -2767,7 +2767,7 @@ async function handleInsightV2Completion(context, deps) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: draftJSON } }] })}\n\n`));
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         commit();
-        finishLog("success", { response: { text: draftJSON }, usage, gate });
+        finishLog("success", { response: { text: draftJSON, gate }, usage });
         controller.close();
       } catch (error) {
         clearInterval(heartbeat);

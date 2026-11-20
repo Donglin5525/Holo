@@ -207,7 +207,7 @@ final class PromptManager {
         .weeklyPlanGeneration: 1,
         .goalWorkshop: 2,          // v2: 目标闭环扩展 resultSource/fundSchedule/budget/constraints/reviewCadenceDays + 授权候选引用；v1: 分阶段会话契约（与后端 defaultPrompts.json goal_workshop 语义对齐）
         .todayReliefPlan: 1         // v1: 当日安排整理（与后端 defaultPrompts.json today_relief_plan v1 语义对齐）
-        ,.discoveryInsightV2: 1     // v1: 一个发现 v4 洞察（2026-11-20 方案 02-B2；与后端 defaultPrompts.json discovery_insight_v2 v1 逐字对齐）
+        ,.discoveryInsightV2: 2     // v2: 补「平淡数据情绪化包装」反例（离线评测 04-all-bland 出伪洞察实锤）；与后端 discovery_insight_v2 v2 逐字对齐
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -581,6 +581,7 @@ final class PromptManager {
         - 「最近这几周你餐饮花得更多了。」→ 纯复述，违反 N3。
         - 「你本周步数达标，继续加油！」→ 复述 + 空泛鼓励。
         - 「你可能有焦虑倾向。」→ 诊断，违反 N2。
+- 「睡眠和步数都维持着熟悉的节奏，这种稳定感可能是你生活里最踏实的底色。」→ 对平淡数据的情绪化包装：没有对照也没有真解释，D 维度是编的。数据都平淡时返回 none_worthwhile 才是正确结果（宁缺毋滥）。
         正例（合格）：
         - 「你说想早睡的那段时间，深夜下单反而变少了，早睡好像在顺带帮你省钱。」（D1+D2+D4）
         - 「断签的几天几乎都是任务逾期最多的日子，掉的可能不是自律，而是精力。」（D1+D2+D3）
