@@ -180,6 +180,7 @@ struct HoloFinanceTool: HoloDataTool {
                 HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类", label: "分类"),
                 HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户名称", label: "账户"),
                 HoloDataField(name: "project", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "所属财务项目（如东京旅行），未挂项目的交易无此字段", label: "项目"),
+                HoloDataField(name: "fixed", type: .boolean, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "是否为周期固定支出的自动记账（房租、订阅等），true 时时刻是系统生成的", label: "固定支出"),
                 HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "备注、说明和标签合并文本", label: "商户备注")
             ],
             sensitivity: .normal,

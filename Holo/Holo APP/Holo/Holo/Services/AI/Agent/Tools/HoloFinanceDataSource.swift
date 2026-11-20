@@ -68,6 +68,11 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             if let projectId = tx.financeProjectId, let projectName = projectNames[projectId] {
                 fields["project"] = .text(projectName)
             }
+            // 周期固定支出的自动落账（2026-11-21）：带 true 标记上传，云端据此把
+            // 「00:00 补记」与「固定支出自动记账」分开说明，不混为一谈
+            if tx.spendingProjectId != nil, tx.remark == FinanceTransactionOccurrencePolicy.recurringRemark {
+                fields["fixed"] = .boolean(true)
+            }
             return HoloQueryRow(
                 id: tx.id.uuidString,
                 occurredAt: tx.date,

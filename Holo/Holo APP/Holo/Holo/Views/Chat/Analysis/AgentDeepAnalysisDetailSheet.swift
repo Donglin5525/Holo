@@ -1087,6 +1087,15 @@ struct AgentDeepAnalysisDetailSheet: View {
 
                 if isEvidenceExpanded {
                     VStack(spacing: 0) {
+                        // 区块说明（2026-11-21 东林实报看不懂依据区）：一句话交代它是干嘛的
+                        Text("报告里的数字都出自下面这些核对条目，每条是从你的记录里算出的一句事实，可逐条对照。")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary.opacity(0.9))
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 2)
+                            .padding(.bottom, 8)
                         ForEach(Array(evidence.enumerated()), id: \.offset) { index, item in
                             if index > 0 {
                                 Divider()

@@ -78,6 +78,15 @@ final class CloudEvidencePresenterTests: XCTestCase {
         XCTAssertEqual(preview?.excerpts.first, "8月15日 音乐 TIMA音乐盛典 -¥3316")
     }
 
+    /// 深度报告的单条事实（count=1）直接给事实句，不套「已核对 1 条数据：」批量口径
+    /// （2026-11-21 东林实报依据卡「一堆乱七八糟的内容」）。
+    func test_rows单条事实不套批量口径句() {
+        let fact = rowsEvidence(dataset: "facts")
+        let references = HoloCloudEvidencePresenter.evidenceReferences(from: [fact])
+        XCTAssertEqual(references.count, 1)
+        XCTAssertEqual(references[0].summary, "8月15日 电费 -¥260")
+    }
+
     func test_证据引用上限8条与空rows过滤() {
         var items: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudEvidence] = []
         for index in 0..<12 {

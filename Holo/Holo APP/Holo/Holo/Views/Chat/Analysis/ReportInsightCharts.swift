@@ -257,5 +257,12 @@ struct ReportTrendChart: View {
                           selection: $selection, height: 140,
                           valueText: { "\(HoloChartFormat.number($0)) \(series.unitLabel)" })
         }
+        // 默认选中第一个有数据的日子（2026-11-21 东林拍板）：未选中时读数取末桶，
+        // 末日常是「今天还没记账=0」，用户会误读且不知道卡片可拖动
+        .onAppear {
+            if selection == nil, let first = buckets.first(where: { $0.values.first != nil }) {
+                selection = first.id
+            }
+        }
     }
 }

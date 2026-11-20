@@ -126,9 +126,14 @@ nonisolated enum HoloCloudEvidencePresenter {
                 let excerpts = (item.excerpts ?? []).filter { !$0.isEmpty }
                 guard !excerpts.isEmpty else { continue }
                 let label = datasetLabels[item.dataset ?? ""] ?? "数据"
+                // 单条事实（深度报告的核对条目）直接给事实句本身，不套「已核对 N 条」的
+                // 批量口径——2026-11-21 东林实报依据卡「一堆乱七八糟的内容」即此句式
+                let summary = (item.count ?? excerpts.count) <= 1
+                    ? excerpts.joined(separator: "；")
+                    : "已核对 \(item.count ?? excerpts.count) 条\(label)：\(excerpts.prefix(3).joined(separator: "；"))"
                 references.append(HoloRenderedEvidenceReference(
                     id: "cloud-rows-\(index)",
-                    summary: "已核对 \(item.count ?? excerpts.count) 条\(label)：\(excerpts.prefix(3).joined(separator: "；"))",
+                    summary: summary,
                     financeDrilldown: financeDrilldown(
                         dataset: item.dataset, group: nil, excerpts: excerpts, evidenceID: "cloud-rows-\(index)"
                     ),
