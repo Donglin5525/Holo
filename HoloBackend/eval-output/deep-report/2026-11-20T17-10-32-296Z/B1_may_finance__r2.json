@@ -1,0 +1,17 @@
+{
+  "id": "B1_may_finance",
+  "round": 2,
+  "status": "failed",
+  "seconds": 62,
+  "calls": 5,
+  "failedCalls": 0,
+  "usage": {
+    "prompt": 17094,
+    "cached": 9856,
+    "completion": 11632
+  },
+  "costCNY": 0.1274,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}

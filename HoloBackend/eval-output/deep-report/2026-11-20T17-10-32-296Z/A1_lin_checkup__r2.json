@@ -1,0 +1,17 @@
+{
+  "id": "A1_lin_checkup",
+  "round": 2,
+  "status": "failed",
+  "seconds": 107,
+  "calls": 8,
+  "failedCalls": 0,
+  "usage": {
+    "prompt": 32392,
+    "cached": 19584,
+    "completion": 21842
+  },
+  "costCNY": 0.237,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}

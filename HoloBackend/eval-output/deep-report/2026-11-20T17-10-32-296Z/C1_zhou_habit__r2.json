@@ -1,0 +1,17 @@
+{
+  "id": "C1_zhou_habit",
+  "round": 2,
+  "status": "failed",
+  "seconds": 61,
+  "calls": 5,
+  "failedCalls": 0,
+  "usage": {
+    "prompt": 16446,
+    "cached": 13951,
+    "completion": 11612
+  },
+  "costCNY": 0.1134,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}

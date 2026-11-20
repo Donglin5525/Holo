@@ -1,0 +1,17 @@
+{
+  "id": "A2_lin_finance",
+  "round": 1,
+  "status": "failed",
+  "seconds": 68,
+  "calls": 5,
+  "failedCalls": 0,
+  "usage": {
+    "prompt": 18213,
+    "cached": 10368,
+    "completion": 12426
+  },
+  "costCNY": 0.1364,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}

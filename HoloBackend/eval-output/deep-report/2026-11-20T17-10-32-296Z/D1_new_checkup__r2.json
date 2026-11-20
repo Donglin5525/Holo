@@ -1,0 +1,17 @@
+{
+  "id": "D1_new_checkup",
+  "round": 2,
+  "status": "failed",
+  "seconds": 92,
+  "calls": 6,
+  "failedCalls": 0,
+  "usage": {
+    "prompt": 18136,
+    "cached": 14976,
+    "completion": 18588
+  },
+  "costCNY": 0.1783,
+  "failureReason": "云端执行失败：EMPTY_MODEL_OUTPUT",
+  "engineLog": [],
+  "result": null
+}

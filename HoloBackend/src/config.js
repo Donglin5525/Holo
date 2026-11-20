@@ -593,10 +593,13 @@ const DEFAULT_CONFIG = {
     },
     // 深度报告 C 方案（2026-11-07 设计）：writer/checker 与 agent_loop 同档；
     // writer 单次输出约 1-2 千字、实测 20-60s，默认超时放宽到 120s（provider 支持按调用覆盖）
+    // maxTokens 8192（2026-11-21）：11-20 切 deepseek-flash 后 reasoning 思维链变长，
+    // 4096 被草稿吃满导致 content 为空（EMPTY_MODEL_OUTPUT，ai_call_logs 实测
+    // writer reasoning 2989 / checker reasoning 4096 全额），同 replay_digest 坑
     deep_report_writer: {
       ...deepReportTarget("WRITER"),
       temperature: Number(process.env.HOLO_DEEP_REPORT_WRITER_TEMPERATURE ?? 0.2),
-      maxTokens: Number(process.env.HOLO_DEEP_REPORT_WRITER_MAX_TOKENS ?? 4096),
+      maxTokens: Number(process.env.HOLO_DEEP_REPORT_WRITER_MAX_TOKENS ?? 8192),
       reasoningEffort: process.env.HOLO_DEEP_REPORT_WRITER_REASONING_EFFORT ?? "medium",
       timeoutMs: Number(process.env.HOLO_DEEP_REPORT_WRITER_TIMEOUT_MS ?? 120_000),
       requestLimits: {
@@ -607,7 +610,7 @@ const DEFAULT_CONFIG = {
     deep_report_checker: {
       ...deepReportTarget("CHECKER"),
       temperature: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TEMPERATURE ?? 0),
-      maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 4096),
+      maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 8192),
       reasoningEffort: process.env.HOLO_DEEP_REPORT_CHECKER_REASONING_EFFORT ?? "medium",
       timeoutMs: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TIMEOUT_MS ?? 120_000),
       requestLimits: {
