@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import {
   containsNumerals, validateInsightPacket, parseModelDraft,
-  evaluateInsightDraft, repairInsightDraft, buildDraftEnvelope, extractModelJson,
+  evaluateInsightDraft, repairInsightDraft, buildDraftEnvelope, extractModelJson, stripBareNumerals,
 } from "../src/discovery/insightGate.js";
 
 function packet(overrides = {}) {
@@ -166,6 +166,14 @@ test("修复层：截断超长+剔除非法 evidence 后重校验通过；全部
   const allBad = repairInsightDraft(selected({ evidence: [{ refId: "f_ghost", template: "x" }] }), p);
   assert.equal(allBad.evidence.length, 0);
   assert.equal(evaluateInsightDraft(allBad, p).ok, false);
+});
+
+test("修复层裸数字剥除：数字+量词剥、非计数用法不动（bare_number 拒因主攻）", () => {
+  assert.equal(stripBareNumerals("最近四周里深夜下单变多"), "最近里深夜下单变多");
+  assert.equal(stripBareNumerals("大概两三次"), "大概");
+  assert.equal(stripBareNumerals("半夜还在下单"), "半夜还在下单");   // 半+夜 非计数
+  assert.equal(stripBareNumerals("十分稳定的节奏"), "十分稳定的节奏"); // 十+分 非计数
+  assert.equal(stripBareNumerals("花了12块左右"), "花了左右");
 });
 
 test("buildDraftEnvelope：线上形状与 iOS InsightDraft 解码端对齐", () => {

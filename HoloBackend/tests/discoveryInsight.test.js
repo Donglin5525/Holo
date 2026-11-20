@@ -134,10 +134,23 @@ test("合规输出：200 + 闸门放行形状 + 证据模板原样保留", async
   assert.equal(stub.calls[0].messages[0].role, "system");
 });
 
-test("含数字内容：第一次拒绝 → 拒因重试 → 第二次成功", async () => {
+test("数字内容：轻量修复（剥数字词）即过，不再烧重试", async () => {
   const stub = insightStub();
   const bad = goodDraft();
   bad.selected.headline = "最近三周的深夜变化";
+  stub.enqueue(modelOutput(bad));
+  const { app } = makeApp({}, stub);
+  const res = await post(app);
+  assert.equal(res.status, 200);
+  const draft = JSON.parse((await res.json()).choices[0].message.content);
+  assert.equal(draft.selected.headline, "最近的深夜变化");
+  assert.equal(stub.calls.length, 1);
+});
+
+test("不可修复内容（未知引用）：拒因重试 → 第二次成功", async () => {
+  const stub = insightStub();
+  const bad = goodDraft();
+  bad.selected.evidence = [{ refId: "f_ghost", template: "修不好的引用" }];
   stub.enqueue(modelOutput(bad));
   stub.enqueue(modelOutput(goodDraft()));
   const { app } = makeApp({}, stub);
@@ -146,15 +159,14 @@ test("含数字内容：第一次拒绝 → 拒因重试 → 第二次成功", a
   const draft = JSON.parse((await res.json()).choices[0].message.content);
   assert.equal(draft.selected.headline, "早睡在顺带帮你省钱");
   assert.equal(stub.calls.length, 2);
-  // 重试消息带拒因注入（retryHint）
   const retryUser = stub.calls[1].messages.find((m) => m.role === "user");
-  assert.match(retryUser.content, /拒因=bare_number/);
+  assert.match(retryUser.content, /拒因=evidence_count/);
 });
 
 test("两次失败：gate_rejected，不 5xx（宁缺毋滥降级语义）", async () => {
   const stub = insightStub();
   const bad = goodDraft();
-  bad.selected.insight = "你深夜下单大概两三次。";
+  bad.selected.evidence = [{ refId: "f_ghost", template: "修不好的引用" }];
   stub.enqueue(modelOutput(bad));
   stub.enqueue("完全不是 JSON");
   const { app } = makeApp({}, stub);

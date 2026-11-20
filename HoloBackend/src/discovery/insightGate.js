@@ -258,6 +258,20 @@ export function evaluateInsightDraft(selected, packet) {
  * 轻量修复层（零生成）：重建白名单字段、截断超长、剔除引用非法的 evidence 行。
  * 修复后必须重过 evaluateInsightDraft。
  */
+/**
+ * 判断句裸数字剥除（v3 repairTemplates 同款先例）：qwen none 档对数字纪律遵从弱，
+ * 离线评测 bare_number 占拒因大头（6/11）；剥掉数字词后句子通常仍通顺（「最近四周」→「最近」）。
+ * 只作用于 headline/insight/prompt；evidence 模板不动（数字只能来自 {slot} 回填）。
+ */
+export function stripBareNumerals(text) {
+  return text
+    // 精确剥除：阿拉伯/全角数字任意位置；中文数字只在后随量词时剥（「四周/三杯」→剥，
+    // 「半夜/十分/万分抱歉」这类非计数用法不动——CN_NUMERAL_RE 单字符集直接剥会误伤）。
+    .replace(/[0-9０-９]+[周天次个块笔杯]?|[零一二两三四五六七八九十百千万亿]+(?:小时|分钟|秒钟|周|天|次|个|月|年|点|杯|笔|条|成|倍)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export function repairInsightDraft(selected, packet) {
   const featureById = new Map(packet.features.map((f) => [f.id, f]));
   const portraitIds = new Set(packet.portrait.map((p) => p.id));
@@ -276,10 +290,10 @@ export function repairInsightDraft(selected, packet) {
     ? selected.sourceDomains.filter((d) => typeof d === "string" && d.length <= 16) : [];
   return {
     angleKey: typeof selected.angleKey === "string" ? selected.angleKey.slice(0, 96) : "",
-    headline: typeof selected.headline === "string" ? selected.headline.slice(0, INSIGHT_LIMITS.headline) : "",
-    insight: typeof selected.insight === "string" ? selected.insight.slice(0, INSIGHT_LIMITS.insight) : "",
+    headline: stripBareNumerals(String(selected.headline ?? "").slice(0, INSIGHT_LIMITS.headline)),
+    insight: stripBareNumerals(String(selected.insight ?? "").slice(0, INSIGHT_LIMITS.insight)),
     evidence: cleanEvidence,
-    prompt: typeof selected.prompt === "string" ? selected.prompt.slice(0, INSIGHT_LIMITS.prompt) : "",
+    prompt: stripBareNumerals(String(selected.prompt ?? "").slice(0, INSIGHT_LIMITS.prompt)),
     criteria: [...new Set(criteria)],
     sourceDomains: [...new Set(sourceDomains)],
   };
