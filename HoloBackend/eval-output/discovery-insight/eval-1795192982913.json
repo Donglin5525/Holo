@@ -1,0 +1,354 @@
+{
+  "base": "https://api.holoapp.cn",
+  "rounds": 3,
+  "at": "2026-11-20T16:43:02.904Z",
+  "summary": [
+    {
+      "fixture": "01-single-domain-rich",
+      "gatePass": "0/3",
+      "noneRate": "0/3",
+      "gateRejected": 3,
+      "errors": 0,
+      "avgMs": 6237
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "gatePass": "2/3",
+      "noneRate": "0/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 4088
+    },
+    {
+      "fixture": "03-data-sparse",
+      "gatePass": "0/3",
+      "noneRate": "3/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 1197
+    },
+    {
+      "fixture": "04-all-bland",
+      "gatePass": "0/3",
+      "noneRate": "1/3",
+      "gateRejected": 2,
+      "errors": 0,
+      "avgMs": 4325
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "gatePass": "2/3",
+      "noneRate": "0/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 5399
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "gatePass": "0/3",
+      "noneRate": "0/3",
+      "gateRejected": 3,
+      "errors": 0,
+      "avgMs": 5882
+    },
+    {
+      "fixture": "07-user-intents",
+      "gatePass": "2/3",
+      "noneRate": "0/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 5336
+    },
+    {
+      "fixture": "08-portrait-only",
+      "gatePass": "0/3",
+      "noneRate": "3/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 990
+    }
+  ],
+  "transcripts": [
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 0,
+      "ms": 5899,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 1,
+      "ms": 6784,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 2,
+      "ms": 6029,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 0,
+      "ms": 3629,
+      "status": 200,
+      "headline": "深夜外卖增多，可能是入睡推迟的代价",
+      "insight": "入睡时间比之前更晚时，深夜外卖占比也出现了不同寻常的变化。这像是身体在寻找额外的能量来对抗困意，或是用食物填补失眠的空虚。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前更晚，推迟了 {shiftMinutes} 分钟"
+        },
+        {
+          "refId": "f_latenight_order",
+          "template": "深夜时段「外卖」消费模式与平时不同，占比达 {latePct}%"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "finance"
+      ]
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 1,
+      "ms": 2600,
+      "status": 200,
+      "headline": "深夜下单或许是为了对抗失眠",
+      "insight": "入睡变晚与深夜外卖增多同时出现，可能咖啡在帮你提神的同时，也悄悄推远了你的睡意。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前更晚"
+        },
+        {
+          "refId": "f_coffee_up",
+          "template": "数值习惯「咖啡」的记录值在变多"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 2,
+      "ms": 6034,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 0,
+      "ms": 946,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 1,
+      "ms": 1846,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 2,
+      "ms": 798,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 0,
+      "ms": 956,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 1,
+      "ms": 6174,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 2,
+      "ms": 5845,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 0,
+      "ms": 3259,
+      "status": 200,
+      "headline": "深夜的冲动，可能是疲惫在买单",
+      "insight": "你说最近累提不起劲时，睡眠变短了，深夜购物也变多了。这也许不是自律问题，而是精力透支后，身体在用消费寻找短暂的慰藉或发泄。",
+      "evidence": [
+        {
+          "refId": "f_sleep_short",
+          "template": "近期多数天睡眠不足 {avgHours}"
+        },
+        {
+          "refId": "f_night_buy",
+          "template": "深夜时段「购物」消费明显变多"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "health",
+        "finance"
+      ]
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 1,
+      "ms": 5664,
+      "status": 200,
+      "headline": "疲惫时，深夜的购物成了无声的出口",
+      "insight": "你说最近提不起劲，而深夜的冲动消费也变多了。这或许不是单纯的消费习惯改变，而是情绪低落时，身体在试图通过某种即时满足来填补内心的空洞。",
+      "evidence": [
+        {
+          "refId": "f_night_buy",
+          "template": "深夜时段「购物」消费明显变多，共 {lateCount} 次"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "thought",
+        "finance"
+      ]
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 2,
+      "ms": 7274,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 0,
+      "ms": 6496,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 1,
+      "ms": 5827,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 2,
+      "ms": 5323,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 0,
+      "ms": 3035,
+      "status": 200,
+      "headline": "冥想减少，或许是在为精力让路",
+      "insight": "你说想找回状态，但冥想打卡却在减少。可能当精力处于低谷时，维持习惯本身成了负担，放弃打卡反而是身体在提醒你需要休息。",
+      "evidence": [
+        {
+          "refId": "f_habit_down",
+          "template": "冥想完成次数从 {baselineCount} 降至 {recentCount}"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "profile"
+      ]
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 1,
+      "ms": 6202,
+      "status": 200,
+      "headline": "冥想减少，或许正是精力告急的信号",
+      "insight": "你说想找回状态，但最近冥想的次数少了。也许不是不想坚持，而是当精力被掏空时，连静心都成了负担。停下打卡，可能是在自我保护。",
+      "evidence": [
+        {
+          "refId": "f_habit_down",
+          "template": "近期冥想完成比之前少了 {recentCount} 次"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "profile"
+      ]
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 2,
+      "ms": 6771,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 0,
+      "ms": 1013,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 1,
+      "ms": 962,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 2,
+      "ms": 994,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    }
+  ]
+}
