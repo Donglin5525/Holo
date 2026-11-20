@@ -16,9 +16,22 @@ export class DeepReportError extends Error {
 
 const WRITER_FORMAT_REMINDER = `再提醒一次格式：第一行「# 标题」；正文空行分段；分节用「## 小节标题」；最后一段以「数据说明：」开头；不用任何 markdown 记号、列表符号、下划线、「=」或带点的数据集名。`;
 
-function writerUserContent(sheet, question, profileBlock) {
+// 用户确认理解通道（iOS 快照 confirmedKnowledgeBrief，d9ce7ecd0 起上行）：
+// 2026-11-20 补接——此前 prompt 已声明该字段但引擎从未拼入输入。条数/字数封顶防撑大成本。
+const CONFIRMED_MAX_LINES = 12;
+const CONFIRMED_MAX_CHARS = 1200;
+
+export function confirmedKnowledgeBlock(brief) {
+  if (typeof brief !== "string") return "";
+  const lines = brief.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, CONFIRMED_MAX_LINES);
+  if (!lines.length) return "";
+  const body = lines.map((l) => `- ${l}`).join("\n").slice(0, CONFIRMED_MAX_CHARS);
+  return `【用户确认过的理解（confirmedKnowledgeBrief：ta 本人在 App 里亲手确认过，可作已确认背景引用，不得改写含义）】\n${body}\n\n`;
+}
+
+function writerUserContent(sheet, question, profileBlock, confirmedBlock = "") {
   const profile = profileBlock ? `${profileBlock}\n\n` : "";
-  return `${profile}【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}\n\n${WRITER_FORMAT_REMINDER}`;
+  return `${profile}${confirmedBlock}【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}\n\n${WRITER_FORMAT_REMINDER}`;
 }
 
 function parseJSONLoose(text) {
@@ -77,7 +90,8 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
   const compiledProfile = await compiler.compile(snapshot.profileBrief);
 
   // 1) 写作（档案指令块放开头：对 qwen，明确指令清单比塞在长事实清单后面的原文执行力强）
-  const messages = buildWriterMessages(writerUserContent(sheet, question, ProfileCompiler.writerBlock(compiledProfile, snapshot.profileBrief)));
+  const confirmedBlock = confirmedKnowledgeBlock(snapshot.confirmedKnowledgeBrief);
+  const messages = buildWriterMessages(writerUserContent(sheet, question, ProfileCompiler.writerBlock(compiledProfile, snapshot.profileBrief), confirmedBlock));
   let report = await callModel(messages, { purpose: "cloud_deep_report_writer", route: routes.writer });
   let parsed = (() => { try { return assertReportShape(report); } catch (error) { throw error; } })();
   if (!parsed.title) {
@@ -111,14 +125,14 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
   const profileBlock = ProfileCompiler.checkerBlock(compiledProfile);
   const checkMessages = [
     { role: "system", content: checkerSystemPrompt },
-    { role: "user", content: `${profileBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` },
+    { role: "user", content: `${profileBlock}${confirmedBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` },
   ];
   const first = parseJSONLoose(await callModel(checkMessages, { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
   const problems1 = semanticProblemsOf(first);
   stats.semanticProblems = problems1.length;
   if (problems1.length) {
     report = stripDeleted(await callModel([...messages, { role: "assistant", content: report }, { role: "user", content: `核对员发现下面这些句子与事实清单不符：\n${problems1.map((f) => `- 「${f.sentence}」：${f.issue}`).join("\n")}\n请只改这些句子，让它们与事实清单一致（可以改写、改成更准确的说法，或删掉）；不要新增事实清单里没有的内容或比较；其他内容一字不改。直接输出修改后的完整全文，不要解释。` }], { purpose: "cloud_deep_report_repair", route: routes.writer }));
-    const second = parseJSONLoose(await callModel(checkMessages.slice(0, 1).concat([{ role: "user", content: `【事实清单】\n${sheet.text}\n【报告】\n${report}` }]), { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
+    const second = parseJSONLoose(await callModel(checkMessages.slice(0, 1).concat([{ role: "user", content: `${confirmedBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` }]), { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
     const problems2 = semanticProblemsOf(second);
     stats.secondCheckProblems = problems2.length;
     const both = problems2.filter((p2) => problems1.some((p1) => p1.sentence === p2.sentence)).map((p) => p.sentence);

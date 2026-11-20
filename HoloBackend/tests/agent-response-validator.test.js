@@ -286,3 +286,23 @@ test("cloudDeepAnalysis 路由：未配置为 null（回退 agent_loop），配�
   assert.equal(customized.model, "custom-model");
   assert.equal(customized.maxTokens, 32768);
 });
+
+test("深度报告新引擎 writer/checker 跟随深度分析专用通道（deepseek），自身 env 优先", async () => {
+  const routes = await routesWithCloudDeepAnalysis({
+    HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER: "deepseek",
+    HOLO_CLOUD_DEEP_ANALYSIS_MODEL: "deepseek-flash",
+    HOLO_AGENT_LOOP_PROVIDER: "qwen",
+    HOLO_AGENT_LOOP_MODEL: "qwen3.7-flash",
+  });
+  for (const name of ["deep_report_writer", "deep_report_checker"]) {
+    assert.equal(routes[name].provider, "deepseek", `${name} 跟随深度分析通道`);
+    assert.equal(routes[name].model, "deepseek-flash");
+  }
+  assert.equal(routes.agent_loop.model, "qwen3.7-flash", "其他 agent_loop 消费者不跟随");
+});
+
+test("未配深度分析通道时 writer/checker 回退 agent_loop（provider/model 成对）", async () => {
+  const routes = await routesWithCloudDeepAnalysis({ HOLO_AGENT_LOOP_PROVIDER: "qwen", HOLO_AGENT_LOOP_MODEL: "qwen3.7-flash", HOLO_DR_PROBE: "fallback" });
+  assert.equal(routes.deep_report_writer.provider, "qwen");
+  assert.equal(routes.deep_report_writer.model, "qwen3.7-flash");
+});
