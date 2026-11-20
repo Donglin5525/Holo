@@ -22,5 +22,8 @@ private struct UnderstandingStandaloneRunner {
         try await SufficiencyPolicyStandaloneTests.run()
         try await UnderstandingConsentSweeperTests.run()
         try await ProjectionFixesTests.run()
+        try LifeFeatureDistillerStandaloneTests.run()
+        try PortraitSynthesisStandaloneTests.run()
+        try PortraitContextInjectorStandaloneTests.run()
     }
 }

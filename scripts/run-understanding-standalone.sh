@@ -43,6 +43,12 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$APP/Services/AI/Understanding/DomainCapability.swift" \
   "$APP/Services/AI/Understanding/ObservationProjectors.swift" \
   "$APP/Services/AI/Understanding/ObservationIndex.swift" \
+  "$APP/Services/AI/Understanding/HoloLifeFeatureDistiller.swift" \
+  "$APP/Services/AI/Understanding/HoloPortraitSynthesisModels.swift" \
+  "$APP/Services/AI/Understanding/HoloPortraitContextInjector.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/LifeFeatureDistillerStandaloneTests.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/PortraitSynthesisStandaloneTests.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/PortraitContextInjectorStandaloneTests.swift" \
   2>&1
 
 "$BIN"

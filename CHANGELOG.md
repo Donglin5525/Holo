@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-11-20] 记忆萃取与洞察引擎重构——端侧七域特征蒸馏 + 五维度动态用户画像 + 跨模块洞察
+
+告别「6个月买3次猫粮，平均93天一笔」「『戒烟』习惯进行中，期间有反复」类浅层算术与事实复述，重构为以五维度动态用户画像为底座、具备跨模块联动推理能力的理解引擎（零 Core Data Schema 改动，复用统一知识库与 CloudKit 同步）：
+
+- **端侧七域特征蒸馏（Phase 1）**：新增 `HoloLifeFeatureDistiller` / `HoloLifeFeatureDataSource`，在 AI 授权门内将财务（180 天重复概念与中文时段分布，排除代买/报销与默认午夜补账）、健康（60 天睡眠/步数/活动分钟基线偏移及覆盖度 `coverage`）、习惯（90 天打卡趋势 + **补齐数值型习惯如体重趋势**）、想法、待办、目标、个人档案与既有已确认旧记忆蒸馏为紧凑脱敏特征包；停用旧版财务算术模板（`HoloFinancePatternMiningRuntime`）与习惯直出模板（`HabitPhaseProposer`）直写记忆。
+- **全局画像与跨模块洞察引擎（Phase 2）**：后端注册 `portrait_synthesis` purpose（走 `qwen3.7-flash` 后台成本桶，已发版上线 commit `711803e2`）；iOS 落地五维度画像（属性与角色 / 长期行为与节律 / 偏好与边界 / 近期状态与变化 / 跨模块洞察）与三态置信度（已确认 / 推测 / 待求证）、轻量安全底线核验器（拦截医疗化/道德贬损/浅层算术复述/已否决黑名单）与 `PortraitStore` 黑名单防复活机制。
+- **记忆中心体验升级与真机反馈五连修（Phase 3）**：新增 `HoloPortraitInsightsSection`，严格按分段语义分流——「值得确认」承接推测态画像与跨模块洞察（支持一键「准，记住 / 不准」及待求证轻追问，分段标题显示待确认总数），「已记住」仅干净展示已确立画像；锁定记忆页纯纵向滚动根治横向滑动；`HoloMemoryCenterViewModel` 新增静态内存快照缓存（Stale-While-Revalidate）与冷启动两阶段加载，根治 3–5 秒 loading 实现秒开；新增 `PortraitTextSanitizer` 清除 `night/evening` 等英文词典词；旧版浅层统计确认记录无损折叠收纳为「此前确认的旧版统计」，有价值的旧确认记录自动融入新版画像。
+- **AI 对话场景化注入（Phase 4）**：新增 `HoloPortraitContextInjector` 接入 `AIUserContextMessageBuilder`，按当前话题相关性注入最多 8 条动态画像与跨模块洞察，严格区分 `[已确认]` 与 `[推测]` 语气边界；`HoloApp` 接入冷启动与回前台智能节流调度（72h 常规 / 20h 新异常冷却 / 单飞保护）。
+- **验证**：`scripts/run-understanding-standalone.sh` 15 套件 352 条断言全绿，`HoloBackend` 契约测试与全量测试通过，`holo_build.py` 编译真绿，四道机器守门（`banned_api` / `test_mount` / `foreach_managed_object` / `view_weight`）零违规。
+
+---
+
 ## [2026-11-20] 贴纸体验与管理升级——分组、详情预览、批量整理、确认页瘦身与修边底图
 
 在贴纸全链路 Bug 修复完成后，按东林反馈做了一轮完整的 UI 与交互体验打磨，并补齐分组管理与双端统一体验（零 Core Data Schema 改动，CloudKit 自动同步）：

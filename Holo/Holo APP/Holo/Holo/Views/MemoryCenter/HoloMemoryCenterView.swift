@@ -30,6 +30,10 @@ struct HoloMemoryCenterView: View {
     /// 已记住条目「···」菜单的「修改」弹层（11-05 挑刺专项D：已记住管理入口）
     @State private var correctingConfirmed: HoloResolvedKnowledge?
     @State private var correctionText = ""
+    /// 动态画像与跨模块洞察状态（2026-11-20 Phase 3：已记住/值得确认两分段共享实时状态）
+    @State private var portraitStore: PortraitStore = HoloPortraitSynthesisRuntime.loadStore()
+    /// 旧版统计类已确认记录的折叠开关（2026-11-20 B 方案：默认折叠不占屏，可逆展开）
+    @State private var showFoldedLegacyConfirmed = false
 
     init(
         onBack: (() -> Void)? = nil,
@@ -67,6 +71,7 @@ struct HoloMemoryCenterView: View {
             })
         }
         .task { await viewModel.load() }
+        .onAppear { portraitStore = HoloPortraitSynthesisRuntime.loadStore() }
         .sheet(item: $correctingConfirmed) { knowledge in
             HoloMemoryKnowledgeCorrectionSheet(
                 original: knowledge.displayText,
@@ -168,7 +173,7 @@ struct HoloMemoryCenterView: View {
 
     @ViewBuilder
     private var loadedContent: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
                 if showSearch {
                     searchBar
@@ -182,23 +187,49 @@ struct HoloMemoryCenterView: View {
                     receiptRow(receipt)
                 }
 
-                if viewModel.rememberedCount == 0 && viewModel.observingCount == 0 && viewModel.worthConfirming.isEmpty {
-                    memoryEmptyState
-                } else if viewModel.selectedBucket == .remembered {
-                    rememberedContent
-                } else {
-                    // 值得确认（减法原型 ②：一句人话 + 一个主按钮）
-                    HoloMemoryWorthConfirmingSection(viewModel: viewModel)
-                }
-
                 if viewModel.selectedBucket == .remembered {
+                    if !showSearch {
+                        HoloPortraitInsightsSection(
+                            mode: .confirmed,
+                            store: $portraitStore,
+                            onOpenChat: onOpenChat,
+                            onSwitchToWorthConfirming: {
+                                withAnimation(HoloAnimation.quick) {
+                                    viewModel.selectedBucket = .worthConfirming
+                                }
+                            }
+                        )
+                    }
+
+                    if viewModel.rememberedCount == 0 && viewModel.observingCount == 0 && viewModel.worthConfirming.isEmpty && portraitStore.confirmedCount == 0 && portraitStore.pendingReviewCount == 0 {
+                        memoryEmptyState
+                    } else {
+                        rememberedContent
+                    }
+
                     moreEntry
+                } else {
+                    // 值得确认：新发现的推测态画像与跨模块洞察（准/不准）+ 存量知识待确认
+                    HoloPortraitInsightsSection(
+                        mode: .pendingReview,
+                        store: $portraitStore,
+                        onOpenChat: onOpenChat
+                    )
+                    if !viewModel.worthConfirming.isEmpty || portraitStore.pendingReviewCount == 0 {
+                        HoloMemoryWorthConfirmingSection(viewModel: viewModel)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, HoloSpacing.page)
             .padding(.bottom, 28)
         }
-        .refreshable { await viewModel.load() }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .clipped()
+        .refreshable {
+            portraitStore = HoloPortraitSynthesisRuntime.loadStore()
+            await viewModel.load()
+        }
     }
 
     // MARK: - 搜索（点导航展开；含领域筛选）
@@ -265,9 +296,11 @@ struct HoloMemoryCenterView: View {
     // MARK: - 分段（灰轨道 + 浮起选中块，§8.8 唯一样式；无红色催办）
 
     private var segmentRow: some View {
-        HStack(spacing: 0) {
+        let pendingTotal = portraitStore.pendingReviewCount + viewModel.worthConfirming.count
+        let worthConfirmingTitle = pendingTotal > 0 ? "值得确认 (\(pendingTotal))" : "值得确认"
+        return HStack(spacing: 0) {
             segmentButton("已记住", selection: .remembered)
-            segmentButton("值得确认", selection: .worthConfirming)
+            segmentButton(worthConfirmingTitle, selection: .worthConfirming)
         }
         .padding(2.5)
         .background(Color.holoToolInset, in: Capsule())
@@ -307,12 +340,11 @@ struct HoloMemoryCenterView: View {
         if viewModel.answeringEnabled == false {
             pauseBanner
         }
-        if !viewModel.confirmedKnowledge.isEmpty {
-            // 知识层确认条目（规律确认/发现保存）：无记录载体，单独成组置顶，
-            // 与四类记录分组同一列表容器（2026-11-01 补件：确认后不再消失）。
+        if !viewModel.activeConfirmedKnowledge.isEmpty {
+            // 知识层确认条目（非浅层算术的真实语义确认）：保留展示并作为原料参与新版画像融合。
             groupHeader("你确认的理解")
             VStack(spacing: 8) {
-                ForEach(viewModel.confirmedKnowledge) { knowledge in
+                ForEach(viewModel.activeConfirmedKnowledge) { knowledge in
                     HoloMemoryConfirmedKnowledgeRow(
                         knowledge: knowledge,
                         onCorrect: {
@@ -326,6 +358,35 @@ struct HoloMemoryCenterView: View {
                 }
             }
             .padding(.top, 2)
+        }
+        if !viewModel.foldedLegacyConfirmedKnowledge.isEmpty {
+            DisclosureGroup(
+                isExpanded: $showFoldedLegacyConfirmed,
+                content: {
+                    VStack(spacing: 8) {
+                        ForEach(viewModel.foldedLegacyConfirmedKnowledge) { knowledge in
+                            HoloMemoryConfirmedKnowledgeRow(
+                                knowledge: knowledge,
+                                onCorrect: {
+                                    correctionText = knowledge.displayText
+                                    correctingConfirmed = knowledge
+                                },
+                                onDisable: {
+                                    Task { await viewModel.performKnowledge(.disable, on: knowledge) }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.top, 6)
+                },
+                label: {
+                    Text("此前确认的旧版统计 (\(viewModel.foldedLegacyConfirmedKnowledge.count))")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                }
+            )
+            .tint(Color.holoToolTextSecondary)
+            .padding(.top, 12)
         }
         if viewModel.currentRows.isEmpty {
             if viewModel.isFilterActive {

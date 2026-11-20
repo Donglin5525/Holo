@@ -273,6 +273,14 @@ enum UnderstandingPromotion {
                 skipped += 1
                 continue
             }
+            // 2026-11-20 记忆洞察重构（Phase 1）：HabitPhaseProposer 产出的
+            //「『XX』习惯进行中，期间有反复」属于纯事实复述模板，不再晋升为正式记忆；
+            // 习惯趋势由 HoloLifeFeatureDistiller 作为底层特征原料喂给全局洞察引擎。
+            if isDeterministicOutput(statement, kind) {
+                NSLog("[UnderstandingPromotion] 跳过习惯直出模板（已降级为底层特征原料）: %@", statement)
+                skipped += 1
+                continue
+            }
             let evidence = resolveEvidence(candidate)
             do {
                 let record = try makeRecord(

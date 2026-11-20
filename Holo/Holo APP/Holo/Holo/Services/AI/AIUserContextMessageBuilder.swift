@@ -81,7 +81,7 @@ enum AIUserContextMessageBuilder {
             }
         }
 
-        // 聊天场景：注入记忆摘要
+        // 聊天场景：注入记忆摘要 + 动态用户画像与跨模块洞察（2026-11-20 Phase 4）
         if purpose == .chat {
             if HoloAIFeatureFlags.memorySummaryInjectionEnabled,
                let memorySummary = context.memorySummary {
@@ -89,6 +89,13 @@ enum AIUserContextMessageBuilder {
                 if !envelope.isEmpty {
                     message += "\n\n" + envelope
                 }
+            }
+            if HoloAIDataProcessingConsent.shared.isGranted,
+               let portraitBlock = HoloPortraitContextInjector.renderForChat(
+                   store: HoloPortraitSynthesisRuntime.loadStore(),
+                   userText: userText
+               ) {
+                message += "\n\n" + portraitBlock
             }
         }
 

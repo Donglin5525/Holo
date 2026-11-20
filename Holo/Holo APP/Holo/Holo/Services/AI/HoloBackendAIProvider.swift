@@ -750,6 +750,9 @@ enum HoloBackendPurpose: String {
     /// 理解引擎提案（2026-11-13 M2.6 发版通道）：主题包语义视图→候选理解提案。
     /// 结构化萃取类：不带 profileBrief（与个人情境萃取同口径）。
     case understandingProposal = "understanding_proposal"
+    /// 全局用户画像与跨模块洞察合成（2026-11-20 重构 Phase 2）：七域特征包+当前画像+黑名单→五维度画像增量。
+    /// 结构化合成类：不带 profileBrief（档案摘要已由特征包携带）。
+    case portraitSynthesis = "portrait_synthesis"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"
@@ -772,7 +775,7 @@ enum HoloBackendPurpose: String {
         case .intent, .flexibleQueryPlanner, .replayDigest, .thoughtVoiceSummary, .memoryObserver, .memoryDomainExtraction,
              .memoryCrossDomainFusion, .financeActionParser, .taskActionParser, .thoughtOrganization,
              .thoughtTaskExtraction, .thoughtTagConvergence, .categoryPatternInduction,
-             .personalContextExtraction, .personalContextVerification, .understandingProposal,
+             .personalContextExtraction, .personalContextVerification, .understandingProposal, .portraitSynthesis,
              .billColumnMapping, .billCategorization:
             return false
         }

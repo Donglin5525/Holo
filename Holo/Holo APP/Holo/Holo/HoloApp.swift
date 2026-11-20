@@ -300,11 +300,11 @@ struct HoloApp: App {
                     // 通用个人情境萃取：启动补建历史想法（内部闸，冷启动不防抖）。
                     if !appStoreScreenshotModeActive {
                         Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
-                        // 财务规律挖矿（2026-11-01 规律路径补件）：本地确定性统计，
-                        // 每日限一次，产出进「值得确认」等用户确认。
+                        // 2026-11-20 记忆洞察重构（Phase 1-4）：停用旧版财务算术模板直写记忆；
+                        // 启动期按智能节流（72h/新异常20h）运行全局画像与跨模块洞察合成。
                         Task.detached(priority: .utility) {
-                            await HoloFinancePatternMiningRuntime.runIfNeeded()
                             await UnderstandingShadowScheduler.runIfDue()
+                            _ = await HoloPortraitSynthesisRuntime.runIfDue()
                         }
                     }
                 }
@@ -463,9 +463,10 @@ struct HoloApp: App {
                         )
                         // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
                         Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
-                        // 影子理解引擎：回前台跨天补偿（单飞+20 小时节流）。
+                        // 影子理解引擎与全局画像洞察：回前台跨天补偿（单飞+智能节流）。
                         Task.detached(priority: .utility) {
                             await UnderstandingShadowScheduler.runIfDue()
+                            _ = await HoloPortraitSynthesisRuntime.runIfDue()
                         }
                     }
                     if HoloAIFeatureFlags.agentRuntimeEnabled {

@@ -184,6 +184,16 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     /// 单独成组展示在「已记住」顶部，否则确认完即消失——2026-11-01 补件）。
     @Published private(set) var confirmedKnowledge: [HoloResolvedKnowledge] = []
 
+    /// 主列表展示的已确认理解（2026-11-20 B 方案：自动过滤旧版浅层算术/习惯复述，不物理删除）。
+    var activeConfirmedKnowledge: [HoloResolvedKnowledge] {
+        confirmedKnowledge.filter { !HoloLifeFeatureDistiller.isLegacyShallowTemplate($0.displayText) }
+    }
+
+    /// 自动收纳折叠的旧版统计类确认记录（可逆查看，不挤占主界面）。
+    var foldedLegacyConfirmedKnowledge: [HoloResolvedKnowledge] {
+        confirmedKnowledge.filter { HoloLifeFeatureDistiller.isLegacyShallowTemplate($0.displayText) }
+    }
+
     var hasMoreWorthConfirming: Bool {
         worthConfirming.count > recommendedWorthConfirming.count
     }
@@ -428,63 +438,125 @@ final class HoloMemoryCenterViewModel: ObservableObject {
 
     private let settings: HoloMemorySettings
 
+    /// 内存快照缓存（2026-11-20 秒开优化：Stale-While-Revalidate，再次进入记忆页 0ms 首帧直出，后台静默刷新）。
+    private struct CachedPayload {
+        let snapshot: HoloMemoryManagementSnapshot
+        let worthConfirming: [HoloResolvedKnowledge]
+        let confirmedKnowledge: [HoloResolvedKnowledge]
+        let rowMetaByRecordID: [String: HoloMemoryListRowMeta]
+    }
+    private static var memoryCache: CachedPayload?
+
+    /// 后台完整核验任务句柄（防并发重复核验）。
+    private var backgroundVerifyTask: Task<Void, Never>?
+
     init(settings: HoloMemorySettings = .shared) {
         self.settings = settings
         self.automaticMemoryEnabled = settings.automaticMemoryEnabled
         self.answeringEnabled = settings.memoryAssistedAnsweringEnabled
+        if let cached = Self.memoryCache {
+            self.worthConfirming = cached.worthConfirming
+            self.confirmedKnowledge = cached.confirmedKnowledge
+            self.rowMetaByRecordID = cached.rowMetaByRecordID
+            self.state = .loaded(cached.snapshot)
+        }
     }
 
     // MARK: - 读取（不触发萃取、不产生模型调用）
 
     func load() async {
-        state = .loading
+        // 已有缓存或已加载态时绝不回退到全屏 loading 菊花，保证秒开体验。
+        if case .loaded = state {
+            // 保持当前画面静默刷新
+        } else {
+            state = .loading
+        }
         do {
-            // 先按事件账本收敛崩溃残留（§11.4），再读取快照。
-            let warmupService = try await makeControlService()
-            _ = try await warmupService.reconcileOutstanding()
             let repository = try await HoloMemoryRuntime.shared.repository()
-            // 来源实时核验（v2.2 W1：unknown 不再默认放行；管理页「来源已失效」反映真实状态）。
-            let verifier = HoloKnowledgeCoreDataSourceVerifier(
-                businessContainer: CoreDataStack.shared.persistentContainer
-            )
-            let service = HoloMemoryManagementReadService(
+
+            // 阶段一（极速首帧）：先用无 CoreData 逐条核验的快路径并发读快照与知识决议，
+            // 避免首次进页被重型来源核验卡 3–5 秒。
+            let fastService = HoloMemoryManagementReadService(
                 repository: repository,
-                sourceVerifier: HoloKnowledgeSourceAvailabilityBridge(verifier: verifier)
+                sourceVerifier: HoloMemoryUnknownSourceVerifier()
             )
-            let snapshot = try await service.loadSnapshot(
+            async let fastSnapshotTask = fastService.loadSnapshot(
                 answeringEnabled: settings.memoryAssistedAnsweringEnabled
             )
-            // 值得确认：统一决策投影里的成熟行为规律，以及影子理解直出晋升的待确认命题（确认前不跨会话使用）。
-            // 已确认：知识层条目（规律确认/发现保存），「已记住」顶部单独成组。
-            let resolved = try await repository.resolvedKnowledgeAll(now: Date())
-            let recordsByID = snapshot.recordsByID
-            worthConfirming = resolved
-                .filter {
-                    $0.decision == .worthConfirming
-                        || Self.isPromotedUnderstandingCandidate($0, recordsByID: recordsByID)
+            async let resolvedTask = repository.resolvedKnowledgeAll(now: Date())
+            let (fastSnapshot, resolved) = try await (fastSnapshotTask, resolvedTask)
+            applyLoaded(snapshot: fastSnapshot, resolved: resolved)
+
+            // 阶段二（后台静默核验）：补跑崩溃残留收敛 + 真实来源可用性核验，不阻塞首帧。
+            backgroundVerifyTask?.cancel()
+            backgroundVerifyTask = Task { [weak self] in
+                guard let self else { return }
+                do {
+                    let warmupService = try await self.makeControlService()
+                    _ = try await warmupService.reconcileOutstanding()
+                    guard !Task.isCancelled else { return }
+                    let verifier = HoloKnowledgeCoreDataSourceVerifier(
+                        businessContainer: CoreDataStack.shared.persistentContainer
+                    )
+                    let fullService = HoloMemoryManagementReadService(
+                        repository: repository,
+                        sourceVerifier: HoloKnowledgeSourceAvailabilityBridge(verifier: verifier)
+                    )
+                    let verifiedSnapshot = try await fullService.loadSnapshot(
+                        answeringEnabled: self.settings.memoryAssistedAnsweringEnabled
+                    )
+                    let refreshedResolved = try await repository.resolvedKnowledgeAll(now: Date())
+                    guard !Task.isCancelled else { return }
+                    self.applyLoaded(snapshot: verifiedSnapshot, resolved: refreshedResolved)
+                } catch {
+                    NSLog("[HoloMemoryCenter] 后台核验刷新忽略异常: \(String(describing: error))")
                 }
-                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
-            confirmedKnowledge = resolved
-                .filter { $0.decision == .confirmedValid }
-                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
-            // 行元数据：四类分组 + 一行来源灰字（originLabel 复用快照投影，减法原型 ①）。
-            // 记录复用快照的同一次全量读取，不再二次查库（2026-11-01 性能修复批）。
-            rowMetaByRecordID = Dictionary(
-                snapshot.projections.compactMap { projection in
-                    guard let record = recordsByID[projection.recordID] else { return nil }
-                    return (projection.recordID, HoloMemoryListRowMeta(
-                        group: HoloMemoryListGroup.group(for: record),
-                        subline: HoloMemorySourceLine.listSubline(origin: projection.originLabel, record: record)
-                    ))
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
-            state = .loaded(snapshot)
+            }
         } catch {
-            // 内部错误细节进日志（§8.3），界面只呈现「失败 + 重试」。
-            NSLog("[HoloMemoryCenter] 加载失败: \(String(describing: error))")
-            state = .failed
+            // 已有缓存时不覆盖为失败态，避免偶发抖动白屏。
+            if case .loaded = state {
+                NSLog("[HoloMemoryCenter] 静默刷新失败（保留缓存）: \(String(describing: error))")
+            } else {
+                NSLog("[HoloMemoryCenter] 加载失败: \(String(describing: error))")
+                state = .failed
+            }
         }
+    }
+
+    private func applyLoaded(
+        snapshot: HoloMemoryManagementSnapshot,
+        resolved: [HoloResolvedKnowledge]
+    ) {
+        let recordsByID = snapshot.recordsByID
+        let nextWorthConfirming = resolved
+            .filter {
+                $0.decision == .worthConfirming
+                    || Self.isPromotedUnderstandingCandidate($0, recordsByID: recordsByID)
+            }
+            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+        let nextConfirmed = resolved
+            .filter { $0.decision == .confirmedValid }
+            .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+        let nextRowMeta = Dictionary(
+            snapshot.projections.compactMap { projection -> (String, HoloMemoryListRowMeta)? in
+                guard let record = recordsByID[projection.recordID] else { return nil }
+                return (projection.recordID, HoloMemoryListRowMeta(
+                    group: HoloMemoryListGroup.group(for: record),
+                    subline: HoloMemorySourceLine.listSubline(origin: projection.originLabel, record: record)
+                ))
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        worthConfirming = nextWorthConfirming
+        confirmedKnowledge = nextConfirmed
+        rowMetaByRecordID = nextRowMeta
+        state = .loaded(snapshot)
+        Self.memoryCache = CachedPayload(
+            snapshot: snapshot,
+            worthConfirming: nextWorthConfirming,
+            confirmedKnowledge: nextConfirmed,
+            rowMetaByRecordID: nextRowMeta
+        )
     }
 
     // MARK: - 列表与计数（与快照同一投影）
