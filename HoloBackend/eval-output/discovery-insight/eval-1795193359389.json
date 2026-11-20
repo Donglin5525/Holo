@@ -1,0 +1,485 @@
+{
+  "base": "https://api.holoapp.cn",
+  "rounds": 3,
+  "at": "2026-11-20T16:49:19.388Z",
+  "summary": [
+    {
+      "fixture": "01-single-domain-rich",
+      "gatePass": "2/3",
+      "noneRate": "0/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 5510
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "gatePass": "3/3",
+      "noneRate": "0/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 5503
+    },
+    {
+      "fixture": "03-data-sparse",
+      "gatePass": "0/3",
+      "noneRate": "3/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 2088
+    },
+    {
+      "fixture": "04-all-bland",
+      "gatePass": "0/3",
+      "noneRate": "2/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 2504
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "gatePass": "3/3",
+      "noneRate": "0/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 4387
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "gatePass": "2/3",
+      "noneRate": "0/3",
+      "gateRejected": 1,
+      "errors": 0,
+      "avgMs": 3512
+    },
+    {
+      "fixture": "07-user-intents",
+      "gatePass": "3/3",
+      "noneRate": "0/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 3959
+    },
+    {
+      "fixture": "08-portrait-only",
+      "gatePass": "0/3",
+      "noneRate": "3/3",
+      "gateRejected": 0,
+      "errors": 0,
+      "avgMs": 890
+    }
+  ],
+  "transcripts": [
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 0,
+      "ms": 5892,
+      "status": 200,
+      "headline": "咖啡习惯与深夜外卖的隐秘关联",
+      "insight": "长期喝咖啡的你，近期深夜外卖比例出现了异常波动。这可能暗示咖啡因摄入正在改变你的作息节奏，让夜晚变得比平时更漫长、也更难抗拒食物诱惑。",
+      "evidence": [
+        {
+          "refId": "p_coffee",
+          "template": "长期保持每天喝咖啡的习惯"
+        },
+        {
+          "refId": "f_concept_latenight",
+          "template": "深夜时段外卖消费占比达到 {latePct}，频次为 {lateCount}"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D3"
+      ],
+      "sourceDomains": [
+        "finance"
+      ]
+    },
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 1,
+      "ms": 6541,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "01-single-domain-rich",
+      "round": 2,
+      "ms": 4097,
+      "status": 200,
+      "headline": "深夜外卖可能是咖啡没喝够的补偿",
+      "insight": "你习惯每天喝咖啡，但深夜的外卖消费却在偏离常态。也许白天的咖啡因没能撑住精力，或者那份清醒换来了夜晚对热食的渴望，这种「提神-补偿」的节奏值得留意。",
+      "evidence": [
+        {
+          "refId": "p_coffee",
+          "template": "长期保持每天喝咖啡的习惯"
+        },
+        {
+          "refId": "f_concept_latenight",
+          "template": "深夜时段的 {latePct} 外卖消费出现异常波动"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D3"
+      ],
+      "sourceDomains": [
+        "finance"
+      ]
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 0,
+      "ms": 7237,
+      "status": 200,
+      "headline": "深夜下单或许在替早睡买单",
+      "insight": "你说想早睡，但咖啡喝得越多，深夜外卖占比似乎越高。可能咖啡因让身体难以放松，进而通过进食来补偿疲惫，这成了入睡路上的隐形阻碍。",
+      "evidence": [
+        {
+          "refId": "f_coffee_up",
+          "template": "咖啡记录值从 {earlierValue} 杯增至 {recentValue} "
+        },
+        {
+          "refId": "f_latenight_order",
+          "template": "深夜时段外卖消费占比达到 {latePct}"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "finance"
+      ]
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 1,
+      "ms": 3166,
+      "status": 200,
+      "headline": "深夜的咖啡，可能是晚睡的推手",
+      "insight": "入睡变晚的同时咖啡摄入也在增加，咖啡因的提神作用可能抵消了你早睡的意愿，让目标更难达成。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前更晚，推迟了 {shiftMinutes}"
+        },
+        {
+          "refId": "f_coffee_up",
+          "template": "咖啡记录值从 {earlierValue} 增加到 {recentValue}"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    },
+    {
+      "fixture": "02-cross-domain-clear",
+      "round": 2,
+      "ms": 6107,
+      "status": 200,
+      "headline": "晚睡时咖啡喝得更多了",
+      "insight": "入睡变晚的时段，咖啡记录也在增加。可能是在用咖啡因对抗困意，却不小心让身体更清醒，陷入越喝越难睡的循环。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前晚了 {shiftMinutes}"
+        },
+        {
+          "refId": "f_coffee_up",
+          "template": "咖啡从 {earlierValue} 杯增加到 {recentValue} 杯"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 0,
+      "ms": 1200,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 1,
+      "ms": 4164,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "03-data-sparse",
+      "round": 2,
+      "ms": 900,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 0,
+      "ms": 779,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 1,
+      "ms": 5897,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "04-all-bland",
+      "round": 2,
+      "ms": 837,
+      "status": 200,
+      "noneReason": "none_worthwhile"
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 0,
+      "ms": 6327,
+      "status": 200,
+      "headline": "深夜的冲动，也许是疲惫在买单",
+      "insight": "你说最近累得提不起劲时，深夜的购物反而变多了。这像是身体在透支后，试图用短暂的消费快感来填补精力缺口，结果却陷入了越累越买、越买越累的循环。",
+      "evidence": [
+        {
+          "refId": "f_night_buy",
+          "template": "深夜时段「购物」消费明显变多，共发生 {lateCount} 次"
+        },
+        {
+          "refId": "f_sleep_short",
+          "template": "近期睡眠偏短，不足七小时的天数占多数"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "finance",
+        "health",
+        "thought"
+      ]
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 1,
+      "ms": 3545,
+      "status": 200,
+      "headline": "深夜的冲动，或许是疲惫在买单",
+      "insight": "你说最近累得提不起劲，这似乎和深夜购物变多、睡眠不足形成了闭环。可能是身体在透支中寻求短暂的慰藉，而消费成了缓解这种无力感的出口。",
+      "evidence": [
+        {
+          "refId": "f_sleep_short",
+          "template": "近期多数日子睡眠不足 {avgHours}"
+        },
+        {
+          "refId": "f_night_buy",
+          "template": "深夜时段「购物」消费出现了 {lateCount} 次"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "health",
+        "finance"
+      ]
+    },
+    {
+      "fixture": "05-sensitive-temptation",
+      "round": 2,
+      "ms": 3289,
+      "status": 200,
+      "headline": "深夜的冲动，可能是睡不够的代价",
+      "insight": "你说最近很累提不起劲，这似乎和睡眠不足、深夜购物增多同时发生。可能当身体休息不好时，大脑更渴望通过消费来寻找掌控感或慰藉。",
+      "evidence": [
+        {
+          "refId": "f_sleep_short",
+          "template": "近期多数天睡眠不足 {avgHours}"
+        },
+        {
+          "refId": "f_night_buy",
+          "template": "深夜时段「购物」消费明显变多"
+        },
+        {
+          "refId": "p_mood",
+          "template": "想法记录显示最近情绪不高"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "health",
+        "finance",
+        "thought"
+      ]
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 0,
+      "ms": 2745,
+      "status": 200,
+      "headline": "晚睡或许在替你买咖啡续命",
+      "insight": "入睡推迟与咖啡摄入增加同向发生，可能像是身体为了维持清醒而不得不依赖咖啡因的补偿机制。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前更晚，推迟了 {shiftMinutes}"
+        },
+        {
+          "refId": "f_coffee_up",
+          "template": "咖啡记录值变多，近期喝了 {recentValue}"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 1,
+      "ms": 4850,
+      "status": 200,
+      "noneReason": "gate_rejected",
+      "raw": "{\"schemaVersion\":1,\"kind\":\"insightDraft\",\"selected\":null,\"noneReason\":\"gate_rejected\"}"
+    },
+    {
+      "fixture": "06-rejected-angles",
+      "round": 2,
+      "ms": 2941,
+      "status": 200,
+      "headline": "晚睡或许在替你买咖啡续命",
+      "insight": "入睡变晚的同时，咖啡记录也在增加。可能是深夜的清醒让你需要更多咖啡因来支撑，这种习惯上的联动，像是身体在悄悄调整节奏。",
+      "evidence": [
+        {
+          "refId": "f_sleep_later",
+          "template": "入睡时间比之前更晚，推迟了 {shiftMinutes}"
+        },
+        {
+          "refId": "f_coffee_up",
+          "template": "咖啡记录值变多，近期喝了 {recentValue}"
+        }
+      ],
+      "criteria": [
+        "D1",
+        "D2"
+      ],
+      "sourceDomains": [
+        "health",
+        "habit"
+      ]
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 0,
+      "ms": 3079,
+      "status": 200,
+      "headline": "冥想减少，精力似乎也在流失",
+      "insight": "你说想找回状态，但冥想的频次降了。可能这种练习不只是习惯，更是你恢复精力的锚点，断了它，那种“不够用”的感觉就更容易冒头。",
+      "evidence": [
+        {
+          "refId": "f_habit_down",
+          "template": "冥想打卡从 {baselineCount} 降到 {recentCount}"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "profile"
+      ]
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 1,
+      "ms": 2798,
+      "status": 200,
+      "headline": "冥想减少，或许在消耗专注力",
+      "insight": "你说想找回状态，但冥想打卡少了。可能正是这点静心的练习在流失，让精力更难集中。",
+      "evidence": [
+        {
+          "refId": "f_habit_down",
+          "template": "冥想完成次数从基线降到近期"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "profile"
+      ]
+    },
+    {
+      "fixture": "07-user-intents",
+      "round": 2,
+      "ms": 6000,
+      "status": 200,
+      "headline": "冥想减少，专注力在悄悄流失",
+      "insight": "你说想找回状态，但作为精力锚点的冥想却在减少。这可能不是简单的习惯懈怠，而是你用来维持专注的「充电」环节断了电。",
+      "evidence": [
+        {
+          "refId": "f_habit_down",
+          "template": "冥想打卡比之前少了 {recentCount} 次"
+        }
+      ],
+      "criteria": [
+        "D2",
+        "D4"
+      ],
+      "sourceDomains": [
+        "habit",
+        "profile"
+      ]
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 0,
+      "ms": 939,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 1,
+      "ms": 763,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    },
+    {
+      "fixture": "08-portrait-only",
+      "round": 2,
+      "ms": 967,
+      "status": 200,
+      "noneReason": "insufficient_data"
+    }
+  ]
+}

@@ -241,3 +241,56 @@ test("路由灰度矩阵：开关 + 设备白名单", () => {
   assert.equal(resolveRoutedTaskType({ deepReportEngine: { enabled: false, deviceIds: [] } }, "d1", "deep_analysis"), "deep_analysis", "开关关走旧引擎");
   assert.equal(resolveRoutedTaskType(base, "d1", "period_replay"), "period_replay", "只改写 deep_analysis");
 });
+
+test("loadConfig 真实组装出 deepReportEngine 总闸（回归：11-07 起漏并入致新引擎从未上线）", async () => {
+  const { loadConfig } = await import("../src/config.js");
+  const config = loadConfig();
+  assert.equal(typeof config.deepReportEngine?.enabled, "boolean", "默认配置必须带总闸");
+  assert.ok(Array.isArray(config.deepReportEngine.deviceIds));
+  const on = loadConfig({ deepReportEngine: { enabled: true, deviceIds: [] } });
+  assert.equal(resolveRoutedTaskType(on, "d1", "deep_analysis"), "deep_report", "经 loadConfig 组装后开关开=走新引擎");
+});
+
+test("writer 与 checker 输入带上用户确认理解（confirmedKnowledgeBrief 通道）", async () => {
+  const seen = [];
+  const responses = [
+    "# 标题\n\n导语段。\n\n对了 5000 元。\n\n数据说明：无。",
+    JSON.stringify({ problems: [] }),
+  ];
+  let i = 0;
+  const callModel = async (messages, { purpose }) => {
+    if ((messages?.[0]?.content ?? "").includes("逐条执行指令")) return JSON.stringify({ directives: ["称呼我为东林"] });
+    seen.push({ purpose, text: messages.map((m) => m.content).join("\n") });
+    return responses[i++];
+  };
+  const snap = snapshot();
+  snap.confirmedKnowledgeBrief = "工作日晚睡时第二天更容易断签";
+  await generateDeepReport({
+    snapshot: snap,
+    question: "q",
+    callModel,
+    buildWriterMessages: (u) => [{ role: "system", content: "s" }, { role: "user", content: u }],
+    checkerSystemPrompt: "c",
+    routes: ROUTES,
+  });
+  const writer = seen.find((s) => s.purpose === "cloud_deep_report_writer");
+  const checker = seen.find((s) => s.purpose === "cloud_deep_report_checker");
+  assert.match(writer.text, /工作日晚睡时第二天更容易断签/, "writer 必须看到确认理解");
+  assert.match(checker.text, /工作日晚睡时第二天更容易断签/, "checker 必须看到确认理解，避免把引用误判为无依据");
+});
+
+test("没有确认理解时不出现该区块（不编造已确认内容）", async () => {
+  const seen = [];
+  const responses = ["# 标题\n\n导语段。\n\n数据说明：无。", JSON.stringify({ problems: [] })];
+  let i = 0;
+  const callModel = async (messages, { purpose }) => {
+    if ((messages?.[0]?.content ?? "").includes("逐条执行指令")) return JSON.stringify({ directives: [] });
+    seen.push({ purpose, text: messages.map((m) => m.content).join("\n") });
+    return responses[i++];
+  };
+  await generateDeepReport({
+    snapshot: snapshot(), question: "q", callModel,
+    buildWriterMessages: (u) => [{ role: "user", content: u }], checkerSystemPrompt: "c", routes: ROUTES,
+  });
+  assert.doesNotMatch(seen[0].text, /用户确认过的理解/);
+});
