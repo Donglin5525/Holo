@@ -324,6 +324,19 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_UNDERSTANDING_PROPOSAL_REQUESTS_PER_DAY ?? 30),
       },
     },
+    // 全局用户画像与跨模块洞察合成（2026-11-20 重构 Phase 2）：仅走 flash 档（qwen3.7-flash/deepseek-flash），
+    // 单次输入七域脱敏特征包+当前画像+黑名单，每 3~7 天触发一次，归后台成本桶。
+    portrait_synthesis: {
+      provider: process.env.HOLO_PORTRAIT_SYNTHESIS_PROVIDER ?? process.env.HOLO_UNDERSTANDING_PROVIDER ?? process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_PORTRAIT_SYNTHESIS_MODEL ?? process.env.HOLO_UNDERSTANDING_MODEL ?? process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_PORTRAIT_SYNTHESIS_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_PORTRAIT_SYNTHESIS_MAX_TOKENS ?? 2000),
+      reasoningEffort: process.env.HOLO_PORTRAIT_SYNTHESIS_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_PORTRAIT_SYNTHESIS_REQUESTS_PER_MINUTE ?? 2),
+        perDay: Number(process.env.HOLO_PORTRAIT_SYNTHESIS_REQUESTS_PER_DAY ?? 10),
+      },
+    },
     personal_context_extraction: {
       provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
