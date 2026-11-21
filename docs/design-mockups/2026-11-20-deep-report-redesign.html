@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Holo 深度报告改版 · 目标复盘 · 2026-11-20</title>
+<style>
+  :root{
+    --primary:#F46D38; --primary-deep:#EA580C; --primary-soft:rgba(244,109,56,.10);
+    --bg:#F7F3EC; --paper:#FFFDF9; --ink:#2E2721; --ink2:#6E6358; --ink3:#A39787;
+    --line:rgba(60,45,30,.10); --green:#4E9A73; --green-soft:rgba(78,154,115,.12);
+    --amber:#D9922E; --amber-soft:rgba(217,146,46,.14); --red:#D2553F; --red-soft:rgba(210,85,63,.12);
+    --blue:#5B7FB8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E9E4DB;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--ink);padding:40px 32px 80px}
+  h1.page{font-size:22px;font-weight:800;margin-bottom:6px}
+  .page-sub{color:var(--ink2);font-size:13.5px;margin-bottom:28px;line-height:1.7;max-width:1180px}
+  .stage{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:12px}
+  .col-label{font-size:13px;font-weight:800;color:var(--primary-deep);letter-spacing:1px}
+  .col-note{font-size:12px;color:var(--ink2);line-height:1.65;max-width:390px}
+  .col-note b{color:var(--ink)}
+
+  /* ---------- 手机外框 ---------- */
+  .phone{width:390px;height:844px;border-radius:48px;background:var(--bg);overflow:hidden;position:relative;
+    box-shadow:0 0 0 10px #1c1a18,0 30px 60px rgba(0,0,0,.25)}
+  .phone .scroll{height:100%;overflow-y:auto;scrollbar-width:none}
+  .phone .scroll::-webkit-scrollbar{display:none}
+  .statusbar{height:50px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 6px;font-size:15px;font-weight:600}
+  .navbar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+  .navbtn{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--ink2)}
+  .navtitle{text-align:center;font-weight:700;font-size:16px}
+  .navtitle small{display:block;font-size:11px;color:var(--ink3);font-weight:500;margin-top:1px}
+
+  /* ---------- 通用组件 ---------- */
+  .chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .chip.green{color:var(--green);background:var(--green-soft)}
+  .chip.amber{color:#B87515;background:var(--amber-soft)}
+  .chip.red{color:var(--red);background:var(--red-soft)}
+  .chip.gray{color:var(--ink2);background:rgba(0,0,0,.05)}
+  .chip.primary{color:var(--primary-deep);background:var(--primary-soft)}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  mark{background:linear-gradient(transparent 58%,rgba(244,109,56,.22) 58%);color:inherit;font-weight:600;padding:0 1px}
+
+  /* ---------- 对话页 ---------- */
+  .chat-body{padding:0 16px 30px}
+  .seg{margin:4px auto 10px;width:260px;height:40px;border-radius:20px;background:rgba(0,0,0,.05);display:flex;padding:3px}
+  .seg div{flex:1;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--ink2)}
+  .seg .on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .bubble-user{margin:14px 0 18px auto;width:max-content;max-width:80%;background:#fff;padding:11px 15px;border-radius:20px 20px 6px 20px;font-size:15.5px}
+  .ai-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:700}
+  .ai-ava{width:34px;height:34px;border-radius:50%;background:#EDE6FA;display:flex;align-items:center;justify-content:center;color:#7B5CD6}
+  .ai-tag{font-size:10.5px;color:#7B5CD6;background:#EDE6FA;padding:2px 6px;border-radius:6px}
+  .card{background:var(--paper);border-radius:22px;padding:16px;border:1px solid var(--line);box-shadow:0 6px 18px rgba(60,40,20,.05)}
+  .card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .card-goal{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink2)}
+  .card-goal .emo{width:22px;height:22px;border-radius:7px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;font-size:12px}
+  .card h3{font-size:17px;line-height:1.45;font-weight:800;margin-bottom:12px}
+  .prog{margin-bottom:12px}
+  .prog-row{display:flex;justify-content:space-between;align-items:baseline;font-size:11.5px;color:var(--ink3);margin-bottom:6px}
+  .prog-row b{font-size:20px;color:var(--ink);font-weight:800}
+  .bar{height:8px;border-radius:4px;background:rgba(0,0,0,.06);position:relative;overflow:visible}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--primary)}
+  .bar .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);border-radius:1px}
+  .bar-legend{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);margin-top:6px}
+  .mini-drivers{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+  .md{display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.025);border-radius:10px;padding:7px 9px;font-size:12.5px;font-weight:600}
+  .card-answer{font-size:14px;line-height:1.7;color:var(--ink);opacity:.9;margin-bottom:12px}
+  .card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:11px;font-size:13px;font-weight:700;color:var(--primary-deep)}
+  .card-foot span:last-child{font-size:11px;color:var(--ink3);font-weight:600}
+  .quick{display:flex;gap:8px;margin-top:16px;overflow:hidden}
+  .quick div{flex-shrink:0;padding:9px 13px;border-radius:18px;background:var(--primary-soft);color:var(--primary-deep);font-size:13px;font-weight:600}
+
+  /* ---------- 报告详情页 ---------- */
+  .rp{padding:4px 22px 40px}
+  .q{display:flex;gap:8px;align-items:flex-start;background:rgba(0,0,0,.035);padding:10px 12px;border-radius:12px;font-size:13px;color:var(--ink2);margin-bottom:22px}
+  .q b{color:var(--ink);font-weight:600}
+  .mast{font-size:11.5px;font-weight:800;letter-spacing:2.4px;color:var(--primary);margin-bottom:6px}
+  .mast-sub{font-size:12px;color:var(--ink3);padding-bottom:10px;border-bottom:2.5px solid var(--ink);margin-bottom:20px}
+  .rp h2.title{font-size:23px;line-height:1.42;font-weight:800;margin-bottom:18px;letter-spacing:-.2px}
+
+  .verdict{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:14px}
+  .verdict-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .verdict-head .lbl{font-size:12px;color:var(--ink3);font-weight:600}
+  .big{display:flex;align-items:baseline;gap:6px;margin-bottom:4px}
+  .big b{font-size:34px;font-weight:800;letter-spacing:-.5px}
+  .big span{font-size:13px;color:var(--ink2);font-weight:600}
+  .big em{font-style:normal;font-size:13px;color:var(--green);font-weight:700;margin-left:4px}
+  .verdict .bar{height:10px;margin:14px 0 0}
+  .proj{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+  .proj div{border-radius:12px;padding:10px 11px;font-size:11.5px;color:var(--ink2);line-height:1.5}
+  .proj b{display:block;font-size:15px;color:var(--ink);margin-top:2px}
+  .proj .ok{background:var(--green-soft)} .proj .slow{background:var(--amber-soft)}
+
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+  .kpi{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:12px 11px}
+  .kpi .k{font-size:11px;color:var(--ink3);font-weight:600;margin-bottom:6px}
+  .kpi .v{font-size:21px;font-weight:800;letter-spacing:-.3px}
+  .kpi .v small{font-size:11.5px;color:var(--ink2);font-weight:600;margin-left:1px}
+  .kpi .d{font-size:11px;font-weight:700;margin-top:5px}
+  .down{color:var(--red)} .up{color:var(--green)} .flat{color:var(--ink3)}
+
+  .lede{font-size:15.5px;line-height:1.85;color:var(--ink);padding:2px 0 0 14px;border-left:3px solid var(--primary);margin-bottom:8px}
+
+  .sec{margin-top:40px}
+  .sec-h{display:flex;align-items:baseline;gap:10px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+  .sec-h .no{font-size:13px;font-weight:800;color:var(--primary);letter-spacing:1px}
+  .sec-h .t{font-size:17.5px;font-weight:800}
+  .kicker{font-size:14px;font-weight:600;color:var(--primary-deep);line-height:1.65;margin-top:14px}
+  .p{font-size:15.5px;line-height:1.88;color:rgba(46,39,33,.9);margin-top:14px;letter-spacing:.1px}
+
+  .figure{margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px 14px 10px}
+  .fig-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px}
+  .fig-cap{font-size:11.5px;color:var(--ink3);text-align:center;margin-top:6px}
+  .legend{display:flex;gap:10px;font-size:10.5px;color:var(--ink3);font-weight:600}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+
+  /* 驱动事项矩阵 */
+  .drivers{margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .drv{padding:13px 14px;border-bottom:1px solid var(--line)}
+  .drv:last-child{border-bottom:none}
+  .drv-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .drv-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .drv-name{font-size:14px;font-weight:700;flex:1}
+  .drv-name small{display:block;font-size:10.5px;color:var(--ink3);font-weight:500;margin-top:1px}
+  .drv-stat{text-align:right;font-size:15px;font-weight:800}
+  .drv-stat small{display:block;font-size:10.5px;color:var(--ink3);font-weight:600}
+  .strip{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+  .wk{display:grid;grid-template-columns:repeat(7,1fr);gap:1.5px}
+  .wk i{aspect-ratio:1;border-radius:2px;background:rgba(0,0,0,.06)}
+  .wk i.on{background:var(--primary)}
+  .wk i.on.g{background:var(--green)}
+  .wk i.on.b{background:var(--blue)}
+  .strip-axis{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink3);margin-top:4px}
+  .drv-group{padding:9px 14px 7px;font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:1px;background:rgba(0,0,0,.02);border-bottom:1px solid var(--line)}
+
+  /* 对比块 */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+  .cmp{border-radius:16px;padding:13px;border:1px solid var(--line);background:var(--paper)}
+  .cmp .h{font-size:11.5px;font-weight:700;color:var(--ink3);margin-bottom:10px}
+  .cmp-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink2);padding:4px 0}
+  .cmp-row b{color:var(--ink);font-size:14px}
+  .cmp.hl{background:var(--green-soft);border-color:transparent}
+  .cmp.lo{background:var(--amber-soft);border-color:transparent}
+
+  /* 缺口 */
+  .gaps{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .gap{display:flex;gap:11px;padding:13px;border-radius:16px;background:var(--paper);border:1px dashed rgba(60,45,30,.22)}
+  .gap-ic{width:30px;height:30px;border-radius:9px;background:rgba(0,0,0,.04);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .gap b{font-size:14px;display:block;margin-bottom:3px}
+  .gap p{font-size:12.5px;color:var(--ink2);line-height:1.6}
+  .gap .act{display:inline-block;margin-top:7px;font-size:12px;font-weight:700;color:var(--primary-deep)}
+
+  /* 结论 */
+  .concl{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+  .ci{display:flex;gap:11px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .ci .n{width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  .ci b{font-size:15px;display:block;margin-bottom:4px;line-height:1.5}
+  .ci p{font-size:13px;color:var(--ink2);line-height:1.65}
+  .ci .why{display:inline-block;margin-top:6px;font-size:11px;color:var(--ink3);font-weight:600}
+
+  .disc{margin-top:36px;border-top:1px solid var(--line);padding-top:14px}
+  .disc summary{list-style:none;font-size:12px;font-weight:800;letter-spacing:2px;color:var(--ink3);cursor:pointer;display:flex;justify-content:space-between}
+  .disc summary::-webkit-details-marker{display:none}
+  .disc ul{margin-top:10px;padding-left:0;list-style:none}
+  .disc li{font-size:12.5px;color:var(--ink2);line-height:1.65;padding-left:12px;position:relative;margin-top:6px}
+  .disc li::before{content:"·";position:absolute;left:2px}
+  .followbar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:16px 16px 26px}
+  .followbar div{background:#fff;border-radius:22px;padding:12px 16px;font-size:14px;color:var(--ink3);box-shadow:0 2px 10px rgba(0,0,0,.06)}
+
+  /* ---------- 分享图 ---------- */
+  .share-wrap{width:390px;height:844px;border-radius:48px;background:linear-gradient(#17121A,#241A20);box-shadow:0 0 0 10px #1c1a18,0 30px 60px rgba(0,0,0,.25);
+    display:flex;flex-direction:column;align-items:center;padding-top:54px;color:#fff}
+  .share-wrap .ttl{font-size:15px;font-weight:800;margin-bottom:12px}
+  .modes{display:flex;background:rgba(255,255,255,.1);border-radius:16px;padding:3px;margin-bottom:18px}
+  .modes div{padding:6px 16px;border-radius:13px;font-size:12.5px;color:rgba(255,255,255,.65);font-weight:600}
+  .modes .on{background:rgba(255,255,255,.95);color:#222}
+  .sharecard{width:324px;height:576px;border-radius:18px;overflow:hidden;position:relative;color:var(--ink);
+    background:radial-gradient(circle at 8% 2%,rgba(244,109,56,.09),transparent 45%),radial-gradient(circle at 95% 98%,rgba(244,109,56,.08),transparent 40%),linear-gradient(160deg,#FDF9F0,#FAF2E5);
+    box-shadow:0 22px 50px rgba(0,0,0,.55);padding:22px 22px 0;display:flex;flex-direction:column}
+  .sc-head{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:800;letter-spacing:2px;color:var(--primary-deep)}
+  .sc-head span:last-child{color:var(--ink3);letter-spacing:.5px;font-weight:600}
+  .sc-goal{margin-top:14px;font-size:11px;font-weight:700;color:var(--ink2)}
+  .sc-title{font-family:"Songti SC",serif;font-weight:900;font-size:19px;line-height:1.42;margin-top:5px}
+  .sc-hero{margin-top:14px;display:flex;align-items:center;gap:14px}
+  .ring{position:relative;width:78px;height:78px;flex-shrink:0}
+  .ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .c b{font-size:19px;font-weight:800}
+  .ring .c span{font-size:9px;color:var(--ink3);font-weight:600}
+  .sc-hero-r{flex:1}
+  .sc-hero-r .w{font-size:12px;color:var(--ink2)}
+  .sc-hero-r .w b{font-size:22px;color:var(--ink);font-weight:800}
+  .sc-hero-r .s{font-size:11px;color:var(--ink2);margin-top:4px;line-height:1.5}
+  .sc-drv{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+  .sc-d{display:grid;grid-template-columns:54px 1fr 46px;align-items:center;gap:8px;font-size:11.5px;font-weight:700}
+  .sc-bars{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;align-items:end;height:16px}
+  .sc-bars i{background:var(--primary);border-radius:1.5px;opacity:.85}
+  .sc-bars i.lo{opacity:.35}
+  .sc-d .chip{font-size:9.5px;padding:2px 6px;justify-self:end}
+  .sc-concl{margin-top:14px;background:rgba(244,109,56,.08);border-radius:12px;padding:11px 12px;font-family:"Songti SC",serif;font-size:13px;line-height:1.65;font-weight:600}
+  .sc-concl small{display:block;font-family:-apple-system,"PingFang SC";font-size:10px;font-weight:800;letter-spacing:2px;color:var(--primary-deep);margin-bottom:4px}
+  .sc-foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding:12px 0 14px;border-top:1px dashed rgba(60,45,30,.2);font-size:10px;color:var(--ink3);font-weight:600}
+  .sc-foot b{color:var(--ink);font-size:12px;letter-spacing:1px}
+  .share-tip{margin-top:16px;font-size:11.5px;color:rgba(255,255,255,.55);text-align:center;line-height:1.6}
+  .share-btns{display:flex;gap:10px;margin-top:14px}
+  .share-btns div{padding:11px 26px;border-radius:22px;font-size:14px;font-weight:700;background:rgba(255,255,255,.12)}
+  .share-btns div.p{background:var(--primary)}
+
+  /* ---------- 说明卡 ---------- */
+  .notes{margin-top:48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px;max-width:1280px}
+  .note{background:#fff;border-radius:16px;padding:16px 18px;font-size:13px;line-height:1.75;color:var(--ink2)}
+  .note h4{font-size:14px;color:var(--ink);margin-bottom:6px}
+  .note b{color:var(--ink)}
+  /* ---------- 第二部分：稀疏 / 极端 ---------- */
+  h2.part{font-size:20px;font-weight:800;margin:70px 0 6px}
+  .phone.short{height:auto;min-height:0}
+  .phone.short .scroll{height:auto}
+  .dots{display:flex;gap:4px}
+  .dots i{width:14px;height:14px;border-radius:3px;background:rgba(0,0,0,.06)}
+  .dots i.on{background:var(--primary)} .dots i.fu{background:transparent;border:1.5px dashed rgba(0,0,0,.12)}
+  .mile{margin-top:14px;display:flex;flex-direction:column;gap:0;border-left:2px dashed rgba(0,0,0,.12);margin-left:6px;padding-left:16px}
+  .mile div{position:relative;padding:6px 0;font-size:13px;color:var(--ink2);line-height:1.55}
+  .mile div::before{content:"";position:absolute;left:-22px;top:11px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:2px solid var(--ink3)}
+  .mile div.done::before{background:var(--primary);border-color:var(--primary)}
+  .mile b{color:var(--ink)}
+  .bar.ghost .fill{background:repeating-linear-gradient(45deg,rgba(0,0,0,.12) 0 4px,transparent 4px 8px)}
+  table.gate{border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;font-size:12.5px;max-width:1280px;width:100%;margin-top:18px}
+  table.gate th,table.gate td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;line-height:1.6;color:var(--ink2)}
+  table.gate th{background:#F6F1E9;color:var(--ink);font-size:12px}
+  table.gate td:first-child{color:var(--ink);font-weight:700;white-space:nowrap}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:1280px;margin-top:18px}
+  .lane{background:#fff;border-radius:16px;padding:16px 18px;font-size:13px;line-height:1.8;color:var(--ink2)}
+  .lane h4{font-size:14px;color:var(--ink);margin-bottom:6px}
+  .lane li{margin-left:16px}
+</style>
+
+</head>
+<body>
+
+<h1 class="page">Holo 深度报告改版 · 目标复盘（HTML 稿）</h1>
+<p class="page-sub">示例问题：「我的减肥目标最近怎么样？」——目标「减到 72kg」关联了健身 / 俯卧撑 / 深蹲 / 早睡 4 个习惯，以及体重、步数、睡眠 3 项健康数据。数据都是虚构的，仅用来展示版式。<br>
+结构是<b>总 → 分 → 总</b>：先给判断和进度，再逐个拆开讲驱动事项，最后讲缺什么、下一步怎么做。数字一律放进组件，文字只负责解释原因和含义。</p>
+
+<div class="stage">
+
+  <!-- ================= ① 对话卡片 ================= -->
+  <div class="col">
+    <div class="col-label">① 对话里的结果卡</div>
+    <div class="phone"><div class="scroll">
+      <div class="statusbar"><span>12:19</span><span>●●● 􀙇</span></div>
+      <div class="navbar"><div class="navbtn">✕</div><div class="navtitle">HOLO AI</div><div class="navbtn">⚙︎</div></div>
+      <div class="chat-body">
+        <div class="seg"><div class="on">对话</div><div>报告</div></div>
+        <div class="bubble-user">我的减肥目标最近怎么样？</div>
+        <div class="ai-row"><div class="ai-ava">✦</div>Holo <span class="ai-tag">AI</span></div>
+
+        <div class="card">
+          <div class="card-top">
+            <div class="card-goal"><span class="emo">💪</span>目标复盘 · 减到 72kg</div>
+            <span class="chip amber">略落后</span>
+          </div>
+          <h3>体重还在降，但最近 3 周慢了一半——健身和早睡同时掉了档</h3>
+
+          <div class="prog">
+            <div class="prog-row"><span>当前 <b class="num">75.4</b> kg</span><span class="num">已减 2.6 / 6.0 kg</span></div>
+            <div class="bar"><div class="fill" style="width:43%"></div><div class="tick" style="left:53%"></div></div>
+            <div class="bar-legend"><span>进度 43%</span><span>▍时间已过 53%</span></div>
+          </div>
+
+          <div class="mini-drivers">
+            <div class="md">俯卧撑<span class="chip green">稳</span></div>
+            <div class="md">深蹲<span class="chip gray">跟随</span></div>
+            <div class="md">健身<span class="chip red">掉档</span></div>
+            <div class="md">早睡<span class="chip red">掉档</span></div>
+          </div>
+
+          <p class="card-answer">前 5 周每周稳定降 0.35kg；最近 3 周健身从每周 2.4 次掉到 1.3 次，早睡也从 4 晚掉到 2 晚，体重降速随之减半。</p>
+
+          <div class="card-foot"><span>查看完整报告 ›</span><span>近 8 周 · 已存入报告</span></div>
+        </div>
+
+        <div class="quick"><div>📈 深度分析</div><div>✦ 一个发现</div><div>▶ 周期回放</div></div>
+      </div>
+    </div></div>
+    <p class="col-note"><b>卡片只回答「好不好、为什么」</b>：一行判断、进度条（黑色刻度是时间进度，一眼看出超前还是落后）、4 个关联事项的状态标签、两行原因。正文最多 3 行，细节都留给详情页。</p>
+  </div>
+
+  <!-- ================= ② 报告详情 ================= -->
+  <div class="col">
+    <div class="col-label">② 报告详情（可滚动 ↓）</div>
+    <div class="phone"><div class="scroll">
+      <div class="statusbar"><span>12:20</span><span>●●● 􀙇</span></div>
+      <div class="navbar"><div class="navbtn">‹</div><div class="navtitle">深度报告<small>近 8 周 · 9/26 – 11/20</small></div><div class="navbtn">⇪</div></div>
+      <div class="rp">
+        <div class="q">❝ <b>我的减肥目标最近怎么样？</b></div>
+
+        <div class="mast">HOLO 深度洞察 · 目标复盘</div>
+        <div class="mast-sub">💪 减到 72kg · 关联 4 个习惯 + 3 项健康数据</div>
+
+        <h2 class="title">体重还在降，但最近 3 周慢了一半——健身和早睡同时掉了档</h2>
+
+        <!-- 总：进度 -->
+        <div class="verdict">
+          <div class="verdict-head"><span class="lbl">目标进度</span><span class="chip amber">比计划略落后</span></div>
+          <div class="big"><b class="num">75.4</b><span>kg</span><em class="num">↓ 2.6 kg</em></div>
+          <div style="font-size:12px;color:var(--ink3)">起点 78.0 kg（9/1） · 目标 72.0 kg（1/31）</div>
+          <div class="bar"><div class="fill" style="width:43%"></div><div class="tick" style="left:53%"></div></div>
+          <div class="bar-legend"><span>已完成 43%</span><span>▍时间已过 53%</span></div>
+          <div class="proj">
+            <div class="ok">按前 5 周节奏<b class="num">1 月底达成 ✓</b></div>
+            <div class="slow">按最近 3 周节奏<b class="num">要拖到 4 月</b></div>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi"><div class="k">健身</div><div class="v num">15<small>/24 次</small></div><div class="d down">近 3 周 ↓ 46%</div></div>
+          <div class="kpi"><div class="k">早睡</div><div class="v num">29<small>/56 晚</small></div><div class="d down">近 3 周 ↓ 53%</div></div>
+          <div class="kpi"><div class="k">平均睡眠</div><div class="v num">6.6<small>h</small></div><div class="d down">近 3 周 6.1h</div></div>
+        </div>
+
+        <p class="lede">这 8 周的情况可以分成两段：前 5 周节奏很好，<mark>健身和早睡都在线，体重每周稳定降 0.35kg</mark>；从 11 月开始两件事同时松了，降速掉到 0.17kg。目标本身没有失控，只要把节奏拉回前 5 周的水平，1 月底仍然来得及。</p>
+
+        <!-- 分：一 结果 -->
+        <div class="sec">
+          <div class="sec-h"><span class="no">一</span><span class="t">结果：体重降速从 0.35 掉到 0.17</span></div>
+          <div class="figure">
+            <div class="fig-h"><span>每周平均体重（kg）</span><div class="legend"><span><i style="background:var(--primary)"></i>实际</span><span><i style="background:var(--ink3)"></i>计划线</span></div></div>
+            <svg viewBox="0 0 320 150" width="100%">
+              <g stroke="rgba(0,0,0,.06)"><line x1="30" y1="20" x2="312" y2="20"/><line x1="30" y1="60" x2="312" y2="60"/><line x1="30" y1="100" x2="312" y2="100"/><line x1="30" y1="130" x2="312" y2="130"/></g>
+              <g font-size="9" fill="#A39787" text-anchor="end"><text x="24" y="23">77.5</text><text x="24" y="63">76.5</text><text x="24" y="103">75.5</text></g>
+              <rect x="205" y="12" width="107" height="120" fill="rgba(217,146,46,.10)" rx="6"/>
+              <text x="258" y="26" font-size="9" fill="#B87515" text-anchor="middle" font-weight="700">近 3 周</text>
+              <line x1="40" y1="29" x2="300" y2="118" stroke="#A39787" stroke-dasharray="4 4" stroke-width="1.3"/>
+              <polyline fill="none" stroke="#F46D38" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"
+                points="40,28 77,40 114,56 151,72 188,84 225,96 262,100 300,104"/>
+              <g fill="#F46D38"><circle cx="40" cy="28" r="3"/><circle cx="77" cy="40" r="3"/><circle cx="114" cy="56" r="3"/><circle cx="151" cy="72" r="3"/><circle cx="188" cy="84" r="3"/><circle cx="225" cy="96" r="3"/><circle cx="262" cy="100" r="3"/><circle cx="300" cy="104" r="4" stroke="#fff" stroke-width="1.5"/></g>
+              <text x="300" y="96" font-size="10" fill="#2E2721" text-anchor="middle" font-weight="800">75.4</text>
+              <g font-size="9" fill="#A39787" text-anchor="middle"><text x="40" y="145">9/26</text><text x="114" y="145">10/10</text><text x="188" y="145">10/24</text><text x="262" y="145">11/7</text><text x="300" y="145">本周</text></g>
+            </svg>
+            <div class="fig-cap">图 1 · 前 5 周贴着计划线走，近 3 周明显变平</div>
+          </div>
+          <p class="p">体重是这个目标唯一的结果指标。前 5 周的实际曲线几乎贴着计划线走，<mark>说明当时的做法是有效的</mark>；最近 3 周曲线变平，开始落到计划线上方。三周还不算平台期，但如果一直按这个速度，达成时间会从 1 月底推到 4 月。</p>
+        </div>
+
+        <!-- 分：二 驱动事项 -->
+        <div class="sec">
+          <div class="sec-h"><span class="no">二</span><span class="t">关联事项：两个稳住了，两个掉了档</span></div>
+          <p class="kicker">体重变慢不是突然发生的，它和健身、早睡的松动出现在同一周。</p>
+
+          <div class="drivers">
+            <div class="drv-group">习惯 · 每格 1 天，每组 1 周</div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:var(--red-soft)">🏋️</div><div class="drv-name">健身<small>目标每周 3 次</small></div><div class="drv-stat num">63%<small>15 / 24 次</small></div><span class="chip red">掉档</span></div>
+              <div class="strip" data-pat="1010100 1001010 1010010 1001001 0101010 1000100 0010000 0001000"></div>
+            </div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:var(--red-soft)">🌙</div><div class="drv-name">早睡<small>23:30 前上床</small></div><div class="drv-stat num">52%<small>29 / 56 晚</small></div><span class="chip red">掉档</span></div>
+              <div class="strip b" data-pat="1101101 1110100 1011011 1101100 1110101 0100100 1000010 0010001"></div>
+            </div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:var(--green-soft)">💪</div><div class="drv-name">俯卧撑<small>每天 · 平均 32 个/次</small></div><div class="drv-stat num">68%<small>38 / 56 天</small></div><span class="chip green">稳</span></div>
+              <div class="strip g" data-pat="1101110 1011101 1110110 0111011 1101101 1011110 1101011 1110101"></div>
+            </div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:rgba(0,0,0,.05)">🦵</div><div class="drv-name">深蹲<small>没有记录数量</small></div><div class="drv-stat num">38%<small>21 / 56 天</small></div><span class="chip gray">跟随健身</span></div>
+              <div class="strip" data-pat="1010100 1001010 1010010 0001001 0101010 1000000 0010000 0000000"></div>
+            </div>
+            <div class="drv-group">健康数据 · 来自苹果健康</div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:var(--green-soft)">👟</div><div class="drv-name">步数<small>日均</small></div><div class="drv-stat num">7,840<small>近 3 周 7,620</small></div><span class="chip green">稳</span></div>
+            </div>
+            <div class="drv">
+              <div class="drv-top"><div class="drv-ic" style="background:var(--amber-soft)">😴</div><div class="drv-name">睡眠时长<small>日均</small></div><div class="drv-stat num">6h38m<small>近 3 周 6h05m</small></div><span class="chip amber">变短</span></div>
+            </div>
+            <div style="padding:0 14px 10px" class="strip-axis"><span>9/26</span><span>10/24</span><span>本周</span></div>
+          </div>
+
+          <p class="p"><mark>俯卧撑是最稳的一项</mark>，8 周里几乎没有断档，平均每次 32 个，说明「每天在家做一点」这种低门槛的事你坚持得住。深蹲的打卡日和健身几乎完全重合，可以看出它不是独立的习惯，而是健身时顺带做的——健身一停，深蹲也跟着停。</p>
+          <p class="p">真正掉档的是健身和早睡，而且<mark>两者是同一周开始松的</mark>。最近 3 周健身只有 4 次，早睡只有 6 晚，平均睡眠也随之少了半小时。睡得晚、睡得少，第二天去健身的意愿通常也会跟着下降，这两件事很可能是互相拖累的。</p>
+
+          <div class="compare">
+            <div class="cmp hl"><div class="h">体重降得快的 5 周</div>
+              <div class="cmp-row">健身<b class="num">2.4 次/周</b></div>
+              <div class="cmp-row">早睡<b class="num">4.3 晚/周</b></div>
+              <div class="cmp-row">体重<b class="num">-0.35 kg/周</b></div></div>
+            <div class="cmp lo"><div class="h">变慢的近 3 周</div>
+              <div class="cmp-row">健身<b class="num">1.3 次/周</b></div>
+              <div class="cmp-row">早睡<b class="num">2.0 晚/周</b></div>
+              <div class="cmp-row">体重<b class="num">-0.17 kg/周</b></div></div>
+          </div>
+          <div class="fig-cap" style="margin-top:8px">图 2 · 同一个人、两种节奏下的结果对比</div>
+        </div>
+
+        <!-- 分：三 缺口 -->
+        <div class="sec">
+          <div class="sec-h"><span class="no">三</span><span class="t">还缺什么：判断减重最关键的数据没有</span></div>
+          <p class="p">上面的结论只能说明「运动和作息」这一侧。减重有一大半取决于吃，而饮食恰恰是这个目标里完全没有记录的部分，所以最近 3 周变慢是不是也和吃有关，现在判断不了。</p>
+          <div class="gaps">
+            <div class="gap"><div class="gap-ic">🍱</div><div><b>没有饮食记录</b><p>减重最大的变量缺席。哪怕只记一下晚饭吃了什么，也能看出吃和体重的关系。</p><span class="act">＋ 给目标关联一个「记晚餐」习惯</span></div></div>
+            <div class="gap"><div class="gap-ic">📉</div><div><b>只有体重，没有体脂</b><p>体重变平也可能是增肌或者水分波动，有了体脂才能区分是在减脂还是在掉水分。</p><span class="act">＋ 关联苹果健康「体脂率」</span></div></div>
+            <div class="gap"><div class="gap-ic">🦵</div><div><b>深蹲只打卡、不记数量</b><p>没办法看出训练量有没有在往上加。</p><span class="act">改成数值习惯 ›</span></div></div>
+          </div>
+        </div>
+
+        <!-- 总：结论 -->
+        <div class="sec">
+          <div class="sec-h"><span class="no">四</span><span class="t">结论与下一步</span></div>
+          <div class="concl">
+            <div class="ci"><div class="n">1</div><div><b>先守早睡，再拉健身</b><p>两件事是一起松的，早睡更容易恢复。先把工作日 23:30 前上床守住 4 晚，健身的意愿通常会跟着回来。</p><span class="why">依据：两项在同一周掉档 · 睡眠少了 33 分钟</span></div></div>
+            <div class="ci"><div class="n">2</div><div><b>健身先回到每周 2 次，不用一步到 3 次</b><p>前 5 周平均 2.4 次就已经让体重按计划在降，先恢复到这个水平就够了。</p><span class="why">依据：前 5 周 2.4 次/周 → -0.35 kg/周</span></div></div>
+            <div class="ci"><div class="n">3</div><div><b>俯卧撑保持现状</b><p>它是目前唯一稳住的一项，不用加量，也不用换花样。</p></div></div>
+          </div>
+        </div>
+
+        <details class="disc">
+          <summary><span>数 据 说 明</span><span>展开 ⌄</span></summary>
+          <ul>
+            <li>体重按每周平均值计算，避免单日波动带来误判；计划线从起点到截止日均匀分配。</li>
+            <li>「掉档」指近 3 周的完成率比前 5 周下降 30% 以上。</li>
+            <li>本报告没有饮食数据，体重变化的原因只基于运动和作息分析，相关不等于因果。</li>
+            <li>读取范围：目标「减到 72kg」及其关联的 4 个习惯、苹果健康的体重 / 步数 / 睡眠。</li>
+          </ul>
+        </details>
+      </div>
+      <div class="followbar"><div>就这份报告继续问…</div></div>
+    </div></div>
+    <p class="col-note"><b>总</b>（标题 + 进度 + 两种预测 + 3 个关键数字 + 导语）→ <b>分</b>（一 结果 / 二 关联事项 / 三 缺什么）→ <b>总</b>（结论与下一步）。每段控制在 2–4 句、约 70–110 字，只给关键短语加粗，不加粗整句。</p>
+  </div>
+
+  <!-- ================= ③ 分享图 ================= -->
+  <div class="col">
+    <div class="col-label">③ 分享图（一屏、固定 9:16）</div>
+    <div class="share-wrap">
+      <div class="ttl">分享报告</div>
+      <div class="modes"><div class="on">一屏结论</div><div>完整长图</div></div>
+      <div class="sharecard">
+        <div class="sc-head"><span>HOLO 深度洞察</span><span>2026.11 · 近 8 周</span></div>
+        <div class="sc-goal">💪 目标复盘 · 减到 72kg</div>
+        <div class="sc-title">体重还在降，但最近 3 周慢了一半——健身和早睡同时掉了档</div>
+
+        <div class="sc-hero">
+          <div class="ring">
+            <svg viewBox="0 0 78 78" width="78" height="78">
+              <circle cx="39" cy="39" r="32" fill="none" stroke="rgba(0,0,0,.07)" stroke-width="8"/>
+              <circle cx="39" cy="39" r="32" fill="none" stroke="#F46D38" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="86.5 201" transform="rotate(-90 39 39)"/>
+              <line x1="39" y1="3" x2="39" y2="13" stroke="#2E2721" stroke-width="2" transform="rotate(191 39 39)"/>
+            </svg>
+            <div class="c"><b class="num">43%</b><span>已完成</span></div>
+          </div>
+          <div class="sc-hero-r">
+            <div class="w"><b class="num">75.4</b> kg　<span style="color:var(--green);font-weight:700">↓2.6</span></div>
+            <div class="s">目标 72kg · 时间已过 53%<br>按最近节奏要拖到 4 月</div>
+          </div>
+        </div>
+
+        <div class="sc-drv">
+          <div class="sc-d"><span>健身</span><div class="sc-bars" data-drop="1" data-h="3 3 3 3 3 2 1 1"></div><span class="chip red">掉档</span></div>
+          <div class="sc-d"><span>早睡</span><div class="sc-bars" data-drop="1" data-h="5 4 5 4 5 2 2 2"></div><span class="chip red">掉档</span></div>
+          <div class="sc-d"><span>俯卧撑</span><div class="sc-bars" data-h="5 5 5 5 5 5 5 5"></div><span class="chip green">稳</span></div>
+          <div class="sc-d"><span>深蹲</span><div class="sc-bars" data-drop="1" data-h="3 3 3 2 3 1 1 0"></div><span class="chip gray">跟随</span></div>
+        </div>
+
+        <div class="sc-concl"><small>下一步</small>先守住工作日早睡，健身回到每周 2 次——前 5 周就是这个节奏让体重按计划下降的。</div>
+
+        <div class="sc-foot"><span>8 周 · 4 个习惯 · 3 项健康数据</span><b>HOLO</b></div>
+      </div>
+      <div class="share-tip">画布固定 1080×1920，不随报告长度变化，不会被压缩<br>柱状 = 每周完成次数；颜色和状态与详情页一致</div>
+      <div class="share-btns"><div>存到相册</div><div class="p">分享</div></div>
+    </div>
+    <p class="col-note"><b>分享图不再截长报告</b>：固定 9:16 画布，只放「标题 + 进度环 + 关联事项 8 周走势 + 一条下一步」。数据组件在分享图里改成最简形态（方格热力图 → 每周柱状），保证缩略图里也看得清。</p>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note"><h4>1 · 目标理解（解决答非所问）</h4>问题命中某个目标时，分析范围 = <b>目标本身的结果指标</b>（体重）+ <b>它关联的所有习惯、任务</b> + <b>它绑定的健康数据</b>，不再拿全库快照凑数。报告回答三件事：结果怎么样 → 每个关联事项做得怎么样 → 还缺什么。</div>
+  <div class="note"><h4>2 · 数据组件</h4>进度条（带时间刻度）、关键数字卡、趋势折线、方格热力图、前后两段对比卡、缺口卡，一共 6 种，都由本地数据计算，模型只决定「这一节要配哪种」，不负责编造数字。</div>
+  <div class="note"><h4>3 · 段落长度</h4>每段 2–4 句、70–110 字：先说判断，再说依据，最后说含义。数字已经在组件里展示过的，正文只引用 1–2 个最关键的，不再罗列整串月份数据。</div>
+  <div class="note"><h4>4 · 自我说明合并</h4>「数据里没有……判断不了」这类说明在正文里最多出现一次，而且要落到具体缺口卡上（缺什么、怎么补）；口径和边界统一收进底部折叠的「数据说明」。</div>
+  <div class="note"><h4>5 · 分享图</h4>一屏 9:16 固定画布，以 3 倍渲染导出也只有 1080×1920，彻底避开 8000px 降清晰度的问题。「完整长图」保留为可选项，但改成按章节分页导出。</div>
+  <div class="note"><h4>6 · 落地需要什么</h4>iOS 需要新增报告组件和新版式；后端需要在 prompt 里加上目标关联数据的读取、段落字数约束，并输出组件提示（componentHint）。确认方向后我先写实施方案，再分批做。</div>
+</div>
+
+<h2 class="part">第二部分 · 数据少、数据断、没有结果指标时，报告怎么降级</h2>
+<p class="page-sub">报告不再是一个固定模板，而是一组<b>积木</b>。每块积木都有出场门槛，数据不够就不出现，并在合适的位置诚实交代「还差什么」。下面 3 屏用的是同一套积木。</p>
+
+<div class="stage">
+  <!-- A 起步期 -->
+  <div class="col">
+    <div class="col-label">A · 新目标刚建 5 天</div>
+    <div class="phone short"><div class="scroll"><div class="rp" style="padding-top:22px">
+      <div class="mast">HOLO 深度洞察 · 目标复盘</div>
+      <div class="mast-sub">💪 减到 72kg · 创建于 11/15</div>
+      <h2 class="title">目标刚开了个头，现在下结论还太早</h2>
+      <div class="verdict">
+        <div class="verdict-head"><span class="lbl">目标进度</span><span class="chip gray">起步期</span></div>
+        <div class="big"><b class="num">77.8</b><span>kg</span><em class="num">↓ 0.2 kg</em></div>
+        <div style="font-size:12px;color:var(--ink3)">只有 2 次称重，还看不出方向，暂不做预测</div>
+      </div>
+      <div class="drivers">
+        <div class="drv-group">这 5 天记录到的</div>
+        <div class="drv"><div class="drv-top"><div class="drv-name">健身</div><div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i><i class="fu"></i><i class="fu"></i></div></div></div>
+        <div class="drv"><div class="drv-top"><div class="drv-name">早睡</div><div class="dots"><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i></i><i class="fu"></i><i class="fu"></i></div></div></div>
+        <div class="drv"><div class="drv-top"><div class="drv-name">俯卧撑</div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="fu"></i><i class="fu"></i></div></div></div>
+      </div>
+      <p class="p">开局还不错：<mark>俯卧撑 5 天做了 4 天</mark>，早睡也有 3 晚。体重只称过两次，0.2kg 的差别在日常波动范围内，现在还不能说明什么。</p>
+      <div class="sec-h" style="margin-top:26px"><span class="t" style="font-size:15px">再记录多久能看出什么</span></div>
+      <div class="mile">
+        <div class="done">今天 · 能看到每个习惯有没有开始做</div>
+        <div><b>第 14 天</b> · 每周称 2 次以上，就能判断体重的方向</div>
+        <div><b>第 21 天</b> · 能判断哪个习惯稳、哪个在掉，并给出完成预测</div>
+      </div>
+      <div class="concl"><div class="ci"><div class="n">1</div><div><b>固定每周一、周四早上称重</b><p>这是现在唯一缺的东西，其它的先照现在的节奏来。</p></div></div></div>
+    </div></div></div>
+    <p class="col-note">没有趋势图、对比卡和预测，<b>多了一条「再记录多久能看出什么」</b>，把数据少变成对用户的预期管理。</p>
+  </div>
+
+  <!-- B 无结果指标 + 单一习惯 -->
+  <div class="col">
+    <div class="col-label">B · 过程型目标，只关联 1 个习惯</div>
+    <div class="phone short"><div class="scroll"><div class="rp" style="padding-top:22px">
+      <div class="mast">HOLO 深度洞察 · 目标复盘</div>
+      <div class="mast-sub">📚 备考雅思 · 关联 1 个习惯 + 6 个任务</div>
+      <h2 class="title">英语从 10 月底停到现在，备考任务也跟着停了</h2>
+      <div class="kpis" style="grid-template-columns:1fr 1fr">
+        <div class="kpi"><div class="k">英语打卡</div><div class="v num">19<small>/56 天</small></div><div class="d down">已中断 24 天</div></div>
+        <div class="kpi"><div class="k">备考任务</div><div class="v num">2<small>/6 完成</small></div><div class="d flat">11 月 0 个</div></div>
+      </div>
+      <div class="drivers">
+        <div class="drv"><div class="drv-top"><div class="drv-ic" style="background:var(--red-soft)">🗣️</div><div class="drv-name">英语<small>每天 30 分钟</small></div><span class="chip red">已停</span></div>
+          <div class="strip" data-pat="1101101 1011100 1101011 0100000 0000000 0000000 0000000 0000000"></div></div>
+      </div>
+      <p class="p">前 4 周英语基本每 2 天一次，<mark>10 月 27 日之后就再没打过卡</mark>。剩下的 4 个备考任务（真题、口语）都排在英语之后，所以也一起停了下来。这不是慢慢变少，而是一次性的断档。</p>
+      <div class="gaps"><div class="gap"><div class="gap-ic">🎯</div><div><b>这个目标没有可衡量的结果</b><p>只能看到「做没做」，看不出水平有没有提高。</p><span class="act">＋ 加一个「模考分数」指标</span></div></div></div>
+      <div class="concl"><div class="ci"><div class="n">1</div><div><b>先把英语恢复成每周 3 次</b><p>前 4 周隔天一次的节奏是做得到的，先恢复到这个水平再谈加量。</p></div></div></div>
+    </div></div></div>
+    <p class="col-note">没有结果指标，<b>「一 结果」整节不出现</b>；只有 1 个习惯，不做多事项对比；数字卡从 3 张自动变成 2 张。</p>
+  </div>
+
+  <!-- C 数据中断 -->
+  <div class="col">
+    <div class="col-label">C · 结果数据中断（3 周没称重）</div>
+    <div class="phone short"><div class="scroll"><div class="rp" style="padding-top:22px">
+      <div class="mast">HOLO 深度洞察 · 目标复盘</div>
+      <div class="mast-sub">💪 减到 72kg · 近 8 周</div>
+      <h2 class="title">3 周没称体重了，进度先看不了，但习惯这边能看清</h2>
+      <div class="verdict">
+        <div class="verdict-head"><span class="lbl">目标进度</span><span class="chip amber">数据中断</span></div>
+        <div class="big"><b class="num" style="color:var(--ink3)">75.6</b><span>kg · 最后一次 10/30</span></div>
+        <div class="bar ghost"><div class="fill" style="width:40%"></div><div class="tick" style="left:53%"></div></div>
+        <div class="bar-legend"><span>截至 10/30 完成约 40%</span><span>▍时间已过 53%</span></div>
+      </div>
+      <div class="drivers">
+        <div class="drv"><div class="drv-top"><div class="drv-name">健身</div><span class="chip red">掉档</span></div><div class="strip" data-pat="1010100 1001010 1010010 1001001 0101010 1000100 0010000 0001000"></div></div>
+        <div class="drv"><div class="drv-top"><div class="drv-name">俯卧撑</div><span class="chip green">稳</span></div><div class="strip g" data-pat="1101110 1011101 1110110 0111011 1101101 1011110 1101011 1110101"></div></div>
+      </div>
+      <p class="p">称重停下来的那一周，<mark>健身也开始变少</mark>，这两件事经常是一起松掉的。俯卧撑还在坚持，说明你并没有完全放下这个目标。</p>
+      <div class="concl"><div class="ci"><div class="n">1</div><div><b>明早先称一次</b><p>有了这一个数，就能接上 10/30 的记录，看出这 3 周是平台期还是有反弹。</p></div></div></div>
+    </div></div></div>
+    <p class="col-note">结果数据过期：进度条改成<b>斜纹虚化</b>并标出「最后一次」，不做预测；行为数据照常分析。</p>
+  </div>
+</div>
+
+<h2 class="part">积木与出场门槛</h2>
+<table class="gate">
+  <tr><th>积木</th><th>出场条件（全部由程序判断，不交给模型）</th><th>不满足时</th></tr>
+  <tr><td>标题 + 导语</td><td>始终出现</td><td>—</td></tr>
+  <tr><td>进度卡</td><td>目标设置了结果指标（达标型 / 累积型）</td><td>换成「数字卡」，过程型目标看完成率</td></tr>
+  <tr><td>完成预测</td><td>结果指标有 ≥3 周、每周 ≥1 个数据点，最近一次在 7 天内</td><td>不预测；数据过期就标「数据中断」</td></tr>
+  <tr><td>趋势折线</td><td>≥4 个周均点</td><td>只显示起点 → 最新的两个数</td></tr>
+  <tr><td>事项热力图</td><td>关联了习惯；窗口 ≥7 天</td><td>&lt;7 天改成「点阵 + 未来虚格」</td></tr>
+  <tr><td>前后对比卡</td><td>程序检测到明显转折点，且转折前后各 ≥2 周</td><td>不出现，正文也不许写「前后对比」</td></tr>
+  <tr><td>缺口卡</td><td>按配置检查：没有结果指标 / 结果数据过期 / 关键维度没关联（比如减重目标没有饮食）</td><td>没有缺口就不出现</td></tr>
+  <tr><td>「再记录多久」</td><td>目标创建 &lt;14 天，或有效数据 &lt;10 天</td><td>—</td></tr>
+  <tr><td>关联事项过多</td><td>&gt;5 个</td><td>按变化幅度展示前 4 个，其余折叠成「其他 N 项都稳定」</td></tr>
+  <tr><td>没有命中目标 / 没有关联任何事项</td><td>—</td><td>不硬写报告：回复「这个目标还没关联习惯或数据」，并给出关联入口</td></tr>
+</table>
+
+<h2 class="part">模型能力：数字交给程序算，判断交给模型说</h2>
+<div class="split">
+  <div class="lane"><h4>程序负责（确定性，100% 可控）</h4><ul>
+    <li>读取目标的关联关系：结果指标 + 习惯 + 任务 + 健康数据</li>
+    <li>所有组件里的数字：进度、预测、热力图、对比卡</li>
+    <li>状态标签：稳 / 掉档 / 已停 / 跟随，按规则判定</li>
+    <li>转折点检测（前 5 周 vs 近 3 周就是这样算出来的）</li>
+    <li>积木出场门槛和缺口识别</li>
+    <li>打包成一份「事实表」交给模型，每条事实带编号</li></ul></div>
+  <div class="lane"><h4>模型负责（只做三件事）</h4><ul>
+    <li>写标题（1 句）和导语（≤110 字）</li>
+    <li>每节写 1–2 段解读，只能引用事实表里的编号，不能自己造数</li>
+    <li>从事实里挑出 1–3 条下一步，并按优先级排序</li></ul>
+    <p style="margin-top:8px">兜底：模型输出超长、引用了不存在的事实，或者干脆失败时，组件照常渲染，正文退回模板句，比如「健身近 3 周 4 次，比前 5 周少了 46%」。<b>模型写得差，报告也不会塌。</b></p></div>
+</div>
+
+<script>
+  // 方格热力图：data-pat 每组 7 位代表一周
+  document.querySelectorAll('.strip[data-pat]').forEach(el=>{
+    const cls = el.classList.contains('g')?' g':el.classList.contains('b')?' b':'';
+    el.innerHTML = el.dataset.pat.split(' ').map(w=>
+      '<div class="wk">'+[...w].map(c=>`<i class="${c==='1'?'on'+cls:''}"></i>`).join('')+'</div>').join('');
+  });
+  // 分享图每周柱
+  document.querySelectorAll('.sc-bars').forEach(el=>{
+    el.innerHTML = el.dataset.h.split(' ').map((h,i)=>
+      `<i class="${i>=5&&el.dataset.drop?'lo':''}" style="height:${Math.max(1,h/5*16)}px"></i>`).join('');
+  });
+</script>
+</body>
+</html>

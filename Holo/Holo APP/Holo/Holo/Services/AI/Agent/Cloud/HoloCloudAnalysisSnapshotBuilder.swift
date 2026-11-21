@@ -77,6 +77,9 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         /// 目标闭环 §6.3：该目标的统一事实快照（结果 / 执行 / 限制 / 覆盖 / 资金演算），
         /// 确定性数字的唯一来源——后端注入冻结块并入白名单；模型解释，不重算。
         var goalReview: GoalEvaluationSnapshot? = nil
+        /// 报告改版 E 期：苹果健康类目标的结果周序列（仅周标签+数值聚合点，不含原始样本）；
+        /// 后端画趋势图与完成预测用。非健康目标为 nil，不编码该键。
+        var goalResultSeries: GoalResultSeriesWire? = nil
         /// 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：
         /// 用户亲写档案原文（≤8KB）随快照上行，后端注入指令级 system 消息——
         /// 报告的称呼/身份视角/健康行动限制由此生效。旧后端忽略；nil 时不编码该键。
@@ -285,6 +288,11 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         // 确认理解通道：取用户在「一个发现」确认过的规律（最多 12 条，纯本机拼装，
         // 与档案通道同模式随快照上行）。
         let confirmedBrief: String? = await confirmedKnowledgeBrief()
+        let goalResultSeries: GoalResultSeriesWire? = if let goalReview {
+            await GoalHealthResultSeries.weekly(for: goalReview, now: now)
+        } else {
+            nil
+        }
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
@@ -297,6 +305,7 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             personalSituationBrief: situationBrief.isEmpty ? nil : situationBrief,
             goalScope: goalScope,
             goalReview: goalReview,
+            goalResultSeries: goalResultSeries,
             profileBrief: profileBrief,
             confirmedKnowledgeBrief: confirmedBrief,
             parentReportBrief: parentReportBrief

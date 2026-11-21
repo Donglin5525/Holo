@@ -165,6 +165,11 @@ struct ReportShareCard: View {
     }
 
     private var scopeLine: String {
+        Self.scopeLine(scopeLabel: scopeLabel, generatedAt: generatedAt)
+    }
+
+    /// 范围行「近 8 周 · 2026年11月」：长图与一屏卡共用
+    static func scopeLine(scopeLabel: String?, generatedAt: Date?) -> String {
         var parts: [String] = []
         if let scopeLabel, !scopeLabel.isEmpty {
             parts.append(scopeLabel)
@@ -357,9 +362,12 @@ struct ReportShareSheet: View {
     let question: String?
     let scopeLabel: String?
     let generatedAt: Date?
+    /// 一屏结论的内容摘要；nil 时「一屏」档退回旧版核心摘要长卡
+    var digest: ReportShareDigest? = nil
 
     @AppStorage("reportShareCard.showsBrandFooter") private var showsBrandFooter = true
-    @State private var mode: ReportShareCard.ContentMode = .full
+    /// 默认一屏结论：转发场景要的是「一眼看完」，完整长图作为可选档
+    @State private var mode: ReportShareCard.ContentMode = .summary
     @State private var renderedImage: UIImage?
     /// 预览专用降采样图：长报告 3x 下像素高度可破 GPU 纹理上限无法直接上屏，
     /// 导出/分享走文件通道不受限——预览降采样，导出保持全量高清。
@@ -504,8 +512,8 @@ struct ReportShareSheet: View {
 
     private var modeSwitcher: some View {
         HStack(spacing: 3) {
-            modeButton(String(localized: "完整报告"), target: .full)
-            modeButton(String(localized: "核心摘要"), target: .summary)
+            modeButton(String(localized: "一屏结论"), target: .summary)
+            modeButton(String(localized: "完整长图"), target: .full)
         }
         .padding(3)
         .background(Capsule().fill(Color.white.opacity(0.08)))
@@ -550,6 +558,17 @@ struct ReportShareSheet: View {
 
     /// 渲染导出图。ImageRenderer 仅主线程可用；长报告渲染一次性成本，配「正在生成」占位。
     private func regenerateImage() {
+        if mode == .summary, let digest {
+            let card = ReportOnePageShareCard(
+                digest: digest,
+                question: question,
+                scopeLine: ReportShareCard.scopeLine(scopeLabel: scopeLabel, generatedAt: generatedAt),
+                showsBrandFooter: showsBrandFooter
+            )
+            renderedImage = ReportOnePageShareCard.renderExportImage(card)
+            previewImage = renderedImage
+            return
+        }
         let card = ReportShareCard(
             narrative: narrative,
             question: question,

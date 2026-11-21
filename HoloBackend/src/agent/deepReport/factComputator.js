@@ -6,6 +6,8 @@
 // 快照自带的 financeEvidenceLedger / crossDomainCheckup 台账文本原文收录（不重算），
 // 且 crossDomainCheckup 在场时跳过本文件的习惯本期对比行（台账带每周目标口径更准）。
 import { extractStats, extractCountedStats } from "./numberCheck.js";
+import { computeGenericComponents } from "./componentComputator.js";
+import { computeGoalComponents } from "./goalComponents.js";
 
 const TZ_OFFSET_MS = 8 * 3600 * 1000;
 const WD = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -737,8 +739,24 @@ function contextSection(S, snapshot, rows) {
   }
 }
 
-export function computeFactSheet(snapshot) {
-  const w = resolveAnalysisWindow(snapshot);
+/** 目标复盘：habit.daily 只保留目标关联的习惯（快照按数据集装载，会带进无关习惯） */
+function scopeSnapshotToGoal(snapshot, relatedHabitNames) {
+  const habit = snapshot?.datasets?.["habit.daily"];
+  if (!habit) return snapshot;
+  return {
+    ...snapshot,
+    datasets: {
+      ...snapshot.datasets,
+      "habit.daily": { ...habit, rows: (habit.rows ?? []).filter((r) => relatedHabitNames.has(r.habit)) },
+    },
+  };
+}
+
+export function computeFactSheet(rawSnapshot) {
+  const w = resolveAnalysisWindow(rawSnapshot);
+  // 2026-11-20 报告改版：组件与事实同一次计算（目标复盘走目标组件，其余走通用组件）
+  const goal = rawSnapshot?.goalReview ? computeGoalComponents(rawSnapshot, w) : null;
+  const snapshot = goal ? scopeSnapshotToGoal(rawSnapshot, goal.relatedHabitNames) : rawSnapshot;
   const S = new Sheet();
   const today = localDate(w.genMs);
   S.header(`分析范围：${ymd(w.startMs)} ${localDate(w.startMs).toISOString().slice(11, 16)} 至 ${ymd(w.endMs)} ${localDate(w.endMs).toISOString().slice(11, 16)}（${w.label}，约 ${Math.round((w.endMs - w.startMs) / 86400_000)} 天）。${w.hasPrev ? `「上期」= 紧挨着的前一段同样长度：${ymd(w.prevStartMs)} 至 ${ymd(w.startMs - 1)}。` : "本题没有指定时间，范围是快照全部数据，不做上期对比。"}今天是 ${ymd(w.genMs)}（${weekday(w.genMs)}）。`);
@@ -757,5 +775,15 @@ export function computeFactSheet(snapshot) {
   comovementSection(S, snapshot, w);
   healthSection(S, snapshot, w);
   contextSection(S, snapshot, rows);
-  return { ...S.build(), window: w };
+  const comp = goal ?? computeGenericComponents(snapshot, w);
+  if (comp.factLines.length) {
+    S.section(goal ? "目标复盘（程序计算；报告会把这些数字画成组件，正文与组件同源）" : "图表数据（程序计算；报告会把这些数字画成组件，正文与组件同源）");
+    for (const line of comp.factLines) S.add(line);
+  }
+  return {
+    ...S.build(),
+    window: w,
+    components: comp.components,
+    goal: goal ? { title: goal.goalTitle, skeleton: goal.skeleton } : null,
+  };
 }

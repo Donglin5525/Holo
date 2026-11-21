@@ -67,6 +67,8 @@ final class HoloCloudAnalysisClient {
 
             /// v27 报告结构（章节/节导语/图表表态/结论条目/口径注）；旧结果缺失解码为 nil。
             var reportStructure: CloudReportStructure? = nil
+            /// 2026-11-20 报告改版：程序算好的数据组件（进度/热力条/对比…），逐项容错解码；旧结果为 nil。
+            var reportComponents: HoloReportComponentList? = nil
 
             /// 目标闭环（§6.4）：后端白名单校验后原样回显的目标范围（线上为 ISO8601 字符串，
             /// HoloAgentGoalScope 自带解码）；非目标任务 / 旧结果为 nil。

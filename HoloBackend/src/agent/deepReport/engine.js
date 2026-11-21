@@ -29,9 +29,32 @@ export function confirmedKnowledgeBlock(brief) {
   return `【用户确认过的理解（confirmedKnowledgeBrief：ta 本人在 App 里亲手确认过，可作已确认背景引用，不得改写含义）】\n${body}\n\n`;
 }
 
+// 版面要求（2026-11-20 报告改版，东林拍板：段落不长不短、自我说明合并、数字交给组件）。
+// 走写作输入而非 writer prompt 正文：不与「懂我」方案对 prompt 的改动互相覆盖。
+const LAYOUT_RULES = `【版面要求】每段 2 到 4 句、大约 70 到 110 字：先说判断，再给依据，最后说它意味着什么；一段超过 150 字就拆成两段，也不要写成一两句话的碎段。「数据里没有」「判断不了」这类说明全文最多出现一次，其余统一放进最后的「数据说明：」段。正文是写给用户本人看的：不要出现「程序」「清单」「判定」「快照」「组件」「数据集」这些幕后的词，直接说结论（写「健身掉档了」，不写「程序判定为掉档」）。百分比是整数时不要补「.0」（写 44%，不写 44.0%）；降到零就直接说停了，不写「少了 100%」。`;
+
+const COMPONENT_NAMES = {
+  progress: "目标进度卡", kpiTiles: "关键数字卡", trendLine: "趋势折线图", barSeries: "柱状图",
+  habitStrip: "习惯逐日热力条", periodCompare: "前后两段对比卡", gapCards: "数据缺口卡", milestones: "起步期里程碑",
+};
+
+export function layoutBlock(sheet) {
+  const lines = [LAYOUT_RULES];
+  const comps = sheet.components ?? [];
+  if (comps.length) {
+    const names = [...new Set(comps.map((c) => COMPONENT_NAMES[c.kind]).filter(Boolean))];
+    lines.push(`【配图】报告会由程序在相应位置配上：${names.join("、")}。图里已经有的逐日、逐周、逐月数字，正文不要再一个个罗列（不要写成「8 月 22 个、9 月 23 个……」这样的序列），只点出最关键的一两个数，重点讲它说明了什么。事实清单里写了「程序判定：……」的，正文的说法要和这个判定一致。`);
+  }
+  if (sheet.goal) {
+    const sections = sheet.goal.skeleton.map((k) => `## ${k}：一句判断`).join(" / ");
+    lines.push(`【目标复盘】这是对目标「${sheet.goal.title}」的复盘：只围绕这个目标和它关联的事项写，不扫其他生活数据。开头一两句先直接回答：这个目标是按计划、快了还是慢了，最关键的原因是什么。按顺序使用这些小节（冒号前的关键词必须原样保留，冒号后写成一句判断）：${sections}。没列出的小节不要写。「结果」讲结果指标本身；「关联事项」逐个讲做得怎么样，把同时发生的变化放在一起讲但不说成因果；「还缺什么」讲缺哪些数据会影响判断；「下一步」写 1 到 3 条具体、容易做到的建议，每条单独一段，先说做什么，再说依据。`);
+  }
+  return lines.join("\n");
+}
+
 function writerUserContent(sheet, question, profileBlock, confirmedBlock = "") {
   const profile = profileBlock ? `${profileBlock}\n\n` : "";
-  return `${profile}${confirmedBlock}【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}\n\n${WRITER_FORMAT_REMINDER}`;
+  return `${profile}${confirmedBlock}【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}\n\n${layoutBlock(sheet)}\n\n${WRITER_FORMAT_REMINDER}`;
 }
 
 function parseJSONLoose(text) {

@@ -558,12 +558,17 @@ func test_111_MarkdownAttributedStringRendererStandaloneTests() async throws {
     MarkdownAttributedStringRendererStandaloneTests.main()
 }
 
-func test_112_HoloMemoryEvidenceRoutingTests() async throws {
+func test_112_ReportReadableTextStandaloneTests() async throws {
+    // 来源：Views/Chat/Analysis/ReportReadableTextStandaloneTests.swift
+    ReportReadableTextStandaloneTests.main()
+}
+
+func test_113_HoloMemoryEvidenceRoutingTests() async throws {
     // 来源：Views/MemoryGallery/HoloMemoryEvidenceRoutingTests.swift
     try await HoloMemoryEvidenceRoutingTests.main()
 }
 
-func test_113_ThoughtTagPresentationStandaloneTests() async throws {
+func test_114_ThoughtTagPresentationStandaloneTests() async throws {
     // 来源：Views/Thoughts/ThoughtTagPresentationStandaloneTests.swift
     ThoughtTagPresentationStandaloneTests.main()
 }

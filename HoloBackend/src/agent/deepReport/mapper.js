@@ -94,6 +94,33 @@ function citedFactIds(paragraph, entries) {
  * 组装 CloudResult。
  * @returns {{result: object, empty: boolean}}
  */
+/**
+ * 组件就位（2026-11-20 报告改版）：anchorTitle（目标骨架关键词）按小节标题匹配，找不到放最后一节；
+ * keywords（通用组件）找第一个提到关键词的小节，没人提到就不出（没被正文讨论的图是噪音）；
+ * 每节最多 2 个关键词组件。anchor=-1 = 报告「总」区。
+ */
+export function anchorComponents(components, sections, textById) {
+  const out = [];
+  const perSection = new Map();
+  const sectionText = sections.map((sec) => `${sec.title}${sec.paragraphClaimIDs.map((id) => textById.get(id) ?? "").join("")}`);
+  for (const c of components ?? []) {
+    let anchor = -1;
+    if (c.anchorTitle) {
+      let idx = sections.findIndex((sec) => sec.title.includes(c.anchorTitle));
+      if (idx < 0 && c.anchorTitle === "还缺什么") idx = sections.findIndex((sec) => /缺/.test(sec.title));
+      anchor = idx >= 0 ? idx : sections.length - 1;
+    } else if (Array.isArray(c.keywords)) {
+      const idx = sectionText.findIndex((text) => c.keywords.some((k) => k && text.includes(k)));
+      if (idx < 0) continue;
+      if ((perSection.get(idx) ?? 0) >= 2) continue;
+      perSection.set(idx, (perSection.get(idx) ?? 0) + 1);
+      anchor = idx;
+    }
+    out.push({ id: `c${out.length + 1}`, kind: c.kind, anchor, payload: c.payload });
+  }
+  return out;
+}
+
 export function mapReportToResult({ reportText, sheet, window, snapshotCoverage }) {
   const parsed = parseReport(reportText);
   const paragraphs = [...parsed.loose, ...parsed.sections.flatMap((s) => s.paragraphs)];
@@ -134,10 +161,17 @@ export function mapReportToResult({ reportText, sheet, window, snapshotCoverage 
     if (looseIds.length) {
       sections.unshift({ no: "", title: "开篇", kicker: null, paragraphClaimIDs: looseIds, chartHint: null, notice: null });
     }
-    if (sections.length) {
+    // 「下一步」小节 → 结论条目（iOS 用编号条目渲染，分享图取第一条作「下一步」）
+    const nextIdx = sections.findIndex((sec) => /^下一步/.test(sec.title));
+    const conclusionItems = nextIdx >= 0
+      ? sections.splice(nextIdx, 1)[0].paragraphClaimIDs.map((claimID) => ({ claimID, sub: "" }))
+      : [];
+    let numbered = 0;
+    sections.forEach((sec) => { if (sec.title !== "开篇") sec.no = cnNums[numbered++] ?? ""; });
+    if (sections.length || conclusionItems.length) {
       reportStructure = {
         sections,
-        conclusionItems: [],
+        conclusionItems,
         disclosureNotes: parsed.disclosure,
       };
     }
@@ -161,6 +195,7 @@ export function mapReportToResult({ reportText, sheet, window, snapshotCoverage 
       narrativeSummary: narrativeSummary || null,
       keyInsight: null,
       reportStructure,
+      reportComponents: anchorComponents(sheet.components ?? [], reportStructure?.sections ?? [], textById),
       claims,
       reasoning: "",
       evidence,

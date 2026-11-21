@@ -1140,10 +1140,16 @@ export function createCloudAnalysisExecutor({
       const writerRoute = deepReportRoutes?.writer;
       const checkerRoute = deepReportRoutes?.checker;
       if (!writerRoute || !checkerRoute) throw new Error("DEEP_REPORT_ROUTES_MISSING");
-      if (snapshot.goalScope) {
-        taskStore.fail({ id: taskId, reason: "目标回顾暂不支持深度报告引擎" });
-        return "failed";
+      // 目标复盘（2026-11-20 报告改版 C2）：新引擎按 goalReview 算目标事实与组件；
+      // goalScope 非法 → 按普通深度报告处理（与旧引擎「降级不中断」一致），goalReview 超限 → 丢弃不用
+      const deepReportGoalScopeCheck = normalizeGoalScope(snapshot.goalScope);
+      const deepReportGoalScope = deepReportGoalScopeCheck.ok ? deepReportGoalScopeCheck.scope : null;
+      if (snapshot.goalScope != null && !deepReportGoalScope) {
+        log(`goalScope 校验失败(深度报告) taskId=${taskId} reason=${deepReportGoalScopeCheck.reason}`);
       }
+      const acceptedGoalReview = deepReportGoalScope ? acceptGoalReview(snapshot.goalReview, deepReportGoalScope) : null;
+      if (acceptedGoalReview) snapshot.goalReview = acceptedGoalReview;
+      else delete snapshot.goalReview;
       if (!taskStore.transition(taskId, "running")) {
         return taskStore.get(taskId)?.status ?? "conflict";
       }
@@ -1236,6 +1242,8 @@ export function createCloudAnalysisExecutor({
         log,
       });
       result.snapshotCoverage = snapshotCoverage(snapshot);
+      // 目标范围原样回显（iOS 以它为报告归类的权威依据，与旧引擎一致）
+      if (deepReportGoalScope) result.goalScope = deepReportGoalScope;
       const completed = taskStore.complete({ id: taskId, result: JSON.stringify(result) });
       if (!completed) {
         if (reservation) quotaLedger.release(reservation);

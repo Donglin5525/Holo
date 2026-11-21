@@ -275,6 +275,34 @@ struct ChatView: View {
         }
         #endif
         .confirmationDialog(
+            "复盘哪个目标？",
+            isPresented: Binding(
+                get: { viewModel.pendingGoalReviewChoice != nil },
+                set: { presented in
+                    // 关闭回调可能先于按钮动作：推迟一拍再判，选中的按钮已清掉挂起则不当取消处理
+                    guard !presented else { return }
+                    DispatchQueue.main.async {
+                        if viewModel.pendingGoalReviewChoice != nil {
+                            viewModel.choosePendingGoalReview(nil)
+                        }
+                    }
+                }
+            ),
+            titleVisibility: .visible,
+            presenting: viewModel.pendingGoalReviewChoice
+        ) { pending in
+            ForEach(pending.options) { option in
+                Button(option.title) {
+                    viewModel.choosePendingGoalReview(option.id)
+                }
+            }
+            Button("取消", role: .cancel) {
+                viewModel.choosePendingGoalReview(nil)
+            }
+        } message: { _ in
+            Text("你有几个进行中的目标，选一个，Holo 只围绕它和它关联的习惯、任务来分析。")
+        }
+        .confirmationDialog(
             "删除确认",
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible

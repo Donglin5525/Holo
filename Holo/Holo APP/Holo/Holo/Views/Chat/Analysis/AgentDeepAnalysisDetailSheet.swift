@@ -455,6 +455,13 @@ struct AgentDeepAnalysisDetailSheet: View {
                     }
                 } else {
                     opening(model)
+                    if !result.components.isEmpty {
+                        VStack(spacing: 10) {
+                            ForEach(result.components) { component in
+                                ReportComponentView(component: component)
+                            }
+                        }
+                    }
                     recommendationsSection(model.recommendations)
                     observationsSection(model.observations)
                     trendSection
@@ -553,9 +560,33 @@ struct AgentDeepAnalysisDetailSheet: View {
                 narrative: narrative,
                 question: userQuestion,
                 scopeLabel: result.scope?.displayLabel,
-                generatedAt: askedAt
+                generatedAt: askedAt,
+                digest: shareDigest
             )
         }
+    }
+
+    /// 一屏分享图摘要：研报版式取 reportStructure 小节，旧版式取观察章节
+    private var shareDigest: ReportShareDigest {
+        let model = narrative
+        if let report = result.reportStructure {
+            return .make(
+                title: result.title,
+                lede: model.keyInsight ?? result.narrativeSummary,
+                sections: report.sections.map { .init(title: $0.title, paragraphs: $0.paragraphs) },
+                conclusions: report.conclusionItems.map(\.text),
+                recommendations: model.recommendations.map { (title: $0.title, body: $0.body) },
+                components: result.components
+            )
+        }
+        return .make(
+            title: model.openingTitle,
+            lede: model.keyInsight ?? model.openingBody,
+            sections: model.observations.map { .init(title: $0.title, paragraphs: [$0.body]) },
+            conclusions: [],
+            recommendations: model.recommendations.map { (title: $0.title, body: $0.body) },
+            components: result.components
+        )
     }
 
     /// 详情页展示的提问：优先本次提问（question），旧报告退回追问链根问题；都为空时不渲染提问卡。
@@ -918,12 +949,15 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(observation.body)
-                .font(.system(size: 15.5, weight: .regular))
-                .foregroundColor(dark ? Color.white.opacity(0.78) : Color.holoTextPrimary.opacity(0.86))
-                .lineSpacing(7)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            // 与研报版式同一可读性规则：超长段按句界拆分，只强调短主题句与数字
+            ForEach(Array(AgentDeepReportView.readableParagraphs([observation.body]).enumerated()), id: \.offset) { _, paragraph in
+                Text(AgentDeepReportView.emphasizedParagraph(paragraph))
+                    .font(.system(size: 15.5, weight: .regular))
+                    .foregroundColor(dark ? Color.white.opacity(0.78) : Color.holoTextPrimary.opacity(0.84))
+                    .lineSpacing(7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
 
             if let assertions = observation.metricAssertions,
                assertions.contains(where: { $0.value != nil }) {

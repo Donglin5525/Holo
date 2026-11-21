@@ -74,7 +74,7 @@ const GOOD_REPORT = `# 收入涨了，健身断了
 
 数据说明：睡眠无数据，不能判断。`;
 
-function makeExecutor(responses, records) {
+export function makeExecutor(responses, records) {
   const database = createDatabase({ dbPath: ":memory:" });
   const store = createCloudAnalysisTaskStore(database.db, { encryptionKey: TEST_KEY });
   let i = 0;
@@ -196,16 +196,7 @@ test("写作完全不可用：任务失败、额度释放、不落半成品", as
   assert.equal(pack.purposes.includes("commit"), false);
 });
 
-test("目标回顾任务不走新引擎", async () => {
-  const pack = makeExecutor([], []);
-  const task = pack.store.create({ deviceId: "dev", question: "目标走到哪了", taskType: "deep_report" });
-  const snap = snapshot();
-  snap.goalScope = { goalID: "g" };
-  pack.store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(snap) });
-  assert.equal(await pack.executor.run(task.id), "failed");
-  const row = pack.store.getDecrypted(task.id, ["failureReason"]);
-  assert.match(row.failureReason, /目标回顾暂不支持深度报告引擎/);
-});
+// 目标复盘走新引擎的端到端用例见 tests/deepReportGoalComponents.test.js（2026-11-20 报告改版 C2 起解除拒绝）
 
 test("generateDeepReport 纯管线：checker 不点头也不修时直接删并完成", async () => {
   const calls = [];

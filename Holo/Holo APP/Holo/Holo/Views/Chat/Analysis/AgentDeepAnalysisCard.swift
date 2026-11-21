@@ -212,6 +212,9 @@ struct AgentDeepAnalysisCard: View {
                             .layoutPriority(1)
                         }
 
+                        // 组件摘要：进度 + 关联事项状态（无组件时不渲染）
+                        ReportCardComponentSummary(components: result.components)
+
                         if let keyInsight = result.keyInsight?.trimmingCharacters(in: .whitespacesAndNewlines),
                            !keyInsight.isEmpty {
                             HStack(alignment: .top, spacing: 8) {
@@ -240,10 +243,12 @@ struct AgentDeepAnalysisCard: View {
                                 .lineLimit(2)
                         }
 
+                        // 卡片只放「一句话回答」：整句截取、最多 3 行、常规字重（细节留给详情页）
                         Text(directAnswer(result))
-                            .font(.system(size: 15.5, weight: .semibold))
-                            .foregroundColor(.holoTextPrimary.opacity(0.88))
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundColor(.holoTextPrimary.opacity(0.86))
                             .lineSpacing(5)
+                            .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
 
                         let titles = recommendationTitles(in: result)
@@ -390,17 +395,20 @@ struct AgentDeepAnalysisCard: View {
         return result.summary
     }
 
+    /// 卡片回答：directAnswer → 导语（narrativeSummary）→ 首节正文，统一只取前 90 字内的整句。
+    /// 新引擎不产 directAnswer，此前直接回退到首节整段，卡片被一大段字撑满。
     private func directAnswer(_ result: HoloRenderedAgentResult) -> String {
-        if let answer = result.directAnswer?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !answer.isEmpty {
-            return answer
-        }
-        if let first = result.sections.first?.body.trimmingCharacters(in: .whitespacesAndNewlines),
-           !first.isEmpty {
-            return first
+        let candidates = [result.directAnswer, result.narrativeSummary, result.sections.first?.body]
+        for candidate in candidates {
+            let trimmed = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return ReportReadableText.leadSentences(trimmed, maxChars: Self.cardAnswerMaxChars)
+            }
         }
         return primarySummary(result)
     }
+
+    private static let cardAnswerMaxChars = 90
 
     private func hasRecommendations(_ result: HoloRenderedAgentResult) -> Bool {
         !recommendationTitles(in: result).isEmpty

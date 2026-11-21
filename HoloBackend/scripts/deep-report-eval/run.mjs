@@ -28,7 +28,11 @@ const { createDatabase } = await import(join(REPO, "src/db/database.js"));
 const { createCloudAnalysisTaskStore } = await import(join(REPO, "src/agent/cloudAnalysisTaskStore.js"));
 const { createCloudAnalysisExecutor } = await import(join(REPO, "src/agent/cloudAnalysisExecutor.js"));
 const { computeFactSheet } = await import(join(REPO, "src/agent/deepReport/factComputator.js"));
-const { CASES, buildSnapshot } = await import(join(HERE, "personas.mjs"));
+const { CASES: BASE_CASES, buildSnapshot: buildPersonaSnapshot } = await import(join(HERE, "personas.mjs"));
+// 目标复盘人设（报告改版 C2）：用例自带 build()，其余沿用人设快照
+const { GOAL_CASES } = await import(join(HERE, "goalPersonas.mjs"));
+const CASES = [...BASE_CASES, ...GOAL_CASES];
+const buildSnapshot = (testCase) => (testCase.build ? testCase.build() : buildPersonaSnapshot(testCase));
 
 // config 默认单价（元/百万 token），线上实际单价未核对
 const PRICE = { input: 3, cached: 0.1, output: 9 };

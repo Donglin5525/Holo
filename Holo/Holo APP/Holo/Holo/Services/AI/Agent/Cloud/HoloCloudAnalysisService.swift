@@ -519,6 +519,8 @@ final class HoloCloudAnalysisService {
             from: result.reportStructure,
             claims: result.claims ?? []
         )
+        // 数据组件与正文同一次事实计算产出；没有报告版式（无小节）时组件仍可在「总」区展示
+        rendered.reportComponents = result.reportComponents.flatMap { $0.items.isEmpty ? nil : $0 }
         // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
         // 报告页据此显示追问入口，追问记录据此挂载血统；cloud- 前缀与本地 UUID 空间天然不冲突
         let cloudIdentity = "cloud-\(taskId)"

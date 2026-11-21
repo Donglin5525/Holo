@@ -253,6 +253,8 @@ final class ChatViewModel: ObservableObject {
     /// 本地状态劫持（2026-09-19 深度分析失效事故 + 提示词方案 P1 根治：
     /// 「认真改写问题反而失去所选模式」）。
     private(set) var pendingScenarioIntent: AnalysisScenario?
+    /// 对话问目标且有多个进行中目标时，等用户选一个（ChatGoalReviewRouting）
+    @Published var pendingGoalReviewChoice: ChatPendingGoalReviewChoice?
 
     /// 目标规划问答是否处于收集答案期（此期间普通输入会被会话消费，UI 需常驻提示）
     var isGoalPlanningCollecting: Bool {
@@ -428,6 +430,12 @@ final class ChatViewModel: ObservableObject {
         #if canImport(UIKit)
 HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
 #endif
+        // 问目标 → 绑定到具体目标走目标复盘（追问沿用父报告范围，不改道）
+        if parentReportBrief == nil,
+           await routeGoalReviewIfNeeded(question: question, aiMessageId: aiMessageId,
+                                         intent: intent, scenarioID: scenario?.rawValue) {
+            return true
+        }
         switch await HoloCloudAnalysisService.shared.attempt(
             question: question,
             sourceMessageID: aiMessageId,
@@ -485,6 +493,12 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             intent: pending.intent,
             detail: "深度分析需要开启云端模式。重新发起时会再次询问。"
         )
+    }
+
+    /// 目标复盘路由的说明卡（复用深度分析不可用卡的落库形态）
+    @MainActor
+    func finalizeGoalReviewCard(_ aiMessageId: UUID, intent: String?, detail: String) {
+        finalizeDeepAnalysisUnavailableCard(aiMessageId, intent: intent, detail: detail)
     }
 
     @MainActor

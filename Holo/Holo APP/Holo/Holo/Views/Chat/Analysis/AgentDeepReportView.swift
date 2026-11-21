@@ -29,8 +29,10 @@ struct AgentDeepReportView: View {
             if let lede = result.narrativeSummary, !lede.isEmpty {
                 ledeBlock(lede)
             }
-            ForEach(Array(report.sections.enumerated()), id: \.offset) { _, section in
-                sectionView(section)
+            // 「总」区：进度 / 数字卡等由程序算好的组件（anchor = -1）
+            componentStack(Self.components(result.components, anchoredAt: -1, sectionCount: report.sections.count))
+            ForEach(Array(report.sections.enumerated()), id: \.offset) { index, section in
+                sectionView(section, index: index)
             }
             if !report.conclusionItems.isEmpty {
                 conclusionSection
@@ -86,7 +88,28 @@ struct AgentDeepReportView: View {
 
     // MARK: - 章节
 
-    private func sectionView(_ section: HoloRenderedReportStructure.Section) -> some View {
+    /// 组件就位：anchor 超出小节数的组件归到最后一节，不丢
+    static func components(_ all: [HoloReportComponent], anchoredAt anchor: Int, sectionCount: Int) -> [HoloReportComponent] {
+        all.filter { component in
+            if anchor == -1 { return component.anchor < 0 }
+            if anchor == sectionCount - 1 { return component.anchor >= anchor }
+            return component.anchor == anchor
+        }
+    }
+
+    @ViewBuilder
+    private func componentStack(_ components: [HoloReportComponent]) -> some View {
+        if !components.isEmpty {
+            VStack(spacing: 10) {
+                ForEach(components) { component in
+                    ReportComponentView(component: component)
+                }
+            }
+            .padding(.top, 18)
+        }
+    }
+
+    private func sectionView(_ section: HoloRenderedReportStructure.Section, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .lastTextBaseline, spacing: 10) {
                 if !section.no.isEmpty {
@@ -116,15 +139,17 @@ struct AgentDeepReportView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            ForEach(Array(section.paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                Text(Self.boldLeadSentence(paragraph))
+            ForEach(Array(Self.readableParagraphs(section.paragraphs).enumerated()), id: \.offset) { _, paragraph in
+                Text(Self.emphasizedParagraph(paragraph))
                     .font(.system(size: 15.5))
-                    .foregroundColor(dark ? .white.opacity(0.9) : .holoTextPrimary.opacity(0.92))
+                    .foregroundColor(dark ? .white.opacity(0.84) : .holoTextPrimary.opacity(0.84))
                     .lineSpacing(8)
                     .padding(.top, 16)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
+
+            componentStack(Self.components(result.components, anchoredAt: index, sectionCount: report.sections.count))
 
             if let chart = section.chartHint, let series = trendSeriesByDataset[chart.dataset] {
                 VStack(alignment: .leading, spacing: 0) {
@@ -278,22 +303,25 @@ struct AgentDeepReportView: View {
         trendSeriesByDataset = loaded
     }
 
-    /// 首句加粗（新闻编辑扫读手法）：到第一个句末标点为止的子串用 heavier 字重。
-    static func boldLeadSentence(_ text: String) -> AttributedString {
+    /// 超长段（>150 字）在句界拆开，单段控制在一屏 6–7 行内。
+    static func readableParagraphs(_ paragraphs: [String]) -> [String] {
+        paragraphs.flatMap { ReportReadableText.splitParagraph($0) }
+    }
+
+    /// 段落强调：只加粗短主题句（≤28 字）与「数字+单位」，不再整句加粗——
+    /// 长首句整句加粗会把半段文字压成一块，扫读反而找不到重点。
+    static func emphasizedParagraph(_ text: String) -> AttributedString {
         var attr = AttributedString(text)
         attr.font = .system(size: 15.5)
-        let terminators: Set<Character> = ["。", "！", "？", "；"]
-        guard let idx = text.firstIndex(where: { terminators.contains($0) }) else {
-            attr.font = .system(size: 15.5, weight: .semibold)
-            return attr
+        var ranges = ReportReadableText.numberSpans(in: text)
+        if let lead = ReportReadableText.leadEmphasisRange(in: text) {
+            ranges.append(lead)
         }
-        let leadLength = text.distance(from: text.startIndex, to: idx) + 1
-        guard leadLength < text.count else {
-            attr.font = .system(size: 15.5, weight: .semibold)
-            return attr
+        for range in ranges {
+            guard let lower = AttributedString.Index(range.lowerBound, within: attr),
+                  let upper = AttributedString.Index(range.upperBound, within: attr) else { continue }
+            attr[lower..<upper].font = .system(size: 15.5, weight: .semibold)
         }
-        let leadRange = attr.startIndex..<attr.index(attr.startIndex, offsetByCharacters: leadLength)
-        attr[leadRange].font = .system(size: 15.5, weight: .semibold)
         return attr
     }
 

@@ -125,8 +125,17 @@ final class GoalReviewCoordinator: ObservableObject {
 
     // MARK: - 发起
 
+    /// HoloAI 对话里自由提问触发的回顾（2026-11-20 报告改版 D 期）：对话已落「用户问句 + 分析占位」，
+    /// 协调器不再另插一份；云端按用户原话作答，范围仍由 goalScope 冻结在这一个目标上。
+    struct ChatHandoff: Equatable {
+        let reportMessageID: UUID
+        let question: String
+    }
+
     /// 目标详情 / HoloAI 发起同一入口。forceNew = 用户明确要求重新分析。
-    func startOrOpenReview(goal: Goal, forceNew: Bool = false, now: Date = Date()) async -> LaunchOutcome {
+    /// 苹果健康目标（2026-11-20 起）：快照只带「最新值 / 起点 / 目标」聚合值上云，不传原始样本。
+    func startOrOpenReview(goal: Goal, forceNew: Bool = false, now: Date = Date(),
+                           handoff: ChatHandoff? = nil) async -> LaunchOutcome {
         guard !inFlightGoalIDs.contains(goal.id) else {
             if let running = Self.links(goalID: goal.id, in: context).first(where: { $0.statusRaw == GoalReviewLinkStatus.running.rawValue }),
                let messageID = running.reportMessageID {
@@ -184,11 +193,16 @@ final class GoalReviewCoordinator: ObservableObject {
             timeZoneID: state.snapshot.timeZoneID,
             sourceDigest: state.snapshot.sourceDigest
         )
-        let question = Self.reviewQuestion(goalTitle: goal.title)
+        let question = handoff?.question ?? Self.reviewQuestion(goalTitle: goal.title)
 
-        // 落对话：用户问句 + 分析占位（占位消息 id 即报告身份）
-        let userMessageID = repository.addMessage(role: "user", content: question, intent: "query_analysis")
-        let reportMessageID = repository.addStreamingMessage(role: "assistant", parentMessageId: userMessageID)
+        // 落对话：用户问句 + 分析占位（占位消息 id 即报告身份）；对话发起时沿用已有占位
+        let reportMessageID: UUID
+        if let handoff {
+            reportMessageID = handoff.reportMessageID
+        } else {
+            let userMessageID = repository.addMessage(role: "user", content: question, intent: "query_analysis")
+            reportMessageID = repository.addStreamingMessage(role: "assistant", parentMessageId: userMessageID)
+        }
         do {
             try Self.createLink(in: context, scope: scope, reportMessageID: reportMessageID)
         } catch {
