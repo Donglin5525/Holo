@@ -178,8 +178,8 @@ nonisolated final class DiscoveryTopicStore {
 
     private let insightShownAngleKey = "holo.discovery.insight.shownAngles.v1"
     private let insightRejectedAngleKey = "holo.discovery.insight.rejectedAngles.v1"
-    // v2（11-21）：尝试标记从「请求前」后移到「结果后」——旧键作废，被掐断烧掉的一天随键升级释放。
-    private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v2"
+    // v3（11-21 三轮）：随重装再释放当天尝试（v2 已被 13:39 完整跑完的一次占用）。
+    private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v3"
     private let insightNoneDayKey = "holo.discovery.insight.noneDay.v1"
     private let insightQuotaWallDayKey = "holo.discovery.insight.quotaWallDay.v1"
     /// recentAngleKeys 的回看窗口：30 天（总纲 §5.1 recentTopics 语义）。
