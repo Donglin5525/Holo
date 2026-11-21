@@ -36,9 +36,6 @@ enum DiscoveryInsightService {
         guard store.queue.isEmpty else { return false }
         guard HoloAIDataProcessingConsent.shared.isGranted else { return false }
 
-        // 先标记再请求：一天只尝试一次（服务端 3 次/日是重试余量，不在客户端烧）。
-        store.markInsightV2Attempted(now: now)
-
         // 材料组装：画像仓 + 七域特征包 + 挖掘器提案。
         let portraitStore = HoloPortraitSynthesisRuntime.loadStore()
         guard let featurePacket = await HoloLifeFeatureDataSource.buildPacket(now: now) else {
@@ -56,8 +53,11 @@ enum DiscoveryInsightService {
         }
 
         // 请求（流式；后端闸门放行后的完整 InsightDraft JSON 才会到达这里）。
+        // 尝试标记在拿到结果后才记：材料组装/传输被取消不烧当天名额
+        // （服务端 3 次/日限流是硬兜底，客户端标记只做当日去重）。
         do {
             let draft = try await requestInsight(packet: built.packet)
+            store.markInsightV2Attempted(now: now)
             if let selected = draft.selected {
                 let failure = DiscoveryInsightTerminalCheck.validate(selected, packet: built.packet)
                 if let failure {
@@ -99,6 +99,7 @@ enum DiscoveryInsightService {
                 return await fallbackToV3(proposals: proposals, now: now, reason: "gate_rejected")
             }
         } catch {
+            // 网络错误也不烧名额（当日可再试；服务端限流兜底）。
             logger.error("v4 洞察请求失败，回落 v3: \(String(describing: error), privacy: .public)")
             return await fallbackToV3(proposals: proposals, now: now, reason: "error")
         }
@@ -131,8 +132,14 @@ enum DiscoveryInsightService {
         guard let json = packet.encodeJSON() else {
             throw APIError.serverError("洞察输入包编码失败")
         }
-        let raw = try await client.stream(messages: [.user(json)])
-        return try InsightDraftParser.parse(from: raw)
+        // 独立 Task（非结构化）：不继承评审页 .task 的取消信号——11-21 真机实锤
+        // 页面刷新（通知/scenePhase 触发 refreshID 变化）会在几百毫秒内掐断进行中的
+        // 模型请求（服务端 CLIENT_ABORTED），白烧一次当天尝试。
+        let messages: [ChatMessageDTO] = [.user(json)]
+        return try await Task {
+            let raw = try await client.stream(messages: messages)
+            return try InsightDraftParser.parse(from: raw)
+        }.value
     }
 }
 
