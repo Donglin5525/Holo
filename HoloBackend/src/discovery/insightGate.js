@@ -200,7 +200,7 @@ export function evaluateInsightDraft(selected, packet) {
   const judgement = `${headline}\n${insight}\n${prompt ?? ""}`;
   if (containsNumerals(judgement)) return { ok: false, reason: "bare_number" };
 
-  // 检查 3：引用合法性。refId ∈ 输入（feature 或 portrait）；{slot} ⊆ 该 feature slots。
+  // 检查 3：引用合法性。大括号只能组成完整的 {slot}，槽位必须属于对应 feature。
   if (!Array.isArray(evidence) || evidence.length < INSIGHT_LIMITS.evidenceMin || evidence.length > INSIGHT_LIMITS.evidenceMax) {
     return { ok: false, reason: "evidence_count" };
   }
@@ -216,6 +216,9 @@ export function evaluateInsightDraft(selected, packet) {
     const feature = featureById.get(line.refId);
     const isPortraitRef = portraitIds.has(line.refId);
     if (!feature && !isPortraitRef) return { ok: false, reason: `unknown_ref:${line.refId}` };
+    if (/[{}]/.test(line.template.replace(TEMPLATE_SLOT_RE, ""))) {
+      return { ok: false, reason: "evidence_slot_syntax" };
+    }
     const allowedSlots = new Set(feature ? feature.slots.map((s) => s.name) : []);
     for (const m of line.template.matchAll(TEMPLATE_SLOT_RE)) {
       if (!allowedSlots.has(m[1])) return { ok: false, reason: `slot_not_allowed:${m[1]}` };
@@ -282,7 +285,8 @@ export function repairInsightDraft(selected, packet) {
     .slice(0, INSIGHT_LIMITS.evidenceMax)
     .map((line) => ({
       refId: line.refId.slice(0, 64),
-      template: String(line.template).slice(0, INSIGHT_LIMITS.evidenceTemplate),
+      // 证据是事实描述，超长交给模型重写。按字符截断可能切开 {slot} 或改掉原意。
+      template: line.template,
     }));
   const criteria = Array.isArray(selected.criteria)
     ? selected.criteria.filter((c) => CRITERIA_ENUM.has(c)) : [];

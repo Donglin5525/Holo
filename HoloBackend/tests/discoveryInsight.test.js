@@ -207,6 +207,33 @@ test("流式：SSE 心跳模式——content-type event-stream + 单个最终 ch
   assert.equal(draft.selected.angleKey, "sleep×lateNight");
 });
 
+test("流式：第二条证据超长且截断点在槽位中间，重写后才发出完整证据", async () => {
+  const stub = insightStub();
+  const valid = goodDraft();
+  valid.selected.evidence.push({
+    refId: "f_task_overdue",
+    template: "原先逾期{overdueDays}天，近期逾期{recentDays}天",
+  });
+  const long = structuredClone(valid);
+  const template = "原先逾期{overdueDays}天，期间也有多次临时改期，近期逾期{recentDays}天";
+  assert.match(template.slice(0, 40), /\{[a-zA-Z]+$/);
+  long.selected.evidence[1].template = template;
+  const packet = JSON.parse(packetJSON());
+  packet.features[1].slots.push({ name: "recentDays", unit: "days" });
+  stub.enqueue(modelOutput(long));
+  stub.enqueue(modelOutput(valid));
+  const { app, database } = makeApp({}, stub);
+
+  const response = await post(app, { packet: JSON.stringify(packet), stream: true });
+  const dataLine = (await response.text()).split("\n").find((line) => line.startsWith("data: {"));
+  const draft = JSON.parse(JSON.parse(dataLine.slice(6)).choices[0].delta.content);
+
+  assert.equal(stub.calls.length, 2);
+  assert.match(stub.calls[1].messages.find((message) => message.role === "user").content, /拒因=evidence_template_length/);
+  assert.deepEqual(draft.selected.evidence, valid.selected.evidence);
+  assert.equal(database.db.prepare("SELECT COUNT(*) c FROM insight_deliveries").get().c, 1);
+});
+
 test("非法输入包：400（未知枚举域）", async () => {
   const stub = insightStub();
   const { app } = makeApp({}, stub);

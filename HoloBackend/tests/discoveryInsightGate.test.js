@@ -96,6 +96,19 @@ test("检查3 引用：未知 refId 拒、越界 slot 拒、portrait 引用带 s
   assert.equal(evaluateInsightDraft(selected({ evidence: [{ refId: "p_early_sleep", template: "你自己写过想早睡" }] }), p).ok, true);
 });
 
+test("检查3 槽位语法：完整槽位旁有残缺、嵌套或孤立括号时拒绝", () => {
+  const p = packet();
+  for (const template of [
+    "之前{lateWeeks}周，近期{lateCou",
+    "之前{{lateWeeks}}周",
+    "之前{lateWeeks}周}",
+    "之前{lateWeeks}周，近期{}",
+  ]) {
+    const draft = selected({ evidence: [{ refId: "f_late_night", template }] });
+    assert.equal(evaluateInsightDraft(draft, p).reason, "evidence_slot_syntax");
+  }
+});
+
 test("检查4 复述启发式：方向词+无连接词+criteria不足拒；有推测词或criteria达标过", () => {
   const p = packet();
   const restatement = selected({
