@@ -2697,6 +2697,11 @@ async function handleInsightV2Completion(context, deps) {
   // 预算墙（2026-11-21 东林拍板）：7 天滚动窗口按「实际送达」计数；撞墙零上游成本。
   // 免费 1 条/周、Plus 5 条/周（config 可调）；iOS 收到 quota_exhausted 展示升级引导、不回落 v3。
   const plusActive = entitlement?.isPlusActive === true;
+  // 点名看只对 Plus 生效（2026-11-21 B2）；免费请求带了也丢弃（额度照常由服务端计，不构成越权，但不让它改变选题）。
+  if (!plusActive && packet.focusFeatureIds) {
+    const { focusFeatureIds: _ignored, ...rest } = packet;
+    packet = rest;
+  }
   const weeklyLimit = plusActive
     ? (config.discovery?.insightPlusWeekly ?? 5)
     : (config.discovery?.insightFreeWeekly ?? 1);

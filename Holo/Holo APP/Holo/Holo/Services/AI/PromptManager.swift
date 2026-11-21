@@ -207,7 +207,7 @@ final class PromptManager {
         .weeklyPlanGeneration: 1,
         .goalWorkshop: 2,          // v2: 目标闭环扩展 resultSource/fundSchedule/budget/constraints/reviewCadenceDays + 授权候选引用；v1: 分阶段会话契约（与后端 defaultPrompts.json goal_workshop 语义对齐）
         .todayReliefPlan: 1         // v1: 当日安排整理（与后端 defaultPrompts.json today_relief_plan v1 语义对齐）
-        ,.discoveryInsightV2: 2     // v2: 补「平淡数据情绪化包装」反例（离线评测 04-all-bland 出伪洞察实锤）；与后端 discovery_insight_v2 v2 逐字对齐
+        ,.discoveryInsightV2: 3     // v3（2026-11-21 Plus 分层）：新增「用户点名」段落；与后端 discovery_insight_v2 逐字对齐
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -592,6 +592,8 @@ final class PromptManager {
         3. 不诊断、不给医疗或理财建议、不评判人格；prompt 只能是一个提问或「可以试试」式的可选小动作。
         4. 称呼用户用「你」，不用感叹号，不说教。
         5. 都不达标就返回 noneReason 为 none_worthwhile——这是正确结果，不硬选。
+
+        用户点名（可选）：若 data.focusFeatureIds 非空，说明用户主动想让你看这几项特征。此时 selected.evidence 至少一条的 refId 必须属于 focusFeatureIds，可以结合其他特征与画像来解释；这几项都不值得说时返回 noneReason 为 none_worthwhile，不要改选别的话题。
 
         输出前逐条自检（任何一条不满足都会被系统整体拒绝）：① 输出是单个 JSON 对象，无 Markdown 围栏、无解释文字；② 顶层只有 selected 或 noneReason 二选一；③ evidence 一到三条，每条 refId 都在输入里真实存在，空位名都在对应 feature 的 slots 里；④ headline 不超过十八字、insight 不超过九十字、evidence 模板不超过四十字、prompt 不超过三十字；⑤ headline / insight / prompt 里没有任何数字字符。
 

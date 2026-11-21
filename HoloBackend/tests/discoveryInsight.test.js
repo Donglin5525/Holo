@@ -386,3 +386,47 @@ test("nextReleaseAt：窗口内 3 条、上限 2 → 第 2 旧那条 +7 天", ()
   assert.equal(store.nextReleaseAt("d", 5, now), null);
   assert.equal(store.nextReleaseAt("d", 0, now), null);
 });
+
+// ============ Plus 点名看（2026-11-21 Plus 分层 B2） ============
+
+function plusApp(stub) {
+  const made = makeApp({}, stub);
+  made.database.db
+    .prepare("INSERT INTO subscription_acceptance_overrides (device_id, tier, updated_at) VALUES (?, 'plus', CURRENT_TIMESTAMP)")
+    .run(DEVICE);
+  return made;
+}
+
+test("点名看·Plus：evidence 未引用点名 feature → focus_missed 重试，第二次命中放行", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft())); // 引用 f_late_night，不是点名的 f_task_overdue
+  const hit = goodDraft();
+  hit.selected.evidence = [{ refId: "f_task_overdue", template: "其中{overdueDays}天任务逾期" }];
+  stub.enqueue(modelOutput(hit));
+  const { app } = plusApp(stub);
+  const res = await post(app, { packet: packetJSON({ focusFeatureIds: ["f_task_overdue"] }) });
+  const draft = JSON.parse((await res.json()).choices[0].message.content);
+  assert.equal(draft.selected.evidence[0].refId, "f_task_overdue");
+  assert.equal(stub.calls.length, 2);
+  assert.match(JSON.stringify(stub.calls[1].messages), /focus_missed/);
+});
+
+test("点名看·免费：focusFeatureIds 被丢弃，不影响闸门", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app } = makeApp({}, stub);
+  const res = await post(app, { packet: packetJSON({ focusFeatureIds: ["f_task_overdue"] }) });
+  const draft = JSON.parse((await res.json()).choices[0].message.content);
+  assert.equal(draft.selected.angleKey, "sleep×lateNight");
+  assert.equal(stub.calls.length, 1);
+  // 断言收窄到 user message（packet 本体）：system prompt 因 B2-4a 的「用户点名」段落
+  // 合法包含 focusFeatureIds 字样，全 messages 断言会误伤（施工图测试与 4a 内部矛盾，按意图修正）。
+  const userMessage = stub.calls[0].messages.find((m) => m.role === "user");
+  assert.doesNotMatch(userMessage.content, /focusFeatureIds/);
+});
+
+test("点名看：引用不存在的 feature id → 400", async () => {
+  const { app } = plusApp(insightStub());
+  const res = await post(app, { packet: packetJSON({ focusFeatureIds: ["f_not_exist"] }) });
+  assert.equal(res.status, 400);
+});

@@ -75,7 +75,7 @@ export function validateInsightPacket(raw) {
   if (!raw || typeof raw !== "object") {
     throw new GatewayError("INVALID_REQUEST", "insight packet must be an object", 400);
   }
-  const { schemaVersion, kind, requestId, window, portrait, features, userIntents, recentTopics, rejectedAngles } = raw;
+  const { schemaVersion, kind, requestId, window, portrait, features, userIntents, recentTopics, rejectedAngles, focusFeatureIds } = raw;
   if (schemaVersion !== 1) {
     throw new GatewayError("INVALID_REQUEST", "insight packet schemaVersion must be 1", 400);
   }
@@ -138,6 +138,17 @@ export function validateInsightPacket(raw) {
     return { id: u.id, source: u.source, text: u.text };
   });
 
+  // Plus 点名看（2026-11-21）：可选，1~2 个且必须是本包已有 feature id；非法即 400（边界快速失败）。
+  let normalizedFocus;
+  if (focusFeatureIds !== undefined && focusFeatureIds !== null) {
+    const featureIds = new Set(normalizedFeatures.map((f) => f.id));
+    if (!Array.isArray(focusFeatureIds) || focusFeatureIds.length < 1 || focusFeatureIds.length > 2
+        || focusFeatureIds.some((id) => typeof id !== "string" || !featureIds.has(id))) {
+      throw new GatewayError("INVALID_REQUEST", "insight packet focusFeatureIds invalid", 400);
+    }
+    normalizedFocus = [...new Set(focusFeatureIds)];
+  }
+
   const stringList = (value, limit) => (
     Array.isArray(value)
       ? value.filter((t) => typeof t === "string" && t.length <= 64).slice(0, limit)
@@ -154,6 +165,7 @@ export function validateInsightPacket(raw) {
     userIntents: normalizedIntents,
     recentTopics: stringList(recentTopics, 30),
     rejectedAngles: stringList(rejectedAngles, 30),
+    ...(normalizedFocus ? { focusFeatureIds: normalizedFocus } : {}),
   };
 }
 
@@ -223,6 +235,12 @@ export function evaluateInsightDraft(selected, packet) {
     for (const m of line.template.matchAll(TEMPLATE_SLOT_RE)) {
       if (!allowedSlots.has(m[1])) return { ok: false, reason: `slot_not_allowed:${m[1]}` };
     }
+  }
+
+  // 点名看（2026-11-21）：evidence 至少一条引用用户点名的 feature。
+  if (Array.isArray(packet.focusFeatureIds) && packet.focusFeatureIds.length > 0
+      && !evidence.some((line) => packet.focusFeatureIds.includes(line.refId))) {
+    return { ok: false, reason: "focus_missed" };
   }
 
   // 检查 4：复述启发式——方向词 + 无因果/对照连接词 + criteria 不足。
