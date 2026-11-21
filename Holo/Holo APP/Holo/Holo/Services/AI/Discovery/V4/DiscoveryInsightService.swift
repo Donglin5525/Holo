@@ -7,10 +7,12 @@ import os
 // HoloBackendAIProvider.chatInsightStreaming（必须流式，后端缓冲校验+SSE 心跳）→
 // 端侧终检 → CardBuilder → 入队 DiscoveryTopicStore。
 //
-// 回落矩阵（方案 I3 原文）：
-// - 本地开关关 / disabled / gate_rejected / 网络与解析错误 → 回落 v3 refreshIfNeeded；
-// - none_worthwhile / insufficient_data → 当天不出卡，不回落（宁缺毋滥）；
-// - 数据不足（portrait+features<3）→ 不请求，走 v3。
+// 出卡矩阵（2026-11-21 真机两轮实报后修正，取代方案 I3 原回落矩阵）：
+// - 任何失败（开关关/disabled/gate_rejected/网络错误/端侧终检不过）→ 当天不出卡；
+// - none_worthwhile / insufficient_data → 当天不出卡（宁缺毋滥）；
+// - 数据不足（portrait+features<3）→ 不请求、不出卡。
+// 原设计回落 v3（含不联网的本机兜底文案）——基线已定谳 v3 卡及格率 0%/纯复述 100%，
+// 失败时塞一张已知垃圾卡违背改造本意（东林真机两轮实报「还在数数字」定谳）。
 @MainActor
 enum DiscoveryInsightService {
 
@@ -25,10 +27,8 @@ enum DiscoveryInsightService {
     ) async -> Bool {
         let store = DiscoveryTopicStore.shared
 
-        // 本地开关关闭（或后端曾返回 disabled）→ 直接走 v3 链路（不修改其逻辑）。
-        guard DiscoveryFeatureFlags.insightV2Enabled else {
-            return await DiscoveryTopicService.refreshIfNeeded(proposals: proposals, now: now)
-        }
+        // 本地开关关闭（或后端曾返回 disabled）→ 不出卡（不再回落 v3）。
+        guard DiscoveryFeatureFlags.insightV2Enabled else { return false }
         guard !store.insightV2NoneWorthwhileToday(now: now) else { return false }
         // 首启迁移：一次性丢弃 v3 库存队列（真机实报：库存卡把 v4 挡门外+每天喂旧垃圾卡）。
         store.discardLegacyQueueIfNeeded()
@@ -39,7 +39,7 @@ enum DiscoveryInsightService {
         // 材料组装：画像仓 + 七域特征包 + 挖掘器提案。
         let portraitStore = HoloPortraitSynthesisRuntime.loadStore()
         guard let featurePacket = await HoloLifeFeatureDataSource.buildPacket(now: now) else {
-            return await fallbackToV3(proposals: proposals, now: now, reason: "特征包为空")
+            return noCardToday(reason: "特征包为空")
         }
         guard let built = DiscoveryInsightCandidateBuilder.build(
             portraitStore: portraitStore,
@@ -49,7 +49,7 @@ enum DiscoveryInsightService {
             rejectedAngles: store.rejectedAngleKeys,
             now: now
         ) else {
-            return await fallbackToV3(proposals: proposals, now: now, reason: "数据不足(画像+特征<3)")
+            return noCardToday(reason: "数据不足(画像+特征<3)")
         }
 
         // 请求（流式；后端闸门放行后的完整 InsightDraft JSON 才会到达这里）。
@@ -62,7 +62,7 @@ enum DiscoveryInsightService {
                 let failure = DiscoveryInsightTerminalCheck.validate(selected, packet: built.packet)
                 if let failure {
                     logger.warning("v4 端侧终检拒绝: \(failure, privacy: .public)")
-                    return await fallbackToV3(proposals: proposals, now: now, reason: "terminal:\(failure)")
+                    return noCardToday(reason: "terminal:\(failure)")
                 }
                 let portraitIds = Set(built.packet.portrait.map(\.id))
                 var domainByRefId: [String: String] = [:]
@@ -93,21 +93,21 @@ enum DiscoveryInsightService {
                 return false
             case "disabled":
                 DiscoveryFeatureFlags.markDisabledByServer()
-                return await fallbackToV3(proposals: proposals, now: now, reason: "后端开关关")
+                return noCardToday(reason: "后端开关关")
             default:
-                // gate_rejected 及未知码：后端闸门失败 ≠ 数据无价值 → v3 兜底。
-                return await fallbackToV3(proposals: proposals, now: now, reason: "gate_rejected")
+                // gate_rejected 及未知码：不出卡（宁缺毋滥，不回落 v3）。
+                return noCardToday(reason: "gate_rejected")
             }
         } catch {
             // 网络错误也不烧名额（当日可再试；服务端限流兜底）。
-            logger.error("v4 洞察请求失败，回落 v3: \(String(describing: error), privacy: .public)")
-            return await fallbackToV3(proposals: proposals, now: now, reason: "error")
+            logger.error("v4 洞察请求失败，当天不出卡: \(String(describing: error), privacy: .public)")
+            return noCardToday(reason: "error")
         }
     }
 
-    private static func fallbackToV3(proposals: [HoloKnowledgeRevision], now: Date, reason: String) async -> Bool {
-        logger.info("v4 回落 v3（\(reason, privacy: .public)）")
-        return await DiscoveryTopicService.refreshIfNeeded(proposals: proposals, now: now)
+    private static func noCardToday(reason: String) -> Bool {
+        logger.info("v4 当天不出卡（\(reason, privacy: .public)）——宁缺毋滥，不回落 v3 垃圾卡")
+        return false
     }
 
     // MARK: - 网络请求

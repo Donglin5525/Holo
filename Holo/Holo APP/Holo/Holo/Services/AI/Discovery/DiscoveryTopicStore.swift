@@ -167,7 +167,8 @@ nonisolated final class DiscoveryTopicStore {
     /// v3 的兜底角色是「v4 失败时现算一张」（03-I3），不是吃库存——库存一律丢弃；
     /// 已展示/拒绝历史保留（recentTopics 语义不受影响）。
     func discardLegacyQueueIfNeeded() {
-        let key = "holo.discovery.insight.v4QueueCleared.v1"
+        // v2（11-21 二轮）：老代码在被掐断后会走「本机兜底」塞 v3 卡进队列，随键升级再清一次。
+        let key = "holo.discovery.insight.v4QueueCleared.v2"
         guard !defaults.bool(forKey: key) else { return }
         defaults.set(true, forKey: key)
         writeQueue([])
