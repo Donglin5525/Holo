@@ -304,8 +304,8 @@ export function repairInsightDraft(selected, packet) {
 }
 
 /** 组装最终 InsightDraft JSON（总纲 §5.2 线上形状；iOS InsightDraft 解码端）。 */
-export function buildDraftEnvelope({ selected, noneReason }) {
-  return JSON.stringify({
+export function buildDraftEnvelope({ selected, noneReason, quota }) {
+  const envelope = {
     schemaVersion: 1,
     kind: "insightDraft",
     selected: selected ? {
@@ -318,5 +318,8 @@ export function buildDraftEnvelope({ selected, noneReason }) {
       sourceDomains: selected.sourceDomains,
     } : null,
     noneReason: selected ? null : noneReason,
-  });
+  };
+  // 额度信息（2026-11-21 Plus 分层）：只在撞墙与送达时附带；iOS 用于显示恢复时刻与已看件数。
+  if (quota) envelope.quota = quota;
+  return JSON.stringify(envelope);
 }

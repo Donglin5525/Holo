@@ -33,6 +33,9 @@ export function createInsightDeliveryStore(db, options = {}) {
   const cleanupBefore = db.prepare(
     "DELETE FROM insight_deliveries WHERE delivered_at < ?"
   );
+  const listSince = db.prepare(
+    "SELECT delivered_at FROM insight_deliveries WHERE device_id = ? AND delivered_at > ? ORDER BY delivered_at ASC"
+  );
 
   return {
     /** 近 7 天滚动窗口内的送达条数。 */
@@ -43,6 +46,16 @@ export function createInsightDeliveryStore(db, options = {}) {
     record(deviceId, at = nowMs()) {
       insert.run(deviceId, at);
       cleanupBefore.run(at - 2 * WEEK_MS);
+    },
+    /**
+     * 已达上限时，下一个名额释放的时刻（ms）；未达上限或 limit<=0 返回 null。
+     * 7 天滚动：窗口内共 n 条、上限 limit，第 (n-limit) 条（升序，0 起）滑出窗口时恢复一个名额。
+     */
+    nextReleaseAt(deviceId, limit, now = nowMs()) {
+      if (!(limit > 0)) return null;
+      const rows = listSince.all(deviceId, now - WEEK_MS);
+      if (rows.length < limit) return null;
+      return rows[rows.length - limit].delivered_at + WEEK_MS;
     },
   };
 }

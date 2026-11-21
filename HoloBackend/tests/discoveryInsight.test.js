@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import { createApp } from "../src/app.js";
 import { createDatabase } from "../src/db/database.js";
+import { createInsightDeliveryStore } from "../src/discovery/insightDeliveryStore.js";
 
 const DEVICE = "11111111-2222-4333-8444-555555555555";
 
@@ -332,4 +333,56 @@ test("预算墙·参数：freeWeekly=0 表示不限（内测/排查用）", asyn
     const res = await post(app);
     assert.equal(JSON.parse((await res.json()).choices[0].message.content).selected.angleKey, "sleep×lateNight");
   }
+});
+
+// ============ 额度信息回传（2026-11-21 Plus 分层 B1） ============
+
+test("额度回传·免费：送达带 used=1/limit=1/resetAt，撞墙带同一 resetAt", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app } = makeApp({}, stub);
+  const first = JSON.parse((await (await post(app)).json()).choices[0].message.content);
+  assert.equal(first.quota.used, 1);
+  assert.equal(first.quota.limit, 1);
+  assert.equal(first.quota.tier, "free");
+  assert.equal(typeof first.quota.resetAt, "number");
+  const second = JSON.parse((await (await post(app)).json()).choices[0].message.content);
+  assert.equal(second.noneReason, "quota_exhausted");
+  assert.equal(second.quota.resetAt, first.quota.resetAt);
+  // resetAt ≈ 送达时刻 + 7 天（允许 1 分钟误差）
+  assert.ok(Math.abs(second.quota.resetAt - (Date.now() + 7 * 24 * 3600 * 1000)) < 60_000);
+});
+
+test("额度回传·Plus 未达上限：resetAt 为 null", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput(goodDraft()));
+  const { app, database } = makeApp({}, stub);
+  database.db
+    .prepare("INSERT INTO subscription_acceptance_overrides (device_id, tier, updated_at) VALUES (?, 'plus', CURRENT_TIMESTAMP)")
+    .run(DEVICE);
+  const first = JSON.parse((await (await post(app)).json()).choices[0].message.content);
+  assert.equal(first.quota.tier, "plus");
+  assert.equal(first.quota.limit, 5);
+  assert.equal(first.quota.resetAt, null);
+});
+
+test("额度回传：none_worthwhile 不带 quota", async () => {
+  const stub = insightStub();
+  stub.enqueue(modelOutput({ schemaVersion: 1, kind: "insightDraft", selected: null, noneReason: "none_worthwhile" }));
+  const { app } = makeApp({}, stub);
+  const draft = JSON.parse((await (await post(app)).json()).choices[0].message.content);
+  assert.equal(draft.noneReason, "none_worthwhile");
+  assert.equal(draft.quota, undefined);
+});
+
+test("nextReleaseAt：窗口内 3 条、上限 2 → 第 2 旧那条 +7 天", () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  let now = 1_000_000_000_000;
+  const store = createInsightDeliveryStore(database.db, { now: () => now });
+  store.record("d", now - 3000);
+  store.record("d", now - 2000);
+  store.record("d", now - 1000);
+  assert.equal(store.nextReleaseAt("d", 2, now), now - 2000 + 7 * 24 * 3600 * 1000);
+  assert.equal(store.nextReleaseAt("d", 5, now), null);
+  assert.equal(store.nextReleaseAt("d", 0, now), null);
 });

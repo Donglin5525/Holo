@@ -2701,8 +2701,16 @@ async function handleInsightV2Completion(context, deps) {
     ? (config.discovery?.insightPlusWeekly ?? 5)
     : (config.discovery?.insightFreeWeekly ?? 1);
   const usedCount = insightDeliveryStore.countLastWeek(deviceId);
+  // 额度信息（2026-11-21 Plus 分层 B1）：撞墙与送达时随信封回传，iOS 用于显示恢复时刻与已看件数。
+  const tier = plusActive ? "plus" : "free";
+  const quotaInfo = (used) => ({
+    used,
+    limit: weeklyLimit,
+    tier,
+    resetAt: insightDeliveryStore.nextReleaseAt(deviceId, weeklyLimit),
+  });
   if (weeklyLimit > 0 && usedCount >= weeklyLimit) {
-    const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "quota_exhausted" });
+    const draftJSON = buildDraftEnvelope({ selected: null, noneReason: "quota_exhausted", quota: quotaInfo(usedCount) });
     commit();
     finishLog("success", {
       response: {
@@ -2764,8 +2772,9 @@ async function handleInsightV2Completion(context, deps) {
       criteria: accepted?.selected?.criteria ?? null,
       retried,
     };
+    // 送达时 quota 用「含本次」的 used；quotaInfo 调用时 record 已写入，nextReleaseAt 能看到本次这条。
     const draftJSON = accepted?.selected
-      ? buildDraftEnvelope({ selected: accepted.selected })
+      ? buildDraftEnvelope({ selected: accepted.selected, quota: quotaInfo(usedCount + 1) })
       : buildDraftEnvelope({ selected: null, noneReason: accepted?.noneReason ?? "gate_rejected" });
     return { draftJSON, gate, usage: lastUsage };
   };
