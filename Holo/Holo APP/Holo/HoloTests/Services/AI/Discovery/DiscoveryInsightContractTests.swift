@@ -291,4 +291,32 @@ final class DiscoveryInsightContractTests: XCTestCase {
         XCTAssertNil(otherStore.todayCard(now: now))
         XCTAssertFalse(otherStore.canRequestInsight(now: now))
     }
+
+    // MARK: - 2026-11-21 Plus 分层 I1
+
+    func testDraftDecodesQuotaWhenPresent() throws {
+        let raw = #"{"schemaVersion":1,"kind":"insightDraft","selected":null,"noneReason":"quota_exhausted","quota":{"used":1,"limit":1,"tier":"free","resetAt":1764224000000}}"#
+        let draft = try InsightDraftParser.parse(from: raw)
+        XCTAssertEqual(draft.quota?.used, 1)
+        XCTAssertEqual(draft.quota?.tier, "free")
+        XCTAssertEqual(draft.quota?.resetDate, Date(timeIntervalSince1970: 1_764_224_000))
+    }
+
+    func testDraftQuotaAbsentAndNullReset() throws {
+        let noQuota = try InsightDraftParser.parse(from: #"{"schemaVersion":1,"selected":null,"noneReason":"none_worthwhile"}"#)
+        XCTAssertNil(noQuota.quota)
+        let plus = try InsightDraftParser.parse(from: #"{"schemaVersion":1,"selected":null,"noneReason":"quota_exhausted","quota":{"used":2,"limit":5,"tier":"plus","resetAt":null}}"#)
+        XCTAssertNil(plus.quota?.resetDate)
+    }
+
+    func testPacketOmitsFocusWhenNilAndEncodesWhenSet() throws {
+        var packet = InsightInputPacket(
+            schemaVersion: 1, kind: "insightInput", requestId: "r1",
+            window: .init(days: 28), portrait: [], features: [], userIntents: [],
+            recentTopics: [], rejectedAngles: []
+        )
+        XCTAssertFalse(packet.encodeJSON()?.contains("focusFeatureIds") ?? true)
+        packet.focusFeatureIds = ["f_anomaly_0"]
+        XCTAssertTrue(packet.encodeJSON()?.contains(#""focusFeatureIds":["f_anomaly_0"]"#) ?? false)
+    }
 }

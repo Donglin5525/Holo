@@ -30,6 +30,9 @@ nonisolated struct InsightInputPacket: Codable, Equatable, Sendable {
     let userIntents: [UserIntentItem]
     let recentTopics: [String]
     let rejectedAngles: [String]
+    /// Plus 点名看（2026-11-21 Plus 分层 I1）：1~2 个本包已有的 feature id；nil 时编码省略该键。
+    /// 后端 validateInsightPacket 校验存在性，非 Plus 请求由后端丢弃。
+    var focusFeatureIds: [String]? = nil
 
     nonisolated struct Window: Codable, Equatable, Sendable {
         let days: Int
@@ -88,6 +91,22 @@ nonisolated struct InsightDraft: Equatable, Sendable {
     /// 后端取值：none_worthwhile / insufficient_data / gate_rejected / disabled / quota_exhausted
     /// （前两个来自模型，后三个由后端闸门/开关/预算墙合成；selected 与 noneReason 互斥）。
     let noneReason: String?
+    /// 额度信息（2026-11-21 Plus 分层 I1）：后端只在撞墙与送达时附带，其余为 nil。
+    let quota: QuotaInfo?
+
+    nonisolated struct QuotaInfo: Codable, Equatable, Sendable {
+        let used: Int
+        /// 0 = 不限
+        let limit: Int
+        /// "free" | "plus"（后端判定）
+        let tier: String
+        /// 下一个名额释放时刻（毫秒时间戳）；未达上限或不限时为 nil
+        let resetAt: Int64?
+
+        var resetDate: Date? {
+            resetAt.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+        }
+    }
 
     nonisolated struct Selected: Equatable, Sendable {
         let angleKey: String
@@ -113,7 +132,7 @@ nonisolated struct InsightDraft: Equatable, Sendable {
 
 extension InsightDraft: Decodable {
     nonisolated enum CodingKeys: String, CodingKey {
-        case schemaVersion, kind, selected, noneReason
+        case schemaVersion, kind, selected, noneReason, quota
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -123,6 +142,7 @@ extension InsightDraft: Decodable {
         _ = try c.decodeIfPresent(String.self, forKey: .kind)
         selected = try c.decodeIfPresent(Selected.self, forKey: .selected)
         noneReason = try c.decodeIfPresent(String.self, forKey: .noneReason)
+        quota = try c.decodeIfPresent(QuotaInfo.self, forKey: .quota)
         guard selected != nil || noneReason != nil else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: c.codingPath,
@@ -131,10 +151,11 @@ extension InsightDraft: Decodable {
         }
     }
 
-    nonisolated init(selected: Selected?, noneReason: String?) {
+    nonisolated init(selected: Selected?, noneReason: String?, quota: QuotaInfo? = nil) {
         self.schemaVersion = 1
         self.selected = selected
         self.noneReason = noneReason
+        self.quota = quota
     }
 }
 
