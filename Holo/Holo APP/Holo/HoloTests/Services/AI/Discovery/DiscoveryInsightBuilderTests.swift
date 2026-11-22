@@ -415,6 +415,14 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
 
     // MARK: - FeedbackBridge（画像仓注入临时目录）
 
+    /// 隔离往期存档（2026-11-21 I8 走查修复）：单测绝不能写真实 shared 存档。
+    private func makeArchive() -> DiscoveryInsightArchive {
+        let suite = "fb-archive-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)
+        defaults?.removePersistentDomain(forName: suite)
+        return DiscoveryInsightArchive(defaults: defaults ?? .standard)
+    }
+
     @MainActor
     func testFeedbackConfirmCreatesPortraitEntryWithoutRefs() throws {
         let dir = FileManager.default.temporaryDirectory
@@ -428,7 +436,7 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         card.angleKey = "angle-confirm"
         store.enqueue(card)
 
-        let outcome = DiscoveryInsightFeedbackBridge.confirm(card: card, now: now, directory: dir, topicStore: store)
+        let outcome = DiscoveryInsightFeedbackBridge.confirm(card: card, now: now, directory: dir, topicStore: store, archive: makeArchive())
         guard case .createdPortrait = outcome else {
             return XCTFail("应新建画像条目: \(outcome)")
         }
@@ -438,6 +446,26 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertTrue(entry.isUserConfirmed)
         // evidenceSummary 不含数字（回填行里的数字被剥离）。
         XCTAssertFalse(InsightNumberDiscipline.containsNumerals(in: entry.evidenceSummary))
+    }
+
+    /// 回归（2026-11-21 I8 走查实测）：注入存档时，真实 standard 存档必须零写入——
+    /// 修复前 confirm/deferCard 硬编码 .shared，单测把测试卡污染进了真实往期。
+    @MainActor
+    func testFeedbackWithInjectedArchiveNeverTouchesSharedArchive() throws {
+        let standardKey = "holo.discovery.insight.archive.v1"
+        let before = UserDefaults.standard.data(forKey: standardKey)
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("insight-fb-\(UUID().uuidString)")
+        let store = makeStore()
+        let now = Date()
+        var card = try DiscoveryInsightCardBuilder.build(
+            selected: makeDraftSelected(), slots: makeSlots(), portraitIds: [], now: now
+        )
+        card.topicKey = "angle-pollution-guard"
+        card.angleKey = "angle-pollution-guard"
+        store.enqueue(card)
+        _ = DiscoveryInsightFeedbackBridge.confirm(card: card, now: now, directory: dir, topicStore: store, archive: makeArchive())
+        XCTAssertEqual(UserDefaults.standard.data(forKey: standardKey), before, "注入存档时不得写真实往期")
     }
 
     @MainActor
@@ -515,7 +543,7 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         card.angleKey = "angle-defer"
         store.enqueue(card)
 
-        _ = DiscoveryInsightFeedbackBridge.deferCard(card: card, now: now, topicStore: store)
+        _ = DiscoveryInsightFeedbackBridge.deferCard(card: card, now: now, topicStore: store, archive: makeArchive())
         // 冷却中的角度在 deferredActiveKeys 里（7 天口径沿用 v3）。
         XCTAssertTrue(store.deferredActiveKeys(now: now).contains("angle-defer"))
         XCTAssertNil(store.todayCard(now: now))
