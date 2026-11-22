@@ -397,8 +397,15 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         card.angleKey = "angle-reject"
         card.portraitRefs = ["p_early_sleep"]
         store.enqueue(card)
+        var next = card
+        next.topicKey = "next-card"
+        next.angleKey = "next-card"
+        store.enqueue(next)
 
-        _ = DiscoveryInsightFeedbackBridge.reject(card: card, now: now, directory: dir, topicStore: store)
+        XCTAssertEqual(
+            DiscoveryInsightFeedbackBridge.reject(card: card, now: now, directory: dir, topicStore: store),
+            .rejected(angleKey: "angle-reject", portraitKeys: ["p_early_sleep"])
+        )
         // 画像进黑名单永不复活。
         var portrait = PortraitStore.load(directory: dir)
         XCTAssertNil(portrait.entries["p_early_sleep"])
@@ -407,6 +414,38 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertTrue(store.rejectedAngleKeys.contains("angle-reject"))
         // 今日卡已消费。
         XCTAssertNil(store.todayCard(now: now))
+        XCTAssertTrue(store.consumedToday(now: now))
+        XCTAssertEqual(store.queue, [next])
+        let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: now))
+        XCTAssertEqual(store.todayCard(now: tomorrow), next)
+        XCTAssertEqual(
+            DiscoveryInsightFeedbackBridge.reject(card: card, now: tomorrow, directory: dir, topicStore: store),
+            .unavailable
+        )
+        XCTAssertEqual(store.todayCard(now: tomorrow), next)
+    }
+
+    @MainActor
+    func testFeedbackRejectKeepsCardIfPortraitSaveFails() throws {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("insight-fb-file-\(UUID().uuidString)")
+        try Data().write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let store = makeStore()
+        let now = Date()
+        var card = try DiscoveryInsightCardBuilder.build(
+            selected: makeDraftSelected(), slots: makeSlots(), now: now
+        )
+        card.portraitRefs = ["p_early_sleep"]
+        store.enqueue(card)
+
+        XCTAssertEqual(
+            DiscoveryInsightFeedbackBridge.reject(card: card, now: now, directory: file, topicStore: store),
+            .persistenceFailed
+        )
+        XCTAssertEqual(store.todayCard(now: now), card)
+        XCTAssertFalse(store.consumedToday(now: now))
+        XCTAssertTrue(store.rejectedAngleKeys.isEmpty)
     }
 
     @MainActor

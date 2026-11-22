@@ -19,15 +19,18 @@ enum DiscoveryInsightFeedbackBridge {
         case createdPortrait(key: String)
         case rejected(angleKey: String, portraitKeys: [String])
         case deferred(angleKey: String)
+        case unavailable
+        case persistenceFailed
     }
 
     /// 用户点「对，记住」。
     /// directory / topicStore 供单测注入临时目录与隔离子库；默认真实画像仓与 shared 队列。
     @discardableResult
     static func confirm(card: DiscoveryTopicStore.QueuedCard, now: Date = Date(), directory: URL? = nil, topicStore: DiscoveryTopicStore = .shared) -> Outcome {
+        guard topicStore.todayCard(now: now) == card else { return .unavailable }
         let refs = card.portraitRefs ?? []
         let dir = directory ?? HoloPortraitSynthesisRuntime.storeDirectory()
-        var store = HoloPortraitSynthesisRuntime.loadStore()
+        var store = PortraitStore.load(directory: dir)
 
         var confirmedKeys: [String] = []
         for key in refs where store.entries[key] != nil {
@@ -55,9 +58,10 @@ enum DiscoveryInsightFeedbackBridge {
             )
             createdKey = key
         }
-        try? store.save(to: dir)
+        do { try store.save(to: dir) }
+        catch { return .persistenceFailed }
 
-        topicStore.consumeToday()
+        topicStore.consumeToday(card, now: now)
         if let angle = card.angleKey { topicStore.markInsightAngleShown(angle, now: now) }
         NotificationCenter.default.post(name: .holoKnowledgeControlDidApply, object: nil)
 
@@ -68,26 +72,32 @@ enum DiscoveryInsightFeedbackBridge {
     /// 用户点「不太准确」。
     @discardableResult
     static func reject(card: DiscoveryTopicStore.QueuedCard, now: Date = Date(), directory: URL? = nil, topicStore: DiscoveryTopicStore = .shared) -> Outcome {
+        guard topicStore.todayCard(now: now) == card else { return .unavailable }
         let refs = card.portraitRefs ?? []
-        let dir = directory ?? HoloPortraitSynthesisRuntime.storeDirectory()
-        var store = HoloPortraitSynthesisRuntime.loadStore()
-        for key in refs {
-            store.reject(key: key, reason: "发现卡「不太准」", now: now)
+        if !refs.isEmpty {
+            let dir = directory ?? HoloPortraitSynthesisRuntime.storeDirectory()
+            var store = PortraitStore.load(directory: dir)
+            for key in refs {
+                store.reject(key: key, reason: "发现卡「不太准」", now: now)
+            }
+            do { try store.save(to: dir) }
+            catch { return .persistenceFailed }
         }
-        try? store.save(to: dir)
 
+        // 先消费这张卡并写入当天标记，再把它的命题和角度加入拒绝记录。
+        topicStore.consumeToday(card, now: now)
         topicStore.markRejected(card.topicKey)
-        if let angle = card.angleKey { topicStore.markInsightAngleRejected(angle, now: now) }
-        topicStore.consumeToday()
+        let angle = card.angleKey ?? card.topicKey
+        topicStore.markInsightAngleRejected(angle, now: now)
         NotificationCenter.default.post(name: .holoKnowledgeControlDidApply, object: nil)
-        return .rejected(angleKey: card.angleKey ?? card.topicKey, portraitKeys: refs)
+        return .rejected(angleKey: angle, portraitKeys: refs)
     }
 
     /// 用户点「先放一放」：沿用 v3 的 7 天冷却。
     @discardableResult
     static func deferCard(card: DiscoveryTopicStore.QueuedCard, now: Date = Date(), topicStore: DiscoveryTopicStore = .shared) -> Outcome {
+        guard topicStore.consumeToday(card, now: now) else { return .unavailable }
         topicStore.markDeferred(card.topicKey, now: now)
-        topicStore.consumeToday()
         return .deferred(angleKey: card.angleKey ?? card.topicKey)
     }
 

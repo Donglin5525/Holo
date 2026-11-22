@@ -121,16 +121,17 @@ final class DiscoveryTopicServiceTests: XCTestCase {
         DiscoveryTopicStore.QueuedCard(
             observationId: "obs-\(topicKey)", topicKey: topicKey,
             title: "t", body: "b", isModelCopy: true,
-            selectedAt: Date(), windowEnd: windowEnd ?? Date().addingTimeInterval(86_400)
+            selectedAt: Date(), windowEnd: windowEnd ?? Date().addingTimeInterval(86_400), version: 4
         )
     }
 
     func test_queueDailyConsumeAndReveal() {
-        store.enqueue(card("k1"))
+        let first = card("k1")
+        store.enqueue(first)
         store.enqueue(card("k2"))
         XCTAssertTrue(store.shouldRevealToday())
         XCTAssertNotNil(store.todayCard())
-        store.consumeToday()
+        XCTAssertTrue(store.consumeToday(first))
         XCTAssertFalse(store.shouldRevealToday(), "每天一张：消费后当日不再出")
         XCTAssertTrue(store.consumedToday())
         XCTAssertFalse(store.queue.isEmpty, "存起来的卡留给后面几天")
@@ -142,15 +143,36 @@ final class DiscoveryTopicServiceTests: XCTestCase {
         //（胶囊不再亮、评审页不再换下一张），次日自然日才放行下一张。
         let cal = Calendar(identifier: .gregorian)
         let day1 = cal.date(bySettingHour: 10, minute: 0, second: 0, of: Date())!
-        store.enqueue(card("k1"))
-        store.enqueue(card("k2"))
+        let first = card("k1", windowEnd: day1.addingTimeInterval(2 * 86_400))
+        store.enqueue(first)
+        store.enqueue(card("k2", windowEnd: day1.addingTimeInterval(2 * 86_400)))
         XCTAssertEqual(store.todayCard(now: day1, calendar: cal)?.topicKey, "k1")
-        store.consumeToday(now: day1, calendar: cal)
+        XCTAssertTrue(store.consumeToday(first, now: day1, calendar: cal))
         XCTAssertNil(store.todayCard(now: day1.addingTimeInterval(3600), calendar: cal),
                      "当天消费过：即使队列还有下一张也不出")
         let day2 = day1.addingTimeInterval(86_400)
         XCTAssertEqual(store.todayCard(now: day2, calendar: cal)?.topicKey, "k2",
                        "次日放行下一张")
+    }
+
+    func test_retiredLegacyQueueCardDoesNotShowOrBlockNewInsight() {
+        var legacy = card("legacy")
+        legacy.version = nil
+        store.enqueue(legacy)
+        XCTAssertNil(store.todayCard())
+        XCTAssertTrue(store.canRequestInsight())
+        XCTAssertEqual(store.queue, [legacy])
+    }
+
+    func test_retiresDiscoveryProposalsBySource() throws {
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
+        var revision = try XCTUnwrap(proposals.first)
+        XCTAssertTrue(DiscoveryMemoryReviewService.isRetiredDiscovery(revision))
+        revision.origin = nil
+        revision.semantic.relation = "discovery:boundedPattern"
+        XCTAssertTrue(DiscoveryMemoryReviewService.isRetiredDiscovery(revision))
+        revision.semantic.relation = "independentMemory"
+        XCTAssertFalse(DiscoveryMemoryReviewService.isRetiredDiscovery(revision))
     }
 
     func test_queueSkipsRejectedAndExpired() {

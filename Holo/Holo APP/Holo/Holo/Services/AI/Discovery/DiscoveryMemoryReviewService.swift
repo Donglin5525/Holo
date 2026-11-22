@@ -10,7 +10,8 @@ struct DiscoveryMemoryReviewService {
     }
 
     struct Result {
-        let items: [Item]
+        var items: [Item]
+        let insightProposals: [HoloKnowledgeRevision]
         let checkedAt: Date
         let healthNotice: HealthNotice?
     }
@@ -52,7 +53,7 @@ struct DiscoveryMemoryReviewService {
         let allowed = domains
         let epoch = DiscoverySettings.shared.localGrantEpoch
         let now = Date()
-        guard !allowed.isEmpty else { return Result(items: [], checkedAt: now, healthNotice: nil) }
+        guard !allowed.isEmpty else { return Result(items: [], insightProposals: [], checkedAt: now, healthNotice: nil) }
         let repository = try await HoloMemoryRuntime.shared.repository()
         async let scan = scanLocal(domains: allowed, now: now)
         let resolved = try await repository.resolvedKnowledgeAll(now: now)
@@ -75,9 +76,7 @@ struct DiscoveryMemoryReviewService {
         // 已有萃取结果也走统一资格和回源。旧健康聚合缺少当前读数身份，交给本机新统计。
         let verifier = makeVerifier()
         let existing = resolved.filter {
-            Self.isReviewable($0, allowed: allowed, now: now)
-                && $0.proposedRevision?.origin?.producer != HoloRecordedPatternMiner.producer
-                && !$0.domains.contains(.health)
+            Self.isPendingReviewable($0, allowed: allowed, now: now)
         }.sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
         for knowledge in existing.prefix(8) {
             try Task.checkCancellation()
@@ -94,8 +93,10 @@ struct DiscoveryMemoryReviewService {
         }
         let first = HoloMemoryDomain.allCases.compactMap { firstByDomain[$0] }
         let firstIDs = Set(first.map(\.id))
+        let ordered = first + items.filter { !firstIDs.contains($0.id) }
         return Result(
-            items: first + items.filter { !firstIDs.contains($0.id) },
+            items: ordered.filter { $0.proposal == nil },
+            insightProposals: ordered.compactMap(\.proposal),
             checkedAt: now, healthNotice: local.healthNotice
         )
     }
@@ -105,40 +106,44 @@ struct DiscoveryMemoryReviewService {
         let epoch = DiscoverySettings.shared.localGrantEpoch
         let now = Date()
         let shown = item.knowledge
-        guard Self.isReviewable(shown, allowed: allowed, now: now),
+        guard Self.isPendingReviewable(shown, allowed: allowed, now: now),
               let digest = shown.proposedRevision?.semanticDigest,
               let evidence = shown.latestEvidenceSnapshot else { return .notAllowed(reason: "scopeChanged") }
 
         let repository = try await HoloMemoryRuntime.shared.repository()
-        var freshProposal: HoloKnowledgeRevision?
-        if let proposal = item.proposal {
-            let scan = try await scanLocal(domains: Set(proposal.domains), now: now)
-            guard let fresh = scan.proposals.first(where: {
-                $0.propositionID == proposal.propositionID && $0.semanticDigest == digest
-                    && $0.initialEvidenceSnapshot.id == evidence.id
-            }) else { return .conflict(currentSemanticDigest: nil, reason: "sourceChanged") }
-            freshProposal = fresh
-        } else {
-            guard let current = try await repository.resolvedKnowledge(propositionID: shown.propositionID, now: now),
-                  Self.isReviewable(current, allowed: allowed, now: now),
-                  current.proposedRevision?.semanticDigest == digest, current.latestEvidenceSnapshot?.id == evidence.id,
-                  await sourcesAreCurrent(current, verifier: makeVerifier()) else {
-                return .conflict(currentSemanticDigest: nil, reason: "sourceChanged")
-            }
+        guard let current = try await repository.resolvedKnowledge(propositionID: shown.propositionID, now: now),
+              Self.isPendingReviewable(current, allowed: allowed, now: now),
+              current.proposedRevision?.semanticDigest == digest, current.latestEvidenceSnapshot?.id == evidence.id,
+              await sourcesAreCurrent(current, verifier: makeVerifier()) else {
+            return .conflict(currentSemanticDigest: nil, reason: "sourceChanged")
         }
         try Task.checkCancellation()
         guard epoch == DiscoverySettings.shared.localGrantEpoch, allowed == domains else {
             return .notAllowed(reason: "scopeChanged")
         }
-        return try await HoloKnowledgeControlService(repository: repository).apply(
+        let outcome = try await HoloKnowledgeControlService(repository: repository).apply(
             .init(
                 propositionID: shown.propositionID, expectedSemanticDigest: digest,
                 knownOperationIDs: shown.restrictingOperationIDs, action: action,
                 entry: DiscoveryKnowledgeBridge.originEntry, issuedAt: now
             ),
-            proposal: freshProposal,
             expectedEvidenceID: evidence.id
         )
+        Self.cachedResult = nil
+        Self.cachedAt = nil
+        return outcome
+    }
+
+    nonisolated static func isRetiredDiscovery(_ revision: HoloKnowledgeRevision) -> Bool {
+        revision.origin?.producer == HoloRecordedPatternMiner.producer
+            || revision.semantic.relation.hasPrefix("discovery:")
+    }
+
+    private nonisolated static func isPendingReviewable(
+        _ knowledge: HoloResolvedKnowledge, allowed: Set<HoloMemoryDomain>, now: Date
+    ) -> Bool {
+        guard let revision = knowledge.proposedRevision, !isRetiredDiscovery(revision) else { return false }
+        return !knowledge.domains.contains(.health) && isReviewable(knowledge, allowed: allowed, now: now)
     }
 
     nonisolated static func isReviewable(_ knowledge: HoloResolvedKnowledge, allowed: Set<HoloMemoryDomain>, now: Date) -> Bool {

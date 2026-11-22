@@ -1,6 +1,6 @@
 import Foundation
 
-/// 「一个发现」v3 展示队列（2026-11-08 方案 §5.3，东林拍板节奏）。
+/// 「一个发现」展示队列。旧卡仍可解码，今日入口只展示 v4。
 ///
 /// 观察池本身由确定性挖掘器每次实时重算（可重算中间态不落库）；本类型只持久化
 /// 不可重算的轻量状态（UserDefaults，单设备，不上 CloudKit）：
@@ -73,27 +73,25 @@ nonisolated final class DiscoveryTopicStore {
         writeQueue(cards)
     }
 
-    /// 展示当日时效复核：今天已消费过一张就不再出（东林拍板「每天最多一张」，
-    /// 存量卡留给后面的日子）；未消费时跳过已否定与过期卡取下一张。
-    /// v4 优先（2026-11-20 方案 03-I5）：队列里同时有 v3/v4 时先出 v4。
+    /// 今天最多消费一张。旧版、已否定和已过期的卡片不进入今日一条。
     func todayCard(now: Date = Date(), calendar: Calendar = .current) -> QueuedCard? {
         if consumedToday(now: now, calendar: calendar) { return nil }
         let rejected = rejectedTopics
-        let valid = readQueue().filter { card in
-            !rejected.contains(card.topicKey) && card.windowEnd >= now
+        return readQueue().first { card in
+            card.isV4 && !rejected.contains(card.topicKey) && card.windowEnd >= now
         }
-        return valid.first { $0.isV4 } ?? valid.first
     }
 
-    /// 消费今日卡（用户看过/操作过），记录命题入「已展示」，清队列队首。
-    func consumeToday(now: Date = Date(), calendar: Calendar = .current) {
-        guard let card = todayCard(now: now, calendar: calendar) else { return }
+    /// 仅消费按钮所属的今日卡。已被替换或处理的卡片不能消费队列中的其他卡。
+    @discardableResult
+    func consumeToday(_ card: QueuedCard, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard todayCard(now: now, calendar: calendar) == card else { return false }
         var cards = readQueue()
-        cards.removeAll { $0.observationId == card.observationId && $0.selectedAt == card.selectedAt }
+        cards.removeAll { $0 == card }
         writeQueue(cards)
         markShown(card.topicKey)
-        let day = calendar.startOfDay(for: now).timeIntervalSince1970
-        defaults.set(day, forKey: lastShownDayKey)
+        defaults.set(dayStamp(now, calendar: calendar), forKey: lastShownDayKey)
+        return true
     }
 
     var lastShownDay: TimeInterval? {
@@ -171,15 +169,17 @@ nonisolated final class DiscoveryTopicStore {
         let key = "holo.discovery.insight.v4QueueCleared.v2"
         guard !defaults.bool(forKey: key) else { return }
         defaults.set(true, forKey: key)
-        writeQueue([])
+        writeQueue(readQueue().filter(\.isV4))
     }
 
     // MARK: - v4 洞察线（2026-11-20 方案 03-I5：角度记忆 + 当日判定标记）
 
     private let insightShownAngleKey = "holo.discovery.insight.shownAngles.v1"
     private let insightRejectedAngleKey = "holo.discovery.insight.rejectedAngles.v1"
-    // v3（11-21 三轮）：随重装再释放当天尝试（v2 已被 13:39 完整跑完的一次占用）。
-    private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v3"
+    // v3 在端侧终检之前写入，不能区分完成与坏响应。升级后仅以新的完成标记为准，
+    // 已消费、待展示、明确无洞察与预算墙仍按各自的既有状态拦截。
+    private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v4"
+    private let insightInvalidResponseDayKey = "holo.discovery.insight.invalidResponseDay.v1"
     private let insightNoneDayKey = "holo.discovery.insight.noneDay.v1"
     private let insightQuotaWallDayKey = "holo.discovery.insight.quotaWallDay.v1"
     /// recentAngleKeys 的回看窗口：30 天（总纲 §5.1 recentTopics 语义）。
@@ -189,7 +189,7 @@ nonisolated final class DiscoveryTopicStore {
         calendar.startOfDay(for: now).timeIntervalSince1970
     }
 
-    /// v4 今天是否已尝试过（一次/日：任何结果都算，防重复烧 3 次/日配额）。
+    /// 仅成功入队、后端明确返回无卡，或已用完坏响应恢复机会，才算完成。
     func insightV2AttemptedToday(now: Date = Date(), calendar: Calendar = .current) -> Bool {
         let day = defaults.double(forKey: insightAttemptDayKey)
         return day > 0 && day == dayStamp(now, calendar: calendar)
@@ -197,6 +197,24 @@ nonisolated final class DiscoveryTopicStore {
 
     func markInsightV2Attempted(now: Date = Date(), calendar: Calendar = .current) {
         defaults.set(dayStamp(now, calendar: calendar), forKey: insightAttemptDayKey)
+    }
+
+    func canRequestInsight(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        !consumedToday(now: now, calendar: calendar)
+            && !insightV2AttemptedToday(now: now, calendar: calendar)
+            && !insightV2NoneWorthwhileToday(now: now, calendar: calendar)
+            && !isInsightQuotaWalledToday(now: now, calendar: calendar)
+            && todayCard(now: now, calendar: calendar) == nil
+    }
+
+    /// 坏响应与明确无卡分开处理。保留一次恢复机会，避免反复开页持续消耗请求。
+    func markInvalidInsightResponse(now: Date = Date(), calendar: Calendar = .current) {
+        let stamp = dayStamp(now, calendar: calendar)
+        if defaults.double(forKey: insightInvalidResponseDayKey) == stamp {
+            markInsightV2Attempted(now: now, calendar: calendar)
+        } else {
+            defaults.set(stamp, forKey: insightInvalidResponseDayKey)
+        }
     }
 
     /// v4 预算墙（2026-11-21）：今天服务端判定每周额度用完（免费 1 条/周、Plus 5 条/周）。

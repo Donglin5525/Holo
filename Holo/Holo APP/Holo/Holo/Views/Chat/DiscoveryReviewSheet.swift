@@ -86,11 +86,15 @@ struct DiscoveryReviewSheet: View {
         }
         .presentationDetents([.large])
         .onAppear { HoloProductAnalytics.shared.track(.discoveryReviewOpened, ["source": "capsule"]) }
-        .task(id: refreshID) { await reload(force: forceRefresh) ; forceRefresh = false }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { forceRefresh = true; requestRefresh() }
+        .task(id: refreshID) {
+            let force = forceRefresh
+            forceRefresh = false
+            await reload(force: force)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in requestRefresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { requestRefresh(force: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in requestRefresh(force: true) }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in requestRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in requestRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in requestRefresh() }
@@ -104,10 +108,7 @@ struct DiscoveryReviewSheet: View {
 
     @ViewBuilder
     private func loadedContent(_ result: DiscoveryMemoryReviewService.Result) -> some View {
-        let listedItems = result.items.filter { item in
-            guard let card = todayCard else { return true }
-            return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
-        }
+        let listedItems = result.items
 
         if let card = todayCard {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -115,29 +116,14 @@ struct DiscoveryReviewSheet: View {
                     title: "今日一条",
                     trailing: Date().formatted(.dateTime.month().day().weekday(.wide))
                 )
-                if card.isV4 {
-                    // v4 洞察卡（2026-11-20 方案 03-I6）：判断/依据/提问结构，反馈走画像回流。
-                    DiscoveryInsightCardView(
-                        card: card,
-                        showsEvidence: $showsTodayEvidence,
-                        isDisabled: actionTask != nil,
-                        onConfirm: { applyV4Today(.confirm, card: card) },
-                        onInaccurate: { applyV4Today(.inaccurate, card: card) },
-                        onDefer: { applyV4Today(.defer, card: card) }
-                    )
-                } else {
-                    DiscoveryTodayCard(
-                        card: card,
-                        evidence: matchedItem(for: card).flatMap { item in
-                            item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot
-                        },
-                        showsEvidence: $showsTodayEvidence,
-                        isDisabled: actionTask != nil,
-                        onConfirm: { applyToday(.confirm, card: card) },
-                        onInaccurate: { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) },
-                        onDefer: { applyToday(.deferCooldown, card: card) }
-                    )
-                }
+                DiscoveryInsightCardView(
+                    card: card,
+                    showsEvidence: $showsTodayEvidence,
+                    isDisabled: actionTask != nil,
+                    onConfirm: { applyV4Today(.confirm, card: card) },
+                    onInaccurate: { applyV4Today(.inaccurate, card: card) },
+                    onDefer: { applyV4Today(.defer, card: card) }
+                )
             }
             .padding(.top, HoloSpacing.lg)
         }
@@ -235,9 +221,10 @@ struct DiscoveryReviewSheet: View {
 
     // MARK: - 刷新与加载
 
-    private func requestRefresh() {
+    private func requestRefresh(force: Bool = false) {
         // 刷新不闪屏：保留旧内容与浏览位置，新结果到达后整体替换。
         failed = false
+        forceRefresh = forceRefresh || force
         refreshID += 1
     }
 
@@ -246,18 +233,13 @@ struct DiscoveryReviewSheet: View {
             let value = try await service.review(ignoresCache: force)
             try Task.checkCancellation()
             result = value
-            // v4 洞察优先（2026-11-20 方案 03-I3）：内部自管回落（disabled/闸门失败/
-            // 网络错误 → v3 refreshIfNeeded；none_worthwhile → 当天不出卡）。
-            await DiscoveryInsightService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
+            await DiscoveryInsightService.refreshIfNeeded(proposals: value.insightProposals)
             try Task.checkCancellation()
             todayCard = DiscoveryTopicStore.shared.todayCard()
             if let card = todayCard {
                 HoloProductAnalytics.shared.track(.discoveryTodayShown, ["is_model_copy": card.isModelCopy ? "1" : "0"])
             }
-            if case .some(let items) = result.map({ $0.items.filter { item in
-                guard let card = todayCard else { return true }
-                return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
-            } }), !items.indices.contains(itemIndex) {
+            if let result, !result.items.indices.contains(itemIndex) {
                 itemIndex = 0
             }
         } catch is CancellationError {
@@ -277,79 +259,35 @@ struct DiscoveryReviewSheet: View {
         receipt = nil
         actionTask = Task {
             defer { actionTask = nil }
+            let outcome: DiscoveryInsightFeedbackBridge.Outcome
             switch action {
             case .confirm:
-                _ = DiscoveryInsightFeedbackBridge.confirm(card: card)
+                outcome = DiscoveryInsightFeedbackBridge.confirm(card: card)
+            case .inaccurate:
+                outcome = DiscoveryInsightFeedbackBridge.reject(card: card)
+            case .`defer`:
+                outcome = DiscoveryInsightFeedbackBridge.deferCard(card: card)
+            }
+            switch outcome {
+            case .confirmedPortrait, .createdPortrait:
                 receipt = Receipt(kind: .success, text: "已记住，可以在「Holo 记住的你」里找到。")
                 HapticManager.success()
-            case .inaccurate:
-                _ = DiscoveryInsightFeedbackBridge.reject(card: card)
+            case .rejected:
                 receipt = Receipt(kind: .success, text: "这个角度近期不会再拿来问你。")
                 HapticManager.light()
-            case .`defer`:
-                _ = DiscoveryInsightFeedbackBridge.deferCard(card: card)
+            case .deferred:
                 receipt = Receipt(kind: .success, text: "先放着，这几天不再提这个角度。")
                 HapticManager.light()
-            }
-            withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
-        }
-    }
-
-    private func matchedItem(for card: DiscoveryTopicStore.QueuedCard) -> DiscoveryMemoryReviewService.Item? {
-        result?.items.first {
-            $0.proposal?.propositionID == card.topicKey || $0.proposal?.topicID == card.topicKey
-        }
-    }
-
-    private func applyToday(_ action: HoloKnowledgeControlAction, card: DiscoveryTopicStore.QueuedCard) {
-        guard actionTask == nil else { return }
-        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": actionName(action)])
-        guard let item = matchedItem(for: card) else {
-            DiscoveryTopicStore.shared.consumeToday()
-            withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
-            receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
-            return
-        }
-        receipt = nil
-        actionTask = Task {
-            defer { actionTask = nil }
-            do {
-                let outcome = try await service.apply(action, to: item)
-                guard !Task.isCancelled else { return }
-                switch outcome {
-                case .applied, .alreadyApplied:
-                    let store = DiscoveryTopicStore.shared
-                    switch action {
-                    case .markInaccurate: store.markRejected(card.topicKey)
-                    case .deferCooldown: store.markDeferred(card.topicKey)
-                    default: break
-                    }
-                    store.consumeToday()
-                    switch action {
-                    case .confirm:
-                        receipt = Receipt(kind: .success, text: "已记住，可以在「Holo 记忆」里找到。")
-                        HapticManager.success()
-                    case .markInaccurate:
-                        receipt = Receipt(kind: .success, text: "这条以后不会再拿来问你。")
-                        HapticManager.light()
-                    default:
-                        receipt = Receipt(kind: .success, text: "先放着，这几天不再问这条。")
-                        HapticManager.light()
-                    }
-                    withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
-                case .notAllowed, .notFound, .conflict:
-                    receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
-                    HapticManager.error()
-                case .persistenceFailed:
-                    receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
-                    HapticManager.error()
-                }
-            } catch is CancellationError {
+            case .unavailable:
+                todayCard = DiscoveryTopicStore.shared.todayCard()
+                receipt = Receipt(kind: .warning, text: "这条发现已更新，请再看一眼。")
                 return
-            } catch {
+            case .persistenceFailed:
                 receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
                 HapticManager.error()
+                return
             }
+            withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
         }
     }
 
@@ -375,11 +313,14 @@ struct DiscoveryReviewSheet: View {
                         receipt = Receipt(kind: .success, text: "先放着，这几天不再问这条。")
                         HapticManager.light()
                     }
-                    requestRefresh()
+                    result?.items.removeAll { $0.id == item.id }
+                    showsEvidence = false
+                    if let result, !result.items.indices.contains(itemIndex) { itemIndex = 0 }
+                    requestRefresh(force: true)
                 case .notAllowed, .notFound, .conflict:
                     receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
                     HapticManager.error()
-                    requestRefresh()
+                    requestRefresh(force: true)
                 case .persistenceFailed:
                     receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
                     HapticManager.error()
@@ -425,59 +366,6 @@ private struct DiscoverySectionHeader: View {
     }
 }
 
-// MARK: - 今日卡（页面主角：22pt 标题）
-
-private struct DiscoveryTodayCard: View {
-    let card: DiscoveryTopicStore.QueuedCard
-    var evidence: HoloKnowledgeEvidenceSnapshot?
-    @Binding var showsEvidence: Bool
-    let isDisabled: Bool
-    let onConfirm: () -> Void
-    let onInaccurate: () -> Void
-    let onDefer: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            if card.isModelCopy {
-                // 合规披露：标明文案由 AI 撰写（本机模板不标）。
-                CardBadge(text: "AI 撰写", color: .holoToolTextSecondary)
-            }
-            Text(card.title)
-                .font(.holoTitle2)
-                .foregroundStyle(Color.holoToolText)
-                .lineSpacing(HoloSpacing.xs)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(card.body)
-                .holoText(.body)
-                .foregroundStyle(Color.holoToolText)
-                .lineSpacing(HoloSpacing.xs)
-                .fixedSize(horizontal: false, vertical: true)
-            if let evidence {
-                DiscoveryEvidenceToggle(showsEvidence: $showsEvidence, count: evidence.supportRefs.count + evidence.counterRefs.count)
-                    .accessibilityIdentifier("chat.discovery.today.evidence")
-                if showsEvidence {
-                    DiscoveryReviewEvidence(evidence: evidence)
-                }
-            }
-            DiscoveryDecisionControls(
-                elevated: true,
-                isDisabled: isDisabled,
-                idPrefix: "chat.discovery.today",
-                onConfirm: onConfirm,
-                onInaccurate: onInaccurate,
-                onDefer: onDefer
-            )
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.top, HoloSpacing.md)
-        .padding(.bottom, HoloSpacing.xs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .holoSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("chat.discovery.today.card")
-    }
-}
-
 // MARK: - 列表卡（配角：17pt 半粗陈述句）
 
 private struct DiscoveryPendingCard: View {
@@ -501,7 +389,7 @@ private struct DiscoveryPendingCard: View {
                 .lineSpacing(HoloSpacing.xs)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("chat.discovery.review.pattern")
-            if let evidence = item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot {
+            if let evidence = item.knowledge.latestEvidenceSnapshot {
                 DiscoveryEvidenceToggle(showsEvidence: $showsEvidence, count: evidence.supportRefs.count + evidence.counterRefs.count)
                     .accessibilityIdentifier("chat.discovery.review.evidenceToggle")
                 if showsEvidence {

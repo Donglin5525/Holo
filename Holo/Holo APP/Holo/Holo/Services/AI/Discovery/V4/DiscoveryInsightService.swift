@@ -8,7 +8,7 @@ import os
 // 端侧终检 → CardBuilder → 入队 DiscoveryTopicStore。
 //
 // 出卡矩阵（2026-11-21 真机两轮实报后修正，取代方案 I3 原回落矩阵）：
-// - 任何失败（开关关/disabled/gate_rejected/网络错误/端侧终检不过）→ 当天不出卡；
+// - 后端明确拒稿 → 当天不出卡；传输失败或端侧无法使用的响应不产生卡片，允许恢复。
 // - none_worthwhile / insufficient_data → 当天不出卡（宁缺毋滥）；
 // - 数据不足（portrait+features<3）→ 不请求、不出卡。
 // 原设计回落 v3（含不联网的本机兜底文案）——基线已定谳 v3 卡及格率 0%/纯复述 100%，
@@ -17,25 +17,32 @@ import os
 enum DiscoveryInsightService {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "DiscoveryInsight")
+    private static var refreshTask: Task<Bool, Never>?
 
-    /// 每天一次入口（DiscoveryReviewSheet.reload 调用；队列空才补货，与 v3 同规则）。
-    /// 返回是否成功入队 v4 卡（供测试与日志）。
+    /// 评审页的重载共享同一次生成，界面取消等待时仍可完成写入。
     @discardableResult
     static func refreshIfNeeded(
         proposals: [HoloKnowledgeRevision],
         now: Date = Date()
     ) async -> Bool {
+        guard DiscoveryFeatureFlags.insightV2Enabled,
+              HoloAIDataProcessingConsent.shared.isGranted else { return false }
+        if let refreshTask { return await refreshTask.value }
         let store = DiscoveryTopicStore.shared
-
-        // 本地开关关闭（或后端曾返回 disabled）→ 不出卡（不再回落 v3）。
-        guard DiscoveryFeatureFlags.insightV2Enabled else { return false }
-        guard !store.insightV2NoneWorthwhileToday(now: now) else { return false }
-        // 首启迁移：一次性丢弃 v3 库存队列（真机实报：库存卡把 v4 挡门外+每天喂旧垃圾卡）。
         store.discardLegacyQueueIfNeeded()
-        guard !store.insightV2AttemptedToday(now: now) else { return false }
-        guard store.queue.isEmpty else { return false }
-        guard HoloAIDataProcessingConsent.shared.isGranted else { return false }
+        guard store.canRequestInsight(now: now) else { return false }
 
+        let task = Task { await generate(proposals: proposals, store: store, now: now) }
+        refreshTask = task
+        defer { refreshTask = nil }
+        return await task.value
+    }
+
+    private static func generate(
+        proposals: [HoloKnowledgeRevision],
+        store: DiscoveryTopicStore,
+        now: Date
+    ) async -> Bool {
         // 材料组装：画像仓 + 七域特征包 + 挖掘器提案。
         let portraitStore = HoloPortraitSynthesisRuntime.loadStore()
         guard let featurePacket = await HoloLifeFeatureDataSource.buildPacket(now: now) else {
@@ -52,56 +59,68 @@ enum DiscoveryInsightService {
             return noCardToday(reason: "数据不足(画像+特征<3)")
         }
 
-        // 请求（流式；后端闸门放行后的完整 InsightDraft JSON 才会到达这里）。
-        // 尝试标记在拿到结果后才记：材料组装/传输被取消不烧当天名额
-        // （服务端 3 次/日限流是硬兜底，客户端标记只做当日去重）。
         do {
             let draft = try await requestInsight(packet: built.packet)
-            store.markInsightV2Attempted(now: now)
-            if let selected = draft.selected {
-                let failure = DiscoveryInsightTerminalCheck.validate(selected, packet: built.packet)
-                if let failure {
-                    logger.warning("v4 端侧终检拒绝: \(failure, privacy: .public)")
-                    return noCardToday(reason: "terminal:\(failure)")
-                }
-                let portraitIds = Set(built.packet.portrait.map(\.id))
-                var domainByRefId: [String: String] = [:]
-                for feature in built.packet.features {
-                    domainByRefId[feature.id] = domainByRefId[feature.id] ?? feature.domain
-                }
-                for item in built.packet.portrait where domainByRefId[item.id] == nil {
-                    domainByRefId[item.id] = item.sourceDomains.first ?? "profile"
-                }
+            guard HoloAIDataProcessingConsent.shared.isGranted else { return false }
+            return applyDraft(draft, built: built, store: store, now: now)
+        } catch is InsightDraftParser.ParseError {
+            store.markInvalidInsightResponse(now: now)
+            return noCardToday(reason: "响应解码失败")
+        } catch {
+            logger.error("v4 洞察请求失败，当天不出卡: \(String(describing: error), privacy: .public)")
+            return noCardToday(reason: "error")
+        }
+    }
+
+    static func applyDraft(
+        _ draft: InsightDraft,
+        built: DiscoveryInsightCandidateBuilder.Output,
+        store: DiscoveryTopicStore,
+        now: Date
+    ) -> Bool {
+        if let selected = draft.selected {
+            if let failure = DiscoveryInsightTerminalCheck.validate(selected, packet: built.packet) {
+                store.markInvalidInsightResponse(now: now)
+                logger.warning("v4 端侧终检拒绝: \(failure, privacy: .public)")
+                return false
+            }
+            let portraitIds = Set(built.packet.portrait.map(\.id))
+            var domainByRefId: [String: String] = [:]
+            for feature in built.packet.features {
+                domainByRefId[feature.id] = domainByRefId[feature.id] ?? feature.domain
+            }
+            for item in built.packet.portrait where domainByRefId[item.id] == nil {
+                domainByRefId[item.id] = item.sourceDomains.first ?? "profile"
+            }
+            do {
                 let card = try DiscoveryInsightCardBuilder.build(
                     selected: selected, slots: built.slots, portraitIds: portraitIds,
                     domainByRefId: domainByRefId, now: now
                 )
                 store.enqueue(card)
+                store.markInsightV2Attempted(now: now)
                 logger.info("v4 洞察入队: \(selected.angleKey, privacy: .public)")
                 return true
-            }
-            switch draft.noneReason {
-            case "none_worthwhile", "insufficient_data":
-                // 宁缺毋滥：当天不出卡，v3 也不补。
-                store.markInsightV2NoneWorthwhile(now: now)
-                logger.info("v4 判定无值得说的洞察(\(draft.noneReason ?? "?", privacy: .public))，当天不出卡")
+            } catch {
+                store.markInvalidInsightResponse(now: now)
+                logger.warning("v4 洞察证据组装失败: \(String(describing: error), privacy: .public)")
                 return false
-            case "quota_exhausted":
-                // 预算墙（2026-11-21）：不回落 v3（墙语义）、不出卡；评审页展示升级引导。
-                store.markInsightQuotaWalled(now: now)
-                logger.info("v4 预算墙：每周额度已用完，展示升级引导")
-                return false
-            case "disabled":
-                DiscoveryFeatureFlags.markDisabledByServer()
-                return noCardToday(reason: "后端开关关")
-            default:
-                // gate_rejected 及未知码：不出卡（宁缺毋滥，不回落 v3）。
-                return noCardToday(reason: "gate_rejected")
             }
-        } catch {
-            // 网络错误也不烧名额（当日可再试；服务端限流兜底）。
-            logger.error("v4 洞察请求失败，当天不出卡: \(String(describing: error), privacy: .public)")
-            return noCardToday(reason: "error")
+        }
+
+        store.markInsightV2Attempted(now: now)
+        switch draft.noneReason {
+        case "none_worthwhile", "insufficient_data":
+            store.markInsightV2NoneWorthwhile(now: now)
+            return noCardToday(reason: draft.noneReason ?? "none_worthwhile")
+        case "quota_exhausted":
+            store.markInsightQuotaWalled(now: now)
+            return noCardToday(reason: "每周额度已用完")
+        case "disabled":
+            DiscoveryFeatureFlags.markDisabledByServer()
+            return noCardToday(reason: "后端开关关")
+        default:
+            return noCardToday(reason: "gate_rejected")
         }
     }
 
@@ -132,14 +151,8 @@ enum DiscoveryInsightService {
         guard let json = packet.encodeJSON() else {
             throw APIError.serverError("洞察输入包编码失败")
         }
-        // 独立 Task（非结构化）：不继承评审页 .task 的取消信号——11-21 真机实锤
-        // 页面刷新（通知/scenePhase 触发 refreshID 变化）会在几百毫秒内掐断进行中的
-        // 模型请求（服务端 CLIENT_ABORTED），白烧一次当天尝试。
-        let messages: [ChatMessageDTO] = [.user(json)]
-        return try await Task {
-            let raw = try await client.stream(messages: messages)
-            return try InsightDraftParser.parse(from: raw)
-        }.value
+        let raw = try await client.stream(messages: [.user(json)])
+        return try InsightDraftParser.parse(from: raw)
     }
 }
 

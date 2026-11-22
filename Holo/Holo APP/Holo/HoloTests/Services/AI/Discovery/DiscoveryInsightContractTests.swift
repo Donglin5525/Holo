@@ -160,12 +160,14 @@ final class DiscoveryInsightContractTests: XCTestCase {
         )
     }
 
-    private func makeSelected() -> InsightDraft.Selected {
+    private func makeSelected(
+        evidence: [InsightDraft.EvidenceLine] = [.init(refId: "f_1", template: "最近{lateWeeks}周里深夜下单明显变少")]
+    ) -> InsightDraft.Selected {
         InsightDraft.Selected(
             angleKey: "sleep×lateNight",
             headline: "早睡在顺带帮你省钱",
             insight: "你说想早睡的那段时间，深夜下单反而变少了，早睡好像在顺带帮你省钱。",
-            evidence: [.init(refId: "f_1", template: "最近{lateWeeks}周里深夜下单明显变少")],
+            evidence: evidence,
             prompt: "",
             criteria: ["D1", "D2"],
             sourceDomains: ["goal", "finance"]
@@ -213,5 +215,80 @@ final class DiscoveryInsightContractTests: XCTestCase {
             DiscoveryInsightTerminalCheck.validate(selected, packet: makePacket()),
             .slotNotAllowed("overdueDays")
         )
+    }
+
+    private func makeRecoveryDefaults(now: Date) throws -> UserDefaults {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "discovery-recovery-\(UUID())"))
+        defaults.set(
+            Calendar.current.startOfDay(for: now).timeIntervalSince1970,
+            forKey: "holo.discovery.insight.attemptDay.v3"
+        )
+        return defaults
+    }
+
+    @MainActor
+    func testUpgradeRecoversFromRejectedResponseAndDisplaysOnlyOneCard() throws {
+        let now = Date()
+        let defaults = try makeRecoveryDefaults(now: now)
+        let store = DiscoveryTopicStore(defaults: defaults)
+        let built = DiscoveryInsightCandidateBuilder.Output(
+            packet: makePacket(), slots: SlotValueTable(values: ["f_1": ["lateWeeks": "4"]])
+        )
+        let malformed = InsightDraft(selected: makeSelected(evidence: [
+            .init(refId: "f_1", template: "深夜下单在最近{lateWeeks}周减少"),
+            .init(refId: "f_2", template: "之前有{overdueDays}天逾期，近期{over"),
+        ]), noneReason: nil)
+
+        XCTAssertTrue(store.canRequestInsight(now: now))
+        XCTAssertFalse(DiscoveryInsightService.applyDraft(malformed, built: built, store: store, now: now))
+        XCTAssertNil(store.todayCard(now: now))
+
+        let reopened = DiscoveryTopicStore(defaults: defaults)
+        XCTAssertTrue(reopened.canRequestInsight(now: now))
+        let valid = InsightDraft(selected: makeSelected(), noneReason: nil)
+        XCTAssertTrue(DiscoveryInsightService.applyDraft(valid, built: built, store: reopened, now: now))
+        XCTAssertEqual(reopened.todayCard(now: now)?.title, valid.selected?.headline)
+        XCTAssertEqual(reopened.todayCard(now: now)?.evidenceLines, ["最近4周里深夜下单明显变少"])
+        XCTAssertFalse(reopened.canRequestInsight(now: now))
+        let displayed = try XCTUnwrap(reopened.todayCard(now: now))
+        XCTAssertTrue(reopened.consumeToday(displayed, now: now))
+        XCTAssertNil(reopened.todayCard(now: now))
+        XCTAssertFalse(reopened.canRequestInsight(now: now))
+    }
+
+    func testUpgradeKeepsExistingNoCardQuotaAndConsumptionDecisions() throws {
+        let now = Date()
+        let defaults = try makeRecoveryDefaults(now: now)
+        let store = DiscoveryTopicStore(defaults: defaults)
+        let day = Calendar.current.startOfDay(for: now).timeIntervalSince1970
+        for key in [
+            "holo.discovery.insight.noneDay.v1",
+            "holo.discovery.insight.quotaWallDay.v1",
+            "holo.discovery.topic.lastShownDay.v1",
+        ] {
+            defaults.set(day, forKey: key)
+            XCTAssertFalse(store.canRequestInsight(now: now), key)
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    @MainActor
+    func testSecondInvalidResponseAndExplicitGateRejectionEndTheDay() throws {
+        let now = Date()
+        let store = DiscoveryTopicStore(defaults: try makeRecoveryDefaults(now: now))
+        let built = DiscoveryInsightCandidateBuilder.Output(packet: makePacket(), slots: SlotValueTable())
+        let requiresMissingValue = InsightDraft(selected: makeSelected(), noneReason: nil)
+
+        XCTAssertFalse(DiscoveryInsightService.applyDraft(requiresMissingValue, built: built, store: store, now: now))
+        XCTAssertTrue(store.canRequestInsight(now: now))
+        XCTAssertFalse(DiscoveryInsightService.applyDraft(requiresMissingValue, built: built, store: store, now: now))
+        XCTAssertFalse(store.canRequestInsight(now: now))
+        XCTAssertTrue(store.canRequestInsight(now: try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: now))))
+
+        let otherStore = DiscoveryTopicStore(defaults: try makeRecoveryDefaults(now: now))
+        let rejected = InsightDraft(selected: nil, noneReason: "gate_rejected")
+        XCTAssertFalse(DiscoveryInsightService.applyDraft(rejected, built: built, store: otherStore, now: now))
+        XCTAssertNil(otherStore.todayCard(now: now))
+        XCTAssertFalse(otherStore.canRequestInsight(now: now))
     }
 }
