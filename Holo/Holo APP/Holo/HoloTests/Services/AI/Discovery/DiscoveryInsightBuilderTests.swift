@@ -464,4 +464,25 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertTrue(store.deferredActiveKeys(now: now).contains("angle-defer"))
         XCTAssertNil(store.todayCard(now: now))
     }
+
+    // MARK: - 2026-11-21 Plus 分层 I2：本机短句
+
+    func testTeaserPhrasesFollowCopyTable() throws {
+        let output = try XCTUnwrap(DiscoveryInsightCandidateBuilder.build(
+            portraitStore: makePortraitStore(), featurePacket: makeFeaturePacket(),
+            proposals: [makeMinerProposal()], recentTopics: [], rejectedAngles: []
+        ))
+        let p = output.teaserPhrases
+        XCTAssertEqual(p["f_anomaly_0"], "最近你睡得越来越晚")
+        XCTAssertEqual(p["f_anomaly_1"], "「咖啡」最近记的数值在变多")
+        XCTAssertEqual(p["f_checkin_0"], "「冥想」最近打卡比之前少了")
+        XCTAssertEqual(p["f_concept_0"], "你经常买「猫粮」，多在深夜")
+        XCTAssertEqual(p["f_sleep_duration"], "最近你睡得比之前短了")
+        XCTAssertEqual(p["f_steps_change"], "最近你每天走的路比之前少了")
+        // 挖掘器提案不生成短句
+        XCTAssertTrue(p.keys.allSatisfy { !$0.hasPrefix("f_miner_") })
+        // 短句不含数字、不进上传包
+        XCTAssertTrue(p.values.allSatisfy { !InsightNumberDiscipline.containsNumerals(in: $0) })
+        XCTAssertFalse(output.packet.encodeJSON()?.contains("最近你睡得越来越晚") ?? true)
+    }
 }

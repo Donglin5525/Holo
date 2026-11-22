@@ -15,6 +15,9 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
     struct Output: Sendable {
         var packet: InsightInputPacket
         var slots: SlotValueTable
+        /// featureId → 用户看得懂的短句（2026-11-21 Plus 分层 I2）。只在本机用于预告问题，
+        /// 绝不放进 packet 上传；可以含用户自己的习惯名/消费概念名，但不含数字。
+        var teaserPhrases: [String: String] = [:]
     }
 
     /// portrait + features < 3 → 返回 nil（数据不足，不请求，调用方走 v3）。
@@ -30,26 +33,30 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
     ) -> Output? {
         var features: [InsightInputPacket.FeatureItem] = []
         var slots = SlotValueTable()
+        var phrases: [String: String] = [:]
 
         // 1) 跨域异常信号（价值最高：D1/D2 的主要原料）。
-        appendAnomalies(featurePacket, into: &features, slots: &slots)
+        appendAnomalies(featurePacket, into: &features, slots: &slots, phrases: &phrases)
 
         // 2) 习惯趋势（断签/回涨与数值变化）。
-        appendHabitTrends(featurePacket, into: &features, slots: &slots)
+        appendHabitTrends(featurePacket, into: &features, slots: &slots, phrases: &phrases)
 
         // 3) 财务反复消费概念。
-        appendFinanceConcepts(featurePacket, into: &features, slots: &slots)
+        appendFinanceConcepts(featurePacket, into: &features, slots: &slots, phrases: &phrases)
 
         // 4) 健康睡眠/活动量基线对照。
-        appendHealthBaselines(featurePacket, into: &features, slots: &slots)
+        appendHealthBaselines(featurePacket, into: &features, slots: &slots, phrases: &phrases)
 
-        // 5) 挖掘器提案（财务/健康统计真值，槽位口径与 v3 slotValues 一致）。
+        // 5) 挖掘器提案（财务/健康统计真值，槽位口径与 v3 slotValues 一致；不生成短句——01 §5 短句表）。
         appendMinerProposals(proposals, into: &features, slots: &slots)
 
         // 数量上限（总纲 §5.1）：异常 > 习惯 > 财务 > 健康 > 挖掘器，超限截断。
         if features.count > InsightInputPacket.featureLimit {
             features = Array(features.prefix(InsightInputPacket.featureLimit))
         }
+        // 截断后只保留还在 features 里的短句（2026-11-21 Plus 分层 I2）。
+        let keptIds = Set(features.map(\.id))
+        let keptPhrases = phrases.filter { keptIds.contains($0.key) }
 
         // 画像条目：confirmed/inferred（黑名单条目已被 reject() 移出 entries），
         // 按「置信度优先 + 新近优先」截断。
@@ -89,7 +96,7 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
             recentTopics: Array(recentTopics.prefix(30)),
             rejectedAngles: Array(rejectedAngles.prefix(30))
         )
-        return Output(packet: packet, slots: slots)
+        return Output(packet: packet, slots: slots, teaserPhrases: keptPhrases)
     }
 
     // MARK: - 特征蒸馏（无数字模板 + 槽位真值）
@@ -97,7 +104,8 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
     private static func appendAnomalies(
         _ packet: CrossDomainFeaturePacket,
         into features: inout [InsightInputPacket.FeatureItem],
-        slots: inout SlotValueTable
+        slots: inout SlotValueTable,
+        phrases: inout [String: String]
     ) {
         for (index, anomaly) in packet.anomalies.enumerated() {
             let id = "f_anomaly_\(index)"
@@ -105,6 +113,8 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
             var direction = "divergent"
             var slotList: [InsightInputPacket.Slot] = []
             var values: [String: String] = [:]
+            // 本机预告短句（2026-11-21 Plus 分层 I2，逐字按 01 §5 短句表；default 不生成）。
+            var phrase: String?
 
             switch anomaly.code {
             case "sleep_short":
@@ -114,6 +124,7 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 if let avg = packet.health.sleep.recentAvgHours {
                     values["avgHours"] = String(format: "%.1f", avg)
                 }
+                phrase = "最近你睡得比较少"
             case "sleep_later", "sleep_late":
                 description = "入睡时间比之前更晚"
                 direction = "up"
@@ -123,6 +134,7 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 ]
                 if let shift = packet.health.sleep.bedtimeShiftMinutes { values["shiftMinutes"] = String(shift) }
                 if let bed = packet.health.sleep.recentAvgBedtimeHHMM { values["recentBedtime"] = bed }
+                phrase = "最近你睡得越来越晚"
             case "activity_drop":
                 description = "活动量比之前明显减少"
                 direction = "down"
@@ -132,10 +144,12 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 ]
                 if let pct = packet.health.activity.stepsChangePercent { values["stepsChangePct"] = String(pct) }
                 if let steps = packet.health.activity.recentAvgSteps { values["recentAvgSteps"] = String(steps) }
+                phrase = "最近你走路、运动少了"
             case "numeric_habit_up", "numeric_habit_down":
                 let isUp = anomaly.code == "numeric_habit_up"
                 description = stripNumerals("数值习惯\(wrappedName(habitName(from: anomaly.summary)))的记录值在\(isUp ? "变多" : "变少")")
                 direction = isUp ? "up" : "down"
+                phrase = "\(wrappedName(habitName(from: anomaly.summary)))最近记的数值在\(isUp ? "变多" : "变少")"
                 // 数值真值在 habits.numerics 里按名匹配。
                 if let trend = packet.habits.numerics.first(where: { anomaly.summary.contains($0.name) }) {
                     slotList = [
@@ -158,13 +172,15 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 direction: direction, slots: slotList
             ))
             if !values.isEmpty { slots.values[id] = values }
+            if let phrase { setPhrase(phrase, for: id, into: &phrases) }
         }
     }
 
     private static func appendHabitTrends(
         _ packet: CrossDomainFeaturePacket,
         into features: inout [InsightInputPacket.FeatureItem],
-        slots: inout SlotValueTable
+        slots: inout SlotValueTable,
+        phrases: inout [String: String]
     ) {
         for (index, trend) in packet.habits.checkins.enumerated()
         where trend.direction != "flat" {
@@ -184,13 +200,16 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 "recentCount": String(trend.recent21dCount),
                 "baselineCount": String(trend.baseline21dCount),
             ]
+            // C 短句表（2026-11-21 Plus 分层 I2）
+            setPhrase("\(wrappedName(trend.name))最近打卡比之前\(isUp ? "多了" : "少了")", for: id, into: &phrases)
         }
     }
 
     private static func appendFinanceConcepts(
         _ packet: CrossDomainFeaturePacket,
         into features: inout [InsightInputPacket.FeatureItem],
-        slots: inout SlotValueTable
+        slots: inout SlotValueTable,
+        phrases: inout [String: String]
     ) {
         for (index, concept) in packet.finance.recurringConcepts.enumerated()
         where concept.dominantBand != nil || concept.recent30dCount >= 3 {
@@ -214,13 +233,21 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
                 "totalCount": String(concept.count),
                 "spanDays": String(concept.spanDays),
             ]
+            // 短句表（2026-11-21 Plus 分层 I2）：时段含数字则不追加（setPhrase 兜底丢弃含数字整句）。
+            let base = "你经常买\(wrappedName(concept.concept))"
+            if let rawBand = concept.dominantBand, !rawBand.isEmpty {
+                setPhrase("\(base)，多在\(rawBand)", for: id, into: &phrases)
+            } else {
+                setPhrase(base, for: id, into: &phrases)
+            }
         }
     }
 
     private static func appendHealthBaselines(
         _ packet: CrossDomainFeaturePacket,
         into features: inout [InsightInputPacket.FeatureItem],
-        slots: inout SlotValueTable
+        slots: inout SlotValueTable,
+        phrases: inout [String: String]
     ) {
         let sleep = packet.health.sleep
         if sleep.coverage != .none, let delta = sleep.durationDeltaMinutes, abs(delta) >= 20 {
@@ -241,6 +268,8 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
             if let r = sleep.recentAvgHours { values["recentHours"] = String(format: "%.1f", r) }
             if let b = sleep.baselineAvgHours { values["baselineHours"] = String(format: "%.1f", b) }
             slots.values[id] = values
+            // 短句表（2026-11-21 Plus 分层 I2）
+            setPhrase(isShort ? "最近你睡得比之前短了" : "最近你睡得比之前长了", for: id, into: &phrases)
         }
 
         let activity = packet.health.activity
@@ -260,6 +289,8 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
             var values: [String: String] = ["changePct": String(pct)]
             if let s = activity.recentAvgSteps { values["recentAvgSteps"] = String(s) }
             slots.values[id] = values
+            // 短句表（2026-11-21 Plus 分层 I2）
+            setPhrase(isUp ? "最近你每天走的路比之前多了" : "最近你每天走的路比之前少了", for: id, into: &phrases)
         }
     }
 
@@ -354,6 +385,12 @@ nonisolated enum DiscoveryInsightCandidateBuilder {
     }
 
     // MARK: - 工具
+
+    /// 短句入表：含数字的直接丢弃（2026-11-21 Plus 分层 I2，数字纪律与判断句同口径）。
+    private static func setPhrase(_ phrase: String, for id: String, into phrases: inout [String: String]) {
+        guard !InsightNumberDiscipline.containsNumerals(in: phrase) else { return }
+        phrases[id] = phrase
+    }
 
     /// 剥离数字（ASCII/全角/中文数字整段删除）——意图与描述的去标识化出口。
     static func stripNumerals(_ text: String) -> String {
