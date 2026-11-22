@@ -108,7 +108,7 @@ struct TaskListHeroSection: View {
 
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(heroProgress.completed)")
-                            .font(.system(size: 40, weight: .heavy, design: .rounded))
+                            .font(.holoHeroNumber(size: 40))
                             .foregroundColor(.holoPrimary)
                         Text("/")
                             .font(.system(size: 17, weight: .semibold))

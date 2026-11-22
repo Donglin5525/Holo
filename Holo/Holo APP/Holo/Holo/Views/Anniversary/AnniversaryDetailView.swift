@@ -284,7 +284,7 @@ struct AnniversaryDetailView: View {
                             .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).strokeBorder(Color.white.opacity(0.22), lineWidth: 1.2))
                         VStack(spacing: 2) {
                             Text(celebrationBigText)
-                                .font(.system(size: 58, weight: .heavy, design: .rounded))
+                                .font(.holoHeroNumber(size: 58))
                                 .monospacedDigit()
                                 .foregroundColor(.white)
                             Text(celebrationBigUnit)

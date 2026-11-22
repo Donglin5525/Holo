@@ -244,7 +244,7 @@ struct AccountListView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(formatAmount(netWorthData.netWorth))
-                .font(.system(size: 31, weight: .heavy, design: .rounded))
+                .font(.holoHeroNumber(size: 31))
                 .foregroundColor(netWorthData.netWorth >= 0 ? Color(hex: "#FFE8D5") : AccountCardMaterial.debtColor)
                 .contentTransition(.numericText())
                 .animation(HoloAnimation.smooth, value: netWorthData.netWorth)

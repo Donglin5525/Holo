@@ -142,7 +142,7 @@ struct FinanceTransactionDetailPane: View {
                         .foregroundColor(.holoTextSecondary)
 
                     Text((tx.transactionType == .income ? "+" : "-") + tx.formattedAmount)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(.holoHeroNumber(size: 34))
                         .foregroundColor(tx.transactionType == .income ? .holoSuccess : .holoError)
 
                     if let label = tx.installmentLabel {

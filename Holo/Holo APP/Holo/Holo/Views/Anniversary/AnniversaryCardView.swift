@@ -230,7 +230,7 @@ struct AnniversaryHeroCard: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text("\(anniversary.displayDays)")
-                    .font(.system(size: 54, weight: .heavy, design: .rounded))
+                    .font(.holoHeroNumber(size: 54))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .animation(HoloAnimation.smooth, value: anniversary.displayDays)

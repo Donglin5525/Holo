@@ -224,7 +224,7 @@ struct FinanceProjectDetailView: View {
                     .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
                 Text("¥\(AccountCardFormat.amount(abs(netAmount)))")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .font(.holoHeroNumber(size: 30))
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)

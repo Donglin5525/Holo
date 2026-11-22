@@ -44,7 +44,7 @@ struct AnniversaryShareCard: View {
                 .padding(.top, 5)
 
             Text(bigText)
-                .font(.system(size: 86, weight: .heavy, design: .rounded))
+                .font(.holoHeroNumber(size: 86))
                 .monospacedDigit()
                 .foregroundColor(.white)
                 .padding(.top, 22)

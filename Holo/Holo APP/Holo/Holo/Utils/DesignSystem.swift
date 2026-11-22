@@ -405,6 +405,12 @@ extension Color {
 /// Holo 应用字体系统
 /// 统一管理字体大小和样式
 extension Font {
+    /// 主角数字（2026-11-21 去 AI 味）：页面上唯一的大数字（余额、净资产、倒数日、统计总数）用系统 New York 衬线体，
+    /// 取代圆体带来的「工具感」。只用于 ≥28pt 的主角数字；小数字、输入框、正文保持系统无衬线。字重统一 semibold。
+    static func holoHeroNumber(size: CGFloat) -> Font {
+        .system(size: size, weight: .semibold, design: .serif)
+    }
+
     /// 超大标题，用于金额显示；跟随系统动态字体缩放。
     static let holoAmount = Font.largeTitle.weight(.bold)
     
@@ -948,7 +954,10 @@ struct HoloTextStyle: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content.font(.system(size: pointSize, weight: role.weight))
+        // 2026-11-21：金额角色用衬线（与 Font.holoHeroNumber 同口径）；注释小字加 0.2pt 字距提升精致感，幅度刻意小以免紧凑行被挤换行
+        content
+            .font(.system(size: pointSize, weight: role.weight, design: role == .amount ? .serif : .default))
+            .tracking(role == .metadata ? 0.2 : 0)
     }
 }
 

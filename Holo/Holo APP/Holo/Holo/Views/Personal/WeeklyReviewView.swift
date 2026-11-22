@@ -84,7 +84,7 @@ struct WeeklyReviewView: View {
                 .foregroundColor(.holoTextSecondary)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(snapshot.current.recordTotal)")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.holoHeroNumber(size: 42))
                     .foregroundColor(.holoTextPrimary)
                 Text(String(localized: "条"))
                     .font(.system(size: 15))

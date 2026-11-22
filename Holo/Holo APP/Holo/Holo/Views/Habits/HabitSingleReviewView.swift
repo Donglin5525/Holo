@@ -372,7 +372,7 @@ struct HabitSingleReviewView: View {
             switch info.kind {
             case .checkIn:
                 Text(verbatim: "\(snapshot.recordedDayCount)")
-                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.holoHeroNumber(size: 30).monospacedDigit())
                 Text(info.isBadHabit
                     ? String(localized: "天发生")
                     : String(localized: "/ \(comparison?.current.validDays ?? snapshot.elapsedDays) 天"))
@@ -380,13 +380,13 @@ struct HabitSingleReviewView: View {
                     .foregroundColor(.holoToolTextSecondary)
             case .count:
                 Text(verbatim: HabitPresentationProjector.formatValue(snapshot.countTotal ?? 0))
-                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.holoHeroNumber(size: 30).monospacedDigit())
                 Text(info.unit.isEmpty ? String(localized: "合计") : String(localized: "合计 \(info.unit)"))
                     .holoText(.supporting)
                     .foregroundColor(.holoToolTextSecondary)
             case .measure:
                 Text(verbatim: measureMainValue(snapshot))
-                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.holoHeroNumber(size: 30).monospacedDigit())
                 Text(verbatim: measureMainUnit(snapshot))
                     .holoText(.supporting)
                     .foregroundColor(.holoToolTextSecondary)

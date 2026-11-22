@@ -1033,7 +1033,7 @@ struct HabitProgressHeader: View {
                         .font(.system(size: 14))
                         .foregroundColor(.holoToolTextSecondary)
                     Text("\(completed)")
-                        .font(.system(size: 33, weight: .heavy, design: .rounded))
+                        .font(.holoHeroNumber(size: 33))
                         .foregroundColor(.holoPrimary)
                     Text("/ \(total)")
                         .font(.system(size: 15, weight: .semibold))

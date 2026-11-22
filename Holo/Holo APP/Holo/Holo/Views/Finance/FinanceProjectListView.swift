@@ -91,7 +91,7 @@ struct FinanceProjectListView: View {
             }
 
             Text(formatAmount(summary.totalExpense))
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .font(.holoHeroNumber(size: 28))
                 .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)

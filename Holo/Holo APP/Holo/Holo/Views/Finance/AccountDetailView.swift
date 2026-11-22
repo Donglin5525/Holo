@@ -465,7 +465,7 @@ struct AccountDetailView: View {
             .padding(.top, HoloSpacing.lg)
 
             Text(formatSignedAmount(balance))
-                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .font(.holoHeroNumber(size: 36))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
                 .contentTransition(.numericText())
                 .animation(HoloAnimation.smooth, value: balance)
@@ -772,7 +772,7 @@ struct AccountDetailView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoToolError)
                 Text(formatAmount(creditStatement.expense))
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.holoHeroNumber(size: 28))
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
             }
