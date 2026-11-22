@@ -186,28 +186,27 @@ extension Color {
     /// 占位符文字
     static let holoTextPlaceholder = Color("TextPlaceholder")
     
-    // MARK: - 功能性颜色
-    /// 成功状态 - 绿色
-    static let holoSuccess = Color(red: 34/255, green: 197/255, blue: 94/255)  // #22C55E
+    // MARK: - 功能性颜色（2026-11-21 去 AI 味：对齐图表 V4「纸本调性」，告别 Tailwind 原色，明暗双值）
+    /// 成功状态 · 苔绿（= holoChart3）
+    static let holoSuccess = v4(0x4E8C64, 0x7DBF92)
     /// 成功状态深色（渐变收尾用）
-    static let holoSuccessDark = Color(red: 22/255, green: 163/255, blue: 74/255)  // #16A34A
+    static let holoSuccessDark = v4(0x3D7350, 0x6AAE80)
     /// 成功状态浅色背景
-    static let holoSuccessLight = Color(red: 209/255, green: 250/255, blue: 229/255)  // #D1FAE5
-    /// 成功状态文字级绿色（白/纸底对比 ≥4.5:1；#22C55E 仅 2.3:1 禁止再直接作文字色）
-    static let holoSuccessText = Color.holoDynamic(light: HoloDynamicColor(red: 21/255, green: 128/255, blue: 61/255, alpha: 1),
-                                                   dark: HoloDynamicColor(red: 74/255, green: 222/255, blue: 128/255, alpha: 1))  // 浅#15803D / 暗#4ADE80
-    /// 错误/支出状态 - 红色
-    static let holoError = Color(red: 239/255, green: 68/255, blue: 68/255)  // #EF4444
-    /// 错误状态深色（渐变收尾用）
-    static let holoErrorDark = Color(red: 220/255, green: 38/255, blue: 38/255)  // #DC2626
+    static let holoSuccessLight = v4(0xE4EEE7, 0x23332A)
+    /// 成功状态文字级苔绿（与 ToolSuccess 同值，纸底/内嵌底对比 ≥4.5:1）
+    static let holoSuccessText = v4(0x3A6E4D, 0x86C399)
+    /// 错误/支出状态 · 印泥红（= holoChart4）
+    static let holoError = v4(0xB84A3E, 0xE57A6E)
+    /// 错误状态深色（渐变收尾 + 危险按钮实底；两种模式下白字对比度均 ≥5:1，深色档禁止调浅）
+    static let holoErrorDark = v4(0xA8432F, 0xB84A3E)
     /// 错误状态浅色背景
-    static let holoErrorLight = Color(red: 254/255, green: 226/255, blue: 226/255)  // #FEE2E2
-    /// 信息提示 - 蓝色
-    static let holoInfo = Color(red: 96/255, green: 165/255, blue: 250/255)  // #60A5FA
-    /// 紫色装饰
-    static let holoPurple = Color(red: 192/255, green: 132/255, blue: 252/255)  // #C084FC
-    /// AI 专属色 - 紫色，用于 AI 自动整理等智能功能入口标识，与品牌橙色区分
-    static let holoAI = Color(red: 124/255, green: 92/255, blue: 252/255)  // #7C5CFC
+    static let holoErrorLight = v4(0xF5E3DF, 0x3A2522)
+    /// 信息提示 · 墨蓝（= holoChart1）
+    static let holoInfo = v4(0x40546B, 0x8FA8C4)
+    /// 装饰紫 · 藕紫（= holoChart5）
+    static let holoPurple = v4(0x93799F, 0xB9A0C6)
+    /// AI 专属色 · 靛灰（= holoChart9）。刻意不用紫色：「紫色 + 星星」是行业通用的 AI 符号，会让 Holo 显得模板化
+    static let holoAI = v4(0x5B6488, 0x9CA4C4)
     
     // MARK: - 图表颜色（视觉 V4「纸本调性」，2026-11-15 东林拍板）
     // 原型契约：docs/design-prototypes/Holo图表视觉V4-纸本调性.html
