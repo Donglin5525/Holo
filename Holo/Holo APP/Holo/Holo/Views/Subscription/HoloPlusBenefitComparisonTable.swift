@@ -82,6 +82,13 @@ enum HoloPlusBenefits {
             plusValue: .text(String(localized: "2 次/周"))
         ),
         .init(
+            // C91（2026-11-21 Plus 分层 I9）：一个发现免费 1 件/周、Plus 最多 5 件/周。
+            icon: "sparkle.magnifyingglass",
+            name: String(localized: "一个发现"),
+            freeValue: .text(String(localized: "1 件/周")),
+            plusValue: .text(String(localized: "最多 5 件/周"))
+        ),
+        .init(
             icon: "memories",
             name: String(localized: "记忆洞察刷新"),
             freeValue: .text(String(localized: "1 次/周")),

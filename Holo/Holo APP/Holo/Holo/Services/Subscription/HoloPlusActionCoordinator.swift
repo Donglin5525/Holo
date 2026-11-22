@@ -106,7 +106,8 @@ enum HoloPlusGateContext: Equatable {
         case .taskSplit:
             return String(localized: "升级 Holo Plus，继续使用任务拆解")
         case .discoveryInsightWeekly:
-            return String(localized: "升级 Holo Plus，每周看更多条发现")
+            // C90（2026-11-21 Plus 分层 I9）
+            return String(localized: "升级 Holo Plus，让 Holo 每周多帮你看几件事")
         }
     }
 }
