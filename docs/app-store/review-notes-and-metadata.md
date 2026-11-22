@@ -1,12 +1,68 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-11-13（1.1.8 草稿版，待东林定稿）
+更新时间：2026-11-22（1.1.9 草稿版，待东林定稿）
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.1.8 提审材料包（2026-11-13 起草，待东林定稿）
+## 1.1.9 提审材料包（2026-11-22 起草，待东林定稿）
+
+> 版本口径：1.1.9 / 构建 61（归档时以 pbxproj 为准）。更新说明覆盖 1.1.8/53 上架之后的全部用户可感变化。
+> 本版重点：「一个发现」全新改版（Plus 分层与点名看）、深度报告更好读、记忆长廊人生年鉴、健康睡眠统一口径、Holo 理解升级、贴纸修复、删除闪退根治。
+> 上架前动作（东林手工）：①CloudKit Production 部署：`Habit` 实体 3 新字段（`folderID`/`prefersQuantityInput`/`cumulativeStartDay`）+ 新实体 `HabitFolder`（含 `emoji` 字段）——习惯文件夹线已进本包；②后端无待发版项（发现线+深度报告四修均已上产实证）；③桌面小组件线已移出本包，随下版。
+> 审核注意：「一个发现」Plus 分层涉及订阅权益展示，审核备注需说明 Plus 订阅由既有内购承载、无新增购买项。
+
+### 更新说明草稿（What's New，三语）
+
+**简体中文：**
+
+Holo 1.1.9 来了。这版让「发现」和「理解」都上了一个台阶。
+【一个发现·全新改版】Holo 看出来的事，用大白话讲给你：没有值得说的就不说，有的话直接告诉你它注意到了什么。免费每周一件；Holo Plus 每周最多五件，还能点名让 Holo 专门看某件事。往期发现永远免费回看。
+【深度报告·更好读】指标卡默认显示第一天、数字保留一位小数、补记和固定支出分开算——报告一眼能看懂，还多了一屏分享图和目标复盘问答。
+【人生年鉴】记忆长廊新增「人生年鉴」：一年十二个月，哪个月记了多少天一目了然，往年的岁月也能翻；一键生成纸面质感的年鉴分享图。
+【健康·睡眠口径统一】午睡不再被拆成两半、跨午夜的一觉算一晚：健康页、睡眠详情和今日卡现在是同一个数字，新增近 14 天作息回顾。
+【习惯·想怎么记就怎么记】打卡之外，新增「累计」和「测量」两种记法——俯撑撑了多少个、体重称了多少斤，都能记；今天页可以按你自建的主题文件夹收纳习惯，就地记录。
+【目标·接上真实数据】新建目标时直接选进度来源：一个习惯、一类开销、还是苹果健康里的指标，选好达成条件，目标进度随真实数据自动更新。
+【更懂你】Holo 对你的理解升级：刚记两天和记了九十天不再混为一谈，新认识要攒够观察才入册，看得越久懂得越准。
+【记忆长廊·更清爽】同一天同一习惯的多条记录合并成一行，点开看时刻；想法卡带上主题与标签。
+【贴纸·修好了】外观页图片闪动、内存暴涨的问题根治；裁剪修边的手感全面修复。
+【更稳定】删除主题等操作不再偶发闪退；周期回放报告生成完直接送达聊天；列表里点空白处也能选中整行。
+谢谢每一位反馈的朋友，Holo 因你而更懂你。
+
+**繁體中文：**
+
+Holo 1.1.9 來了。這版讓「發現」和「理解」都上了一個台階。
+【一個發現·全新改版】Holo 看出來的事，用大白話講給你：沒有值得說的就不說，有的話直接告訴你它注意到了什麼。免費每週一件；Holo Plus 每週最多五件，還能點名讓 Holo 專門看某件事。往期發現永遠免費回看。
+【深度報告·更好讀】指標卡預設顯示第一天、數字保留一位小數、補記和固定支出分開算——報告一眼能看懂，還多了一螢分享圖和目標複盤問答。
+【人生年鑑】記憶長廊新增「人生年鑑」：一年十二個月，哪個月記了多少天一目瞭然，往年的歲月也能翻；一鍵生成紙面質感的年鑑分享圖。
+【健康·睡眠口徑統一】午睡不再被拆成兩半、跨午夜的一覺算一晚：健康頁、睡眠詳情和今日卡現在是同一個數字，新增近 14 天作息回顧。
+【習慣·想怎麼記就怎麼記】打卡之外，新增「累計」和「測量」兩種記法——俯撐撐了多少個、體重稱了多少斤，都能記；今天頁可以按你自建的主題資料夾收納習慣，就地記錄。
+【目標·接上真實數據】新建目標時直接選進度來源：一個習慣、一類開銷、還是蘋果健康裡的指標，選好達成條件，目標進度隨真實數據自動更新。
+【更懂你】Holo 對你的理解升級：剛記兩天和記了九十天不再混為一談，新認識要攢夠觀察才入冊，看得越久懂得越準。
+【記憶長廊·更清爽】同一天同一習慣的多條記錄合併成一行，點開看時刻；想法卡帶上主題與標籤。
+【貼紙·修好了】外觀頁圖片閃動、記憶體暴漲的問題根治；裁剪修邊的手感全面修復。
+【更穩定】刪除主題等操作不再偶發閃退；週期回放報告生成完直接送達聊天；列表裡點空白處也能選中整行。
+謝謝每一位回饋的朋友，Holo 因你而更懂你。
+
+**English:**
+
+Holo 1.1.9 is here. This release takes "discovery" and "understanding" up a whole level.
+[One Discovery · Fully Redesigned] The things Holo notices, told in plain words: if there's nothing worth saying, it stays quiet — and when there is, it tells you exactly what caught its eye. Free gets one discovery a week; Holo Plus gets up to five, plus the power to point at something and ask Holo to look closer. Past discoveries are always free to revisit.
+[Deep Reports · Easier to Read] Metric cards now default to day one, numbers keep one decimal, and backfilled entries are counted apart from fixed expenses. Plus a one-screen share card and a goal-review Q&A.
+[Life Almanac] Memory Gallery introduces the "Life Almanac": twelve months to a page, showing how many days you recorded in each — flip back through years gone by, and export a paper-textured almanac card to share.
+[Health · One Sleep Number] Naps are no longer split in two, and a night that crosses midnight counts as one night. The health page, sleep details, and today's card now show the same number, plus a new 14-day rhythm review.
+[Habits · Record Your Way] Beyond check-ins, habits now support "cumulative" and "measurement" styles — count the push-ups, log the weight. The today page can group habits into folders you create, and record them right there.
+[Goals · Wired to Real Data] When creating a goal, pick its progress source directly: a habit, a spending category, or a metric from Apple Health. Set the target, and progress updates itself from real data.
+[Understands You Better] Holo's understanding leveled up: two days of records and ninety days are no longer treated the same — new insights need enough observation to earn their place. The longer you live with it, the better it knows you.
+[Memory Gallery · Cleaner] Multiple check-ins of the same habit on the same day merge into one line — tap to see the moments. Thought cards carry their topics and tags.
+[Stickers · Fixed] Flickering images and memory bloat in the appearance page are gone for good; cropping and edge-refining feel right again.
+[More Stable] Deleting topics no longer crashes; periodic replay reports arrive in chat the moment they're written; tapping anywhere in a list row selects it.
+Thank you to everyone who shared feedback — Holo knows you better because of you.
+
+---
+
+## 1.1.8 提审材料包（2026-11-13 起草，历史存档）
 
 > 版本口径：1.1.8 / 构建 53（归档当晚）。更新说明覆盖 1.1.7/52 上架（2026-11-10 前后）之后的全部用户可感变化。
 > 本版重点：想法语音口述双稿对照、截图记账确认页重做、健康页「动与不动」改版、报告点按核对修复、信用卡到期提醒、习惯提醒学会看进度、每周回顾打不开修复。

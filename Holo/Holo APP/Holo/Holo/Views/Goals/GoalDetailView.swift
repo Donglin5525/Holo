@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import Combine
 
 private enum GoalDetailSheetRoute: Identifiable {
     case edit
@@ -31,6 +32,7 @@ private enum GoalDetailSheetRoute: Identifiable {
 }
 
 struct GoalDetailView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var goal: Goal
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
     /// 删除确认回调（第二参 = 是否连带删除目标创建的习惯/任务）
@@ -66,7 +68,8 @@ struct GoalDetailView: View {
                     onNewTask: { activeSheet = .quickTask },
                     onNewHabit: { activeSheet = .newHabit },
                     onLinkExisting: { activeSheet = .linkExisting },
-                    onOpenPlanEditor: { activeSheet = .planEditor }
+                    onOpenPlanEditor: { activeSheet = .planEditor },
+                    onEditProgress: { activeSheet = .edit }
                 )
                 .padding(.horizontal, GoalJourneyStyle.pageInset)
                 .padding(.top, 8)
@@ -94,6 +97,8 @@ struct GoalDetailView: View {
                 if let next = pendingSheet {
                     pendingSheet = nil
                     activeSheet = next
+                } else {
+                    checkAchievementCelebrationIfNeeded()
                 }
             }) { route in
                 sheetContent(for: route)
@@ -110,11 +115,24 @@ struct GoalDetailView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in
                 checkAchievementCelebrationIfNeeded()
+                Task { await GoalHealthKitCache.shared.refreshIfNeeded(for: goal) }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    Task { await GoalHealthKitCache.shared.refreshIfNeeded(for: goal, force: true) }
+                }
+            }
+            .onReceive(HealthRepository.shared.$dataSourceState.removeDuplicates().dropFirst()) { _ in
+                Task { await GoalHealthKitCache.shared.refreshIfNeeded(for: goal, force: true) }
             }
             .sheet(isPresented: $showAchievementCelebration) {
                 GoalAchievementCelebrationSheet(
                     goal: goal,
                     onMarkCompleted: {
+                        guard GoalMetricEvaluator.evaluate(goal: goal)?.isAchieved == true else {
+                            showAchievementCelebration = false
+                            return
+                        }
                         try? GoalRepository.shared.updateStatus(goal, status: .completed)
                         GoalNotificationService.broadcastGoalDataChange()
                         showAchievementCelebration = false
@@ -128,13 +146,17 @@ struct GoalDetailView: View {
     }
 
     private func checkAchievementCelebrationIfNeeded() {
+        guard activeSheet == nil else { return }
         guard goal.goalStatus == .active,
               goal.isQuantitative,
               let metric = GoalMetricEvaluator.evaluate(goal: goal),
               metric.isAchieved else {
+            showAchievementCelebration = false
             return
         }
-        let key = "holo.goal.celebrated.\(goal.id.uuidString)"
+        let comparison = goal.managedObjectContext.flatMap { GoalPlanResolver.resultConfiguration(goal: goal, in: $0).source?.comparison }
+        let directionSuffix = comparison == .trendDown || comparison == .stayBelow ? ".down" : ""
+        let key = "holo.goal.celebrated.\(goal.id.uuidString)\(directionSuffix)"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
         showAchievementCelebration = true
@@ -191,28 +213,33 @@ struct GoalEditSheet: View {
     /// 与 GoalEditForm.loadAccounts 同源，onAppear 取一次不在 body 里反复 fetch
     @State private var hasActiveLedgerAccounts = true
     private let baseRevisionID: UUID?
+    private let initialDraft: GoalDraft
     let onSaved: () -> Void
 
     init(goal: Goal, onSaved: @escaping () -> Void) {
         self.goal = goal
         self.baseRevisionID = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: CoreDataStack.shared.viewContext)?.id
         self.onSaved = onSaved
-        self._draft = State(initialValue: GoalEditForm.draft(from: goal))
+        let draft = GoalEditForm.draft(from: goal)
+        self.initialDraft = draft
+        self._draft = State(initialValue: draft)
     }
 
     private var canSave: Bool {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
-            && (!criteriaChanged || criteriaConfirmed)
+            && (!requiresConfirmation || criteriaConfirmed)
     }
 
-    private var criteriaChanged: Bool {
-        let before = GoalEditForm.draft(from: goal)
+    private var requiresConfirmation: Bool {
+        let before = initialDraft
         return draft.desiredOutcome != before.desiredOutcome || draft.deadlineText != before.deadlineText
-            || draft.goalKind != before.goalKind || draft.metricTargetValue != before.metricTargetValue
+            || draft.goalKind != before.goalKind
             || draft.metricSource != before.metricSource || draft.sourceHabitId != before.sourceHabitId
-            || draft.ledgerScope != before.ledgerScope
+            || draft.ledgerScope != before.ledgerScope || draft.healthMetricKind != before.healthMetricKind
+            || draft.metricBaselineValue != before.metricBaselineValue
+            || draft.metricStartDate != before.metricStartDate
     }
 
     var body: some View {
@@ -225,12 +252,10 @@ struct GoalEditSheet: View {
             primaryHint: isSaving ? nil : GoalEditForm.disabledHint(
                 for: draft,
                 hasActiveLedgerAccounts: hasActiveLedgerAccounts,
-                criteriaUnconfirmed: criteriaChanged && !criteriaConfirmed
+                criteriaUnconfirmed: requiresConfirmation && !criteriaConfirmed
             ),
-            primaryActionColor: GoalJourneyStyle.action,
-            footerBackground: GoalJourneyStyle.sheetFooterCream,
             primaryAccessory: {
-                if criteriaChanged {
+                if requiresConfirmation {
                     Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed)
                         .holoText(.supporting)
                 }
@@ -248,6 +273,15 @@ struct GoalEditSheet: View {
             hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
         }
         .presentationDetents([.large])
+        .onChange(of: draft) { before, after in
+            if before.goalKind != after.goalKind || before.sourceHabitId != after.sourceHabitId
+                || before.metricSource != after.metricSource || before.healthMetricKind != after.healthMetricKind
+                || before.deadlineText != after.deadlineText || before.ledgerScope != after.ledgerScope
+                || before.metricBaselineValue != after.metricBaselineValue || before.desiredOutcome != after.desiredOutcome
+                || before.metricStartDate != after.metricStartDate {
+                criteriaConfirmed = false
+            }
+        }
         .alert("保存失败", isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
@@ -285,6 +319,10 @@ struct GoalEditSheet: View {
                         ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil,
                     ledgerScope: draft.isQuantitative
                         ? .some(draft.metricSource == .ledger ? draft.ledgerScope : nil) : nil,
+                    healthMetricKind: draft.isQuantitative && draft.metricSource == .healthKit ? .some(draft.healthMetricKind) : nil,
+                    metricComparison: draft.isQuantitative ? draft.metricComparison : nil,
+                    metricComparisonIsExplicit: draft.isQuantitative ? draft.metricComparisonIsExplicit : nil,
+                    metricStartDate: draft.goalKind == .cumulative && draft.metricStartDate != initialDraft.metricStartDate ? .some(draft.metricStartDate) : nil,
                     expectedPlanRevisionID: baseRevisionID
                 )
                 isSaving = false
@@ -320,63 +358,41 @@ private struct GoalAchievementCelebrationSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: HoloSpacing.xl) {
-                Spacer()
-
-                ZStack {
-                    Circle()
-                        .fill(GoalJourneyStyle.action.opacity(0.12))
-                        .frame(width: 96, height: 96)
-                    Text(goal.displayIcon)
-                        .font(.system(size: 46))
-                }
-
+        HoloSheetScaffold(
+            title: String(localized: "目标达成"),
+            onClose: onKeepActive,
+            primaryTitle: String(localized: "标记为已完成"),
+            primaryAction: onMarkCompleted,
+            primaryActionColor: GoalJourneyStyle.action,
+            primaryIdentifier: "goal-achievement-complete"
+        ) {
+            ScrollView {
                 VStack(spacing: HoloSpacing.sm) {
-                    Text("目标达成")
-                        .font(.holoTitle)
-                        .foregroundColor(.holoToolText)
-                    Text("「\(goal.title)」已经达成你的设定目标")
-                        .font(.holoBody)
-                        .foregroundColor(.holoToolTextSecondary)
+                    GoalIdentityBadge(goal: goal, size: 56)
+                    Text(goal.title)
+                        .holoText(.sectionTitle)
+                        .foregroundStyle(Color.holoToolText)
                         .multilineTextAlignment(.center)
-                }
-
-                HStack(spacing: HoloSpacing.md) {
-                    statTile(title: String(localized: "坚持天数"), value: "\(elapsedDays) 天")
-                    statTile(title: String(localized: "完成任务"), value: "\(completedTaskCount) 项")
-                    statTile(title: String(localized: "关联习惯"), value: "\(linkedHabitCount) 个")
-                }
-                .padding(.horizontal, HoloSpacing.md)
-
-                Spacer()
-
-                VStack(spacing: HoloSpacing.sm) {
-                    Button(action: onMarkCompleted) {
-                        Text("标记为已完成")
-                            .font(.holoBody)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(GoalJourneyStyle.action)
-                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    HStack(spacing: HoloSpacing.sm) {
+                        statTile(title: String(localized: "坚持天数"), value: "\(elapsedDays) 天")
+                        statTile(title: String(localized: "完成任务"), value: "\(completedTaskCount) 项")
+                        statTile(title: String(localized: "关联习惯"), value: "\(linkedHabitCount) 个")
                     }
+                    .padding(.top, HoloSpacing.sm)
 
                     Button(action: onKeepActive) {
                         Text("继续保持进行中")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoToolTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+                            .frame(minHeight: 44)
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.bottom, HoloSpacing.lg)
+                .padding(HoloSpacing.page)
             }
-            .background(Color.holoToolBackground)
-            .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.fraction(0.58), .large])
     }
 
     private func statTile(title: String, value: String) -> some View {

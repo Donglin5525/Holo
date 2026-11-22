@@ -94,10 +94,16 @@ enum DeepLinkTarget: Equatable {
     /// 纪念日模块
     case anniversaries
     case anniversaryDetail(anniversaryId: UUID)
+    /// 今日健康模块
+    case health
+    /// 回到首页今日看板
+    case dailyKanban
     /// 从 AI Chat 卡片跳转到记忆长廊；focusNewMemories=true 时由长廊切到洞察 Tab 并高亮新记忆
     case memoryGallery(focusNewMemories: Bool)
     /// 精准打开指定洞察：由 ChatView 消费，在聊天流直接落成该洞察的回放卡片
     case memoryInsight(insightId: UUID)
+    /// 小组件「追问 Holo」：由 ChatView 消费，反查完整 MemoryInsight 并挂载输入栏追问上下文
+    case insightFollowUp(insightId: UUID, fallbackPrefill: String?)
     /// 图片自动记账：直达指定待复核项（§25.3，通知点击进入；FinanceView 消费）
     case receiptReview(draftID: UUID)
     /// 图片自动记账：打开最近结果（设置页结果区；FinanceView 消费）
@@ -190,10 +196,24 @@ private extension DeepLinkTarget {
             self = .habits
         case .tasks:
             self = .tasks
+        case .taskDetail(let id):
+            self = .taskDetail(taskId: id)
         case .goalDetail(let id):
             self = .goalDetail(goalId: id)
         case .anniversaries:
             self = .anniversaries
+        case .health:
+            self = .health
+        case .memoryGallery(let focusInsights):
+            self = .memoryGallery(focusNewMemories: focusInsights)
+        case .memoryInsight(let id):
+            self = .memoryInsight(insightId: id)
+        case .insightFollowUp(let id, let fallbackPrefill):
+            self = .insightFollowUp(insightId: id, fallbackPrefill: fallbackPrefill)
+        case .chat(let prefill):
+            self = .chat(prefill: prefill)
+        case .dailyKanban:
+            self = .dailyKanban
         }
     }
 }

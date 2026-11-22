@@ -65,6 +65,12 @@ nonisolated enum CoreDataStoreUpgrade {
         ]),
         PropertyBatch(release: "1.1.8（信用卡还款提醒）", additions: [
             "Account": ["dueReminderEnabled", "dueReminderLeadDays"]
+        ]),
+        PropertyBatch(release: "习惯累计与文件夹", additions: [
+            "Habit": ["folderID", "prefersQuantityInput", "cumulativeStartDay"]
+        ]),
+        PropertyBatch(release: "习惯文件夹外观", additions: [
+            "HabitFolder": ["emoji"]
         ])
     ]
 

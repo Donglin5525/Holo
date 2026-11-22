@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 基调探索 · 方向E 生活月报·城市杂志</title>
+<script src="vendor/react.js"></script>
+<script src="vendor/react-dom.js"></script>
+<script src="vendor/babel.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700;900&family=Long+Cang&family=Archivo+Narrow:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans SC', sans-serif; background: #F2F0EB; color: #17181A; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+/* ---------- IosFrame（skill 标准设备框，勿改） ---------- */
+const iosFrameStyles = {
+  wrapper: { display:'inline-block', padding:12, background:'#000', borderRadius:60, boxShadow:'0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)', position:'relative' },
+  screen: { position:'relative', borderRadius:48, overflow:'hidden', background:'#fff' },
+  statusBar: { position:'absolute', top:0, left:0, right:0, height:54, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', fontSize:16, fontWeight:600, fontFamily:'-apple-system, "SF Pro Text", sans-serif', zIndex:20, pointerEvents:'none' },
+  dynamicIsland: { position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', width:124, height:36, background:'#000', borderRadius:999, zIndex:30 },
+  statusIcons: { display:'flex', alignItems:'center', gap:6 },
+  signalIcon: { display:'flex', alignItems:'flex-end', gap:2, height:12 },
+  signalBar: { width:3, background:'currentColor', borderRadius:1 },
+  batteryIcon: { width:26, height:12, border:'1.5px solid currentColor', borderRadius:3, padding:1, position:'relative', opacity:0.8 },
+  batteryCap: { position:'absolute', top:3, right:-3, width:2, height:6, background:'currentColor', borderRadius:'0 1px 1px 0' },
+  content: { position:'absolute', top:54, left:0, right:0, bottom:34, overflow:'auto' },
+  homeIndicator: { position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', width:140, height:5, background:'rgba(0,0,0,0.3)', borderRadius:999, zIndex:10 },
+  homeIndicatorDark: { background:'rgba(255,255,255,0.5)' },
+};
+function IosFrame({ children, width=393, height=852, time='9:41', battery=85, darkMode=false }) {
+  const textColor = darkMode ? '#fff' : '#000';
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{...iosFrameStyles.screen, width, height, background: darkMode ? '#000' : '#fff'}}>
+        <div style={{...iosFrameStyles.statusBar, color:textColor}}>
+          <span>{time}</span>
+          <div style={iosFrameStyles.statusIcons}>
+            <div style={iosFrameStyles.signalIcon}>
+              <div style={{...iosFrameStyles.signalBar, height:4}}/><div style={{...iosFrameStyles.signalBar, height:6}}/><div style={{...iosFrameStyles.signalBar, height:9}}/><div style={{...iosFrameStyles.signalBar, height:11}}/>
+            </div>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{color:textColor}}>
+              <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+              <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round"/>
+              <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.7"/>
+            </svg>
+            <div style={iosFrameStyles.batteryIcon}>
+              <div style={{width:`${battery}%`, height:'100%', background:'currentColor', borderRadius:1, opacity:0.9}}/>
+              <div style={iosFrameStyles.batteryCap}/>
+            </div>
+          </div>
+        </div>
+        <div style={iosFrameStyles.dynamicIsland}/>
+        <div style={iosFrameStyles.content}>{children}</div>
+        <div style={{...iosFrameStyles.homeIndicator, ...(darkMode ? iosFrameStyles.homeIndicatorDark : {})}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 方向E 色彩系统：白纸黑字 + 黄强调 + 红蓝手写 ---------- */
+const magC = {
+  paper: '#FDFCF8', ink: '#17181A', soft: '#707176', line: '#17181A',
+  marker: '#FFE34D',       // 马克笔黄（唯一强调底色）
+  penBlue: '#1D4ED8',      // 手写蓝 = AI 批注
+  penRed: '#D63822',       // 手写红 = 警示批注
+  gridSoft: '#F1EFE9',     // 数据格浅底
+};
+
+const magData = {
+  cats: [
+    { name:'餐饮', amount:3860, pct:30, trend:-12 },
+    { name:'房住', amount:3200, pct:25, trend:0 },
+    { name:'购物', amount:2680, pct:21, trend:+9 },
+    { name:'娱乐', amount:1580, pct:12, trend:-14 },
+    { name:'交通', amount:1240, pct:10, trend:-3 },
+    { name:'其他', amount:300, pct:2, trend:0 },
+  ],
+  days: [4,0,12,8,0,22,36, 5,0,9,14,0,0,28, 7,11,0,19,42,0,6, 8,0,15,9,31,0,12, 18,7],
+};
+
+/* ---------- 手机屏：一期生活杂志 ---------- */
+const magS = {
+  page: { background: magC.paper, minHeight:'100%', fontFamily:"'Noto Sans SC', sans-serif", color: magC.ink, padding:'16px 18px 64px' },
+  masthead: { display:'flex', justifyContent:'space-between', alignItems:'baseline', borderBottom:`2.5px solid ${magC.ink}`, paddingBottom:8 },
+  mastheadL: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:15, letterSpacing:2.5 },
+  mastheadR: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:12.5, color: magC.soft, letterSpacing:1.5 },
+  hero: { marginTop:18 },
+  heroKicker: { fontSize:12, letterSpacing:6, fontWeight:700 },
+  heroTitle: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:46, lineHeight:1.12, marginTop:8, letterSpacing:2 },
+  heroTitleLine: { background:`linear-gradient(180deg, rgba(0,0,0,0) 60%, ${magC.marker} 60%)`, padding:'0 2px' },
+  heroSub: { fontSize:13.5, color: magC.soft, marginTop:12, lineHeight:1.8 },
+  bigNumRow: { display:'flex', marginTop:22, borderTop:`2.5px solid ${magC.ink}`, borderBottom:`2.5px solid ${magC.ink}`, padding:'14px 0' },
+  bigNumCell: { flex:1, borderRight:`1px solid ${magC.ink}`, paddingRight:12, paddingLeft:4 },
+  bigNumLabel: { fontSize:11, letterSpacing:4, color: magC.soft, fontWeight:700 },
+  bigNum: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:31, marginTop:4, lineHeight:1.1, whiteSpace:'nowrap' },
+  bigNumUnit: { fontSize:13, color: magC.soft, marginLeft:2 },
+  sectionHead: { display:'flex', alignItems:'center', gap:10, marginTop:28, marginBottom:12 },
+  sectionNo: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:13, background: magC.ink, color:'#fff', padding:'2px 8px', letterSpacing:1 },
+  sectionTitle: { fontSize:16.5, fontWeight:900, letterSpacing:3 },
+  sectionPage: { marginLeft:'auto', fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:12, color: magC.soft },
+  grid: { display:'grid', gridTemplateColumns:'repeat(3, 1fr)', border:`2px solid ${magC.ink}` },
+  cell: { borderRight:'1px solid '+magC.ink, borderBottom:'1px solid '+magC.ink, padding:'10px 10px 9px', minHeight:86, position:'relative', cursor:'pointer' },
+  cellName: { fontSize:13.5, fontWeight:900, letterSpacing:2 },
+  cellNum: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:23, marginTop:5 },
+  cellPct: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:11.5, color: magC.soft },
+  cellTrend: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:11.5, marginTop:3, fontWeight:700 },
+  heatRow: { display:'flex', gap:3, marginTop:10 },
+  heatCell: { flex:1, height:30, background: magC.gridSoft, display:'flex', alignItems:'center', justifyContent:'center', fontSize:0 },
+  scribbleWrap: { position:'relative', marginTop:14, cursor:'pointer' },
+  scribble: { fontFamily:"'Long Cang','Kaiti SC','STKaiti', cursive", fontSize:21, color: magC.penBlue, transform:'rotate(-1.5deg)', lineHeight:1.4 },
+  scribbleRed: { fontFamily:"'Long Cang','Kaiti SC','STKaiti', cursive", fontSize:21, color: magC.penRed, transform:'rotate(1deg)' },
+  scribbleUnderline: { borderBottom:`2px solid ${magC.penBlue}`, paddingBottom:2 },
+  starItem: { display:'flex', marginTop:14, border:`2px solid ${magC.ink}`, background:'#fff' },
+  starTag: { background: magC.ink, color:'#fff', writingMode:'vertical-rl', fontSize:12, letterSpacing:6, padding:'10px 6px', fontWeight:700 },
+  starBody: { padding:'12px 14px', flex:1 },
+  starName: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:19 },
+  starMeta: { fontSize:12.5, color: magC.soft, marginTop:4, letterSpacing:1 },
+  starPrice: { fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:24, marginTop:8 },
+  footer: { marginTop:30, display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:`1px solid ${magC.ink}`, paddingTop:10, fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:12, color: magC.soft, letterSpacing:1.5 },
+};
+
+function MagScreen() {
+  const [activeCell, setActiveCell] = useState(0);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const maxDay = Math.max(...magData.days);
+  return (
+    <div style={magS.page}>
+      <div style={magS.masthead}>
+        <span style={magS.mastheadL}>HOLO MONTHLY</span>
+        <span style={magS.mastheadR}>VOL.11 · 2026 城市生活月报</span>
+      </div>
+
+      <div style={magS.hero}>
+        <div style={magS.heroKicker}>十一月的钱与生活</div>
+        <div style={magS.heroTitle}>
+          钱去了<span style={magS.heroTitleLine}>哪里</span>，<br/>生活就在哪里
+        </div>
+        <div style={magS.heroSub}>
+          收入一万八千五百元，支出一万二千八百六十元。月末所余，比十月厚实一截。
+          本期看点：外卖退潮、吸尘器上位、理发店的第三次光顾。
+        </div>
+      </div>
+
+      <div style={magS.bigNumRow}>
+        <div style={{...magS.bigNumCell, borderRight:'none'}}>
+          <div style={magS.bigNumLabel}>进 IN</div>
+          <div style={magS.bigNum}>18,500<span style={magS.bigNumUnit}>元</span></div>
+        </div>
+        <div style={magS.bigNumCell}>
+          <div style={magS.bigNumLabel}>出 OUT</div>
+          <div style={magS.bigNum}>12,860<span style={magS.bigNumUnit}>元</span></div>
+        </div>
+        <div style={{...magS.bigNumCell, borderRight:'none', paddingLeft:12}}>
+          <div style={{...magS.bigNumLabel, color: magC.penRed}}>余 REST</div>
+          <div style={magS.bigNum}>5,640<span style={magS.bigNumUnit}>元</span></div>
+        </div>
+      </div>
+
+      <div style={magS.sectionHead}>
+        <span style={magS.sectionNo}>01</span>
+        <span style={magS.sectionTitle}>钱分六路</span>
+        <span style={magS.sectionPage}>P.02 构成</span>
+      </div>
+      <div style={magS.grid}>
+        {magData.cats.map((c,i)=>{
+          const isHot = i===0, isStar = i===2;
+          return (
+            <div key={c.name}
+                 style={{...magS.cell, ...(i%3===2?{borderRight:'none'}:{}), ...(i>=3?{borderBottom:'none'}:{}) ,
+                   background: isHot? magC.marker : (isStar? magC.ink : '#fff'),
+                   color: isStar? '#fff' : magC.ink,
+                   outline: activeCell===i? `3px solid ${magC.penBlue}`:'none', outlineOffset:3}}
+                 onClick={()=>setActiveCell(i)}>
+              <div style={magS.cellName}>{c.name}</div>
+              <div style={magS.cellNum}>{c.amount.toLocaleString()}</div>
+              <div style={{...magS.cellPct, color:isStar?'#bbb':magC.soft}}>占 {c.pct}%</div>
+              <div style={{...magS.cellTrend, color: c.trend<0? (isStar?'#7FD98F':'#1B7A3D') : (isStar?'#FF9B8A': magC.penRed)}}>
+                {c.trend===0? '— 持平' : (c.trend<0? `↓ ${Math.abs(c.trend)}%` : `↑ ${c.trend}%`)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{fontFamily:"'Long Cang','Kaiti SC','STKaiti', cursive", fontSize:20, marginTop:10, lineHeight:1.5, transform:'rotate(-0.8deg)'}}>
+        <span style={{color: magC.penBlue}}><u>外卖 38 单 ↓12</u>，厨房重新开火了</span>
+        <span style={{color: magC.penRed, marginLeft:12, transform:'rotate(0.8deg)', display:'inline-block'}}>注意购：↑9%</span>
+      </div>
+
+      <div style={{...magS.sectionHead, marginBottom:6}}>
+        <span style={magS.sectionNo}>02</span>
+        <span style={magS.sectionTitle}>每日烧钱节奏</span>
+        <span style={magS.sectionPage}>P.03 热力</span>
+      </div>
+      <div style={magS.heatRow}>
+        {magData.days.map((v,i)=>(
+          <div key={i} style={{...magS.heatCell, background: v===0? magC.gridSoft : `rgba(23,24,26,${0.15+0.85*(v/maxDay)})`}} title={`11-${i+1} · ¥${v*40}`}/>
+        ))}
+      </div>
+      <div style={{display:'flex', justifyContent:'space-between', fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:11, color: magC.soft, marginTop:5, letterSpacing:1}}>
+        <span>DAY 01</span><span>15</span><span>30 · 深色=花得多</span>
+      </div>
+
+      <div style={magS.sectionHead}>
+        <span style={magS.sectionNo}>03</span>
+        <span style={magS.sectionTitle}>本月一件大事</span>
+        <span style={magS.sectionPage}>P.05 物件</span>
+      </div>
+      <div style={magS.starItem}>
+        <div style={magS.starTag}>最大一笔</div>
+        <div style={magS.starBody}>
+          <div style={magS.starName}>吸尘器</div>
+          <div style={magS.starMeta}>11-02 · 家电 · 购物类</div>
+          <div style={magS.starPrice}>¥1,899</div>
+        </div>
+      </div>
+
+      <div style={magS.scribbleWrap} onClick={()=>setNoteOpen(!noteOpen)}>
+        <div style={magS.scribble}>
+          Holo 记者手记：<span style={magS.scribbleUnderline}>外卖 38 单，比上月少了 12 单</span>——
+          {noteOpen? '厨房重新开火已经两个月，菜市场的会员卡用得比外卖红包勤。':'退潮，已经第二个月了。'}
+        </div>
+        <div style={{...magS.scribbleRed, marginTop:8}}>
+          理发还是那家店，第三个月了 ← 这算忠诚还是懒？
+        </div>
+        <div style={{fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontSize:11, color: magC.soft, marginTop:6, letterSpacing:1}}>
+          {noteOpen? '· AI 手记展开 · （点击收起）':'· 点击展开 Holo 的手记 ·'}
+        </div>
+      </div>
+
+      <div style={magS.footer}>
+        <span>HOLO MONTHLY · 数据为虚构示例</span>
+        <span>P.11 / NOV.2026</span>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 展示板 ---------- */
+const eBoard = {
+  board: { minHeight:'100vh', background:'#F2F0EB', padding:'56px 64px 72px', fontFamily:"'Noto Sans SC', sans-serif", color:'#17181A' },
+  head: { display:'flex', alignItems:'flex-end', gap:26, marginBottom:40 },
+  headBlock: { background:'#17181A', color:'#FFE34D', padding:'10px 18px', fontFamily:"'Archivo Narrow','Arial Narrow', sans-serif", fontWeight:700, fontSize:15, letterSpacing:2 },
+  headTitle: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:40, letterSpacing:4 },
+  headSub: { fontSize:14.5, color:'#6B6C70', marginTop:10, lineHeight:1.9, maxWidth:600 },
+  stage: { display:'flex', gap:44, alignItems:'flex-start', flexWrap:'wrap' },
+  phoneLabel: { fontSize:13, color:'#8A8B8E', letterSpacing:3, marginBottom:12 },
+  featureCol: { flex:1, minWidth:300, maxWidth:430, display:'flex', flexDirection:'column', gap:22 },
+  card: { background:'#fff', border:'2px solid #17181A', padding:'18px 20px' },
+  cardTitle: { fontSize:16, fontWeight:900, letterSpacing:3 },
+  cardBody: { fontSize:14, color:'#6B6C70', lineHeight:1.9, marginTop:6 },
+  scribbleDemo: { fontFamily:"'Long Cang','Kaiti SC','STKaiti', cursive", fontSize:22, color:'#1D4ED8', transform:'rotate(-1deg)', marginTop:10 },
+};
+
+function ECard({title, children}) {
+  return <div style={eBoard.card}><div style={eBoard.cardTitle}>{title}</div><div style={eBoard.cardBody}>{children}</div></div>;
+}
+
+function EBoard() {
+  return (
+    <div style={eBoard.board}>
+      <div style={eBoard.head}>
+        <div style={eBoard.headBlock}>Holo · Direction E</div>
+        <div>
+          <div style={eBoard.headTitle}>生活月报 · 城市杂志</div>
+          <div style={eBoard.headSub}>
+            月报做成一期 POPEYE 式的生活杂志：粗黑线数据格、马克笔下划线、窄体大数字，
+            Holo 的 AI 洞察变成红蓝手写批注，直接圈在数据旁边——智能落在物上，不另开对话框。
+          </div>
+        </div>
+      </div>
+      <div style={eBoard.stage}>
+        <div>
+          <div style={eBoard.phoneLabel}>载体 · 财务月报页（点数据格与手记可交互）</div>
+          <IosFrame><MagScreen/></IosFrame>
+        </div>
+        <div style={eBoard.featureCol}>
+          <ECard title="马克笔，只划两处">
+            <div style={{fontSize:19, fontWeight:900, fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", display:'inline-block',
+              background:'linear-gradient(180deg, rgba(0,0,0,0) 58%, #FFE34D 58%)', padding:'0 2px'}}>
+              钱去了哪里
+            </div>
+            <div style={{marginTop:8}}>全页黄色只有两处：标题关键词的下划线、「最热分类」那一格。多一处就俗。</div>
+          </ECard>
+          <ECard title="AI 批注 = 手写红蓝笔">
+            <div style={eBoard.scribbleDemo}>外卖 38 单，比上月少 12 单 ——退潮第二个月</div>
+            <div style={{fontFamily:"'Long Cang','Kaiti SC','STKaiti', cursive", fontSize:22, color:'#D63822', transform:'rotate(0.8deg)', marginTop:6}}>理发还是那家店，第三个月了</div>
+            <div style={{marginTop:8}}>蓝笔=AI 的发现，红笔=要你注意的事。手写字自带「人翻过这本账」的温度。</div>
+          </ECard>
+          <ECard title="数据格 = 杂志图解">
+            粗黑线格、黄格标最热、黑格标主角、箭头写趋势——高密度但每格一句结论，
+            对账式的精确留在 Holo 明细页，月报页负责「一眼看懂这个月」。
+          </ECard>
+          <ECard title="嗓音">
+            标题像专题名（「钱分六路」「每日烧钱节奏」），书眉页码全是杂志零件。
+            Holo 从「记账工具」变成「替你编这本生活杂志的编辑部」。
+          </ECard>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<EBoard/>);
+</script>
+</body>
+</html>

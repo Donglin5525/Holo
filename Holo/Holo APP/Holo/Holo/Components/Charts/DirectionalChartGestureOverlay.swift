@@ -37,13 +37,15 @@ struct DirectionalChartGestureOverlay: UIViewRepresentable {
     let onCancelled: () -> Void
     /// 点按回调。为 nil 时点按回退到 onEnded（与拖动结束同一出口）
     var onTap: ((CGPoint) -> Void)? = nil
+    @Environment(\.daySwipeGestureState) private var daySwipeState
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             onChanged: onChanged,
             onEnded: onEnded,
             onCancelled: onCancelled,
-            onTap: onTap
+            onTap: onTap,
+            daySwipeState: daySwipeState
         )
     }
 
@@ -80,9 +82,14 @@ struct DirectionalChartGestureOverlay: UIViewRepresentable {
         context.coordinator.onEnded = onEnded
         context.coordinator.onCancelled = onCancelled
         context.coordinator.onTap = onTap
+        context.coordinator.updateDaySwipeState(daySwipeState)
         DispatchQueue.main.async {
             context.coordinator.prioritizeChartPan(overParentScrollViewFrom: uiView)
         }
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.releaseChildGestureLockIfNeeded()
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
@@ -90,19 +97,41 @@ struct DirectionalChartGestureOverlay: UIViewRepresentable {
         var onEnded: (CGPoint) -> Void
         var onCancelled: () -> Void
         var onTap: ((CGPoint) -> Void)?
+        weak var daySwipeState: DaySwipeGestureState?
         weak var chartPanGesture: UIPanGestureRecognizer?
         weak var prioritizedParentScrollView: UIScrollView?
+        private var hasBegunChildGesture = false
 
         init(
             onChanged: @escaping (CGPoint) -> Void,
             onEnded: @escaping (CGPoint) -> Void,
             onCancelled: @escaping () -> Void,
-            onTap: ((CGPoint) -> Void)?
+            onTap: ((CGPoint) -> Void)?,
+            daySwipeState: DaySwipeGestureState?
         ) {
             self.onChanged = onChanged
             self.onEnded = onEnded
             self.onCancelled = onCancelled
             self.onTap = onTap
+            self.daySwipeState = daySwipeState
+        }
+
+        func updateDaySwipeState(_ newState: DaySwipeGestureState?) {
+            guard daySwipeState !== newState else { return }
+            releaseChildGestureLockIfNeeded()
+            daySwipeState = newState
+        }
+
+        private func acquireChildGestureLockIfNeeded() {
+            guard !hasBegunChildGesture else { return }
+            hasBegunChildGesture = true
+            daySwipeState?.beginChildGesture()
+        }
+
+        func releaseChildGestureLockIfNeeded() {
+            guard hasBegunChildGesture else { return }
+            hasBegunChildGesture = false
+            daySwipeState?.endChildGesture()
         }
 
         @objc func handlePan(_ recognizer: UIPanGestureRecognizer) {
@@ -111,10 +140,13 @@ struct DirectionalChartGestureOverlay: UIViewRepresentable {
 
             switch recognizer.state {
             case .began, .changed:
+                acquireChildGestureLockIfNeeded()
                 onChanged(location)
             case .ended:
+                releaseChildGestureLockIfNeeded()
                 onEnded(location)
             case .cancelled, .failed:
+                releaseChildGestureLockIfNeeded()
                 onCancelled()
             default:
                 break
@@ -176,6 +208,8 @@ struct DirectionalChartGestureOverlay: View {
     let onEnded: (CGPoint) -> Void
     let onCancelled: () -> Void
     var onTap: ((CGPoint) -> Void)? = nil
+    @Environment(\.daySwipeGestureState) private var daySwipeState
+    @State private var hasBegunChildGesture = false
 
     var body: some View {
         Color.clear
@@ -183,9 +217,17 @@ struct DirectionalChartGestureOverlay: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
+                        if !hasBegunChildGesture {
+                            hasBegunChildGesture = true
+                            daySwipeState?.beginChildGesture()
+                        }
                         onChanged(value.location)
                     }
                     .onEnded { value in
+                        if hasBegunChildGesture {
+                            hasBegunChildGesture = false
+                            daySwipeState?.endChildGesture()
+                        }
                         onEnded(value.location)
                     }
             )
@@ -194,6 +236,12 @@ struct DirectionalChartGestureOverlay: View {
                     onTap(location)
                 } else {
                     onEnded(location)
+                }
+            }
+            .onDisappear {
+                if hasBegunChildGesture {
+                    hasBegunChildGesture = false
+                    daySwipeState?.endChildGesture()
                 }
             }
     }

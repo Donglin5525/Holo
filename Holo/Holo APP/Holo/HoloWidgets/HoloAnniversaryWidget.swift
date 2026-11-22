@@ -5,6 +5,7 @@
 //  纪念日倒数 · 主题色渐变倒数卡 + 时光轴 + 锁屏配件（当天自动变脸庆祝）
 //
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -12,32 +13,37 @@ struct HoloAnniversaryWidget: Widget {
     let kind = HoloWidgetKind.anniversary.rawValue
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: HoloAnniversaryProvider()) { entry in
+        AppIntentConfiguration(
+            kind: kind,
+            intent: HoloAnniversaryConfigIntent.self,
+            provider: HoloAnniversaryProvider()
+        ) { entry in
             HoloAnniversaryWidgetView(entry: entry)
         }
         .configurationDisplayName(String(localized: "纪念日倒数"))
-        .description(String(localized: "重要的日子，提前看见它走来；到了当天，替你先说一声恭喜。"))
+        .description(String(localized: "重要的日子，提前看见它走来；长按编辑可固定显示某一个纪念日。"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
 
-private struct HoloAnniversaryProvider: TimelineProvider {
+private struct HoloAnniversaryProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> HoloWidgetEntry<HoloWidgetAnniversarySnapshot> {
         HoloWidgetEntry(date: Date(), value: .sample(), entitlement: .plusPreview())
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<HoloWidgetAnniversarySnapshot>) -> Void) {
-        completion(HoloWidgetEntry(
+    func snapshot(for configuration: HoloAnniversaryConfigIntent, in context: Context) async -> HoloWidgetEntry<HoloWidgetAnniversarySnapshot> {
+        HoloWidgetEntry(
             date: Date(),
-            value: .sample(),
+            value: prioritized(.sample(), selectedID: configuration.selectedAnniversary?.id),
             entitlement: widgetEntitlement(for: context)
-        ))
+        )
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetAnniversarySnapshot>>) -> Void) {
+    func timeline(for configuration: HoloAnniversaryConfigIntent, in context: Context) async -> Timeline<HoloWidgetEntry<HoloWidgetAnniversarySnapshot>> {
         let store = HoloWidgetSnapshotStore()
         let entitlement = store.readEntitlement() ?? .free()
-        let snapshot = entitlement.isPlusActive ? (store.readAnniversary() ?? .sample()) : .sample()
+        let raw = entitlement.isPlusActive ? (store.readAnniversary() ?? .sample()) : .sample()
+        let snapshot = prioritized(raw, selectedID: configuration.selectedAnniversary?.id)
         let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
 
         // 6 小时常规刷新；若有数据，叠加「跨天时刻」刷新点，保证天数翻转与当天变脸准时
@@ -48,7 +54,19 @@ private struct HoloAnniversaryProvider: TimelineProvider {
                 refreshAt = min(refreshAt, nextMidnight)
             }
         }
-        completion(Timeline(entries: [entry], policy: .after(refreshAt)))
+        return Timeline(entries: [entry], policy: .after(refreshAt))
+    }
+
+    private func prioritized(_ snapshot: HoloWidgetAnniversarySnapshot, selectedID: String?) -> HoloWidgetAnniversarySnapshot {
+        guard let selectedID,
+              let idx = snapshot.items.firstIndex(where: { $0.id.uuidString == selectedID }),
+              idx > 0 else {
+            return snapshot
+        }
+        var reordered = snapshot.items
+        let chosen = reordered.remove(at: idx)
+        reordered.insert(chosen, at: 0)
+        return HoloWidgetAnniversarySnapshot(items: reordered, updatedAt: snapshot.updatedAt)
     }
 }
 
@@ -74,7 +92,7 @@ private struct HoloAnniversaryWidgetView: View {
                 }
             } else {
                 HoloLockedWidgetView()
-                    .holoWidgetBackground(colorScheme: colorScheme)
+                    .holoLockedWidgetBackground(family: family, colorScheme: colorScheme)
             }
         }
     }

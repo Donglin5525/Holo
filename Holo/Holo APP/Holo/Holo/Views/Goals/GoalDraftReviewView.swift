@@ -740,6 +740,11 @@ struct GoalDraftReviewView: View {
                             }
                         }
                         switch source.sourceType {
+                        case .healthKit:
+                            draft.metricSource = .healthKit
+                            draft.healthMetricKind = source.healthMetricKind
+                            draft.sourceHabitId = nil
+                            draft.ledgerScope = nil
                         case .manual:
                             draft.metricSource = .manual
                             draft.sourceHabitId = nil

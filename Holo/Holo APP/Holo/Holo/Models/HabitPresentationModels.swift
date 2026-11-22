@@ -138,6 +138,9 @@ struct HabitRowSnapshot: Identifiable, Equatable {
     let trail: [HabitTrailDay]
     /// 今天是否允许记录（暂停/归档关闭今天记录按钮）
     let allowsTodayRecord: Bool
+    var folderID: UUID? = nil
+    var prefersQuantityInput = false
+    var unit = ""
 }
 
 // MARK: - 单日快照
@@ -195,6 +198,7 @@ struct HabitActionReceipt: Equatable {
     let newCheckInState: Bool?
     /// 好习惯当天首次有效记录（决定暖光；Motion 中心另有当天去重）
     let isTodayFirstCompletion: Bool
+    var removedNumericValue: Double? = nil
 }
 
 /// unchanged 的原因（「已经完成」解释当前事实，不算失败）
@@ -254,6 +258,8 @@ struct HabitEditPayload {
     var unit: HabitFieldUpdate<String> = .keep
     /// 习惯描述三态（keep = 没碰；set = 改成新文案；clear = 删掉描述）
     var habitDescription: HabitFieldUpdate<String> = .keep
+    var folderID: HabitFieldUpdate<UUID> = .keep
+    var prefersQuantityInput: HabitFieldUpdate<Bool> = .keep
     var isBadHabit: Bool
     var reminderMode: HabitReminderMode
     var reminderTime: (hour: Int, minute: Int)

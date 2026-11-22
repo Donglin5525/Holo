@@ -138,6 +138,15 @@ extension View {
             HoloWidgetShellBackground(colorScheme: colorScheme)
         }
     }
+
+    @ViewBuilder
+    func holoLockedWidgetBackground(family: WidgetFamily, colorScheme: ColorScheme) -> some View {
+        if family == .accessoryCircular || family == .accessoryRectangular || family == .accessoryInline {
+            containerBackground(for: .widget) { Color.clear }
+        } else {
+            holoWidgetBackground(colorScheme: colorScheme)
+        }
+    }
 }
 
 private struct HoloWidgetShellBackground: View {
@@ -343,7 +352,36 @@ struct HoloLockedWidgetView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Link(destination: URL(string: "holo://ai")!) {
+        switch family {
+        case .accessoryCircular:
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.28), lineWidth: 2)
+                    .padding(2)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .widgetURL(URL(string: "holo://ai"))
+            .widgetAccentable()
+        case .accessoryRectangular:
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(String(localized: "Holo Plus"))
+                        .font(.system(size: 11.5, weight: .heavy))
+                    Text(String(localized: "打开 Holo 升级使用"))
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .widgetURL(URL(string: "holo://ai"))
+            .widgetAccentable()
+        default:
             VStack(spacing: family == .systemSmall ? 9 : 11) {
                 ZStack {
                     OrganicWaveShape(phase: 0.4)
@@ -369,6 +407,7 @@ struct HoloLockedWidgetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(14)
+            .widgetURL(URL(string: "holo://ai"))
         }
     }
 }

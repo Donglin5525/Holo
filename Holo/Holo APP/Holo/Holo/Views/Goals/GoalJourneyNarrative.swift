@@ -75,7 +75,9 @@ struct GoalJourneyNarrative: View {
     }
     static func money(_ value: Decimal) -> String {
         let formatter = NumberFormatter(); formatter.locale = Locale(identifier: "zh_CN")
-        formatter.numberStyle = .decimal; formatter.maximumFractionDigits = 2
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
         return "¥" + (formatter.string(from: NSDecimalNumber(decimal: value)) ?? "—")
     }
 }

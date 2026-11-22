@@ -30,6 +30,48 @@ final class CoreDataStoreRecoveryTests: XCTestCase {
 
     // MARK: - 指纹冲突识别
 
+    func test_habitFolderUpgradePreservesExistingStoreAndRecords() throws {
+        let storeURL = workDir.appendingPathComponent("HabitBeforeFolders.sqlite")
+        let batch = try XCTUnwrap(CoreDataStoreUpgrade.propertyHistory.firstIndex {
+            $0.release == "习惯累计与文件夹"
+        })
+        let habitID = UUID()
+        let recordID = UUID()
+        try autoreleasepool {
+            let model = CoreDataStack.shared.legacyDataModel(removing: CoreDataStoreUpgrade.additions(since: batch))
+            model.entities = model.entities.filter { $0.name != "HabitFolder" }
+            let oldStore = makeSyncContainer(model: model, storeURL: storeURL)
+            XCTAssertNil(loadAndWait(oldStore))
+            let context = oldStore.viewContext
+            let habit = NSEntityDescription.insertNewObject(forEntityName: "Habit", into: context)
+            habit.setValue(habitID, forKey: "id")
+            habit.setValue("俯卧撑", forKey: "name")
+            let record = NSEntityDescription.insertNewObject(forEntityName: "HabitRecord", into: context)
+            record.setValue(recordID, forKey: "id")
+            record.setValue(habitID, forKey: "habitId")
+            record.setValue(NSNumber(value: 40), forKey: "value")
+            record.setValue(habit, forKey: "habit")
+            try context.save()
+            let store = try XCTUnwrap(oldStore.persistentStoreCoordinator.persistentStores.first)
+            try oldStore.persistentStoreCoordinator.remove(store)
+        }
+
+        let upgraded = makeSyncContainer(model: CoreDataStack.shared.createDataModel(), storeURL: storeURL)
+        let description = try XCTUnwrap(upgraded.persistentStoreDescriptions.first)
+        description.shouldMigrateStoreAutomatically = true
+        description.shouldInferMappingModelAutomatically = true
+        if let error = loadAndWait(upgraded) { throw error }
+        let habit = try XCTUnwrap(upgraded.viewContext.fetch(Habit.fetchRequest()).first)
+        let record = try XCTUnwrap(upgraded.viewContext.fetch(HabitRecord.fetchRequest()).first)
+        XCTAssertEqual(habit.id, habitID)
+        XCTAssertNil(habit.folderID)
+        XCTAssertEqual(record.id, recordID)
+        XCTAssertEqual(record.valueDouble, 40)
+        XCTAssertEqual(record.habit?.id, habitID)
+        XCTAssertEqual(try upgraded.viewContext.count(for: NSFetchRequest<HabitFolder>(entityName: "HabitFolder")), 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workDir.appendingPathComponent("StoreUpgradeBackups").path))
+    }
+
     func test_isModelMismatch_matchesCocoaConflictFamily() {
         func cocoa(_ code: Int) -> Error {
             NSError(domain: NSCocoaErrorDomain, code: code)
@@ -369,8 +411,9 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         "GoalPlanRevisionMO": "rYag1nJkfPRtCQdkWPfbDtajnruma0TiuvBlFsQJjgA=",
         "GoalReviewLinkMO": "8JNdN7j7LY7HZwBNWrtHYPWz6XgTLcH3dPT89zu3nDg=",
         "GoalWorkshopSessionMO": "pYgJBbdBRy5RhlWZwEPEkaeYGo5++H8pcGe5LKcyS5I=",
-        "Habit": "sTtC95zHqoXzSl1iZ7zs0zptX1g9lPosT1QX27K1q1E=",
+        "Habit": "p7Vzrg5dLQtdg7qny3cattuGtOLNk33p/64gFxQzszE=",
         "HabitDailyConfirmationMO": "MP5sdx6f3gV3uMUjVjvozfxmwylPv6mF4ssI67GumwE=",
+        "HabitFolder": "Pj5QC8VqlNmUcCD8yibTJXSS5wZdYgqJoR1hnLIgOms=",
         "HabitRecord": "HA+8OUQuXUOmCDv+lmEYppXSd/usihlFqMYScKp3ANM=",
         "HoloMatter": "QnFKzi5qiMscz4Qi2LiuWRs/UTzbyZhOoI7GJ4RXmow=",
         "HoloMatterEvent": "DI3IOkwbKaQYPl6oNkQleHclU1gsvMEFSJ0zuH96/bc=",
@@ -420,10 +463,16 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         "TransactionAttachment": "Co2y517EKCQINYHGpWgtLECXnnXlRbznoxBv70bTITQ=",
         "UserAvatarEntity": "RGNVTE+zZtYf/JzaxmJajBY2uPZUosC4XDgRpnKGkRQ=",
         "UserPreferenceEntity": "d2n0eWHrPSB5FoeLj71jqG8fF7dW6AiSeNin4WllQwY=",
+        "VisualAsset": "daQBTzsv64K6znyE4VU/xGHyPg5PxW+I42yNTb7m9yw=",
+        "VisualAssetTombstone": "rcyGNqZIJRGOsRRmk3X7R1W0lQygKH2hfqS80auzk2Y=",
+        "VisualPlacementRevision": "rO5j1kxinIjsCHgr+WaH+AeVXRlwAiaGcVmLn3ci0Aw=",
     ]
 
     // MARK: 历史形态锚点（真实旧库中与当前不同的实体指纹）
     static let legacyAnchors: [(release: String, note: String, hashes: [String: String])] = [
+        ("习惯文件夹外观", "文件夹增加 Emoji 前", [
+            "HabitFolder": "Bb8UNHCdxVbjm/i2/RT9ZndU648D7GVsDNVEjLB8Els=",
+        ]),
         ("1.1.8（信用卡还款提醒）", "11-09 模拟器库 · 还款提醒落地前形态", [
             "Account": "ovMHcXG4YxhTNgKPpW8eLMO0cUcZWllBCcle/nWSGkI=",
         ]),

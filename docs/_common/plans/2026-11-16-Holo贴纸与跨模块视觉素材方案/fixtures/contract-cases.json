@@ -1,0 +1,698 @@
+{
+  "contractVersion": 1,
+  "note": "契约样例，不是产品实现。短ID/occurredOrder为测试别名，生产使用规范UUID与真实Date；每组输入视为同一scope/slot或同一日。数组顺序不能改变期望。",
+  "revisionCases": [
+    {
+      "id": "V01",
+      "revisions": [],
+      "assets": {},
+      "tombstones": [],
+      "expected": {
+        "state": "none",
+        "winner": null
+      }
+    },
+    {
+      "id": "V02",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "ready",
+        "winner": "op-a"
+      }
+    },
+    {
+      "id": "V03",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-b",
+          "logicalClock": 2,
+          "writerID": "writer-a",
+          "mutationID": "op-b",
+          "action": "clear",
+          "assetID": null,
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "clear:None:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "none",
+        "winner": "op-b"
+      }
+    },
+    {
+      "id": "V04",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 4,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2028-01-01T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-b",
+          "logicalClock": 4,
+          "writerID": "writer-b",
+          "mutationID": "op-b",
+          "action": "set",
+          "assetID": "asset-b",
+          "schemaVersion": 1,
+          "changedAt": "2025-01-01T00:00:00Z",
+          "payloadHash": "set:asset-b:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready",
+        "asset-b": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "ready",
+        "winner": "op-b"
+      }
+    },
+    {
+      "id": "V05",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-b",
+          "logicalClock": 2,
+          "writerID": "writer-a",
+          "mutationID": "op-b",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 2,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v2"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "unsupported",
+        "winner": "op-b"
+      }
+    },
+    {
+      "id": "V06",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 99,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [
+        "asset-a"
+      ],
+      "expected": {
+        "state": "deleted",
+        "winner": "op-a"
+      }
+    },
+    {
+      "id": "V07",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {},
+      "tombstones": [],
+      "expected": {
+        "state": "pending",
+        "winner": "op-a"
+      }
+    },
+    {
+      "id": "V08",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-b",
+          "envelopeComplete": false
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "pending",
+        "winner": null
+      }
+    },
+    {
+      "id": "V09",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-b",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-b:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready",
+        "asset-b": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "corrupt",
+        "winner": null
+      }
+    },
+    {
+      "id": "V10",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "ready",
+        "winner": "op-a"
+      }
+    },
+    {
+      "id": "V11",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 2,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "clear",
+          "assetID": null,
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "clear:None:v1"
+        },
+        {
+          "operationID": "op-b",
+          "logicalClock": 3,
+          "writerID": "writer-a",
+          "mutationID": "op-b",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "ready",
+        "winner": "op-b"
+      }
+    },
+    {
+      "id": "V12",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1",
+          "payloadValid": false
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "corrupt",
+        "winner": "op-a"
+      }
+    },
+    {
+      "id": "V13",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-a",
+          "logicalClock": 9,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "corrupt",
+        "winner": null
+      }
+    },
+    {
+      "id": "V14",
+      "revisions": [
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2026-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        },
+        {
+          "operationID": "op-a",
+          "logicalClock": 1,
+          "writerID": "writer-a",
+          "mutationID": "op-a",
+          "action": "set",
+          "assetID": "asset-a",
+          "schemaVersion": 1,
+          "changedAt": "2029-11-17T00:00:00Z",
+          "payloadHash": "set:asset-a:v1"
+        }
+      ],
+      "assets": {
+        "asset-a": "ready"
+      },
+      "tombstones": [],
+      "expected": {
+        "state": "ready",
+        "winner": "op-a"
+      }
+    }
+  ],
+  "galleryCases": [
+    {
+      "id": "C01",
+      "events": [],
+      "loadComplete": true,
+      "manual": null,
+      "expected": {
+        "featured": null,
+        "count": 0,
+        "state": "loadedEmpty"
+      }
+    },
+    {
+      "id": "C02",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 1,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "thought:b",
+          "kind": "legacyPhoto",
+          "occurredOrder": 9,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "finance:c",
+          "kind": "other",
+          "occurredOrder": 10,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": null,
+      "expected": {
+        "featured": "thought:a",
+        "count": 3,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C03",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "thought:b",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": null,
+      "expected": {
+        "featured": "thought:a",
+        "count": 2,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C04",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "thought:b",
+          "kind": "legacyPhoto",
+          "occurredOrder": 1,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": {
+        "key": "thought:b",
+        "availability": "active"
+      },
+      "expected": {
+        "featured": "thought:b",
+        "count": 2,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C05",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": false,
+      "manual": {
+        "key": "thought:b",
+        "availability": "pending"
+      },
+      "expected": {
+        "featured": "thought:b",
+        "count": 1,
+        "state": "partial"
+      }
+    },
+    {
+      "id": "C06",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "thought:b",
+          "kind": "hero",
+          "occurredOrder": 8,
+          "visible": true,
+          "reliableTime": true,
+          "deleted": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": {
+        "key": "thought:b",
+        "availability": "deleted"
+      },
+      "expected": {
+        "featured": "thought:a",
+        "count": 1,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C07",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "text",
+          "occurredOrder": 2,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "habit:b",
+          "kind": "other",
+          "occurredOrder": 9,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "habit:b",
+          "kind": "other",
+          "occurredOrder": 9,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": null,
+      "expected": {
+        "featured": "thought:a",
+        "count": 2,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C08",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "text",
+          "occurredOrder": 1,
+          "visible": true,
+          "reliableTime": true
+        },
+        {
+          "key": "thought:b",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": true,
+      "manual": {
+        "key": "thought:a",
+        "availability": "active",
+        "assetDeleted": true
+      },
+      "expected": {
+        "featured": "thought:a",
+        "count": 2,
+        "state": "loaded"
+      }
+    },
+    {
+      "id": "C09",
+      "events": [
+        {
+          "key": "thought:a",
+          "kind": "hero",
+          "occurredOrder": 3,
+          "visible": true,
+          "reliableTime": true
+        }
+      ],
+      "loadComplete": false,
+      "manual": null,
+      "expected": {
+        "featured": "thought:a",
+        "count": 1,
+        "state": "partial"
+      }
+    }
+  ],
+  "alphaCases": [
+    {
+      "id": "A01",
+      "A": 1,
+      "R": 0,
+      "expected": 1
+    },
+    {
+      "id": "A02",
+      "A": 0,
+      "R": 1,
+      "expected": 1
+    },
+    {
+      "id": "A03",
+      "A": 0.5,
+      "R": 0.25,
+      "expected": 0.625
+    }
+  ],
+  "dayIntervalCases": [
+    {
+      "id": "D01",
+      "timezone": "Asia/Shanghai",
+      "day": "2026-11-17",
+      "expectedSeconds": 86400
+    },
+    {
+      "id": "D02",
+      "timezone": "America/New_York",
+      "day": "2026-03-08",
+      "expectedSeconds": 82800
+    },
+    {
+      "id": "D03",
+      "timezone": "America/New_York",
+      "day": "2026-11-01",
+      "expectedSeconds": 90000
+    }
+  ]
+}

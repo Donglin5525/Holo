@@ -107,6 +107,9 @@ extension HabitRepository {
         let oType = habit.type
         let oFrequency = habit.frequency
         let oAggregation = habit.aggregationType
+        let oCumulativeStartDay = habit.cumulativeStartDay
+        let oFolderID = habit.folderID
+        let oPrefersQuantity = habit.prefersQuantityInput
         let oTargetCount = habit.targetCount
         let oTargetValue = habit.targetValue
         let oUnit = habit.unit
@@ -124,6 +127,9 @@ extension HabitRepository {
             habit.type = oType
             habit.frequency = oFrequency
             habit.aggregationType = oAggregation
+            habit.cumulativeStartDay = oCumulativeStartDay
+            habit.folderID = oFolderID
+            habit.prefersQuantityInput = oPrefersQuantity
             habit.targetCount = oTargetCount
             habit.targetValue = oTargetValue
             habit.unit = oUnit
@@ -137,13 +143,35 @@ extension HabitRepository {
 
         let trimmedName = payload.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw HabitError.invalidData }
+        if case .set(let id) = payload.folderID { try validateHabitFolder(id) }
+        let requestedGoal: Goal?
+        if case .set(let goalID?) = payload.goalId {
+            let request = Goal.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", goalID as CVarArg)
+            request.fetchLimit = 1
+            guard let goal = try context.fetch(request).first else { throw HabitError.notFound }
+            requestedGoal = goal
+        } else {
+            requestedGoal = nil
+        }
 
         let typeChanged = payload.type.rawValue != habit.type
+        let aggregationChanged = payload.aggregationType != habit.configuredAggregationType
+        if typeChanged || aggregationChanged {
+            if !typeChanged, habit.isNumericType, payload.aggregationType == .sum,
+               hasRecordedMeasurement(for: habit) {
+                let dayEndMinutes = payload.dayEndTime.hour * 60 + payload.dayEndTime.minute
+                // 保留旧版能识别的测量配置，升级版从生效日使用累计。
+                habit.cumulativeStartDay = habit.nextCumulativeDay(dayEndMinutes: dayEndMinutes)
+            } else {
+                habit.habitAggregationType = payload.aggregationType
+                habit.cumulativeStartDay = nil
+            }
+        }
         habit.name = trimmedName
         habit.icon = payload.icon
         habit.color = payload.color
         habit.frequency = payload.frequency.rawValue
-        habit.aggregationType = payload.aggregationType.rawValue
         habit.isBadHabit = payload.isBadHabit
         habit.habitReminderMode = payload.reminderMode
         habit.reminderTime = payload.reminderTime
@@ -173,20 +201,19 @@ extension HabitRepository {
         case .set(let value): habit.habitDescription = Habit.normalizedDescription(value)
         case .clear: habit.habitDescription = nil
         }
+        switch payload.folderID {
+        case .keep: break
+        case .set(let id): habit.folderID = id
+        case .clear: habit.folderID = nil
+        }
+        switch payload.prefersQuantityInput {
+        case .keep: break
+        case .set(let enabled): habit.prefersQuantityInput = NSNumber(value: enabled)
+        case .clear: habit.prefersQuantityInput = nil
+        }
         switch payload.goalId {
         case .keep: break
-        case .set(let goalId):
-            if let goalId {
-                let request = Goal.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", goalId as CVarArg)
-                request.fetchLimit = 1
-                guard let goal = try context.fetch(request).first else {
-                    throw HabitError.notFound  // 关系指向的目标不存在：报错重试，不静默丢关系
-                }
-                habit.goal = goal
-            } else {
-                habit.goal = nil
-            }
+        case .set: habit.goal = requestedGoal
         case .clear: habit.goal = nil
         }
 
@@ -244,7 +271,8 @@ extension HabitRepository {
                 date: record.date,
                 isCompleted: record.isCompleted,
                 value: record.valueDouble,
-                isRetroactive: record.isRetroactive
+                isRetroactive: record.isRetroactive,
+                recordedAt: record.isRetroactive ? record.createdAt : record.date
             )
         }
     }

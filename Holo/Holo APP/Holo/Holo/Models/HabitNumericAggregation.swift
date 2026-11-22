@@ -11,6 +11,13 @@ import Foundation
 struct HabitNumericSample {
     let date: Date
     let value: Double?
+    let recordedAt: Date
+
+    init(date: Date, value: Double?, recordedAt: Date? = nil) {
+        self.date = date
+        self.value = value
+        self.recordedAt = recordedAt ?? date
+    }
 }
 
 /// 数值型习惯按日聚合后的结果。
@@ -31,24 +38,30 @@ enum HabitNumericAggregator {
         isCountType: Bool,
         calendar: Calendar = .current
     ) -> [HabitDailyNumericValue] {
+        aggregateDaily(samples: samples, calendar: calendar) { _ in isCountType }
+    }
+
+    static func aggregateDaily(
+        samples: [HabitNumericSample],
+        calendar: Calendar = .current,
+        isCountOnDay: (Date) -> Bool
+    ) -> [HabitDailyNumericValue] {
         var validSamplesByDay: [Date: [HabitNumericSample]] = [:]
 
         for sample in samples {
-            guard let value = sample.value, value.isFinite else { continue }
+            guard sample.value?.isFinite == true else { continue }
             let dayStart = calendar.startOfDay(for: sample.date)
-            validSamplesByDay[dayStart, default: []].append(
-                HabitNumericSample(date: sample.date, value: value)
-            )
+            validSamplesByDay[dayStart, default: []].append(sample)
         }
 
         return validSamplesByDay.compactMap { dayStart, daySamples in
-            if isCountType {
+            if isCountOnDay(dayStart) {
                 let total = daySamples.compactMap(\.value).reduce(0, +)
                 return HabitDailyNumericValue(date: dayStart, value: total)
             }
 
             guard let latestValue = daySamples
-                .max(by: { $0.date < $1.date })?
+                .max(by: { ($0.date, $0.recordedAt) < ($1.date, $1.recordedAt) })?
                 .value else {
                 return nil
             }

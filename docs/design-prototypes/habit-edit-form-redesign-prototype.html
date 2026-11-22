@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-zcode-design>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新建/编辑习惯表单 · 重设计</title>
+<style>
+  :root {
+    --bg: #FDFCF8;
+    --surface: #FFFFFF;
+    --inset: #F7F1EA;
+    --text: #333333;
+    --text-2: #6E6E6E;
+    --text-3: #9C948A;
+    --border: #E9E4DA;
+    --brand: #EA580C;
+    --brand-bright: #F46D38;
+    --brand-soft: rgba(234,88,12,0.09);
+    --success: #166534;
+    --radius-card: 16px;
+    --radius-sm: 10px;
+    font-size: 16px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background:#EFEDE6; color:var(--text);
+    padding:40px 24px 72px;
+  }
+  .page-title { text-align:center; font-size:20px; font-weight:700; margin-bottom:6px; }
+  .page-sub { text-align:center; font-size:13px; color:var(--text-2); margin-bottom:36px; }
+  .stage { display:flex; gap:32px; justify-content:center; flex-wrap:wrap; align-items:flex-start; }
+  .frame-wrap { width:390px; }
+  .frame-label { text-align:center; font-size:14px; font-weight:600; color:var(--text-2); margin-bottom:12px; }
+
+  .phone {
+    width:390px; height:740px; border-radius:44px; overflow:hidden;
+    background:var(--bg); border:1px solid #D8D4C8;
+    box-shadow:0 24px 60px rgba(60,50,30,.18);
+    display:flex; flex-direction:column;
+  }
+
+  /* ===== 导航栏 ===== */
+  .nav {
+    display:flex; align-items:center; justify-content:space-between;
+    position:relative; padding:18px 16px 10px; flex:none;
+  }
+  .nav .x {
+    width:36px; height:36px; border-radius:18px; display:flex; align-items:center; justify-content:center;
+    color:var(--text-2); cursor:pointer; flex:none;
+  }
+  .nav .x:active { background:var(--inset); }
+  .nav .title { position:absolute; left:50%; transform:translateX(-50%); font-size:17px; font-weight:700; }
+  .nav .save {
+    border:none; border-radius:16px; background:var(--brand); color:#fff;
+    font-size:14px; font-weight:600; font-family:inherit; padding:7px 14px; cursor:pointer; flex:none;
+  }
+  .nav .save:active { opacity:.8; }
+  .nav .save:disabled { background:var(--inset); color:var(--text-3); opacity:1; }
+
+  .scroll { flex:1; overflow-y:auto; padding:12px 20px 28px; }
+  .scroll::-webkit-scrollbar { width:0; }
+
+  .card {
+    background:var(--surface); border-radius:var(--radius-card);
+    border:0.5px solid var(--border);
+    box-shadow:0 1px 2px rgba(60,50,30,.04), 0 3px 10px rgba(60,50,30,.04);
+    margin-bottom:16px; overflow:hidden;
+  }
+  .card-label {
+    font-size:13px; font-weight:600; color:var(--text-2);
+    padding:14px 16px 0;
+  }
+
+  /* ===== 名称卡 ===== */
+  .name-input {
+    display:flex; align-items:center; gap:8px;
+    padding:2px 16px 0; min-height:52px;
+  }
+  .name-input input {
+    border:none; outline:none; background:transparent; font-family:inherit;
+    font-size:17px; font-weight:600; color:var(--text); flex:1;
+  }
+  .name-input input::placeholder { color:var(--text-3); font-weight:400; }
+  .divider { height:0.5px; background:var(--border); margin:0 16px; }
+  .desc-input { display:flex; align-items:center; gap:8px; padding:0 16px; min-height:48px; }
+  .desc-input input {
+    border:none; outline:none; background:transparent; font-family:inherit;
+    font-size:15px; color:var(--text); flex:1;
+  }
+  .desc-input input::placeholder { color:var(--text-3); }
+  .desc-input .count { font-size:12px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+
+  /* ===== 记录方式 ===== */
+  .seg-wrap { padding:12px 16px 12px; }
+  .segmented {
+    display:flex; background:var(--inset); border-radius:12px; padding:3px; position:relative;
+  }
+  .segmented button {
+    flex:1; border:none; background:transparent; font-family:inherit;
+    font-size:14px; font-weight:600; color:var(--text-2);
+    padding:9px 0; border-radius:9px; cursor:pointer; position:relative; z-index:1;
+    transition:color .2s;
+  }
+  .segmented button.active { color:var(--text); }
+  .seg-thumb {
+    position:absolute; top:3px; bottom:3px; width:calc((100% - 6px)/3);
+    background:var(--surface); border-radius:9px;
+    box-shadow:0 1px 4px rgba(60,50,30,.12), 0 0 0 0.5px rgba(60,50,30,.04);
+    transition:left .25s cubic-bezier(.32,.72,.28,1);
+  }
+
+
+
+  /* 单位行 */
+  .unit-row { padding:4px 16px 0; animation:fadein .25s; }
+  .unit-row .lbl { font-size:13px; font-weight:600; color:var(--text-2); margin-bottom:8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    border:1px solid var(--border); background:var(--surface); color:var(--text);
+    font-family:inherit; font-size:15px; font-weight:500;
+    padding:6px 12px; border-radius:18px; cursor:pointer; transition:all .15s;
+  }
+  .chip:active { transform:scale(.95); }
+  .chip.on {
+    background:var(--brand-soft); border-color:var(--brand); color:var(--brand);
+    font-weight:600; box-shadow:inset 0 0 0 0.5px var(--brand);
+  }
+  .chip.custom {
+    display:flex; align-items:center; gap:4px; min-width:76px; justify-content:center;
+  }
+  .chip.custom input {
+    border:none; outline:none; background:transparent; font-family:inherit;
+    font-size:15px; color:var(--text); width:44px; text-align:center;
+  }
+  .chip.custom.on input { color:var(--brand); font-weight:700; }
+
+  /* 快捷操作两卡 */
+  .quick-row { display:flex; gap:10px; padding:4px 16px 12px; animation:fadein .25s; }
+  .qcard {
+    flex:1; border:1px solid var(--border); border-radius:12px;
+    background:var(--surface); cursor:pointer; padding:12px;
+    text-align:center; transition:all .15s; position:relative;
+  }
+  .qcard:active { transform:scale(.97); }
+  .qcard .ic {
+    width:36px; height:36px; border-radius:12px; margin:0 auto 8px;
+    background:var(--inset); display:flex; align-items:center; justify-content:center;
+    color:var(--text-2); transition:all .15s;
+  }
+  .qcard .t { font-size:15px; font-weight:600; }
+  .qcard.on {
+    border-color:var(--brand); background:var(--brand-soft);
+  }
+  .qcard.on .ic { background:var(--brand); color:#fff; }
+  @keyframes fadein { from { opacity:0; transform:translateY(-4px);} to { opacity:1; transform:none; } }
+
+  /* 坏习惯行 */
+  .bad-row {
+    display:flex; align-items:center; gap:8px;
+    padding:12px 16px; min-height:48px;
+  }
+  .bad-row .t { font-size:17px; font-weight:400; }
+  .switch {
+    margin-left:auto; width:51px; height:31px; border-radius:15.5px;
+    background:var(--border); position:relative; cursor:pointer; transition:background .2s; flex:none;
+  }
+  .switch i {
+    position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:13.5px;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.08);
+    transition:left .2s;
+  }
+  .switch.on { background:var(--brand); }
+  .switch.on i { left:22px; }
+
+  /* ===== 外观卡 ===== */
+  .look-row { display:flex; align-items:center; gap:12px; padding:12px 16px; min-height:48px; cursor:pointer; }
+  .look-icon {
+    width:40px; height:40px; border-radius:12px; background:rgba(59,118,201,.12);
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .look-row .t { font-size:17px; flex:1; }
+  .look-row .chev { color:var(--text-3); flex:none; }
+  .colors { display:flex; padding:8px 8px 12px; }
+  .colors .c {
+    flex:1; display:flex; justify-content:center; cursor:pointer; padding:6px 0;
+  }
+  .colors .c i {
+    width:26px; height:26px; border-radius:13px; display:block; position:relative;
+    transition:transform .15s;
+  }
+  .colors .c:active i { transform:scale(1.2); }
+  .colors .c.on i::after {
+    content:""; position:absolute; inset:-6px; border-radius:19px; border:2px solid var(--text);
+  }
+
+  /* ===== 更多设置 ===== */
+  .more-row { display:flex; align-items:center; padding:12px 16px; min-height:48px; cursor:pointer; }
+  .more-row .t { font-size:17px; }
+  .more-row .sum {
+    font-size:13px; color:var(--text-2); margin-left:auto; margin-right:6px;
+    max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .more-row .chev { color:var(--text-3); transition:transform .2s; }
+  .more-row.open .chev { transform:rotate(90deg); }
+
+  /* 转换提示条 */
+  .convert {
+    display:flex; gap:8px; align-items:flex-start;
+    background:var(--inset); border-radius:12px;
+    padding:12px 14px; margin-bottom:16px; font-size:13px; line-height:1.5;
+    color:var(--text-2); animation:fadein .3s;
+  }
+  .convert svg { flex:none; margin-top:1px; color:var(--brand); }
+  .convert b { color:var(--text); font-weight:600; }
+
+  /* 底部安全区 */
+  .safe { height:10px; }
+</style>
+</head>
+<body>
+<div class="page-title">新建 / 编辑习惯表单 · 重设计</div>
+<div class="page-sub">第②张可交互：记录方式三档、单位、列表快捷操作全部可点 · 其余三张为静态状态</div>
+
+<div class="stage">
+
+  <!-- ========== ① 新建 · 打卡（默认态） ========== -->
+  <div class="frame-wrap">
+    <div class="frame-label">① 新建 · 打卡档（默认）</div>
+    <div class="phone">
+      <div class="nav">
+        <div class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="title">新建习惯</div>
+        <button class="save" disabled>保存</button>
+      </div>
+      <div class="scroll">
+        <div class="card">
+          <div class="name-input"><input placeholder="起个名字，如：早起、喝水" id="n1"></div>
+          <div class="divider"></div>
+          <div class="desc-input">
+            <input placeholder="一句话，为什么开始（选填）">
+            <span class="count">0/16</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">记录方式</div>
+          <div class="seg-wrap">
+            <div class="segmented">
+              <div class="seg-thumb" style="left:3px"></div>
+              <button class="active">打卡</button><button>累计</button><button>测量</button>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="bad-row">
+            <span class="t">这是想减少的事</span>
+            <div class="switch"><i></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="look-row">
+            <div class="look-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B76C9" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M3 12h18" opacity="0"/><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></div>
+            <span class="t">图标与颜色</span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="divider"></div>
+          <div class="colors">
+            <div class="c on"><i style="background:#3B76C9"></i></div>
+            <div class="c"><i style="background:#D9662C"></i></div>
+            <div class="c"><i style="background:#2FA360"></i></div>
+            <div class="c"><i style="background:#8063CE"></i></div>
+            <div class="c"><i style="background:#A87B0F"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="more-row">
+            <span class="t">更多设置</span>
+            <span class="sum">每天 · 无目标 · 凌晨 0 点结算</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+        </div>
+        <div class="safe"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ② 新建 · 累计（可交互痛点态） ========== -->
+  <div class="frame-wrap">
+    <div class="frame-label">② 新建 · 累计档（可交互）</div>
+    <div class="phone">
+      <div class="nav">
+        <div class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="title">新建习惯</div>
+        <button class="save" disabled>保存</button>
+      </div>
+      <div class="scroll">
+        <div class="card">
+          <div class="name-input"><input placeholder="起个名字，如：俯卧撑、喝水" value="俯卧撑" id="n2"></div>
+          <div class="divider"></div>
+          <div class="desc-input">
+            <input placeholder="一句话，为什么开始（选填）">
+            <span class="count">0/16</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">记录方式</div>
+          <div class="seg-wrap">
+            <div class="segmented" id="seg2">
+              <div class="seg-thumb" id="thumb2" style="left:calc((100% - 6px)/3 + 3px)"></div>
+              <button onclick="setMethod(0)">打卡</button>
+              <button class="active" onclick="setMethod(1)">累计</button>
+              <button onclick="setMethod(2)">测量</button>
+            </div>
+          </div>
+
+          <!-- 数值档附属：单位 -->
+          <div class="unit-row" id="unit2">
+            <div class="lbl">单位</div>
+            <div class="chips" id="chips2">
+              <button class="chip on" onclick="setUnit(this,'个')">个</button>
+              <button class="chip" onclick="setUnit(this,'杯')">杯</button>
+              <button class="chip" onclick="setUnit(this,'分钟')">分钟</button>
+              <button class="chip" onclick="setUnit(this,'kg')">kg</button>
+              <div class="chip custom" onclick="setUnit(this,'')">
+                <input placeholder="自定义" oninput="this.parentElement.classList.add('on');clearChips(this)">
+              </div>
+            </div>
+          </div>
+
+          <!-- 累计档附属：快捷操作 -->
+          <div class="quick-row" id="quick2">
+            <div class="qcard on" id="q-a" onclick="setQuick('a')">
+<div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 10h18M8 15h4"/></svg></div>
+              <div class="t">输入数量</div>
+            </div>
+            <div class="qcard" id="q-b" onclick="setQuick('b')">
+<div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+              <div class="t">快捷 +1</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="bad-row">
+            <span class="t">这是想减少的事</span>
+            <div class="switch" onclick="this.classList.toggle('on')"><i></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="look-row">
+            <div class="look-icon" style="background:rgba(14,165,233,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"><path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/></svg></div>
+            <span class="t">图标与颜色</span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="divider"></div>
+          <div class="colors">
+            <div class="c"><i style="background:#3B76C9"></i></div>
+            <div class="c"><i style="background:#D9662C"></i></div>
+            <div class="c on"><i style="background:#0EA5E9"></i></div>
+            <div class="c"><i style="background:#8063CE"></i></div>
+            <div class="c"><i style="background:#A87B0F"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="more-row" onclick="this.classList.toggle('open')">
+            <span class="t">更多设置</span>
+            <span class="sum">每天 · 目标 30 个 · 凌晨 0 点结算</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+        </div>
+        <div class="safe"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ③ 新建 · 测量 ========== -->
+  <div class="frame-wrap">
+    <div class="frame-label">③ 新建 · 测量档（体重类）</div>
+    <div class="phone">
+        <div class="nav">
+          <div class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+          <div class="title">新建习惯</div>
+          <button class="save">保存</button>
+        </div>
+        <div class="scroll">
+          <div class="card">
+            <div class="name-input"><input placeholder="起个名字，如：体重、血压" value="体重"></div>
+          <div class="divider"></div>
+          <div class="desc-input">
+            <input placeholder="一句话，为什么开始（选填）">
+            <span class="count">0/16</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">记录方式</div>
+          <div class="seg-wrap">
+            <div class="segmented">
+              <div class="seg-thumb" style="left:calc((100% - 6px)/3*2 + 3px)"></div>
+              <button>打卡</button><button>累计</button><button class="active">测量</button>
+            </div>
+          </div>
+
+          <div class="unit-row">
+            <div class="lbl">单位</div>
+            <div class="chips">
+              <button class="chip">kg</button>
+              <button class="chip on">斤</button>
+              <button class="chip">bpm</button>
+              <button class="chip">mmHg</button>
+              <div class="chip custom"><input placeholder="自定义"></div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="bad-row">
+            <span class="t">这是想减少的事</span>
+            <div class="switch"><i></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="look-row">
+            <div class="look-icon" style="background:rgba(128,99,206,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8063CE" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 12l3.5-3.5"/></svg></div>
+            <span class="t">图标与颜色</span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="divider"></div>
+          <div class="colors">
+            <div class="c"><i style="background:#3B76C9"></i></div>
+            <div class="c"><i style="background:#D9662C"></i></div>
+            <div class="c"><i style="background:#2FA360"></i></div>
+            <div class="c on"><i style="background:#8063CE"></i></div>
+            <div class="c"><i style="background:#A87B0F"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="more-row">
+            <span class="t">更多设置</span>
+            <span class="sum">每天 · 无目标 · 凌晨 0 点结算</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+        </div>
+        <div class="safe"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ④ 编辑 · 俯卧撑刚转累计 ========== -->
+  <div class="frame-wrap">
+    <div class="frame-label">④ 编辑 · 俯卧撑（测量→累计，带转换预告）</div>
+    <div class="phone">
+      <div class="nav">
+        <div class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="title">编辑习惯</div>
+        <button class="save">保存</button>
+      </div>
+      <div class="scroll">
+        <div class="convert">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 018-8c2.5 0 4.7 1.1 6.2 2.9M20 12a8 8 0 01-8 8c-2.5 0-4.7-1.1-6.2-2.9"/><path d="M18.5 3v4h-4M5.5 21v-4h4"/></svg>
+          <span><b>11月22日</b> 起开始累计，之前仍按测量显示</span>
+        </div>
+
+        <div class="card">
+          <div class="name-input"><input value="俯卧撑"></div>
+          <div class="divider"></div>
+          <div class="desc-input">
+            <input placeholder="一句话，为什么开始（选填）" value="练出好看的胸">
+            <span class="count">5/16</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">记录方式</div>
+          <div class="seg-wrap">
+            <div class="segmented">
+              <div class="seg-thumb" style="left:calc((100% - 6px)/3 + 3px)"></div>
+              <button>打卡</button><button class="active">累计</button><button>测量</button>
+            </div>
+          </div>
+
+          <div class="unit-row">
+            <div class="lbl">单位</div>
+            <div class="chips">
+              <button class="chip on">个</button>
+              <button class="chip">杯</button>
+              <button class="chip">分钟</button>
+              <button class="chip">kg</button>
+              <div class="chip custom"><input placeholder="自定义"></div>
+            </div>
+          </div>
+
+          <div class="quick-row">
+            <div class="qcard on">
+<div class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 10h18M8 15h4"/></svg></div>
+              <div class="t">输入数量</div>
+            </div>
+            <div class="qcard">
+<div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+              <div class="t">快捷 +1</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="bad-row">
+            <span class="t">这是想减少的事</span>
+            <div class="switch"><i></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="look-row">
+            <div class="look-icon" style="background:rgba(14,165,233,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round"><path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/></svg></div>
+            <span class="t">图标与颜色</span>
+            <svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+          <div class="divider"></div>
+          <div class="colors">
+            <div class="c"><i style="background:#3B76C9"></i></div>
+            <div class="c"><i style="background:#D9662C"></i></div>
+            <div class="c on"><i style="background:#0EA5E9"></i></div>
+            <div class="c"><i style="background:#8063CE"></i></div>
+            <div class="c"><i style="background:#A87B0F"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="more-row">
+            <span class="t">更多设置</span>
+            <span class="sum">每天 · 目标 30 个 · 凌晨 0 点结算</span>
+            <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+          </div>
+        </div>
+        <div class="safe"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var thumb2 = document.getElementById('thumb2');
+  var unit2 = document.getElementById('unit2');
+  var quick2 = document.getElementById('quick2');
+  var segBtns = document.querySelectorAll('#seg2 button');
+  var n2 = document.getElementById('n2');
+  var save2 = document.querySelectorAll('.frame-wrap:nth-child(2) .save')[0];
+
+  window.setMethod = function(i) {
+    segBtns.forEach(function(b, k){ b.classList.toggle('active', k === i); });
+    thumb2.style.left = i === 0 ? '3px'
+      : 'calc((100% - 6px)/3*' + i + ' + 3px)';
+    unit2.style.display = i === 0 ? 'none' : '';
+    quick2.style.display = i === 1 ? '' : 'none';
+  };
+
+  window.setUnit = function(el, v) {
+    var chips = el.parentElement.querySelectorAll('.chip');
+    chips.forEach(function(c){ c.classList.remove('on'); });
+    el.classList.add('on');
+    if (!v) {
+      var inp = el.querySelector('input');
+      if (inp) { inp.placeholder = ''; inp.focus(); }
+    }
+  };
+  window.clearChips = function(input) {
+    var chips = input.parentElement.parentElement.querySelectorAll('.chip');
+    chips.forEach(function(c){ if (!c.contains(input)) c.classList.remove('on'); });
+  };
+
+  window.setQuick = function(which) {
+    document.getElementById('q-a').classList.toggle('on', which === 'a');
+    document.getElementById('q-b').classList.toggle('on', which === 'b');
+  };
+
+  // 名称非空 → 保存可点
+  if (n2 && save2) {
+    var sync = function(){ save2.disabled = !n2.value.trim(); };
+    n2.addEventListener('input', sync); sync();
+  }
+})();
+</script>
+</body>
+</html>

@@ -24,7 +24,7 @@ extension HabitRepository {
 
         let records = getRecords(for: habit, in: range)
         let completedCheckInDays = records.filter { $0.isCompleted }.count
-        let dailyNumericValues = aggregateDailyNumericValues(for: habit, records: records, calendar: calendar)
+        let dailyNumericValues = aggregateDailyNumericValues(for: habit, records: records, calendar: calendar).map(\.value)
 
         return HabitPerformanceEvaluator.evaluate(
             habitName: habit.name,
@@ -38,18 +38,6 @@ extension HabitRepository {
         )
     }
 
-    private func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord], calendar: Calendar) -> [Double] {
-        guard habit.isNumericType else { return [] }
-        let dayEnd = habit.dayEndMinutes
-        return HabitNumericAggregator.aggregateDaily(
-            samples: records.map {
-                HabitNumericSample(date: $0.attributedMoment(dayEndMinutes: dayEnd, calendar: calendar), value: $0.valueDouble)
-            },
-            isCountType: habit.isCountType,
-            calendar: calendar
-        ).map(\.value)
-    }
-
     /// 全历史累计：打卡型好习惯 = 已完成次数（一天一条记录，取消重打复用同条不双计，补签计入）；
     /// 计数类 = 历史所有记录数值总和（与统计页当月累计同口径）。
     /// 坏习惯与测量类无「累计」概念，返回 nil（UI 不展示）。
@@ -61,7 +49,10 @@ extension HabitRepository {
             return Double(records.filter { $0.isCompleted }.count)
         }
         guard habit.isCountType else { return nil }
-        return records.compactMap { $0.valueDouble }.reduce(0, +)
+        let calendar = Calendar.current
+        return records.lazy.filter {
+            habit.isCountType(on: $0.attributedDay(dayEndMinutes: habit.dayEndMinutes, calendar: calendar))
+        }.compactMap(\.valueDouble).filter(\.isFinite).reduce(0, +)
     }
 
     /// 获取总览统计数据
@@ -204,19 +195,8 @@ extension HabitRepository {
 
         if habit.isBadHabit, let targetValue = habit.targetValueDouble {
             // 坏习惯：按天聚合值，统计未超标（值 <= 目标值）的天数 + 无记录天数
-            var dailyValues: [Date: Double] = [:]
-            for record in records {
-                guard let value = record.value?.doubleValue else { continue }
-                let dayStart = record.attributedDay(dayEndMinutes: dayEnd, calendar: calendar)
-
-                if habit.isCountType {
-                    dailyValues[dayStart, default: 0] += value
-                } else {
-                    dailyValues[dayStart] = value
-                }
-            }
-
-            let exceededDays = dailyValues.values.filter { $0 > targetValue }.count
+            let daily = aggregateDailyNumericValues(for: habit, records: records, calendar: calendar)
+            let exceededDays = daily.filter { $0.value > targetValue }.count
             let controlledDays = max(dayCount - exceededDays, 0)
             return dayCount > 0 ? Double(controlledDays) / Double(dayCount) * 100 : 0
         } else {
@@ -410,20 +390,10 @@ extension HabitRepository {
         } else {
             // 数值型坏习惯：聚合值 > 目标值 = 超标
             let targetValue = habit.targetValueDouble ?? 0
-            var dailyValues: [Date: Double] = [:]
-            for record in records {
-                let dayStart = record.attributedDay(dayEndMinutes: dayEnd, calendar: calendar)
-                recordedDays.insert(dayStart)
-                if let value = record.value?.doubleValue {
-                    if habit.isCountType {
-                        dailyValues[dayStart, default: 0] += value
-                    } else {
-                        dailyValues[dayStart] = value
-                    }
-                }
-            }
-            for (day, value) in dailyValues where value > targetValue {
-                exceededDays.insert(day)
+            recordedDays = Set(records.map { $0.attributedDay(dayEndMinutes: dayEnd, calendar: calendar) })
+            let daily = aggregateDailyNumericValues(for: habit, records: records, calendar: calendar)
+            for point in daily where point.value > targetValue {
+                exceededDays.insert(point.date)
             }
         }
 

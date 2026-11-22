@@ -54,6 +54,22 @@ nonisolated struct HoloWidgetSnapshotStore {
         try write(selection, fileName: HoloWidgetSharedContainer.thoughtWalkSelectionFileName)
     }
 
+    func writeHealth(_ snapshot: HoloWidgetHealthSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.healthFileName)
+    }
+
+    func writeInsightPool(_ snapshot: HoloWidgetInsightPoolSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.insightPoolFileName)
+    }
+
+    func writeInsightSelection(_ selection: HoloWidgetInsightSelection) throws {
+        try write(selection, fileName: HoloWidgetSharedContainer.insightSelectionFileName)
+    }
+
+    func writeMemory(_ snapshot: HoloWidgetMemorySnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.memoryFileName)
+    }
+
     func readQuickActions() -> HoloWidgetQuickActionsSnapshot? {
         read(HoloWidgetQuickActionsSnapshot.self, fileName: HoloWidgetSharedContainer.quickActionsFileName)
     }
@@ -92,6 +108,22 @@ nonisolated struct HoloWidgetSnapshotStore {
 
     func readThoughtWalkSelection() -> HoloWidgetThoughtWalkSelection? {
         read(HoloWidgetThoughtWalkSelection.self, fileName: HoloWidgetSharedContainer.thoughtWalkSelectionFileName)
+    }
+
+    func readHealth() -> HoloWidgetHealthSnapshot? {
+        read(HoloWidgetHealthSnapshot.self, fileName: HoloWidgetSharedContainer.healthFileName)
+    }
+
+    func readInsightPool() -> HoloWidgetInsightPoolSnapshot? {
+        read(HoloWidgetInsightPoolSnapshot.self, fileName: HoloWidgetSharedContainer.insightPoolFileName)
+    }
+
+    func readInsightSelection() -> HoloWidgetInsightSelection? {
+        read(HoloWidgetInsightSelection.self, fileName: HoloWidgetSharedContainer.insightSelectionFileName)
+    }
+
+    func readMemory() -> HoloWidgetMemorySnapshot? {
+        read(HoloWidgetMemorySnapshot.self, fileName: HoloWidgetSharedContainer.memoryFileName)
     }
 
     private func write<T: Encodable>(_ value: T, fileName: String) throws {
@@ -145,5 +177,16 @@ extension HoloWidgetSnapshotStore {
             return pool.items[max(0, min(pool.featuredIndex, pool.items.count - 1))]
         }
         return readThoughtMemory()
+    }
+
+    /// 每日洞察小组件当前应展示的那一条：当天手选换过→手选条；否则→最新第一条。
+    func resolvedInsightItem(on date: Date = Date()) -> HoloWidgetInsightItem? {
+        guard let pool = readInsightPool(), !pool.items.isEmpty else { return nil }
+        if let selection = readInsightSelection(),
+           selection.isActive(on: date),
+           let selected = pool.items.first(where: { $0.id == selection.insightId }) {
+            return selected
+        }
+        return pool.items.first
     }
 }

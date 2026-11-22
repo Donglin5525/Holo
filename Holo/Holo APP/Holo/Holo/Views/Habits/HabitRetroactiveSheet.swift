@@ -323,7 +323,7 @@ struct HabitRetroactiveSheet: View {
 
                 if habit.isCheckInType {
                     streakEffectCard
-                } else if habit.isCountType {
+                } else if !requiresQuantity {
                     Text("将为该日补 1 次记录")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
@@ -490,12 +490,16 @@ struct HabitRetroactiveSheet: View {
         return String(localized: "确认\(verb)")
     }
 
-    /// 测量类必须输入有效数值；其他类型恒可提交
+    private var requiresQuantity: Bool {
+        guard let day = selectedDay, habit.isNumericType else { return false }
+        return !habit.isCountType(on: day) || habit.prefersQuantityInput?.boolValue == true
+    }
+
     private var canSubmit: Bool {
-        if habit.isNumericType && !habit.isCountType {
-            guard let value = Double(inputValue), value > 0 else { return false }
-        }
-        return true
+        guard let day = selectedDay else { return false }
+        guard requiresQuantity else { return true }
+        guard let value = Double(inputValue), value.isFinite else { return false }
+        return habit.isCountType(on: day) ? value > 0 : value >= 0
     }
 
     private func selectDay(_ day: Date) {

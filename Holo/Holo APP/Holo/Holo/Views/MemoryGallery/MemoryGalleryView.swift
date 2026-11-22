@@ -33,18 +33,11 @@ struct MemoryGalleryView: View {
     @StateObject private var viewModel = MemoryGalleryViewModel()
     /// 「找日期」面板（含随机漫步会话）：顶栏按钮与日历页共用同一展示宿主。
     @StateObject private var findDateModel = MemoryGalleryFindDateModel()
-    @State private var selectedTab: MemoryGalleryTab = MemoryGalleryView.initialTab
-
-    /// 默认落在日历；DEBUG 走查参数 -HoloOpenMemoryInsight 直接落在洞察（年鉴卡验收）
-    private static var initialTab: MemoryGalleryTab {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-HoloOpenMemoryInsight") { return .insight }
-        #endif
-        return .calendar
-    }
+    /// 「我的积累 · 人生年鉴」发起的「在长廊里看这一天」
+    @ObservedObject private var dayRequest = MemoryGalleryDayRequest.shared
+    @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var hasMountedInsight = false
     @State private var showGrowth = false
-    @State private var showAlmanacShare = false
     @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
     private var insightIsVisible: Bool { presentationIsVisible && selectedTab == .insight }
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -124,6 +117,15 @@ struct MemoryGalleryView: View {
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             consumeMemoryFocus()
         }
+        .onAppear { consumeDayRequest() }
+        .onChange(of: dayRequest.pendingDay) { _, _ in consumeDayRequest() }
+    }
+
+    /// 消费「在长廊里看这一天」：切回时间线（日历 Tab），交给找日期同一条定位路径
+    private func consumeDayRequest() {
+        guard let day = dayRequest.consume() else { return }
+        selectedTab = .calendar
+        findDateModel.requestJump(to: day)
     }
 
     /// 消费「聚焦新记忆」跳转：切到洞察 Tab，新记忆由列表既有的「新」徽章高亮。
@@ -255,7 +257,6 @@ struct MemoryGalleryView: View {
         } else if let errorMessage = viewModel.errorMessage {
             errorView(message: errorMessage)
         } else {
-            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
                     insightChapterHeader
@@ -282,21 +283,7 @@ struct MemoryGalleryView: View {
                 // 不加 containerRelativeFrame(.horizontal)：它按容器全宽定宽，
                 // 在 iPad 上无视 720 列提议并沿安全区链把整个 tab 层撑回全屏（通铺根因）
             }
-            .task { await scrollToAlmanacForReviewIfRequested(proxy) }
-            }
         }
-    }
-
-    /// 年鉴卡滚动锚点
-    static let almanacAnchor = "memory.almanac"
-
-    /// DEBUG 走查：-HoloScrollToAlmanac 启动后把年鉴卡滚到顶部（模拟器命令行无法滑动）
-    private func scrollToAlmanacForReviewIfRequested(_ proxy: ScrollViewProxy) async {
-        #if DEBUG
-        guard ProcessInfo.processInfo.arguments.contains("-HoloScrollToAlmanac") else { return }
-        try? await Task.sleep(for: .seconds(1.5))
-        proxy.scrollTo(Self.almanacAnchor, anchor: .top)
-        #endif
     }
 
     /// 窄屏洞察页拍平内容：区块间距规则——首区块与章节头之间由章节头自带
@@ -316,15 +303,13 @@ struct MemoryGalleryView: View {
             .padding(.horizontal, HoloSpacing.md)
         }
 
-        // 人生年鉴（2026-11-21 从域记忆之后上移到这里）：域记忆会逐张排出全部记忆卡
-        // （真机 1900+ 张），放在其后等于不可达；年鉴是紧凑的全年概览，放在长列表之前。
-        heatmapSection
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.top, viewModel.latestReportEntry == nil ? HoloSpacing.md : HoloSpacing.lg)
-            .id(Self.almanacAnchor)
-
         // 域记忆（用户可理解的记忆中心）：flat 形态下组头与每张卡均为懒加载行。
-        DomainMemorySection(flat: true, headerTopSpacing: HoloSpacing.lg)
+        // 上方有报告门卡时间距 lg，直接顶在章节头下时间距 md，与原列布局等价。
+        // （2026-11-22：原活跃热力图 / 人生年鉴按《记忆长廊减法设计》退役出长廊，年鉴移至个人页「我的积累」）
+        DomainMemorySection(
+            flat: true,
+            headerTopSpacing: viewModel.latestReportEntry == nil ? HoloSpacing.md : HoloSpacing.lg
+        )
 
         // Daily Sense 状态卡片
         if InsightFeatureFlags.dailySenseEnabled,
@@ -396,142 +381,6 @@ struct MemoryGalleryView: View {
         }
         .padding(.bottom, HoloSpacing.md)
         .accessibilityElement(children: .combine)
-    }
-
-    /// 选中日期预览卡片
-    private func selectedDatePreview(date: Date) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            let formatter = DateFormatter()
-            let dateStr: String = {
-                formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
-                return formatter.string(from: date)
-            }()
-
-            HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-
-                Text(dateStr)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-
-                Spacer(minLength: 0)
-
-                Text("当天轨迹")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-
-            if let section = viewModel.daySection(for: date) {
-                let summary = section.nodes.compactMap { node -> DailySummaryData? in
-                    if case .summary(let data) = node.data { return data }
-                    return nil
-                }.first
-
-                if let summary = summary {
-                    selectedDateStats(summary)
-                } else {
-                    Text("当天暂无记录")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoTextPlaceholder)
-                }
-            } else {
-                Text("当天暂无记录")
-                    .holoText(.supporting)
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoToolBorder.opacity(0.5), lineWidth: 1)
-        )
-    }
-
-    @ViewBuilder
-    private func selectedDateStats(_ summary: DailySummaryData) -> some View {
-        let stats = selectedDateStatItems(summary)
-
-        if stats.isEmpty {
-            Text("当天暂无记录")
-                .holoText(.supporting)
-                .foregroundColor(.holoTextPlaceholder)
-        } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: HoloSpacing.sm)], spacing: HoloSpacing.sm) {
-                ForEach(stats) { stat in
-                    previewStat(stat)
-                }
-            }
-        }
-    }
-
-    private func previewStat(_ stat: MemoryPreviewStatItem) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Image(systemName: stat.icon)
-                .font(.system(size: 12))
-                .foregroundColor(stat.color)
-
-            Text(stat.value)
-                .holoText(.supporting)
-                .fontWeight(.semibold)
-                .foregroundColor(.holoToolText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-
-            Text(stat.label)
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoToolTextSecondary)
-                .lineLimit(1)
-        }
-        .padding(HoloSpacing.sm)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(stat.color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-    }
-
-    private func selectedDateStatItems(_ summary: DailySummaryData) -> [MemoryPreviewStatItem] {
-        var stats: [MemoryPreviewStatItem] = []
-
-        if let expense = summary.totalExpense {
-            stats.append(MemoryPreviewStatItem(
-                icon: "yensign.circle",
-                value: formatExpense(expense),
-                label: String(localized: "支出"),
-                color: .holoPrimary
-            ))
-        }
-
-        if summary.habitsTotal > 0 {
-            stats.append(MemoryPreviewStatItem(
-                icon: "figure.run",
-                value: "\(summary.habitsCompleted)/\(summary.habitsTotal)",
-                label: String(localized: "习惯"),
-                color: .holoSuccess
-            ))
-        }
-
-        if summary.tasksCompleted > 0 {
-            stats.append(MemoryPreviewStatItem(
-                icon: "checkmark.circle",
-                value: "\(summary.tasksCompleted)",
-                label: String(localized: "任务"),
-                color: .holoPrimary
-            ))
-        }
-
-        if summary.thoughtCount > 0 {
-            stats.append(MemoryPreviewStatItem(
-                icon: "bubble.left",
-                value: "\(summary.thoughtCount)",
-                label: String(localized: "想法"),
-                color: .holoPurple
-            ))
-        }
-
-        return stats
     }
 
     @ViewBuilder
@@ -622,46 +471,13 @@ struct MemoryGalleryView: View {
         }
     }
 
-    /// 右栏「行为层」：热力图 + 计划台账 + 精选故事
+    /// 右栏「行为层」：计划台账 + 精选故事
     private var insightActivityColumn: some View {
         VStack(spacing: HoloSpacing.lg) {
-            // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
-            heatmapSection
-
             // 一起做的计划（LifePlan 台账）：理解档案第三块
             LifePlanGallerySection()
 
             featuredStoriesSection
-        }
-    }
-
-    // MARK: - 人生年鉴（洞察 Tab，2026-11-21 取代 13 周活跃热力图）
-
-    /// 年鉴卡 + 点选日的「当天轨迹」伴生卡
-    private var heatmapSection: some View {
-        VStack(spacing: HoloSpacing.md) {
-            if let almanac = viewModel.almanac {
-                MemoryAlmanacCard(
-                    almanac: almanac,
-                    earliestYear: viewModel.almanacFirstRecordDate.map { Calendar.current.component(.year, from: $0) } ?? almanac.year,
-                    selectedDate: viewModel.selectedHeatmapDate,
-                    onSelectDate: { viewModel.selectedHeatmapDate = $0 },
-                    onChangeYear: { year in
-                        viewModel.selectedHeatmapDate = nil
-                        Task { await viewModel.loadAlmanacYear(year) }
-                    },
-                    onShare: { showAlmanacShare = true }
-                )
-            }
-
-            if let selectedDate = viewModel.selectedHeatmapDate {
-                selectedDatePreview(date: selectedDate)
-            }
-        }
-        .sheet(isPresented: $showAlmanacShare) {
-            if let almanac = viewModel.almanac {
-                MemoryAlmanacShareSheet(almanac: almanac)
-            }
         }
     }
 
@@ -746,17 +562,6 @@ struct MemoryGalleryView: View {
         formatter.maximumFractionDigits = 0
         return formatter.string(from: value as NSDecimalNumber) ?? "¥0"
     }
-}
-
-// MARK: - Supporting Models
-
-private struct MemoryPreviewStatItem: Identifiable {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-
-    var id: String { label }
 }
 
 // MARK: - Preview

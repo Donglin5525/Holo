@@ -55,7 +55,8 @@ enum GoalPlanResolver {
 
         if let latest {
             switch latest.planPayloadDecodeResult {
-            case .current(let payload):
+            case .current(var payload):
+                payload.resultSource = effectiveResultSource(payload.resultSource, goal: goal)
                 return GoalResolvedPlan(revisionID: latest.id,
                                         revisionNumber: Int(latest.revisionNumber),
                                         payload: payload,
@@ -174,8 +175,10 @@ enum GoalPlanResolver {
         let sourceKind: GoalResultSourceKind
         var sourceID: UUID?
         switch goal.metricSourceEnum {
-        case .manual, .healthKit:
+        case .manual:
             sourceKind = .manual
+        case .healthKit:
+            sourceKind = .healthKit
         case .habit:
             sourceKind = .habit
             sourceID = goal.sourceHabitId
@@ -189,19 +192,50 @@ enum GoalPlanResolver {
             aggregation: aggregation,
             comparison: legacyComparison(goal: goal),
             targetValue: goal.metricTargetValueDouble,
-            baselineValue: goal.baselineValueDouble,
+            baselineValue: sourceKind == .healthKit ? nil : goal.baselineValueDouble,
             baselineObservedAt: goal.baselineDate,
             freshnessDays: isCumulative ? nil : 14,
             ledgerScope: sourceKind == .ledger ? goal.ledgerScopePayload : nil,
-            isPending: sourceKind == .habit && sourceID == nil
+            isPending: (sourceKind == .habit && sourceID == nil) || (sourceKind == .healthKit && goal.healthMetricKindEnum == nil),
+            healthMetricKind: sourceKind == .healthKit ? goal.healthMetricKindEnum : nil,
+            countsFromBaseline: sourceKind == .habit && isCumulative ? true : nil
         )
     }
 
     private static func legacyComparison(goal: Goal) -> GoalResultComparison {
-        guard goal.goalKindEnum == .target,
-              let target = goal.metricTargetValueDouble,
-              let baseline = goal.baselineValueDouble else { return .reach }
-        return target < baseline ? .trendDown : .reach
+        guard goal.goalKindEnum == .target else { return .reach }
+        return .inferredTarget(title: goal.title, unit: goal.metricUnit, healthMetric: goal.healthMetricKindEnum,
+                               baseline: goal.baselineValueDouble, target: goal.metricTargetValueDouble)
+    }
+
+    private static func effectiveResultSource(_ stored: GoalPlanResultSourceV2?, goal: Goal) -> GoalPlanResultSourceV2? {
+        if goal.metricSourceEnum == .healthKit, stored?.sourceType == .manual {
+            return legacyResultSource(goal: goal)
+        }
+        // 旧手建表单在未填目标值时就写了向上达标。只纠正方向明确、未记录手选信息的旧目标。
+        guard var source = stored, goal.source == "manual", goal.goalKindEnum == .target,
+              source.sourceType == .habit || source.sourceType == .healthKit,
+              source.comparisonIsExplicit == nil, source.comparison == .trendUp,
+              GoalResultComparison.namedTargetDirection(title: goal.title, unit: source.unit ?? goal.metricUnit,
+                                                         healthMetric: source.healthMetricKind) == .trendDown else { return stored }
+        source.comparison = .trendDown
+        source.comparisonIsExplicit = false
+        return source
+    }
+
+    /// 读取生效结果配置，供只读展示使用。旧目标需要时直接解释已有字段。
+    static func resultConfiguration(goal: Goal, in context: NSManagedObjectContext) -> (source: GoalPlanResultSourceV2?, reviewDays: Int) {
+        let defaultDays = GoalPlanReviewV2.defaultObservationWindowDays
+        let state = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context)?.planPayloadDecodeResult ?? .empty
+        switch state {
+        case .current(let payload):
+            let days = payload.review?.observationWindowDays ?? defaultDays
+            return (effectiveResultSource(payload.resultSource, goal: goal), days)
+        case .legacyDecisionSummary, .empty:
+            return (legacyResultSource(goal: goal), defaultDays)
+        case .unsupportedFuture, .corrupted:
+            return (nil, defaultDays)
+        }
     }
 
     // MARK: - 统一绑定解析

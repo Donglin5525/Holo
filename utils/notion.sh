@@ -19,7 +19,11 @@
 #   append-divider <page_id>                - 追加分割线
 
 # API 配置
-NOTION_API_KEY="${NOTION_API_KEY:-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}"
+# 密钥只从环境变量读取，禁止在源码中写默认值
+if [ -z "$NOTION_API_KEY" ]; then
+  echo "错误：未设置环境变量 NOTION_API_KEY" >&2
+  exit 1
+fi
 NOTION_VERSION="2022-06-28"
 API_BASE="https://api.notion.com/v1"
 

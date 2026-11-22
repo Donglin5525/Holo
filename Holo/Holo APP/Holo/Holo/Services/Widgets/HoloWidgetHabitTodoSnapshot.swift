@@ -55,6 +55,7 @@ enum HoloWidgetHabitTodoSnapshotWriter {
         )
         try? store.writeHabit(snapshot)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.habit.rawValue)
+        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.dailyKanban.rawValue)
     }
 
     // MARK: - 今日待办
@@ -115,6 +116,7 @@ enum HoloWidgetHabitTodoSnapshotWriter {
         )
         try? store.writeTodo(snapshot)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.todo.rawValue)
+        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.dailyKanban.rawValue)
     }
 
     private static let weekdayShortNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]

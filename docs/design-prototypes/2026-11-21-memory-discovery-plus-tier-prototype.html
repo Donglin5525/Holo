@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Holo · 记忆 × 发现打通 + Plus 分层原型 v2</title>
+<style>
+  :root {
+    --bg: #FDFCF8; --card: #FFFFFF; --inset: #F7F1EA; --border: #E9E4DA; --divider: #F1F5F9;
+    --text: #333333; --text2: #6E6E6E; --text3: #939393;
+    --primary: #F46D38; --primaryDark: #EA580C;
+    --ai: #7C5CFC; --aiSoft: #EFEAFF;
+    --success: #16A34A; --successSoft: #D1FAE5;
+    --gold1: #C9A04A; --gold2: #8A6420; --goldSoft: #F7EEDB;
+    --page: #EEEBE4;
+  }
+  .dark {
+    --bg: #0E0E10; --card: #2C2C2E; --inset: #3A3A3C; --border: #48484A; --divider: #38383A;
+    --text: #F5F5F5; --text2: #A8A8A8; --text3: #939393;
+    --aiSoft: #2E2747; --successSoft: #173A26; --goldSoft: #3A3122; --primaryDark: #FF8A5C;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: #333; font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; }
+  button { font: inherit; border: 0; cursor: pointer; background: none; color: inherit; }
+
+  .layout { display: grid; grid-template-columns: 280px 390px 1fr; gap: 28px; max-width: 1260px; margin: 0 auto; padding: 28px 20px; align-items: start; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #777; margin: 0 0 18px; line-height: 1.6; }
+
+  .panel { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.05); margin-bottom: 14px; }
+  .panel h3 { font-size: 13px; margin: 0 0 10px; color: #555; }
+  .seg { display: flex; background: #F2EFE8; border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; padding: 7px 0; border-radius: 8px; font-size: 13px; color: #666; }
+  .seg button.on { background: #fff; color: #222; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .quota { font-size: 12px; color: #666; margin-top: 10px; line-height: 1.7; }
+  .quota b { color: #222; }
+  .scen button { display: block; width: 100%; text-align: left; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: #F7F5F0; margin-top: 6px; line-height: 1.45; }
+  .scen button:hover { background: #EFEBE2; }
+
+  .phone { width: 390px; height: 844px; border-radius: 48px; background: #111; padding: 11px; box-shadow: 0 30px 80px rgba(0,0,0,.25); position: sticky; top: 20px; }
+  .screen { width: 100%; height: 100%; border-radius: 38px; background: var(--bg); color: var(--text); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .status { height: 46px; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 28px 6px; font-size: 14px; font-weight: 600; flex: none; }
+  .nav { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; flex: none; }
+  .nav .title { font-size: 17px; font-weight: 600; }
+  .content { flex: 1; overflow-y: auto; padding: 4px 16px 20px; scrollbar-width: none; }
+  .content::-webkit-scrollbar { display: none; }
+  .tabbar { height: 78px; border-top: 1px solid var(--divider); display: flex; padding-top: 8px; flex: none; background: var(--bg); }
+  .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; color: var(--text3); }
+  .tabbar button.on { color: var(--primary); }
+  .tabbar .ic { font-size: 20px; line-height: 22px; }
+
+  .plus-badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 2px 7px; border-radius: 99px; color: #fff; background: linear-gradient(135deg, var(--gold1), var(--gold2)); }
+  .free-badge { font-size: 10px; padding: 2px 7px; border-radius: 99px; background: var(--inset); color: var(--text2); }
+
+  .section-h { display: flex; justify-content: space-between; align-items: baseline; margin: 18px 2px 8px; }
+  .section-h .t { font-size: 15px; font-weight: 600; }
+  .section-h .m { font-size: 12px; color: var(--text3); }
+
+  .card { background: var(--card); border-radius: 16px; padding: 16px; border: 1px solid var(--border); }
+  .card + .card { margin-top: 10px; }
+  .tap { cursor: pointer; transition: transform .12s; }
+  .tap:active { transform: scale(.98); }
+
+  .disc-tag { display: inline-flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--ai); font-weight: 600; }
+  .disc-text { font-size: 16px; line-height: 1.6; margin: 10px 0 12px; font-weight: 500; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 11px; padding: 3px 9px; border-radius: 99px; background: var(--inset); color: var(--text2); }
+  .chip.ok { background: var(--successSoft); color: var(--success); }
+  .meta { font-size: 11.5px; color: var(--text3); margin-top: 10px; display: flex; justify-content: space-between; gap: 8px; }
+  .hint { font-size: 12px; color: var(--text2); background: var(--inset); border-radius: 10px; padding: 10px 12px; line-height: 1.6; }
+  .hint b { color: var(--text); }
+  .x { float: right; color: var(--text3); font-size: 13px; cursor: pointer; padding-left: 8px; }
+
+  .wall { background: linear-gradient(160deg, var(--goldSoft), var(--card) 70%); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+  .wall .h { font-size: 16px; font-weight: 600; margin: 0 0 4px; line-height: 1.5; }
+  .wall .d { font-size: 12.5px; color: var(--text2); line-height: 1.6; }
+  .clue { display: flex; gap: 10px; padding: 11px 0; border-top: 1px dashed var(--border); align-items: flex-start; }
+  .clue:first-of-type { border-top: 0; }
+  .clue .dot { width: 30px; height: 30px; border-radius: 10px; background: var(--inset); display: grid; place-items: center; font-size: 14px; flex: none; }
+  .clue .q { flex: 1; font-size: 13px; line-height: 1.55; }
+  .clue .go { font-size: 12px; color: var(--ai); white-space: nowrap; padding-top: 2px; }
+  .btn { display: block; width: 100%; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 600; text-align: center; }
+  .btn.primary { background: var(--primaryDark); color: #fff; }
+  .btn.gold { background: linear-gradient(135deg, var(--gold1), var(--gold2)); color: #fff; }
+  .btn.ghost { background: var(--inset); color: var(--text); }
+  .btn.sm { padding: 9px; font-size: 13px; }
+  .empty { text-align: center; color: var(--text2); font-size: 13px; padding: 22px 10px; line-height: 1.7; }
+
+  .banner { font-size: 12px; color: var(--success); background: var(--successSoft); border-radius: 10px; padding: 9px 12px; line-height: 1.55; }
+  .mem { display: flex; gap: 12px; }
+  .mem .ic { width: 36px; height: 36px; border-radius: 12px; background: var(--inset); display: grid; place-items: center; font-size: 17px; flex: none; }
+  .mem .st { font-size: 14.5px; font-weight: 500; line-height: 1.5; }
+  .mem .ev { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+  .mem .tags { margin-top: 8px; }
+  .mem-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .mem-actions button { font-size: 12px; padding: 5px 11px; border-radius: 99px; background: var(--inset); color: var(--text2); }
+  .new-flag { font-size: 10px; color: #fff; background: var(--ai); padding: 1px 6px; border-radius: 99px; margin-left: 6px; vertical-align: 2px; }
+  .dashed { border-style: dashed; }
+  .week-h { font-size: 12px; color: var(--text3); margin: 16px 2px 6px; }
+
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10; }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 90%; background: var(--bg); border-radius: 22px 22px 0 0; transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1); z-index: 11; display: flex; flex-direction: column; }
+  .sheet.on { transform: none; }
+  .grab { width: 38px; height: 5px; border-radius: 3px; background: var(--border); margin: 8px auto 4px; flex: none; }
+  .sheet-body { overflow-y: auto; padding: 8px 18px 30px; scrollbar-width: none; }
+  .sheet-body::-webkit-scrollbar { display: none; }
+  .ev-row { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 13px; line-height: 1.5; }
+  .ev-row .src { font-size: 11px; color: var(--text3); width: 40px; flex: none; padding-top: 1px; }
+  .ev-row b { color: var(--primaryDark); font-weight: 600; }
+  .ask { background: var(--aiSoft); border-radius: 12px; padding: 12px; font-size: 13.5px; line-height: 1.6; margin-top: 14px; }
+  .fb { display: flex; gap: 8px; margin-top: 16px; }
+  .fb .btn { flex: 1; }
+  .got { background: var(--inset); border-radius: 12px; padding: 12px; font-size: 13px; line-height: 1.6; margin: 4px 0 6px; }
+  .got .l { font-size: 11.5px; color: var(--text3); margin-bottom: 4px; }
+  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .vs .col { border-radius: 12px; padding: 12px; font-size: 12.5px; line-height: 1.6; border: 1px solid var(--border); background: var(--card); }
+  .vs .col.p { border-color: var(--gold1); background: var(--goldSoft); }
+  .vs .col .n { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+  .vs .col .big { font-size: 15px; font-weight: 700; margin: 2px 0 6px; }
+  .small { font-size: 11.5px; color: var(--text3); line-height: 1.6; text-align: center; margin-top: 10px; }
+
+  .toast { position: absolute; left: 20px; right: 20px; bottom: 96px; background: rgba(30,30,30,.92); color: #fff; font-size: 13px; padding: 11px 14px; border-radius: 12px; line-height: 1.5; opacity: 0; transform: translateY(10px); transition: all .25s; z-index: 20; pointer-events: none; }
+  .toast.on { opacity: 1; transform: none; }
+
+  .notes .panel { font-size: 13px; line-height: 1.75; color: #444; }
+  .notes h2 { font-size: 15px; margin: 0 0 8px; }
+  .notes ul { margin: 6px 0 0; padding-left: 18px; }
+  .notes li { margin-bottom: 4px; }
+  .rule { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 6px; background: #FFF1E8; color: #C2410C; margin-right: 4px; }
+  .rule.g { background: #E8F7EE; color: #15803D; }
+  .rule.p { background: #F3EEFF; color: #6D28D9; }
+  .rule.r { background: #FEE2E2; color: #B91C1C; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div>
+    <h1>记忆 × 发现 · Plus 分层 v2</h1>
+    <p class="sub">2026-11-21 · 按动线对抗审查改版：文案去术语、预告给具体问题、先展示价值再谈付费。</p>
+
+    <div class="panel">
+      <h3>用户身份</h3>
+      <div class="seg" id="tierSeg">
+        <button data-v="free" class="on">免费用户</button>
+        <button data-v="plus">Holo Plus</button>
+      </div>
+      <div class="quota" id="quotaText"></div>
+    </div>
+
+    <div class="panel">
+      <h3>外观</h3>
+      <div class="seg" id="themeSeg">
+        <button data-v="light" class="on">浅色</button>
+        <button data-v="dark">深色</button>
+      </div>
+    </div>
+
+    <div class="panel scen">
+      <h3>快捷场景</h3>
+      <button data-s="first">① 新用户 · 第一次见到发现</button>
+      <button data-s="wall">② 免费 · 本周已看过 → 还有几件事没说</button>
+      <button data-s="none">③ 免费 · 这周没有值得说的</button>
+      <button data-s="plus">④ Plus · 本周第 3 件</button>
+      <button data-s="plusNone">⑤ Plus · 今天也没有值得说的</button>
+      <button data-s="reset">重置全部状态</button>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="nav"><span class="title" id="navTitle">发现</span><span id="navBadge"></span></div>
+      <div class="content" id="content"></div>
+      <div class="tabbar">
+        <button data-tab="discover" class="on"><span class="ic">✦</span>发现</button>
+        <button data-tab="memory"><span class="ic">◎</span>Holo 记得</button>
+        <button data-tab="archive"><span class="ic">▤</span>往期发现</button>
+      </div>
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet"><div class="grab"></div><div class="sheet-body" id="sheetBody"></div></div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+</div>
+
+<script>
+/* ---------- 模拟数据 ---------- */
+const INSIGHTS = [
+  {
+    id: 'i1', domains: ['睡眠', '花钱', '想法'],
+    text: '你说想早点睡的那几周，半夜网购也少了很多。早睡可能顺便帮你省了钱。',
+    evidence: [
+      { src: '想法', html: '10 月 28 日你写过：「想 12 点前睡」' },
+      { src: '睡眠', html: '最近 3 周，平均早睡了 <b>41 分钟</b>' },
+      { src: '花钱', html: '晚上 11 点后下单：最近 3 周 <b>2 笔</b>，之前 3 周 <b>9 笔</b>' },
+    ],
+    ask: '下次想熬夜刷购物 App 的时候，要不要提醒自己一句「先睡吧」？',
+    memory: { icon: '🌙', st: '你早睡的时候，半夜网购会少很多', src: '你确认过' },
+  },
+  {
+    id: 'i2', domains: ['习惯', '待办'],
+    text: '你没去跑步的那几天，几乎都是待办堆得最多的日子。可能不是你偷懒，是那天真的太累了。',
+    evidence: [
+      { src: '习惯', html: '最近 30 天有 <b>6 天</b>没跑步' },
+      { src: '待办', html: '其中 <b>5 天</b>，当天有 3 件以上的事没做完' },
+    ],
+    ask: '事情多的日子，要不要把跑步换成散步 15 分钟？',
+    memory: { icon: '🏃', st: '事情多的日子，你更容易停掉运动', src: '你确认过' },
+  },
+  {
+    id: 'i3', domains: ['花钱', '习惯'],
+    text: '不喝奶茶之后，你在饮料上确实少花了，但买甜点的钱悄悄多了起来。',
+    evidence: [
+      { src: '习惯', html: '「不喝奶茶」已经坚持 <b>23 天</b>' },
+      { src: '花钱', html: '饮料少花 <b>62%</b>，甜点多花 <b>48%</b>' },
+    ],
+    ask: '你想戒的是奶茶，还是「下午想吃点甜的」这个习惯？',
+    memory: { icon: '🧋', st: '不喝奶茶后，你会用甜点来代替', src: '你确认过' },
+  },
+];
+// 本机按模板生成的「问题」：只陈述记录里的事实，不下结论，不花 token
+const CLUES = [
+  { icon: '😴', q: '最近你睡得越来越晚，同一段时间运动也少了。这两件事有关系吗？' },
+  { icon: '💳', q: '你周末花钱的方式，和工作日很不一样。' },
+  { icon: '🎯', q: '你 10 月定了「每月存 2000」的目标，最近的账对得上吗？' },
+];
+const BASE_MEMORIES = [
+  { icon: '🐱', st: '你养了一只猫，叫「小橘」', ev: '你买过 7 次猫粮猫砂，想法里也提到过它', src: '从记录看出' },
+  { icon: '🚭', st: '你正在戒烟', ev: '11 月 3 日你写过：「开始戒烟」', src: '你说过' },
+  { icon: '🏸', st: '你差不多每周四晚上打羽毛球', ev: '最近一个半月打了 6 次', src: '从记录看出' },
+];
+const ARCHIVE = [
+  { week: '11 月第 2 周', text: '项目上线那周你几乎没写想法，但每一笔账都记了。忙起来的时候，你最先放下的是「说出来」。', d: ['想法', '花钱'] },
+  { week: '11 月第 1 周', text: '你周末走的路只有工作日的一半，但睡得更晚。你的周末更像是在「熬夜」而不是「补觉」。', d: ['健康', '睡眠'] },
+];
+
+/* ---------- 状态 ---------- */
+const FREE_WEEKLY = 1, PLUS_WEEKLY = 5, NEXT_FREE = '11 月 27 日（周五）';
+let S;
+function initState() {
+  S = { tier: 'free', tab: 'discover', used: 0, noneToday: false, viewedToday: false, firstTime: false,
+        currentIdx: 0, confirmed: {}, rejected: {}, newMem: [], seen: [], sheet: null, hideHint: false };
+}
+initState();
+const limit = () => S.tier === 'plus' ? PLUS_WEEKLY : FREE_WEEKLY;
+const atWall = () => S.used >= limit() && !S.viewedToday;
+const $ = s => document.querySelector(s);
+
+/* ---------- 发现页 ---------- */
+function insightCard(ins, isToday) {
+  return `<div class="card tap" onclick="openInsight('${ins.id}')">
+    <div class="disc-tag">✦ Holo 看出来的一件事 ${isToday ? '<span class="new-flag">今天</span>' : ''}</div>
+    <div class="disc-text">${ins.text}</div>
+    <div class="chips">${ins.domains.map(d => `<span class="chip">${d}</span>`).join('')}</div>
+    <div class="meta"><span>根据你的 ${ins.evidence.length} 类记录</span><span>怎么看出来的 ›</span></div>
+  </div>`;
+}
+
+function explainHint() {
+  if (S.hideHint) return '';
+  return `<div class="hint" style="margin-top:6px"><span class="x" onclick="S.hideHint=true;render()">✕</span>
+    <b>「发现」是什么？</b>Holo 会定期翻看你记的账、习惯、睡眠和想法，把你自己可能没注意到的联系告诉你。
+    你觉得说得对，Holo 就会记住它，以后聊天时更懂你。</div>`;
+}
+
+function todayBlock() {
+  if (S.noneToday) {
+    return `<div class="card"><div class="empty">这周 Holo 看了一遍你的记录，<br>还没有值得专门告诉你的事。<br><span style="color:var(--text3);font-size:12px">这次不算次数，Holo 明天会再看看。</span></div></div>`;
+  }
+  if (S.viewedToday) return insightCard(INSIGHTS[S.currentIdx], true);
+  if (atWall()) return wallCard();
+  const sub = S.tier === 'plus' ? `这周第 ${S.used + 1} 件` : '免费版每周 1 件';
+  return `<div class="card tap" onclick="revealToday()">
+    <div class="disc-tag">✦ Holo 看出来的一件事</div>
+    <div class="disc-text" style="color:var(--text2)">Holo 翻了翻你最近的记录，发现了一件事，想告诉你。</div>
+    <button class="btn primary sm">看看是什么</button>
+    <div class="meta"><span>${sub}</span></div>
+  </div>`;
+}
+
+function renderDiscover() {
+  $('#content').innerHTML = `
+    ${S.firstTime || S.used === 0 ? explainHint() : ''}
+    <div class="section-h"><span class="t">这周的发现</span><span class="m">${quotaLine()}</span></div>
+    ${todayBlock()}
+    <div class="section-h"><span class="t">Holo 猜得对吗？</span><span class="m">点一下就好</span></div>
+    <div class="card dashed"><div class="mem"><div class="ic">☕</div><div>
+      <div class="st">你工作日上午习惯喝一杯咖啡？</div>
+      <div class="ev">最近一个月有 14 天，都在早上 9 点到 11 点之间</div>
+      <div class="mem-actions"><button onclick="toast('好的，Holo 记住了')">对</button><button onclick="toast('好的，Holo 不会这样记')">不对</button></div>
+    </div></div></div>
+    <div class="section-h"><span class="t">Holo 记得关于你的事</span><span class="m" onclick="switchTab('memory')" style="cursor:pointer">全部 ›</span></div>
+    ${memoryList(2)}
+  `;
+}
+
+function wallCard() {
+  const clues = CLUES.map(c => `<div class="clue"><div class="dot">${c.icon}</div><div class="q">${c.q}</div></div>`).join('');
+  return `<div class="wall">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="disc-tag" style="color:var(--gold2)">这周的发现你已经看过了</span>
+      <span class="plus-badge">PLUS</span>
+    </div>
+    <div class="h">Holo 还注意到 ${CLUES.length} 件事，还没来得及细看</div>
+    <div style="margin:8px 0 12px">${clues}</div>
+    <div class="d" style="margin-bottom:12px">开通 Plus，Holo 会把这些事一件件帮你看明白。</div>
+    <button class="btn gold" onclick="openPaywall('wall')">让 Holo 帮我看看</button>
+    <div class="meta" style="justify-content:center"><span>不开通也没关系，${NEXT_FREE}会有下一件</span></div>
+  </div>`;
+}
+
+function quotaLine() {
+  if (S.tier === 'plus') return `这周已看 ${S.used} 件 · 最多 ${PLUS_WEEKLY} 件`;
+  return S.used >= FREE_WEEKLY ? `下一件：${NEXT_FREE}` : '免费版每周 1 件';
+}
+
+/* ---------- Holo 记得 ---------- */
+function allMemories() { return [...S.newMem, ...BASE_MEMORIES]; }
+function memoryList(n) {
+  const list = n ? allMemories().slice(0, n) : allMemories();
+  return list.map(m => `<div class="card">
+    <div class="mem"><div class="ic">${m.icon}</div><div style="flex:1">
+      <div class="st">${m.st}${m.fromInsight ? '<span class="new-flag">刚记下</span>' : ''}</div>
+      ${m.ev ? `<div class="ev">${m.ev}</div>` : ''}
+      <div class="chips tags"><span class="chip ${m.src === '你确认过' ? 'ok' : ''}">${m.src}</span></div>
+      ${n ? '' : `<div class="mem-actions"><button onclick="toast('打开编辑（原型略）')">改一下</button><button onclick="toast('好的，Holo 会少用这条')">不准</button><button onclick="toast('已删除（原型略）')">删掉</button></div>`}
+    </div></div></div>`).join('');
+}
+function renderMemory() {
+  $('#content').innerHTML = `
+    <div class="banner" style="margin-top:6px">✓ 这里是 Holo 记得的所有关于你的事。随时可以看、可以改、可以删，<b>永远免费</b>。</div>
+    <div class="section-h"><span class="t">Holo 记得</span><span class="m">${allMemories().length} 件</span></div>
+    ${memoryList(0)}
+    <div class="section-h"><span class="t">Holo 还不确定的</span><span class="m">再看几天</span></div>
+    <div class="card dashed"><div class="mem"><div class="ic">🌿</div><div>
+      <div class="st" style="color:var(--text2)">你是不是在少吃夜宵？</div>
+      <div class="ev">才看到 5 天，Holo 想再看一阵子再下结论</div>
+    </div></div></div>
+  `;
+}
+
+/* ---------- 往期发现 ---------- */
+function renderArchive() {
+  const seen = S.seen.map(id => INSIGHTS.find(i => i.id === id)).reverse();
+  const past = ARCHIVE.map(a => `<div class="week-h">${a.week}</div><div class="card">
+      <div class="disc-tag">✦ Holo 看出来的一件事</div><div class="disc-text" style="font-size:15px">${a.text}</div>
+      <div class="chips">${a.d.map(d => `<span class="chip">${d}</span>`).join('')}</div>
+      <div class="meta"><span></span><span style="color:var(--ai);cursor:pointer" onclick="toast('进入 AI 对话，带上这条发现（原型略）')">和 Holo 聊聊这件事 ›</span></div>
+    </div>`).join('');
+  $('#content').innerHTML = `
+    <div class="section-h"><span class="t">你看过的发现</span><span class="m">都会留在这里</span></div>
+    ${seen.length ? `<div class="week-h">这周</div>${seen.map(i => insightCard(i)).join('')}` : ''}
+    ${past}
+  `;
+}
+
+/* ---------- Sheet ---------- */
+function openSheet(html, key) {
+  $('#sheetBody').innerHTML = html;
+  $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+  S.sheet = key; renderNotes();
+}
+function closeSheet() {
+  $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on');
+  S.sheet = null; renderNotes();
+}
+$('#scrim').onclick = closeSheet;
+
+function openInsight(id) {
+  const ins = INSIGHTS.find(i => i.id === id);
+  const done = S.confirmed[id], bad = S.rejected[id];
+  openSheet(`
+    <div class="disc-tag" style="margin-top:6px">✦ Holo 看出来的一件事</div>
+    <div class="disc-text" style="font-size:18px">${ins.text}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:4px">Holo 是怎么看出来的</div>
+    ${ins.evidence.map(e => `<div class="ev-row"><span class="src">${e.src}</span><span>${e.html}</span></div>`).join('')}
+    <div class="ask">💬 ${ins.ask}</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:16px">Holo 说得对吗？</div>
+    <div class="fb" style="margin-top:8px">
+      ${done ? `<button class="btn ghost" style="color:var(--success)">✓ Holo 记住了</button>`
+        : bad ? `<button class="btn ghost">好的，Holo 下次会更小心</button>`
+        : `<button class="btn primary" onclick="confirmInsight('${id}')">说得对</button><button class="btn ghost" onclick="rejectInsight('${id}')">不太对</button>`}
+    </div>
+    <button class="btn ghost" style="margin-top:8px" onclick="closeSheet();toast('进入 AI 对话，带上这条发现（原型略）')">和 Holo 聊聊这件事</button>
+  `, 'insight');
+}
+function confirmInsight(id) {
+  const ins = INSIGHTS.find(i => i.id === id);
+  S.confirmed[id] = true;
+  if (!S.newMem.find(m => m.st === ins.memory.st)) S.newMem.unshift({ ...ins.memory, fromInsight: true });
+  openInsight(id); render();
+  toast('Holo 记住了：「' + ins.memory.st + '」。可以在「Holo 记得」里看到');
+}
+function rejectInsight(id) { S.rejected[id] = true; openInsight(id); toast('收到，Holo 不会再这样理解'); }
+
+function openPaywall(from) {
+  const last = S.seen.length ? INSIGHTS.find(i => i.id === S.seen[S.seen.length - 1]) : INSIGHTS[0];
+  openSheet(`
+    <div style="text-align:center;margin:10px 0 6px"><span class="plus-badge" style="font-size:12px;padding:4px 12px">HOLO PLUS</span></div>
+    <div style="text-align:center;font-size:19px;font-weight:600;margin:8px 0 14px;line-height:1.45">每周 1 件不够看？<br>让 Holo 多帮你看看</div>
+    <div class="got"><div class="l">这周 Holo 告诉过你</div>「${last.text}」</div>
+    <div class="vs">
+      <div class="col"><div class="n">免费版</div><div class="big">每周 1 件</div>Holo 每周挑一件最值得说的事告诉你</div>
+      <div class="col p"><div class="n">Plus</div><div class="big">每周最多 5 件</div>Holo 几乎每天都帮你看，有值得说的就告诉你<br>注意到的事可以<b>点一下</b>，让 Holo 先帮你看</div>
+    </div>
+    <div class="hint" style="margin-top:12px">
+      <b>说清楚两件事：</b><br>
+      · 没有值得说的，Holo 就不说，不会为了凑数硬编。所以有的周可能不到 5 件。<br>
+      · Holo 记得的关于你的事、往期发现、和 Holo 聊天，免费版和 Plus 一样都能用。
+    </div>
+    <button class="btn gold" style="margin-top:16px" onclick="subscribe()">开通 Plus · ¥12 / 月</button>
+    <div class="small">随时可以在系统设置里取消</div>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">先不用，等下周的</button>
+  `, 'paywall');
+}
+
+function subscribe() {
+  S.tier = 'plus'; S.viewedToday = false; S.noneToday = false; S.plusClues = true;
+  closeSheet(); syncControls(); render();
+  openClueList();
+}
+
+// Plus：注意到的事可以点名让 Holo 先看
+function openClueList() {
+  openSheet(`
+    <div style="font-size:17px;font-weight:600;margin:8px 0 4px">想先让 Holo 看哪一件？</div>
+    <div style="font-size:12.5px;color:var(--text2);margin-bottom:8px">这周还能看 ${PLUS_WEEKLY - S.used} 件</div>
+    ${CLUES.map((c, i) => `<div class="clue tap" onclick="pickClue(${i})"><div class="dot">${c.icon}</div><div class="q">${c.q}</div><span class="go">帮我看 ›</span></div>`).join('')}
+    <button class="btn ghost" style="margin-top:12px" onclick="closeSheet()">让 Holo 自己挑</button>
+  `, 'clues');
+}
+function pickClue(i) {
+  closeSheet();
+  if (i === 1) { toast('Holo 看了看，这件事暂时没什么值得说的。不算次数'); return; }
+  S.used += 1; S.viewedToday = true; S.currentIdx = i === 0 ? 1 : 2;
+  S.seen.push(INSIGHTS[S.currentIdx].id); render();
+  openInsight(INSIGHTS[S.currentIdx].id);
+}
+
+/* ---------- 交互 ---------- */
+function revealToday() {
+  S.used += 1; S.viewedToday = true;
+  S.currentIdx = (S.used - 1) % INSIGHTS.length;
+  S.seen.push(INSIGHTS[S.currentIdx].id);
+  render(); openInsight(INSIGHTS[S.currentIdx].id);
+}
+function switchTab(t) { S.tab = t; closeSheet(); render(); }
+document.querySelectorAll('.tabbar button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 2400);
+}
+
+function bindSeg(id, fn) {
+  document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle('on', x === b));
+    fn(b.dataset.v);
+  });
+}
+bindSeg('tierSeg', v => { S.tier = v; S.viewedToday = false; render(); });
+bindSeg('themeSeg', v => $('#screen').classList.toggle('dark', v === 'dark'));
+function syncControls() {
+  document.querySelectorAll('#tierSeg button').forEach(x => x.classList.toggle('on', x.dataset.v === S.tier));
+}
+document.querySelectorAll('.scen button').forEach(b => b.onclick = () => {
+  const s = b.dataset.s; const dark = $('#screen').classList.contains('dark');
+  initState();
+  if (s === 'first') S.firstTime = true;
+  if (s === 'wall') { S.used = 1; S.seen = ['i1']; }
+  if (s === 'none') S.noneToday = true;
+  if (s === 'plus') { S.tier = 'plus'; S.used = 2; S.seen = ['i1', 'i2']; S.currentIdx = 1; }
+  if (s === 'plusNone') { S.tier = 'plus'; S.used = 2; S.seen = ['i1', 'i2']; S.noneToday = true; }
+  $('#screen').classList.toggle('dark', dark);
+  closeSheet(); syncControls(); render();
+});
+
+/* ---------- 批注 ---------- */
+const REVIEW = `
+  <div class="panel"><h2>v1 → v2：动线审查发现的 8 个问题</h2>
+  <ul>
+    <li><span class="rule r">看不懂</span>满屏术语：线索、认识、水位、证据门槛、解读、宁缺毋滥、条件关联、行为轨。→ 全部换成大白话，用户界面不再出现任何内部概念。</li>
+    <li><span class="rule r">不知道是什么</span>「发现」和「记忆」是什么、什么关系，没有任何说明。→ 第一次见到时加一段说明；记忆页改名「Holo 记得」。</li>
+    <li><span class="rule r">不知道值不值</span>撞墙卡只给「3 条线索 · 睡眠/消费」，用户没法判断值不值得付费。→ 改成具体的问题（本机按模板拼出，只陈述记录里的事实，不下结论，零成本）。</li>
+    <li><span class="rule r">付费页太抽象</span>「每周 5 条」对没概念的人等于没说。→ 先让用户回想这周得到了什么，再用两栏对比「多看几件」。</li>
+    <li><span class="rule r">付了钱可能落空</span>「宁缺毋滥」意味着 Plus 某周可能只有 2 件，事后才知道会觉得被骗。→ 付费页直接说清楚「有的周可能不到 5 件」。</li>
+    <li><span class="rule r">锁错了地方</span>v1 把「接着聊」锁进 Plus，但聊天本身是免费的，用户会困惑；把用户看过的往期发现锁住，等于收走已经给出去的东西。→ 两者都改回免费。</li>
+    <li><span class="rule r">时间对不上</span>v1 写「下周一恢复」，但后端是 7 天滚动窗口。→ 改为显示具体日期，比如「11 月 27 日（周五）」。</li>
+    <li><span class="rule r">付费后没有立刻的回报</span>v1 开通后只是墙消失，还要等。→ 开通后马上弹出「想先让 Holo 看哪一件？」，付费当下就能用上。</li>
+  </ul></div>`;
+
+const NOTES = {
+  discover: () => `${REVIEW}
+    <div class="panel"><h2>发现页规则</h2><ul>
+      <li><span class="rule">次数</span>免费每周 1 件，Plus 每周最多 5 件；没发出去的不算次数（试场景③⑤）。</li>
+      <li><span class="rule p">诚实预告</span>撞墙卡上的问题只陈述记录里的事实，比如「睡得晚 + 运动少」，不给结论。模型看完可能觉得没什么值得说的，所以文案是「还没来得及细看」，不承诺有结论。</li>
+      <li><span class="rule">工程影响</span>需要新增本机「问题模板」，按候选类型和涉及的领域拼句子，不调模型。</li>
+    </ul></div>`,
+  memory: () => `${REVIEW}
+    <div class="panel"><h2>Holo 记得 · 永远免费</h2><ul>
+      <li>每条只保留一个来源标签：你说过 / 从记录看出 / 你确认过。命题类型、水位这些只给工程用，不展示给用户。</li>
+      <li>「Holo 还不确定的」用口语说明还缺什么，比如「才看到 5 天」。</li>
+      <li>在发现里点「说得对」，会在这里新增一条，标「刚记下」。</li>
+    </ul></div>`,
+  archive: () => `${REVIEW}
+    <div class="panel"><h2>往期发现 · 免费</h2><ul>
+      <li>看过的都保留，免费和 Plus 一样。区别只在于 Plus 这里会多出更多条。</li>
+      <li>「和 Holo 聊聊这件事」免费，消耗的是普通聊天次数。</li>
+    </ul></div>`,
+  insight: () => `${REVIEW}
+    <div class="panel"><h2>发现详情</h2><ul>
+      <li>「依据」改叫「Holo 是怎么看出来的」；判断句里不写数字，数字只在依据里出现。</li>
+      <li>反馈问的是「Holo 说得对吗？」，点「说得对」→ 写进「Holo 记得」。</li>
+    </ul></div>`,
+  paywall: () => `${REVIEW}
+    <div class="panel"><h2>付费页</h2><ul>
+      <li>顺序：这周你得到了什么 → 免费版和 Plus 的两栏对比 → 说清楚两件事 → 价格。</li>
+      <li>「先不用，等下周的」给用户留台阶，并告诉他不付费也还会有下一件。</li>
+      <li>开通是模拟的，开通后会弹出「想先让 Holo 看哪一件？」。</li>
+    </ul></div>`,
+  clues: () => `${REVIEW}
+    <div class="panel"><h2>Plus · 点名让 Holo 看</h2><ul>
+      <li>Plus 最具体的好处：注意到的事可以自己挑，让 Holo 先看。</li>
+      <li>点第 2 件可以看到「没什么值得说的，不算次数」的结果。</li>
+      <li>工程影响：后端要支持指定看哪一件；次数仍然只在真正发出发现时才计。</li>
+    </ul></div>`,
+};
+function renderNotes() { $('#notes').innerHTML = NOTES[S.sheet || S.tab](); }
+
+/* ---------- 主渲染 ---------- */
+function render() {
+  document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  $('#navTitle').textContent = { discover: '发现', memory: 'Holo 记得', archive: '往期发现' }[S.tab];
+  $('#navBadge').innerHTML = S.tier === 'plus' ? '<span class="plus-badge">PLUS</span>' : '<span class="free-badge">免费版</span>';
+  ({ discover: renderDiscover, memory: renderMemory, archive: renderArchive })[S.tab]();
+  $('#quotaText').innerHTML = `这周已看 <b>${S.used}</b> / ${limit()} 件<br>Holo 注意到、还没细看的 <b>${CLUES.length}</b> 件（本机，零成本）`;
+  renderNotes();
+}
+render();
+</script>
+</body>
+</html>

@@ -165,4 +165,106 @@ final class HabitTypeConversionTests: XCTestCase {
         XCTAssertEqual(repo.getAllRecords(for: habit).count, 2, "类型未变不应清理任何记录")
         XCTAssertTrue(repo.getAllRecords(for: habit).contains { !$0.isCompleted }, "取消记录原样保留")
     }
+
+    func test_累计两笔40_逐笔编辑与撤销后重算() throws {
+        let (repo, _) = try makeRepo()
+        let habit = try repo.createHabit(name: "俯卧撑", icon: "figure.strengthtraining.traditional",
+                                         color: "#3B82F6", type: .numeric, unit: "个",
+                                         prefersQuantityInput: true)
+        try repo.addNumericRecord(for: habit, value: 40)
+        let second = try repo.addNumericRecord(for: habit, value: 40)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 80)
+        XCTAssertEqual(repo.getTodayRecords(for: habit).count, 2)
+
+        try repo.updateRecord(second, value: 35, note: nil)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 75)
+        XCTAssertEqual(try repo.removeLatestTodayRecordValue(for: habit), 35)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 40)
+        XCTAssertEqual(habit.unit, "个")
+    }
+
+    func test_测量转累计_生效日前后使用各自口径() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = try repo.createHabit(name: "俯卧撑", icon: "leaf", color: "#3B82F6",
+                                         type: .numeric, aggregationType: .latest)
+        try repo.addNumericRecord(for: habit, value: 40)
+        try repo.addNumericRecord(for: habit, value: 80)
+        let draft = HabitEditPayload(name: habit.name, icon: habit.icon, color: habit.color,
+                                     type: .numeric, aggregationType: .sum)
+        try repo.applyHabitEdits(habitId: habit.id, payload: draft)
+        let start = try XCTUnwrap(habit.cumulativeStartDay)
+        XCTAssertEqual(start, habit.nextCumulativeDay(dayEndMinutes: 0))
+        XCTAssertEqual(habit.configuredAggregationType, .sum)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 80)
+
+        HabitRecord.createRetroactiveNumeric(in: ctx, habit: habit, on: start, value: 40)
+        HabitRecord.createRetroactiveNumeric(in: ctx, habit: habit, on: start, value: 40)
+        try ctx.save()
+        XCTAssertEqual(repo.getAllRecords(for: habit).count, 4)
+        XCTAssertEqual(repo.getDailyAggregatedData(for: habit, dateRange: nil).map(\.value), [80, 80])
+
+        let projection = HabitPresentationProjector.buildData(records: try repo.tryAllRecordFacts(),
+                                                              pauseWindowsByHabit: [:],
+                                                              now: start.addingTimeInterval(3600))
+        let info = HabitReviewHabitInfo(habit: habit, lifecycle: .active)
+        let review = HabitReviewProjector.rangeSnapshot(info: info, range: .all, data: projection)
+        XCTAssertEqual(review.dailyValues.map(\.value), [80, 80])
+        XCTAssertEqual(review.countTotal, 80)
+        XCTAssertEqual(review.day(habit.currentDay(), today: projection.now, calendar: projection.calendar).dailyValue, 80)
+    }
+
+    func test_文件夹排序与删除_保留习惯和记录() throws {
+        let (repo, _) = try makeRepo()
+        let folderID = try repo.saveFolder(id: nil, name: "减肥", adding: [])
+        let bedtimeID = try repo.saveFolder(id: nil, name: "睡前", adding: [])
+        let habit = try repo.createHabit(name: "俯卧撑", icon: "leaf", color: "#3B82F6",
+                                         type: .numeric, folderID: folderID)
+        let habitID = habit.id
+        let recordID = try repo.addNumericRecord(for: habit, value: 40).id
+
+        try repo.updateFolderOrder([bedtimeID, folderID])
+        XCTAssertEqual(try repo.fetchFolderSummaries().map(\.id), [bedtimeID, folderID])
+        try repo.moveHabit(habitID, to: bedtimeID)
+        XCTAssertEqual(repo.findHabit(by: habitID)?.folderID, bedtimeID)
+        try repo.deleteFolder(id: bedtimeID)
+
+        XCTAssertEqual(try repo.fetchFolderSummaries().map(\.id), [folderID])
+        let preserved = try XCTUnwrap(repo.findHabit(by: habitID))
+        XCTAssertNil(preserved.folderID)
+        XCTAssertEqual(repo.getTodayRecords(for: preserved).map(\.id), [recordID])
+    }
+
+    func test_文件夹切换Emoji和贴纸_沿用素材_保存失败时原样保留() throws {
+        let (repo, context) = try makeRepo()
+        let folderID = try repo.saveFolder(id: nil, name: "健身", adding: [], decoration: .emoji("💪"))
+        XCTAssertEqual(try repo.fetchFolderSummaries().first?.emoji, "💪")
+
+        let visual = VisualAssetRepository.shared
+        let sticker = try visual.createAssetIfNeeded(operationID: UUID(), kind: .sticker, assign: { _ in }, in: context)
+        let assetID = try XCTUnwrap(sticker.value(forKey: "id") as? UUID)
+        try context.save()
+        let presentation = VisualPlacementPayload.Presentation(scale: 0.9)
+        try repo.saveFolder(id: folderID, name: "健身", adding: [], decoration: .sticker(assetID, presentation))
+        let applied = try XCTUnwrap(repo.fetchFolderSummaries().first)
+        XCTAssertNil(applied.emoji)
+        if case .assetReady(let descriptor) = applied.sticker {
+            XCTAssertEqual(descriptor.assetID, assetID)
+            XCTAssertEqual(descriptor.presentation, presentation)
+        } else {
+            XCTFail("文件夹应解析到同一个贴纸素材")
+        }
+
+        XCTAssertThrowsError(try repo.saveFolder(id: folderID, name: "改名", adding: [],
+                                                  decoration: .sticker(UUID(), nil), expectedSticker: applied.sticker))
+        XCTAssertEqual(try repo.fetchFolderSummaries().first, applied)
+
+        try repo.saveFolder(id: folderID, name: "健身", adding: [], decoration: .emoji("🏋️"),
+                            expectedSticker: applied.sticker)
+        let updated = try XCTUnwrap(repo.fetchFolderSummaries().first)
+        XCTAssertEqual(updated.emoji, "🏋️")
+        XCTAssertEqual(updated.sticker, .none)
+        try repo.saveFolder(id: folderID, name: "健身", adding: [], decoration: .clear)
+        XCTAssertNil(try repo.fetchFolderSummaries().first?.emoji)
+        XCTAssertNotNil(visual.findAsset(byID: assetID, in: context), "恢复默认不删除贴纸素材")
+    }
 }

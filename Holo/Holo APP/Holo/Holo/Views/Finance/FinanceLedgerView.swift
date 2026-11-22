@@ -941,20 +941,34 @@ struct DaySwipeContainer<Content: View>: View {
     @State private var offset: CGFloat = 0
     @State private var isSwiping = false
     @State private var gestureLock = HorizontalGestureLock()
-    /// 本次拖动起点已落在左缘排除带内：整段拖动让位给边缘返回手势
-    @State private var edgeExcluded = false
+    /// 本次拖动已命中豁免区（左缘返回带、图表卡片豁免区或子图表横滑进行中）：整段拖动让位
+    @State private var gestureExcluded = false
+    /// 子视图通过 `.daySwipeExcluded()` 上报的切天豁免区域（相对本容器坐标系）
+    @State private var excludedFrames: [CGRect] = []
 
     var body: some View {
         content()
+            .environment(\.daySwipeGestureState, state)
             .allowsHitTesting(!isSwiping) // 滑动中禁止点击账单（含 contextMenu）
             .scrollDisabled(isSwiping) // 水平滑动时锁定垂直滚动
             .offset(x: offset)
+            .coordinateSpace(name: DaySwipeCoordinateSpace.name)
+            .onPreferenceChange(DaySwipeExcludedFramesKey.self) { frames in
+                excludedFrames = frames
+            }
             .simultaneousGesture(
-                DragGesture(minimumDistance: 15)
+                DragGesture(minimumDistance: 15, coordinateSpace: .named(DaySwipeCoordinateSpace.name))
                     .onChanged { value in
-                        if edgeExcluded { return }
-                        if value.startLocation.x < edgeExclusionWidth {
-                            edgeExcluded = true
+                        if gestureExcluded { return }
+                        if state.isChildGestureActive || DaySwipeExclusionPolicy.shouldExclude(
+                            startLocation: value.startLocation,
+                            edgeExclusionWidth: edgeExclusionWidth,
+                            excludedFrames: excludedFrames
+                        ) {
+                            gestureExcluded = true
+                            endSwipe()
+                            isSwiping = false
+                            offset = 0
                             return
                         }
                         switch gestureLock.update(translation: value.translation) {
@@ -972,10 +986,11 @@ struct DaySwipeContainer<Content: View>: View {
                     .onEnded { value in
                         defer {
                             gestureLock.reset()
-                            edgeExcluded = false
+                            gestureExcluded = false
                         }
-                        guard !edgeExcluded, gestureLock.axis == .horizontal else {
+                        guard !gestureExcluded, !state.isChildGestureActive, gestureLock.axis == .horizontal else {
                             endSwipe()
+                            isSwiping = false
                             offset = 0
                             return
                         }
@@ -1036,8 +1051,76 @@ struct DaySwipeContainer<Content: View>: View {
     }
 }
 
-/// 日滑动的实时手势标记：引用类型，跨视图共享同一份布尔值，
-/// 点击回调执行时同步读取，不等 SwiftUI 重绘
+/// 日滑动容器的命名坐标系：让豁免区 frame 与 DragGesture.startLocation 严格同源，
+/// 不受安全区、导航栏或滚动位置偏移影响。
+enum DaySwipeCoordinateSpace {
+    static let name = "holo.daySwipeContainer"
+}
+
+/// 子视图向外层 `DaySwipeContainer` 上报「禁止切天手势介入」的矩形集合（如趋势图、时间轴卡片）。
+struct DaySwipeExcludedFramesKey: PreferenceKey {
+    static var defaultValue: [CGRect] { [] }
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue().filter { !$0.isEmpty })
+    }
+}
+
+/// 切天手势豁免判定（纯逻辑，便于单测）：左缘返回带或任意交互图表卡片区域内的起手拖动直接放行。
+enum DaySwipeExclusionPolicy {
+    static func shouldExclude(
+        startLocation: CGPoint,
+        edgeExclusionWidth: CGFloat,
+        excludedFrames: [CGRect]
+    ) -> Bool {
+        if startLocation.x < edgeExclusionWidth {
+            return true
+        }
+        return excludedFrames.contains { !$0.isEmpty && $0.contains(startLocation) }
+    }
+}
+
+extension View {
+    /// 声明本视图区域为 `DaySwipeContainer` 的切天手势豁免区：
+    /// 起手落在该区域内的横向拖动交由内部控件（如图表横滑、分段切换）独占，不触发整页切天。
+    func daySwipeExcluded() -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: DaySwipeExcludedFramesKey.self,
+                    value: [proxy.frame(in: .named(DaySwipeCoordinateSpace.name))]
+                )
+            }
+        )
+    }
+}
+
+/// 日滑动的实时手势标记：引用类型，跨视图共享同一份状态，
+/// 点击回调与图表手势协调器执行时同步读写，不等 SwiftUI 重绘。
 final class DaySwipeGestureState {
     var isSwiping = false
+    /// 子视图内部横向手势（如图表横滑查看数据）正在进行的计数：> 0 时外层切天必须让位
+    private(set) var activeChildGestureCount = 0
+
+    var isChildGestureActive: Bool { activeChildGestureCount > 0 }
+
+    nonisolated deinit {}
+
+    func beginChildGesture() {
+        activeChildGestureCount += 1
+    }
+
+    func endChildGesture() {
+        activeChildGestureCount = max(activeChildGestureCount - 1, 0)
+    }
+}
+
+private struct DaySwipeGestureStateKey: EnvironmentKey {
+    static let defaultValue: DaySwipeGestureState? = nil
+}
+
+extension EnvironmentValues {
+    var daySwipeGestureState: DaySwipeGestureState? {
+        get { self[DaySwipeGestureStateKey.self] }
+        set { self[DaySwipeGestureStateKey.self] = newValue }
+    }
 }

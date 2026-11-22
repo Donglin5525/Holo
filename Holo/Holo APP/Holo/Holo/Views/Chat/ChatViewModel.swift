@@ -74,6 +74,8 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var earlierHistoryLoadFailed: Bool = false
     /// 用户从某份 Agent Result 发起的短时追问锚点；发送、取消或离开页面后清空。
     @Published var continuationDraft: HoloAgentContinuationDraft?
+    /// 用户从小组件「追问 Holo」发起的完整发现追问上下文；发送或点取消后清空。
+    @Published var insightFollowUpDraft: HoloInsightFollowUpContext?
     /// 截图识别：AI 消息 → 识别出支付通道匹配的账户。确认落库后把交易
     /// 从默认账户搬到该账户（拍板 6）；会话级内存表，重装后自然消失。
     private var visionAccountByMessageID: [UUID: UUID] = [:]
@@ -659,6 +661,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             return
         }
 
+        insightFollowUpDraft = nil
         continuationDraft = HoloAgentContinuationDraft(
             parentJobID: parentJobID,
             parentResultID: parentResultID,
@@ -682,6 +685,52 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
 
     func clearContinuationDraft() {
         continuationDraft = nil
+    }
+
+    /// 桌面小组件「追问 Holo」入口：按 insightId 反查完整 MemoryInsight 挂载到输入栏承接条；
+    /// 查不到（已被删除/同步未达/小组件示例卡片）时诚实降级为 fallbackPrefill，不伪造上下文。
+    func prepareInsightFollowUp(id: UUID, fallbackPrefill: String?) {
+        let repository = MemoryInsightRepository()
+        guard let insight = repository.fetchAvailableInsight(id: id) else {
+            insightFollowUpDraft = nil
+            if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let fallback = fallbackPrefill, !fallback.isEmpty {
+                inputText = fallback
+            }
+            return
+        }
+
+        let periodLabel: String
+        switch insight.insightPeriodType {
+        case .daily: periodLabel = String(localized: "每日观察")
+        case .weekly: periodLabel = String(localized: "本周观察")
+        case .monthly: periodLabel = String(localized: "月度洞察")
+        default: periodLabel = String(localized: "生活观察")
+        }
+
+        let cards = insight.parsedCards.map {
+            HoloInsightFollowUpContext.CardDigest(title: $0.title, body: $0.body)
+        }
+        let displayTitle = (cards.first?.title.isEmpty == false ? cards.first?.title : nil) ?? insight.title
+
+        continuationDraft = nil
+        insightFollowUpDraft = HoloInsightFollowUpContext(
+            insightID: insight.id,
+            periodLabel: periodLabel,
+            periodRange: insight.formattedPeriodRange,
+            title: displayTitle,
+            summary: insight.summary,
+            cards: cards
+        )
+        errorMessage = nil
+
+        if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            inputText = String(localized: "展开说说这条发现，背后的具体数据是什么？")
+        }
+    }
+
+    func clearInsightFollowUpDraft() {
+        insightFollowUpDraft = nil
     }
 
     /// 结果卡「换范围」：以显式窗口重跑同一分析（.changeScope 追问）。
@@ -1088,7 +1137,16 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         }
 
         // 1. 保存用户消息
-        trackOutgoingMessage(kind: continuationDraft != nil ? "report_followup" : "text")
+        let activeInsightFollowUp = self.insightFollowUpDraft
+        if activeInsightFollowUp != nil {
+            self.insightFollowUpDraft = nil
+        }
+        let messageKind: String = {
+            if continuationDraft != nil { return "report_followup" }
+            if activeInsightFollowUp != nil { return "insight_followup" }
+            return "text"
+        }()
+        trackOutgoingMessage(kind: messageKind)
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
         lastSentUserText = text
 
@@ -1125,8 +1183,10 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
 
             do {
                 // 构建上下文，并注入「最近对话关联的任务」（modify_task_items 意图识别 + taskId 补全）
+                // 与小组件「追问 Holo」挂载的完整发现上下文
                 var userContext = await UserContextBuilder.shared.buildContext()
                 userContext.recentLinkedTask = self.resolveRecentLinkedTask()
+                userContext.insightFollowUp = activeInsightFollowUp
 
                 // 活跃规划会话检测：过滤流式占位，只看已定稿的历史消息
                 let activePlanningRunID = self.latestUnresolvedContextPlanRunID()
@@ -1488,6 +1548,8 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                     var parentBrief: String? = nil
                     if let continuation {
                         parentBrief = await HoloCloudAnalysisService.makeParentReportBrief(draft: continuation)
+                    } else if let activeInsightFollowUp {
+                        parentBrief = activeInsightFollowUp.makeCloudAnalysisBrief()
                     }
                     let cloudFinished = await self.runCloudOnlyAnalysis(
                         question: text,

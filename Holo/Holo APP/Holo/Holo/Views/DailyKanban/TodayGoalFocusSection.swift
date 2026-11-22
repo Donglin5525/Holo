@@ -57,7 +57,10 @@ private struct TodayFocusedGoalCard: View {
                     .background(GoalJourneyStyle.inset, in: RoundedRectangle(cornerRadius: 18))
                     .contentShape(Rectangle())
             }.buttonStyle(.plain).accessibilityIdentifier("today-focus-goal")
-            .task { model.load(goal) }
+            .task {
+                model.load(goal)
+                await GoalHealthKitCache.shared.refreshIfNeeded(for: goal)
+            }
             .onReceive(updates) { _ in model.load(goal) }
             #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in model.load(goal) }

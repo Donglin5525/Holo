@@ -2,7 +2,7 @@
 //  MemoryAlmanacGallerySamples.swift
 //  Holo
 //
-//  图表验收样板页（-HoloChartGallery -HoloChartGalleryTab=9）的「年鉴」样板：
+//  图表验收样板页（-HoloChartGallery -HoloChartGalleryTab=9）的「年鉴」样板（样板 0 为「我的积累」紧凑版）：
 //  合成数据、不写业务库。覆盖满年 / 选中某天 / 新用户（最惨稀疏态）/ 往年 / 分享图。
 //
 
@@ -39,7 +39,8 @@ struct MemoryAlmanacGallerySamples: View {
             caption("满年 · 2026-11-21")
             MemoryAlmanacCard(
                 almanac: Self.fullYear, earliestYear: 2025, selectedDate: selectedDate,
-                onSelectDate: { selectedDate = $0 }, onChangeYear: { _ in }, onShare: {}
+                onSelectDate: { selectedDate = $0 }, onChangeYear: { _ in }, onShare: {},
+                showsHero: false, onOpenDay: { _ in }
             )
     }
 

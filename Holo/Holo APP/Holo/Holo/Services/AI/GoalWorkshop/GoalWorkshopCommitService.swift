@@ -465,16 +465,18 @@ final class GoalWorkshopCommitService {
         case .manual: goal.metricSourceEnum = .manual
         case .habit: goal.metricSourceEnum = .habit
         case .ledger: goal.metricSourceEnum = .ledger
+        case .healthKit: goal.metricSourceEnum = .healthKit
         }
         goal.metricUnit = source.unit
         goal.metricTargetValueDouble = source.targetValue
-        goal.baselineValueDouble = goal.goalKindEnum == .target ? source.baselineValue : nil
+        goal.baselineValueDouble = goal.goalKindEnum == .target && source.sourceType != .healthKit ? source.baselineValue : nil
         goal.sourceHabitId = source.sourceType == .habit ? source.sourceID : nil
         // 存完整 payload JSON（含账户 ID，2026-11-14 表单按 Goal 侧口径读账本范围）；
         // payload 缺失时按解析出的 kind 落一份无账户的兜底，读取方回落计划版本
         goal.ledgerScopePayload = source.sourceType == .ledger
             ? source.ledgerScope ?? GoalLedgerScopePayload(kind: source.resolvedLedgerScope, accountID: nil)
             : nil
+        goal.healthMetricKindEnum = source.sourceType == .healthKit ? source.healthMetricKind : nil
         goal.baselineDate = source.baselineObservedAt
     }
 
@@ -503,6 +505,7 @@ final class GoalWorkshopCommitService {
         goal.baselineValueDouble = draft.goalKind == .target ? draft.metricBaselineValue : nil
         goal.sourceHabitId = draft.metricSource == .habit ? draft.sourceHabitId : nil
         goal.ledgerScopePayload = draft.metricSource == .ledger ? draft.ledgerScope : nil
+        goal.healthMetricKindEnum = draft.metricSource == .healthKit ? draft.healthMetricKind : nil
         goal.baselineDate = now
     }
 }

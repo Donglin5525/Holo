@@ -13,8 +13,9 @@ import SwiftUI
 extension View {
     /// 今天页行卡长按菜单：编辑 + 生命周期动作（暂停/恢复、归档/取消归档、删除）
     func habitRowLifecycleMenu(_ row: HabitRowSnapshot,
-                               onEdit: @escaping (UUID) -> Void) -> some View {
-        modifier(HabitRowLifecycleMenuModifier(row: row, onEdit: onEdit))
+                               onEdit: @escaping (UUID) -> Void,
+                               onMoveToFolder: @escaping () -> Void) -> some View {
+        modifier(HabitRowLifecycleMenuModifier(row: row, onEdit: onEdit, onMoveToFolder: onMoveToFolder))
     }
 }
 
@@ -22,6 +23,7 @@ private struct HabitRowLifecycleMenuModifier: ViewModifier {
 
     let row: HabitRowSnapshot
     let onEdit: (UUID) -> Void
+    let onMoveToFolder: () -> Void
 
     /// 暂停弹层目标（Plus 契约确认后置位）
     @State private var pauseTarget: Habit?
@@ -65,6 +67,9 @@ private struct HabitRowLifecycleMenuModifier: ViewModifier {
             onEdit(row.id)
         } label: {
             Label(String(localized: "编辑习惯"), systemImage: "pencil")
+        }
+        Button(action: onMoveToFolder) {
+            Label(String(localized: "移到文件夹"), systemImage: "folder")
         }
         Divider()
         switch row.lifecycle {

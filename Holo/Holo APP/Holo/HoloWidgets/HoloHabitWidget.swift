@@ -18,7 +18,7 @@ struct HoloHabitWidget: Widget {
         }
         .configurationDisplayName("今日习惯")
         .description("今天的习惯完成度，一眼看完一周的坚持形状。")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
 
@@ -36,11 +36,16 @@ private struct HoloHabitProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetHabitSnapshot>>) -> Void) {
+        let now = Date()
         let store = HoloWidgetSnapshotStore()
         let entitlement = store.readEntitlement() ?? .free()
         let snapshot = entitlement.isPlusActive ? (store.readHabit() ?? .sample()) : .sample()
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 30))))
+        let entry = HoloWidgetEntry(date: now, value: snapshot, entitlement: entitlement)
+        var refreshAt = now.addingTimeInterval(60 * 30)
+        if let nextMidnight = Calendar.current.nextDate(after: now, matching: DateComponents(hour: 0, minute: 2), matchingPolicy: .nextTime) {
+            refreshAt = min(refreshAt, nextMidnight)
+        }
+        completion(Timeline(entries: [entry], policy: .after(refreshAt)))
     }
 }
 
@@ -54,22 +59,34 @@ private struct HoloHabitWidgetView: View {
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                // 打卡圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
-                // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
-                if value.totalToday == 0 {
-                    Link(destination: habitsURL) { emptyState }
-                } else if family == .systemSmall {
-                    Link(destination: habitsURL) { habitSmall }
-                } else if family == .systemLarge {
-                    habitLarge
-                } else {
-                    habitMedium
+                switch family {
+                case .accessoryCircular:
+                    accessoryCircular
+                        .containerBackground(for: .widget) { Color.clear }
+                case .accessoryRectangular:
+                    accessoryRectangular
+                        .containerBackground(for: .widget) { Color.clear }
+                default:
+                    // 打卡圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
+                    // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
+                    Group {
+                        if value.totalToday == 0 {
+                            Link(destination: habitsURL) { emptyState }
+                        } else if family == .systemSmall {
+                            Link(destination: habitsURL) { habitSmall }
+                        } else if family == .systemLarge {
+                            habitLarge
+                        } else {
+                            habitMedium
+                        }
+                    }
+                    .holoWidgetBackground(colorScheme: colorScheme)
                 }
             } else {
                 HoloLockedWidgetView()
+                    .holoLockedWidgetBackground(family: family, colorScheme: colorScheme)
             }
         }
-        .holoWidgetBackground(colorScheme: colorScheme)
     }
 
     private var habitsURL: URL { URL(string: "holo://habits")! }
@@ -293,6 +310,58 @@ private struct HoloHabitWidgetView: View {
 
     private var completedToday: Int { value.completedToday }
     private var totalToday: Int { value.totalToday }
+
+    // MARK: - 锁屏配件
+
+    private var accessoryCircular: some View {
+        let progress = totalToday > 0 ? Double(completedToday) / Double(totalToday) : 0
+        return ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.22), lineWidth: 3.5)
+                .padding(2)
+            Circle()
+                .trim(from: 0, to: max(progress, 0.04))
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .padding(2)
+            VStack(spacing: 0) {
+                Text("\(completedToday)/\(totalToday)")
+                    .font(.system(size: 13.5, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.6)
+                Text(String(localized: "习惯"))
+                    .font(.system(size: 7.5, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .widgetURL(habitsURL)
+        .widgetAccentable()
+    }
+
+    private var accessoryRectangular: some View {
+        let nextHabit = value.habits.first(where: { !$0.isCompletedToday })
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(String(localized: "习惯 · \(completedToday)/\(totalToday)"))
+                    .font(.system(size: 11.5, weight: .heavy))
+                    .lineLimit(1)
+            }
+            if let nextHabit {
+                Text(String(localized: "下一项：\(nextHabit.name)"))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+            } else {
+                Text(totalToday == 0 ? String(localized: "去 Holo 种下第一个习惯") : String(localized: "今日习惯已全部完成 ✓"))
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .widgetURL(habitsURL)
+        .widgetAccentable()
+    }
 
     private var remainingText: String {
         let remaining = value.remainingCount

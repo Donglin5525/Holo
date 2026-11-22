@@ -99,6 +99,53 @@ struct ChatInputView: View {
                     .frame(height: 0.5)
                     .padding(.trailing, 2)
                     .padding(.bottom, 2)
+            } else if let insightDraft = viewModel.insightFollowUpDraft {
+                HStack(spacing: 9) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.holoPurple)
+                        .frame(width: 26, height: 26)
+                        .background(Color.holoPurple.opacity(0.12))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "追问这条发现 · \(insightDraft.periodRange)"))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.holoPurple)
+                        Text(insightDraft.title)
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                        if !insightDraft.previewBody.isEmpty {
+                            Text(insightDraft.previewBody)
+                                .font(.system(size: 11.5, weight: .regular))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        viewModel.clearInsightFollowUpDraft()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "取消追问这条发现"))
+                }
+                .padding(.top, 7)
+                .padding(.bottom, 8)
+                .padding(.trailing, 2)
+                .transition(.move(edge: .top).combined(with: .opacity))
+
+                Rectangle()
+                    .fill(Color.holoToolBorder.opacity(0.6))
+                    .frame(height: 0.5)
+                    .padding(.trailing, 2)
+                    .padding(.bottom, 2)
             }
 
             TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
@@ -213,6 +260,7 @@ struct ChatInputView: View {
         .frame(maxWidth: HoloAdaptiveLayout.isExpandedWidth(inputWindowWidth) ? 720 : .infinity)
         .frame(maxWidth: .infinity)
         .animation(HoloAnimation.standard, value: viewModel.continuationDraft != nil)
+        .animation(HoloAnimation.standard, value: viewModel.insightFollowUpDraft != nil)
         .confirmationDialog(
             String(localized: "识别图片记账"),
             isPresented: $showImageSourceDialog,

@@ -101,7 +101,7 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
     let icon: String
     let isCustomIcon: Bool
     let colorHex: String
-    let kind: HabitRowKind
+    var kind: HabitRowKind
     let frequency: HabitFrequency
     let isBadHabit: Bool
     let lifecycle: HabitLifecycle
@@ -110,6 +110,7 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
     let pauseWindows: [HabitPauseWindow]
     /// 每周期目标（打卡型 = 次数；趋势图目标参考线的真源，2026-11-15）
     let target: HabitTargetSummary?
+    let cumulativeStartDay: Date?
 
     init(habit: Habit, lifecycle: HabitLifecycle) {
         self.id = habit.id
@@ -125,13 +126,14 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
         self.unit = habit.unit ?? ""
         self.pauseWindows = habit.pauseWindows
         self.target = HabitPresentationProjector.targetSummary(for: habit)
+        self.cumulativeStartDay = habit.cumulativeStartDay
     }
 
     init(id: UUID, name: String = "习惯", icon: String = "leaf", isCustomIcon: Bool = false,
          colorHex: String = "#987444", kind: HabitRowKind, frequency: HabitFrequency = .daily,
          isBadHabit: Bool = false, lifecycle: HabitLifecycle = .active,
          createdAt: Date = .distantPast, unit: String = "", pauseWindows: [HabitPauseWindow] = [],
-         target: HabitTargetSummary? = nil) {
+         target: HabitTargetSummary? = nil, cumulativeStartDay: Date? = nil) {
         self.id = id
         self.name = name
         self.icon = icon
@@ -145,9 +147,15 @@ struct HabitReviewHabitInfo: Identifiable, Equatable {
         self.unit = unit
         self.pauseWindows = pauseWindows
         self.target = target
+        self.cumulativeStartDay = cumulativeStartDay
     }
 
     var isNumeric: Bool { kind != .checkIn }
+
+    func kind(on day: Date) -> HabitRowKind {
+        guard let cumulativeStartDay else { return kind }
+        return day >= cumulativeStartDay ? .count : .measure
+    }
 }
 
 // MARK: - 单日
@@ -215,7 +223,8 @@ struct HabitRangeSnapshot: Equatable {
     /// 计数范围总量（真实逐日聚合之和）；非计数 nil
     var countTotal: Double? {
         guard info.kind == .count else { return nil }
-        return dailyValues.reduce(0.0) { $0 + $1.value }
+        return dailyValues.lazy.filter { info.kind(on: $0.date) == .count }
+            .reduce(0.0) { $0 + $1.value }
     }
 
     /// 测量范围内最近值（及所在日）；非测量或无记录 nil
@@ -237,18 +246,7 @@ struct HabitRangeSnapshot: Equatable {
         } else {
             recorded = dayFacts.contains { $0.finiteValue != nil }
         }
-        let dailyValue: Double?
-        if info.isNumeric, !dayFacts.isEmpty {
-            let values = dayFacts.compactMap(\.finiteValue)
-            if info.kind == .count {
-                dailyValue = values.isEmpty ? nil : values.reduce(0, +)
-            } else {
-                dailyValue = dayFacts.filter { $0.finiteValue != nil }
-                    .sorted { $0.date < $1.date }.last?.finiteValue
-            }
-        } else {
-            dailyValue = nil
-        }
+        let dailyValue = dailyValues.first(where: { $0.date == dayStart })?.value
         let todayStart = attributedDay(today, calendar: calendar)
         return HabitReviewDay(
             day: dayStart,
@@ -383,16 +381,20 @@ enum HabitReviewProjector {
         if info.isNumeric {
             dailyValues = HabitNumericAggregator.aggregateDaily(
                 samples: facts.compactMap { fact in
-                    fact.finiteValue.map { HabitNumericSample(date: fact.date, value: $0) }
+                    fact.finiteValue.map { HabitNumericSample(date: fact.date, value: $0, recordedAt: fact.recordedAt) }
                 },
-                isCountType: info.kind == .count
-            )
+                calendar: data.calendar
+            ) { info.kind(on: $0) == .count }
         } else {
             dailyValues = []
         }
 
+        var rangedInfo = info
+        if let startDay = info.cumulativeStartDay {
+            rangedInfo.kind = interval.end <= startDay ? .measure : .count
+        }
         return HabitRangeSnapshot(
-            info: info,
+            info: rangedInfo,
             range: range,
             interval: interval,
             records: facts,
@@ -493,10 +495,12 @@ enum HabitReviewProjector {
             let days = perHabitDays[info.id] ?? []
             var countTotal: Double?
             var latest: (value: Double, day: Date)?
+            var kind = info.kind
             if info.isNumeric {
                 let snapshot = rangeSnapshot(info: info, range: .month(monthStartDay), data: data)
                 countTotal = snapshot.countTotal
                 latest = snapshot.latestMeasure
+                kind = snapshot.info.kind
             }
             return HabitReviewRowSnapshot(
                 id: info.id,
@@ -504,7 +508,7 @@ enum HabitReviewProjector {
                 icon: info.icon,
                 isCustomIcon: info.isCustomIcon,
                 colorHex: info.colorHex,
-                kind: info.kind,
+                kind: kind,
                 isBadHabit: info.isBadHabit,
                 lifecycle: info.lifecycle,
                 hasRecords: !days.isEmpty,

@@ -10,35 +10,95 @@
 
 import Foundation
 import CoreData
-import Combine
+
+struct GoalHealthSample: Equatable, Sendable {
+    let value: Double
+    let date: Date?
+    var coveredNights: Int? = nil
+
+    var hasEnoughData: Bool { coveredNights.map { $0 == 7 } ?? true }
+}
 
 @MainActor
-final class GoalHealthKitCache: ObservableObject {
+final class GoalHealthKitCache {
     static let shared = GoalHealthKitCache()
 
-    @Published private(set) var values: [UUID: Double] = [:]
-
-    func value(for goalID: UUID) -> Double? {
-        values[goalID]
+    struct Reading: Equatable {
+        let current: HoloHealthQueryOutcome<GoalHealthSample>
+        let baseline: GoalHealthSample?
     }
+
+    private struct Key: Equatable {
+        let kind: GoalHealthMetricKind
+        let since: Date
+    }
+
+    private struct Entry {
+        let key: Key
+        let cutoff: Date
+        let reading: Reading
+    }
+
+    private var entries: [UUID: Entry] = [:]
+    private var inFlight: [UUID: (key: Key, token: UUID)] = [:]
+    #if DEBUG
+    private var simulated: [UUID: Double] = [:]
 
     func setValue(_ value: Double?, for goalID: UUID) {
-        if let value {
-            values[goalID] = value
-        } else {
-            values.removeValue(forKey: goalID)
+        simulated[goalID] = value
+    }
+    #endif
+
+    func reading(for goal: Goal, kind: GoalHealthMetricKind, cutoff: Date) -> Reading? {
+        #if DEBUG
+        if let value = simulated[goal.id] {
+            return Reading(current: .value(GoalHealthSample(value: value, date: nil)),
+                           baseline: goal.baselineValueDouble.map { GoalHealthSample(value: $0, date: nil) })
+        }
+        #endif
+        let key = Key(kind: kind, since: goal.baselineDate ?? goal.createdAt)
+        guard let entry = entries[goal.id], entry.key == key, entry.cutoff <= cutoff else { return nil }
+        return entry.reading
+    }
+
+    func refreshIfNeeded(for goal: Goal, force: Bool = false) async {
+        guard goal.isRenderable, goal.metricSourceEnum == .healthKit,
+              let kind = goal.healthMetricKindEnum else { return }
+        let id = goal.id
+        let key = Key(kind: kind, since: goal.baselineDate ?? goal.createdAt)
+        let cutoff = Date()
+        guard inFlight[id]?.key != key else { return }
+        if !force, let entry = entries[id], entry.key == key, cutoff.timeIntervalSince(entry.cutoff) < 30 { return }
+
+        let token = UUID()
+        inFlight[id] = (key, token)
+        let repository = HealthRepository.shared
+        async let current = repository.fetchGoalMetric(kind: kind, since: key.since, before: cutoff)
+        async let baseline = Self.readBaseline(kind: kind, since: key.since, cutoff: cutoff, in: repository)
+        let reading = await Reading(current: current, baseline: baseline)
+        guard inFlight[id]?.token == token else { return }
+        inFlight[id] = nil
+        guard goal.isRenderable, goal.metricSourceEnum == .healthKit, goal.healthMetricKindEnum == kind,
+              (goal.baselineDate ?? goal.createdAt) == key.since else { return }
+        let previous = entries.updateValue(Entry(key: key, cutoff: cutoff, reading: reading), forKey: id)
+        if previous?.key != key || previous?.reading != reading {
+            GoalNotificationService.broadcastGoalDataChange()
         }
     }
 
-    func refreshIfNeeded(for goal: Goal) async {
-        guard goal.metricSourceEnum == .healthKit,
-              let kind = goal.healthMetricKindEnum else { return }
-        let start = goal.baselineDate ?? goal.createdAt
-        let fetched = await HealthRepository.shared.fetchGoalMetricValue(kind: kind, since: start)
-        if values[goal.id] != fetched {
-            setValue(fetched, for: goal.id)
-            GoalNotificationService.broadcastGoalDataChange()
+    private static func readBaseline(kind: GoalHealthMetricKind, since start: Date, cutoff: Date,
+                                     in repository: HealthRepository) async -> GoalHealthSample? {
+        guard kind == .bodyMass || kind == .bodyFatPercentage else { return nil }
+        let startingPoint = await repository.fetchGoalMetric(kind: kind, since: start, before: start)
+        switch startingPoint {
+        case .value(let sample): return sample
+        case .noData:
+            if case .value(let first) = await repository.fetchGoalMetric(kind: kind, since: start, before: cutoff, firstSample: true) {
+                return first
+            }
+        case .waitingForUnlock, .unavailable: break
         }
+        return nil
     }
 }
 
@@ -69,196 +129,47 @@ enum GoalMetricEvaluator {
         evaluate(goal: goal, finance: .shared)
     }
 
-    /// finance 注入点：单测用 in-memory 账户+交易走真链路（生产恒走 .shared）
+    /// 同一份观测供目标详情、卡片、回顾与小组件使用。
     static func evaluate(goal: Goal, finance: FinanceRepository) -> GoalMetricProgress? {
-        guard goal.isQuantitative,
-              let target = goal.metricTargetValueDouble, target > 0 else { return nil }
-
-        switch goal.metricSourceEnum {
-        case .manual:
-            return evaluateManual(goal: goal, target: target)
-        case .habit:
-            return evaluateHabit(goal: goal, target: target)
-        case .ledger:
-            return evaluateLedger(goal: goal, target: target, finance: finance)
-        case .healthKit:
-            return evaluateHealthKit(goal: goal, target: target)
-        }
+        guard goal.isQuantitative, let context = goal.managedObjectContext else { return nil }
+        let configuration = GoalPlanResolver.resultConfiguration(goal: goal, in: context)
+        guard let source = configuration.source else { return nil }
+        let builder = GoalEvaluationSnapshotBuilder(
+            context: context, financeRepository: finance, budgetRepository: .shared, habitRepository: .shared
+        )
+        let result = builder.resultObservation(goal: goal, source: source, reviewDays: configuration.reviewDays, now: Date())
+        return progress(for: result, goal: goal)
     }
 
-    // MARK: - healthKit 源
-
-    private static func evaluateHealthKit(goal: Goal, target: Double) -> GoalMetricProgress? {
-        guard let current = GoalHealthKitCache.shared.value(for: goal.id) else { return nil }
-        let start = goal.baselineDate ?? goal.createdAt
-        switch goal.goalKindEnum {
-        case .process:
-            return nil
-        case .cumulative:
-            return makeProgress(goal: goal, current: current, target: target, baseline: nil, elapsedAnchor: start)
-        case .target:
-            guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-            return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: start)
+    static func progress(for observation: GoalResultObservation, goal: Goal) -> GoalMetricProgress? {
+        guard observation.status == .observed,
+              let current = observation.value ?? observation.moneyValue.map({ NSDecimalNumber(decimal: $0).doubleValue }),
+              let target = observation.targetValue, let achieved = observation.isAchieved,
+              let fraction = observation.progressFraction ?? (achieved ? 1 : nil) else { return nil }
+        let total: Double
+        if let baseline = observation.baselineValue, observation.comparison == .trendDown || observation.comparison == .trendUp {
+            total = abs(target - baseline)
+        } else {
+            total = target
         }
+        return GoalMetricProgress(
+            currentValue: current,
+            progress: fraction,
+            isAchieved: achieved,
+            forecast: makeForecast(goal: goal, moved: fraction * total, total: total,
+                                   elapsedAnchor: goal.baselineDate ?? goal.createdAt, achieved: achieved, progress: fraction)
+        )
     }
 
-    // MARK: - manual 源
-
-    private static func evaluateManual(goal: Goal, target: Double) -> GoalMetricProgress? {
-        switch goal.goalKindEnum {
-        case .process:
-            return nil
-        case .cumulative:
-            // 累积型：从累计起点对手动记录求和
-            let start = goal.baselineDate ?? goal.createdAt
-            let sum = GoalRepository.shared.getMetricLogs(for: goal)
-                .filter { $0.date >= start }
-                .reduce(0.0) { $0 + $1.value }
-            return makeProgress(goal: goal, current: sum, target: target, baseline: nil, elapsedAnchor: start)
-        case .target:
-            // 达标型：取最新一条记录为当前水平，无记录时=基线
-            guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-            guard let current = GoalRepository.shared.latestMetricLog(for: goal)?.value else { return nil }
-            return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
-        }
-    }
-
-    // MARK: - habit 源
-
-    /// habit 源的源习惯（活跃未归档才有效）；nil = 源失效（进度不可算，详情页提示重选）
+    /// 原始习惯被归档或删除时，保持引用，等用户主动重选。
     static func sourceHabit(for goal: Goal) -> Habit? {
-        guard goal.metricSourceEnum == .habit, let habitId = goal.sourceHabitId else { return nil }
-        guard let habit = HabitRepository.shared.findHabit(by: habitId), !habit.isArchived else { return nil }
+        guard goal.metricSourceEnum == .habit, let habitId = goal.sourceHabitId,
+              let habit = HabitRepository.shared.findHabit(by: habitId), !habit.isArchived else { return nil }
         return habit
     }
 
-    /// habit 源是否失效（源习惯被删除或归档）
     static func isHabitSourceUnavailable(goal: Goal) -> Bool {
         goal.isQuantitative && goal.metricSourceEnum == .habit && sourceHabit(for: goal) == nil
-    }
-
-    private static func evaluateHabit(goal: Goal, target: Double) -> GoalMetricProgress? {
-        guard let habit = sourceHabit(for: goal) else { return nil }
-        switch goal.goalKindEnum {
-        case .process:
-            return nil
-        case .cumulative:
-            // 累积型：源习惯按日聚合后从累计起点求和。
-            // sum 口径习惯天然适配；latest 口径（测量类）做累积源时每日取最新值再加总，
-            // 口径错配的提示在表单侧做行内提醒，这里不硬拦
-            let start = goal.baselineDate ?? goal.createdAt
-            let sum = HabitRepository.shared.getDailyAggregatedData(for: habit, dateRange: start...Date())
-                .reduce(0.0) { $0 + $1.value }
-            return makeProgress(goal: goal, current: sum, target: target, baseline: nil, elapsedAnchor: start)
-        case .target:
-            // 达标型：源习惯最新一条为当前水平，无记录时=基线
-            guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-            guard let current = HabitRepository.shared.getLatestValue(for: habit) else { return nil }
-            return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
-        }
-    }
-
-    // MARK: - ledger 源
-
-    /// ledger 源按表单选定的账本范围计算（2026-11-14 表单暴露账本范围）：
-    /// Goal.ledgerScopePayload（JSON）为真源——wholeLedgerDelta 全账本净结余增加、
-    /// accountDelta 指定账户净结余增加（累积型），accountBalance 账户余额 reach（达标型）。
-    /// 共创旧目标只存 kind 原始值、payload 读不出来，回落计划版本 payload（兼容旧入口与小组件）。
-    private static func evaluateLedger(goal: Goal, target: Double, finance: FinanceRepository) -> GoalMetricProgress? {
-        if let scope = goal.ledgerScopePayload {
-            switch scope.kind {
-            case .accountDelta:
-                // 累积型·指定账户：该账户当前净结余 − 累计起点净结余（两次 observation 相减；
-                // 账户缺失/删除/查询失败一律返回 nil，不折算 0）
-                let start = goal.baselineDate ?? goal.createdAt
-                guard goal.goalKindEnum == .cumulative, let id = scope.accountID,
-                      case .observed(let nowBalance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()),
-                      case .observed(let startBalance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: start) else {
-                    return nil
-                }
-                let delta = NSDecimalNumber(decimal: nowBalance - startBalance).doubleValue
-                return makeProgress(goal: goal, current: delta, target: target, baseline: nil, elapsedAnchor: start)
-            case .accountBalance:
-                guard let id = scope.accountID,
-                      case .observed(let balance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()) else {
-                    return nil
-                }
-                let current = NSDecimalNumber(decimal: balance).doubleValue
-                // 达标型：账户余额到达目标值，进度从基线起算（与 manual/habit 同构）
-                if goal.goalKindEnum == .target {
-                    guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-                    return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
-                }
-                // 累积型旧口径（余额达到目标）保持不变
-                return GoalMetricProgress(currentValue: current, progress: min(max(current / target, 0), 1), isAchieved: current >= target, forecast: nil)
-            case .wholeLedgerDelta:
-                guard goal.goalKindEnum == .cumulative else { return nil }
-                return wholeLedgerDeltaProgress(goal: goal, target: target, finance: finance)
-            }
-        }
-        // 兼容旧入口与小组件：已有单账户约定时，也必须读取该真实账户。
-        if let context = goal.managedObjectContext {
-            let request = NSFetchRequest<NSDictionary>(entityName: "GoalPlanRevisionMO")
-            request.resultType = .dictionaryResultType
-            request.propertiesToFetch = ["planPayloadJSON"]
-            request.predicate = NSPredicate(format: "goalID == %@ AND deletedAt == nil", goal.id as CVarArg)
-            request.sortDescriptors = [NSSortDescriptor(key: "revisionNumber", ascending: false), NSSortDescriptor(key: "createdAt", ascending: false)]
-            request.fetchLimit = 1
-            guard let rows = try? context.fetch(request) else { return nil }
-            if let json = rows.first?["planPayloadJSON"] as? String {
-                switch GoalPlanPayloadCodec.decode(json) {
-                case .current(let plan):
-                    if plan.resultSource?.resolvedLedgerScope == .accountBalance {
-                        guard let id = plan.resultSource?.ledgerScope?.accountID,
-                              case .observed(let balance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()) else { return nil }
-                        let current = NSDecimalNumber(decimal: balance).doubleValue
-                        return GoalMetricProgress(currentValue: current, progress: min(max(current / target, 0), 1), isAchieved: current >= target, forecast: nil)
-                    }
-                case .unsupportedFuture, .corrupted: return nil
-                default: break
-                }
-            }
-        }
-        return wholeLedgerDeltaProgress(goal: goal, target: target, finance: finance)
-    }
-
-    /// 全账本净结余增加（累积型）：当前净结余 − 基线日净结余。
-    /// 口径=全账本（未归档）期初+净流，与净资产页一致，含信用卡负债
-    private static func wholeLedgerDeltaProgress(goal: Goal, target: Double, finance: FinanceRepository) -> GoalMetricProgress? {
-        let start = goal.baselineDate ?? goal.createdAt
-        let saved = finance.getCumulativeBalance(before: Date()) - finance.getCumulativeBalance(before: start)
-        let current = NSDecimalNumber(decimal: saved).doubleValue
-        return makeProgress(goal: goal, current: current, target: target, baseline: nil, elapsedAnchor: start)
-    }
-
-    // MARK: - 进度与预测
-
-    private static func makeProgress(
-        goal: Goal,
-        current: Double,
-        target: Double,
-        baseline: Double?,
-        elapsedAnchor: Date
-    ) -> GoalMetricProgress {
-        // 已变多少 / 共需变多少；达标型方向由基线与目标大小自动决定
-        let moved: Double
-        let total: Double
-        if let baseline, baseline != target {
-            total = abs(target - baseline)
-            moved = max(0, target > baseline ? (current - baseline) : (baseline - current))
-        } else {
-            total = target
-            moved = max(0, current)
-        }
-        let progress = total > 0 ? min(moved / total, 1) : 0
-        let achieved = moved >= total
-
-        return GoalMetricProgress(
-            currentValue: current,
-            progress: progress,
-            isAchieved: achieved,
-            forecast: makeForecast(goal: goal, moved: moved, total: total, elapsedAnchor: elapsedAnchor, achieved: achieved, progress: progress)
-        )
     }
 
     /// 预测：日均速率外推预计达成日，与 deadline 比较出结论。

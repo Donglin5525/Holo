@@ -5,6 +5,7 @@
 //  目标进度 · 招牌视觉「里程碑弧」
 //
 
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -12,46 +13,73 @@ struct HoloGoalWidget: Widget {
     let kind = HoloWidgetKind.goal.rawValue
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: HoloGoalProvider()) { entry in
+        AppIntentConfiguration(
+            kind: kind,
+            intent: HoloGoalConfigIntent.self,
+            provider: HoloGoalProvider()
+        ) { entry in
             HoloGoalWidgetView(entry: entry)
         }
         .configurationDisplayName("目标进度")
-        .description("最重要的那个目标，推进到哪了。")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("最重要的那个目标，或一次总览全部推进中的目标。")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
-private struct HoloGoalProvider: TimelineProvider {
-    func placeholder(in context: Context) -> HoloWidgetEntry<HoloWidgetGoalSnapshot> {
-        HoloWidgetEntry(date: Date(), value: .sample(), entitlement: .plusPreview())
+private struct HoloGoalDisplayValue {
+    let primaryGoal: HoloWidgetGoalItem?
+    let allGoals: [HoloWidgetGoalItem]
+
+    static func from(_ snapshot: HoloWidgetGoalSnapshot, selectedGoalID: String?) -> HoloGoalDisplayValue {
+        let all = snapshot.allGoals
+        let primary: HoloWidgetGoalItem?
+        if let selectedGoalID,
+           let matched = all.first(where: { $0.goalId.uuidString == selectedGoalID }) {
+            primary = matched
+        } else {
+            primary = snapshot.goal ?? all.first
+        }
+        return HoloGoalDisplayValue(primaryGoal: primary, allGoals: all)
+    }
+}
+
+private struct HoloGoalProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> HoloWidgetEntry<HoloGoalDisplayValue> {
+        HoloWidgetEntry(date: Date(), value: .from(.sample(), selectedGoalID: nil), entitlement: .plusPreview())
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<HoloWidgetGoalSnapshot>) -> Void) {
-        completion(HoloWidgetEntry(
+    func snapshot(for configuration: HoloGoalConfigIntent, in context: Context) async -> HoloWidgetEntry<HoloGoalDisplayValue> {
+        HoloWidgetEntry(
             date: Date(),
-            value: .sample(),
+            value: .from(.sample(), selectedGoalID: configuration.selectedGoal?.id),
             entitlement: widgetEntitlement(for: context)
-        ))
+        )
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetGoalSnapshot>>) -> Void) {
+    func timeline(for configuration: HoloGoalConfigIntent, in context: Context) async -> Timeline<HoloWidgetEntry<HoloGoalDisplayValue>> {
         let store = HoloWidgetSnapshotStore()
         let entitlement = store.readEntitlement() ?? .free()
         let snapshot = entitlement.isPlusActive ? (store.readGoal() ?? .sample()) : .sample()
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60))))
+        let entry = HoloWidgetEntry(
+            date: Date(),
+            value: HoloGoalDisplayValue.from(snapshot, selectedGoalID: configuration.selectedGoal?.id),
+            entitlement: entitlement
+        )
+        return Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60)))
     }
 }
 
 private struct HoloGoalWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var colorScheme
-    let entry: HoloWidgetEntry<HoloWidgetGoalSnapshot>
+    let entry: HoloWidgetEntry<HoloGoalDisplayValue>
 
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                if let goal = entry.value.goal {
+                if family == .systemLarge, !entry.value.allGoals.isEmpty {
+                    goalLarge(entry.value.allGoals)
+                } else if let goal = entry.value.primaryGoal {
                     Link(destination: goal.detailDeepLink) {
                         if family == .systemMedium {
                             goalMedium(goal)
@@ -187,6 +215,85 @@ private struct HoloGoalWidgetView: View {
                 }
             }
             .frame(maxHeight: .infinity, alignment: .center)
+        }
+        .padding(16)
+    }
+
+    // MARK: Large · 多目标进度总览
+
+    private func goalLarge(_ goals: [HoloWidgetGoalItem]) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                Text(String(localized: "进行中的目标"))
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(textPrimary)
+                Spacer()
+                Text(String(localized: "\(goals.count) 个目标"))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(textSecondary)
+            }
+
+            VStack(spacing: 10) {
+                ForEach(goals.prefix(4), id: \.goalId) { goal in
+                    Link(destination: goal.detailDeepLink) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(spacing: 7) {
+                                HoloWidgetIconText.icon(goal.icon, size: 13)
+                                    .frame(width: 24, height: 24)
+                                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(HoloWidgetBrand.primarySubtle(for: colorScheme)))
+                                Text(goal.title)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(textPrimary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(goal.percentText ?? String(localized: "行动中"))
+                                    .font(.system(size: 12.5, weight: .heavy))
+                                    .foregroundStyle(primaryTint)
+                            }
+
+                            if let progress = goal.progress {
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(trackTint)
+                                        Capsule()
+                                            .fill(primaryTint)
+                                            .frame(width: geo.size.width * min(1, max(0.03, progress)))
+                                    }
+                                }
+                                .frame(height: 6)
+                            }
+
+                            if let currentTarget = currentTargetText(goal) {
+                                HStack {
+                                    Text(currentTarget)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(textSecondary)
+                                    Spacer()
+                                    if let remaining = goal.remainingText {
+                                        Text(String(localized: "还差 \(remaining)"))
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(primaryTint)
+                                    }
+                                }
+                            } else if let kindText = goal.kindText {
+                                Text(kindText)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(textSecondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(11)
+                        .background(HoloWidgetBrand.card(for: colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(HoloWidgetBrand.hairline(for: colorScheme), lineWidth: 0.8)
+                        )
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
         }
         .padding(16)
     }

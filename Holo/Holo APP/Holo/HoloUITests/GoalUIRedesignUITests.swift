@@ -4,7 +4,7 @@
 //
 //  目标界面减法重设计走查（2026-11-13，01-设计规格.md §还原检查清单）：
 //  1. 列表多状态：分段控件、进行中段卡片与胶囊、已完成段切换
-//  2. 创建表单三类型：大输入占位、类型切换条件字段、数字提示行一键切累积型
+//  2. 创建目标：从已有体重习惯读取起点，通过真实保存路径进入目标详情
 //  3. 卡片长按菜单：标记完成/暂停/改期限/删除，暂停出「已暂停」胶囊
 //  4. 详情页目标设置面板：五字段+领域行存在，改领域保存后列表卡图标块随领域变化
 //  数据：launchArgument UITEST_SEED_GOAL_LIST_STATES 走 app 内
@@ -21,9 +21,10 @@ final class GoalUIRedesignUITests: XCTestCase {
 
     // MARK: - 启动与导航
 
-    private func launchApp(seedListStates: Bool) -> XCUIApplication {
+    private func launchApp(seedListStates: Bool, seedProgressData: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = seedListStates ? ["UITEST_SEED_GOAL_LIST_STATES"] : []
+        if seedProgressData { app.launchArguments.append("UITEST_SEED_GOAL_PROGRESS_DATA") }
         app.launch()
         skipOnboardingIfNeeded(app)
         return app
@@ -63,11 +64,6 @@ final class GoalUIRedesignUITests: XCTestCase {
     /// 目标卡（Button，label 含标题文本）
     private func card(_ app: XCUIApplication, title: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
-    }
-
-    /// 类型三选卡（Button，label 含名称+示例两段文本）
-    private func typeCard(_ app: XCUIApplication, name: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
     }
 
     /// 元素在屏幕外时上滑找（最多 3 次）
@@ -143,86 +139,223 @@ final class GoalUIRedesignUITests: XCTestCase {
         snap(app, "01-list-completed-segment")
     }
 
-    // MARK: - 2. 创建表单三类型
+    // MARK: - 2. 用已有体重记录创建目标
 
-    func testCreateFormThreeTypes() throws {
-        let app = launchApp(seedListStates: false)
+    func testCreateUsesExistingHabitAsProgressSource() throws {
+        let app = launchApp(seedListStates: false, seedProgressData: true)
         openGoalList(app)
 
-        // + 菜单 → 手动创建
-        let newMenu = app.buttons["新建目标"].firstMatch
-        XCTAssertTrue(newMenu.waitForExistence(timeout: 8), "右上「+」新建菜单应存在")
-        newMenu.tap()
-        let manual = app.buttons["手动创建"].firstMatch
-        XCTAssertTrue(manual.waitForExistence(timeout: 6), "新建菜单应有「手动创建」")
-        manual.tap()
+        let newGoal = app.buttons["goal-new"].firstMatch
+        XCTAssertTrue(newGoal.waitForExistence(timeout: 8))
+        newGoal.tap()
+        let title = app.descendants(matching: .any)["goal-title"].firstMatch
+        let source = app.buttons["goal-progress-source"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertTrue(source.exists)
+        XCTAssertFalse(app.textFields["goal-target"].exists)
+        title.tap()
+        title.typeText("走查·体重管理")
+        source.tap()
 
-        // 大输入占位「想做成什么？」；默认过程型无数字区、无领域选择（规格 B3 v3：AI 按标题认领）
-        let bigInput = app.textFields["想做成什么？"].firstMatch
-        XCTAssertTrue(bigInput.waitForExistence(timeout: 8), "大输入占位「想做成什么？」")
-        XCTAssertFalse(app.textFields["300"].firstMatch.exists, "默认过程型无数字区")
-        XCTAssertFalse(app.staticTexts["领域"].firstMatch.exists, "创建表单不应出现领域选择（v3）")
-        snap(app, "02-form-initial-process")
+        let search = app.textFields["goal-source-search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 6))
+        search.tap()
+        search.typeText("验收·体重")
+        let weight = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "goal-source-habit-")).firstMatch
+        XCTAssertTrue(weight.waitForExistence(timeout: 6))
+        weight.tap()
 
-        // 切「累计」：「目标累计」+ 单位框出现
-        typeCard(app, name: "累计").tap()
-        XCTAssertTrue(app.staticTexts["目标累计"].firstMatch.waitForExistence(timeout: 4), "累计出「目标累计」标签")
-        XCTAssertTrue(app.textFields["300"].firstMatch.exists, "累计目标数框占位 300")
-        XCTAssertTrue(app.textFields["km"].firstMatch.exists, "累计单位框占位 km")
-        snap(app, "02-form-cumulative")
+        let reference = app.staticTexts["goal-reference-value"].firstMatch
+        XCTAssertTrue(reference.waitForExistence(timeout: 6))
+        XCTAssertEqual(reference.label, "75 kg")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "用作起点")).firstMatch.exists)
+        let target = app.textFields["goal-target"].firstMatch
+        XCTAssertTrue(target.exists)
+        target.tap()
+        target.typeText("65")
+        let hideKeyboard = app.buttons["goal-hide-keyboard"].firstMatch
+        XCTAssertTrue(hideKeyboard.waitForExistence(timeout: 6))
+        hideKeyboard.tap()
+        XCTAssertTrue(app.buttons["goal-condition"].label.contains("降到"))
 
-        // 切「达标」：「数据来源 / 当前数值 / 想达到」结构
-        typeCard(app, name: "达标").tap()
-        XCTAssertTrue(app.staticTexts["数据来源"].firstMatch.waitForExistence(timeout: 4), "达标应直接露出「数据来源」")
-        XCTAssertTrue(app.staticTexts["当前数值"].firstMatch.exists, "达标出「当前数值」标签")
-        XCTAssertTrue(app.staticTexts["想达到"].firstMatch.exists, "达标出「想达到」标签")
-        XCTAssertTrue(app.textFields["75"].firstMatch.exists, "达标当前值占位 75")
-        XCTAssertTrue(app.textFields["65"].firstMatch.exists, "达标目标框占位 65")
-        XCTAssertTrue(app.textFields["kg"].firstMatch.exists, "达标单位框占位 kg")
-        snap(app, "02-form-target")
+        snap(app, "A3-体重-设定")
+        let create = app.buttons["创建目标"].firstMatch
+        XCTAssertTrue(create.exists && create.isEnabled)
+        create.tap()
+        XCTAssertTrue(app.buttons["goal-detail-manage"].firstMatch.waitForExistence(timeout: 12))
+        XCTAssertTrue(app.staticTexts["最新 75 kg"].firstMatch.waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts["还差 10 kg"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["goal-achievement-complete"].exists)
 
-        // 切回「做成一件事」：数字区收起
-        typeCard(app, name: "做成一件事").tap()
-        XCTAssertFalse(app.staticTexts["当前数值"].firstMatch.waitForExistence(timeout: 2), "回做成一件事「当前数值」应收起")
-        XCTAssertFalse(app.textFields["300"].firstMatch.exists, "回做成一件事数字框应收起")
-        snap(app, "02-form-back-to-process")
+        let openSource = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "去记录「验收·体重」")).firstMatch
+        XCTAssertTrue(openSource.waitForExistence(timeout: 6))
+        scrollToTap(app, openSource)
+        let record = app.buttons["记录本次数值"].firstMatch
+        XCTAssertTrue(record.waitForExistence(timeout: 8))
+        XCTAssertTrue(record.isHittable, "多条历史记录下，记录入口应在首屏")
+        record.tap()
+        let measurement = app.textFields["habit.measure.value"].firstMatch
+        XCTAssertTrue(measurement.waitForExistence(timeout: 8))
+        measurement.tap()
+        measurement.typeText("72")
+        app.buttons["保存"].firstMatch.tap()
+        let closeSource = app.navigationBars["验收·体重"].buttons["完成"].firstMatch
+        XCTAssertTrue(closeSource.waitForExistence(timeout: 8))
+        closeSource.tap()
+        XCTAssertTrue(app.staticTexts["最新 72 kg"].firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["还差 7 kg"].firstMatch.exists)
+        snap(app, "A4-体重-更新后")
 
-        // 输入含 300 的标题 → 提示行出现 → 点击切「累计」且目标框=300
-        bigInput.tap()
-        bigInput.typeText("今年跑满 300 公里")
-        let hint = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "点一下按数量累计追踪")).firstMatch
-        XCTAssertTrue(hint.waitForExistence(timeout: 4), "标题含 300 时提示行应出现")
-        snap(app, "02-form-hint-row")
+        app.buttons["goal-detail-edit"].firstMatch.tap()
+        let editTarget = app.textFields["goal-target"].firstMatch
+        XCTAssertTrue(editTarget.waitForExistence(timeout: 6))
+        editTarget.tap()
+        editTarget.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2) + "72")
+        app.buttons["goal-hide-keyboard"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["goal-condition"].firstMatch.label.contains("降到"))
+        let save = app.buttons["保存"].firstMatch
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        let complete = app.buttons["goal-achievement-complete"].firstMatch
+        XCTAssertTrue(complete.waitForExistence(timeout: 8) && complete.isHittable)
+        snap(app, "A5-体重-达成弹层")
+        app.buttons["继续保持进行中"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["已达成"].firstMatch.waitForExistence(timeout: 6))
+    }
 
-        hint.tap()
-        XCTAssertTrue(app.staticTexts["目标累计"].firstMatch.waitForExistence(timeout: 4), "点击提示行后应切累计")
-        let targetField = app.textFields.matching(NSPredicate(format: "value == %@", "300")).firstMatch
-        XCTAssertTrue(targetField.waitForExistence(timeout: 4), "目标框应预填 300")
-        XCTAssertTrue(app.textFields.matching(NSPredicate(format: "value == %@", "km")).firstMatch.waitForExistence(timeout: 4),
-                      "单位应按标题词映射预填 km")
+    private func beginAudit(_ title: String, dark: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_GOAL_PROGRESS_DATA"] + (dark ? ["UITEST_GOAL_DARK"] : [])
+        app.launch()
+        skipOnboardingIfNeeded(app)
+        openGoalList(app)
+        let create = app.buttons["goal-new"].firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 8))
+        create.tap()
+        let name = app.descendants(matching: .any)["goal-title"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 8))
+        name.tap()
+        name.typeText(title)
+        return app
+    }
 
-        // 期限交互：点 Holo 截止期限行打开 Holo 定制期限弹层 → 点「1个月后」确定 → 再打开点「不设期限」清除
-        let deadlineRow = app.buttons["goal-deadline-row"].firstMatch
-        if deadlineRow.waitForExistence(timeout: 4) {
-            deadlineRow.tap()
-            let oneMonthChip = app.buttons["goal-deadline-1m"].firstMatch
-            XCTAssertTrue(oneMonthChip.waitForExistence(timeout: 4), "Holo 期限弹层应出现「1个月后」")
-            oneMonthChip.tap()
-            app.buttons["确定"].firstMatch.tap()
-            XCTAssertTrue(deadlineRow.waitForExistence(timeout: 4))
-            deadlineRow.tap()
-            let clearChip = app.buttons["goal-deadline-clear"].firstMatch
-            XCTAssertTrue(clearChip.waitForExistence(timeout: 4), "Holo 期限弹层「不设期限」应存在")
-            clearChip.tap()
-            XCTAssertTrue(app.staticTexts["不设期限"].firstMatch.waitForExistence(timeout: 4), "点「不设期限」后应清除期限")
+    private func pickAuditSource(_ app: XCUIApplication, query: String, prefix: String, group: String? = nil) {
+        app.buttons["goal-progress-source"].firstMatch.tap()
+        let search = app.textFields["goal-source-search"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 6))
+        if let group {
+            let filter = app.buttons["goal-source-group-" + group].firstMatch
+            XCTAssertTrue(filter.isHittable, "各来源分组应在首屏")
+            filter.tap()
         }
+        if !query.isEmpty {
+            search.tap()
+            search.typeText(query)
+        }
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "goal-source-" + prefix)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 6))
+        scrollToTap(app, row)
+    }
 
-        let createButton = app.buttons["创建"].firstMatch
-        XCTAssertTrue(createButton.waitForExistence(timeout: 4), "创建按钮应存在")
-        XCTAssertTrue(createButton.isEnabled, "数字有效+标题非空即可保存（单位可选，规格 B5）")
-        snap(app, "02-form-hint-applied")
-        // 不点创建——本用例不向业务库写数据
+    private func enterAuditTarget(_ value: String, in app: XCUIApplication) {
+        let target = app.textFields["goal-target"].firstMatch
+        XCTAssertTrue(target.waitForExistence(timeout: 6))
+        target.tap()
+        target.typeText(value)
+        app.buttons["goal-hide-keyboard"].firstMatch.tap()
+    }
+
+    private func saveAuditGoal(_ app: XCUIApplication) {
+        let save = app.buttons["创建目标"].firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 6) && save.isEnabled)
+        save.tap()
+        XCTAssertTrue(app.buttons["goal-detail-manage"].firstMatch.waitForExistence(timeout: 10))
+    }
+
+    func testAuditSavingUsesExistingBalance() {
+        let app = beginAudit("走查·攒够应急金")
+        pickAuditSource(app, query: "验收·应急金", prefix: "ledger-account_balance-", group: "finance")
+        XCTAssertTrue(app.buttons["goal-condition"].label.contains("余额达到"))
+        enterAuditTarget("10000", in: app)
+        let condition = app.buttons["goal-condition"].firstMatch
+        condition.tap()
+        app.buttons["账户余额增加"].firstMatch.tap()
+        XCTAssertTrue(condition.label.contains("余额增加"))
+
+        pickAuditSource(app, query: "验收·应急金", prefix: "ledger-account_balance-", group: "finance")
+        XCTAssertTrue(condition.label.contains("余额增加"), "重选同一账户时保留余额增加的模式")
+        condition.tap()
+        app.buttons["账户余额达到"].firstMatch.tap()
+        XCTAssertEqual(app.textFields["goal-target"].firstMatch.value as? String, "10000")
+        snap(app, "B1-攒钱-设定")
+        saveAuditGoal(app)
+        XCTAssertTrue(app.staticTexts["还差 ¥2,000.00"].firstMatch.waitForExistence(timeout: 6))
+        snap(app, "B2-攒钱-详情")
+    }
+
+    func testAuditHealthStepsPeriodInDarkMode() {
+        let app = beginAudit("走查·本周走五万步", dark: true)
+        app.buttons["goal-progress-source"].firstMatch.tap()
+        let group = app.buttons["goal-source-group-health"].firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 6) && group.isHittable)
+        snap(app, "C1-深色-来源列表")
+        group.tap()
+        let steps = app.buttons["goal-source-health-stepCount"].firstMatch
+        XCTAssertTrue(steps.waitForExistence(timeout: 6) && steps.isHittable)
+        steps.tap()
+        let period = app.descendants(matching: .any)["goal-cumulative-start"].firstMatch
+        XCTAssertTrue(period.waitForExistence(timeout: 6))
+        period.tap()
+        app.buttons["从本周开始"].firstMatch.tap()
+        let calendar = Calendar.current
+        let today = Date()
+        let daysSinceMonday = (calendar.component(.weekday, from: today) + 5) % 7
+        let monday = calendar.date(byAdding: .day, value: -daysSinceMonday, to: today) ?? today
+        let date = DateFormatter()
+        date.locale = Locale(identifier: "zh_CN")
+        date.dateFormat = "M/d"
+        XCTAssertTrue(period.label.contains(date.string(from: monday)))
+        enterAuditTarget("50000", in: app)
+        snap(app, "C2-深色-健康累计")
+        saveAuditGoal(app)
+        snap(app, "C3-深色-健康详情")
+    }
+
+    func testAuditNoInitialMeasurement() {
+        let app = beginAudit("走查·降到65公斤")
+        pickAuditSource(app, query: "验收·空体重", prefix: "habit-")
+        XCTAssertTrue(app.staticTexts["暂无记录，首次记录将作为起点"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["goal-condition"].firstMatch.label.contains("降到"))
+        enterAuditTarget("65", in: app)
+        snap(app, "D1-无体重记录")
+        saveAuditGoal(app)
+        XCTAssertTrue(app.staticTexts["待记录"].firstMatch.waitForExistence(timeout: 6))
+        snap(app, "D2-等待首条记录")
+    }
+
+    func testAuditActionGoalCanLinkExistingTask() {
+        let app = beginAudit("走查·交付作品集")
+        app.buttons["关闭"].firstMatch.tap()
+        let resume = app.alerts.buttons["继续编辑"].firstMatch
+        XCTAssertTrue(resume.waitForExistence(timeout: 6))
+        resume.tap()
+        XCTAssertEqual(app.descendants(matching: .any)["goal-title"].firstMatch.value as? String, "走查·交付作品集")
+        snap(app, "E1-行动目标")
+        saveAuditGoal(app)
+        let link = app.buttons["goal-link-existing-action"].firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 6) && link.isHittable)
+        XCTAssertTrue(app.staticTexts["项目"].firstMatch.exists)
+        snap(app, "E2-行动目标-首屏")
+        link.tap()
+        let search = app.textFields["搜索"].firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 6))
+        search.tap()
+        search.typeText("验收·打印作品集")
+        let task = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "验收·打印作品集")).firstMatch
+        XCTAssertTrue(task.waitForExistence(timeout: 6))
+        task.tap()
+        app.buttons["保存"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["验收·打印作品集"].firstMatch.waitForExistence(timeout: 8))
     }
 
     // MARK: - 3. 卡片长按菜单
@@ -321,14 +454,13 @@ final class GoalUIRedesignUITests: XCTestCase {
         let newMenu = app.buttons["新建目标"].firstMatch
         XCTAssertTrue(newMenu.waitForExistence(timeout: 8))
         newMenu.tap()
-        app.buttons["手动创建"].firstMatch.tap()
 
-        let titleField = app.textFields["想做成什么？"].firstMatch
+        let titleField = app.descendants(matching: .any)["goal-title"].firstMatch
         XCTAssertTrue(titleField.waitForExistence(timeout: 8))
         titleField.tap()
         let tempTitle = "走查·待删除闭环"
         titleField.typeText(tempTitle)
-        app.buttons["创建"].firstMatch.tap()
+        app.buttons["创建目标"].firstMatch.tap()
 
         // 创建后自动进入详情页 → 点「···」目标管理 → 删除目标
         let manageBtn = app.buttons["goal-detail-manage"].firstMatch

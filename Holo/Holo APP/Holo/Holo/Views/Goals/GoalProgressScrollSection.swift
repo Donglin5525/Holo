@@ -109,7 +109,7 @@ enum GoalFactsPresentation {
                 if !conditions.isEmpty { return conditions.prefix(2).map { "\($0.title) \($0.valueText)" }.joined(separator: " · ") }
                 return "行动分别记录，成果待确认"
             }
-            return r.status == .unavailable ? "结果来源暂不可用" : "结果待记录"
+            return r.note ?? r.unavailableReason ?? (r.status == .unavailable ? "结果来源暂不可用" : "结果待记录")
         }
         if let money = r.moneyValue {
             return GoalJourneyNarrative.money(money) + (r.targetValue.map { " / " + GoalJourneyNarrative.money(Decimal($0)) } ?? "")
@@ -122,13 +122,14 @@ enum GoalFactsPresentation {
 }
 
 enum GoalOriginalSourceSelection: Identifiable {
-    case habit(HabitSourceRoute), account(UUID), task(UUID), manual(UUID), budget(UUID?), ledger
+    case habit(HabitSourceRoute), account(UUID), task(UUID), manual(UUID), budget(UUID?), ledger, health(HealthMetricType)
     var id: String { String(describing: self) }
 }
 
 struct GoalOriginalSourceSheet: View {
     let selection: GoalOriginalSourceSelection
     @Environment(\.dismiss) private var dismiss
+    @State private var healthDate = Date()
     var body: some View {
         switch selection {
         case .habit(let route): HabitSourceDetailView(route: route)
@@ -147,6 +148,7 @@ struct GoalOriginalSourceSheet: View {
             else { Text("目标已删除") }
         case .budget(let id): BudgetDetailView(anchoredAccountId: id)
         case .ledger: FinanceView()
+        case .health(let metric): HealthDetailView(type: metric, selectedDate: $healthDate).holoSheetShell()
         }
     }
 }
@@ -160,6 +162,7 @@ struct GoalProgressScrollSection: View {
     var onNewHabit: () -> Void = {}
     var onLinkExisting: () -> Void = {}
     var onOpenPlanEditor: () -> Void = {}
+    let onEditProgress: () -> Void
 
     @StateObject private var model = GoalProgressFactsModel()
     @State private var source: GoalOriginalSourceSelection?
@@ -187,10 +190,12 @@ struct GoalProgressScrollSection: View {
             } else if let state = model.state {
                 factsSection(state)
                 stepsSection(state)
-                if closedLoopEnabled {
-                    GoalAnalysisSection(goal: goal, onOpenLinkedEntity: onOpenLinkedEntity)
-                } else {
-                    legacyReportsSection(state)
+                if goal.metricSourceEnum != .healthKit {
+                    if closedLoopEnabled {
+                        GoalAnalysisSection(goal: goal, onOpenLinkedEntity: onOpenLinkedEntity)
+                    } else {
+                        legacyReportsSection(state)
+                    }
                 }
             } else {
                 ProgressView("正在读取")
@@ -235,14 +240,11 @@ struct GoalProgressScrollSection: View {
     // MARK: - Hero 进度卡
 
     private var heroCard: some View {
-        let metric = GoalMetricEvaluator.evaluate(goal: goal)
         let snapshot = model.state?.snapshot
+        let metric = snapshot.flatMap { GoalMetricEvaluator.progress(for: $0.result, goal: goal) }
         return VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(alignment: .top, spacing: HoloSpacing.md) {
-                Text(goal.displayIcon)
-                    .font(.system(size: 22))
-                    .frame(width: 44, height: 44)
-                    .background(goal.goalDomain.badgeColor.opacity(0.12), in: RoundedRectangle(cornerRadius: HoloRadius.md))
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                GoalIdentityBadge(goal: goal)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(goal.title)
@@ -283,7 +285,7 @@ struct GoalProgressScrollSection: View {
     private func quantitativeHeroBlock(snapshot: GoalEvaluationSnapshot?, metric: GoalMetricProgress?) -> some View {
         let progress = snapshot.flatMap { GoalFactsPresentation.progress($0.result)?.fraction } ?? metric?.progress
         let pct = progress.map { Int(($0 * 100).rounded()) }
-        let headline = heroHeadline(snapshot: snapshot, metric: metric)
+        let headline = heroHeadline(snapshot: snapshot)
         let subline = heroSubline(snapshot: snapshot, metric: metric)
 
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -306,20 +308,41 @@ struct GoalProgressScrollSection: View {
                 }
             }
 
-            HoloProgress(
-                value: progress,
-                color: GoalJourneyStyle.action,
-                shape: .bar,
-                lineWidth: 6,
-                trackColor: Color.holoToolBorder.opacity(0.6)
-            )
+            if let progress {
+                HoloProgress(
+                    value: progress,
+                    color: GoalJourneyStyle.action,
+                    shape: .bar,
+                    lineWidth: 6,
+                    trackColor: Color.holoToolBorder.opacity(0.6)
+                )
+            }
 
-            if let subline {
+            let target = fixedTargetLabel(snapshot?.result)
+            if let target, let subline {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: HoloSpacing.md) { Text(target).fixedSize(); Spacer(minLength: 0); Text(subline).fixedSize() }
+                    VStack(alignment: .leading, spacing: HoloSpacing.xs) { Text(target); Text(subline) }
+                }
+                .goalJourneyText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+            } else if let subline {
                 Text(subline)
                     .goalJourneyText(.metadata)
                     .foregroundStyle(Color.holoToolTextSecondary)
             }
         }
+    }
+
+    private func fixedTargetLabel(_ result: GoalResultObservation?) -> String? {
+        guard goal.goalKindEnum == .target, let result, let target = result.targetValue,
+              result.status == .observed || result.status == .stale,
+              result.value != nil || result.moneyValue != nil else { return nil }
+        let value = result.sourceKind == .ledger
+            ? GoalJourneyNarrative.money(Decimal(target))
+            : GoalMetricEvaluator.formatValue(target) + (result.unit.map { " " + $0 } ?? "")
+        return result.comparison == .trendDown || result.comparison == .stayBelow
+            ? String(localized: "目标降到 \(value)") : String(localized: "目标达到 \(value)")
     }
 
     @ViewBuilder
@@ -372,66 +395,127 @@ struct GoalProgressScrollSection: View {
             }
             .buttonStyle(GoalJourneyPrimaryStyle())
         } else if goal.isQuantitative {
-            switch goal.metricSourceEnum {
-            case .ledger:
-                Button {
-                    openLedgerSource(snapshot: snapshot)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "wallet.bifold")
-                        Text("去财务记一笔")
-                    }
-                }
-                .buttonStyle(GoalJourneyPrimaryStyle())
-            case .habit:
-                if let habit = GoalMetricEvaluator.sourceHabit(for: goal) {
-                    Button {
-                        let start = snapshot?.windowStart ?? Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
-                        let end = snapshot?.windowEndExclusive ?? Date()
-                        source = .habit(HabitSourceRoute(habitID: habit.id, start: start, endExclusive: end))
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle")
-                            Text("去记录「\(habit.name)」")
-                        }
-                    }
+            if snapshot?.result.status == .pendingSource || snapshot?.result.status == .unavailable && goal.metricSourceEnum != .healthKit {
+                Button("更换进度数据", action: onEditProgress)
                     .buttonStyle(GoalJourneyPrimaryStyle())
-                } else {
-                    Text("数据源习惯已不可用")
-                        .goalJourneyText(.metadata)
-                        .foregroundStyle(Color.holoToolWarning)
-                }
-            case .manual:
-                Button {
-                    source = .manual(goal.id)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus.circle.fill")
-                        Text(goal.goalKindEnum == .target ? String(localized: "记当前数值") : String(localized: "记一笔"))
-                    }
-                }
-                .buttonStyle(GoalJourneyPrimaryStyle())
-            case .healthKit:
-                Button {
-                    Task { await GoalHealthKitCache.shared.refreshIfNeeded(for: goal) }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "heart.fill")
-                        Text("同步苹果健康数据")
-                    }
-                }
-                .buttonStyle(GoalJourneyPrimaryStyle())
+            } else {
+                sourceAction(for: snapshot)
             }
-        } else {
+        } else if goal.sortedTasks.isEmpty && goal.sortedHabits.isEmpty && snapshot?.execution.isEmpty != false {
+            emptyGoalActions
+        }
+    }
+
+    private var emptyGoalActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: HoloSpacing.md) { newAction; linkAction }
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) { newAction; linkAction }
+        }
+    }
+
+    private var newAction: some View {
+        Menu {
+            Button("新建任务", action: onNewTask)
+            Button("新建习惯", action: onNewHabit)
+        } label: {
+            actionLabel("新建行动", icon: "plus")
+                .holoText(.supporting)
+                .foregroundStyle(GoalJourneyStyle.action)
+                .frame(minHeight: 44)
+                .fixedSize()
+        }
+    }
+
+    private var linkAction: some View {
+        Button(action: onLinkExisting) {
+            actionLabel("关联已有任务或习惯", icon: "link")
+                .holoText(.supporting)
+                .foregroundStyle(GoalJourneyStyle.action)
+                .frame(minHeight: 44)
+                .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("goal-link-existing-action")
+    }
+
+    private func actionLabel(_ title: LocalizedStringKey, icon: String) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: icon).frame(width: 20, height: 20)
+        }
+    }
+
+    @ViewBuilder
+    private func sourceAction(for snapshot: GoalEvaluationSnapshot?) -> some View {
+        switch goal.metricSourceEnum {
+        case .ledger:
             Button {
-                onNewTask()
+                openLedgerSource(snapshot: snapshot)
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text("添加任务")
+                    Image(systemName: "wallet.bifold")
+                    Text("去财务记一笔")
                 }
             }
             .buttonStyle(GoalJourneyPrimaryStyle())
+        case .habit:
+            if let habit = GoalMetricEvaluator.sourceHabit(for: goal) {
+                Button {
+                    let start = snapshot?.windowStart ?? Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                    let end = snapshot?.windowEndExclusive ?? Date()
+                    source = .habit(HabitSourceRoute(habitID: habit.id, start: start, endExclusive: end))
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.pencil")
+                        Text("去记录「\(habit.name)」")
+                    }
+                }
+                .buttonStyle(GoalJourneyPrimaryStyle())
+            } else {
+                Text("数据源习惯已不可用")
+                    .goalJourneyText(.metadata)
+                    .foregroundStyle(Color.holoToolWarning)
+            }
+        case .manual:
+            Button {
+                source = .manual(goal.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                    Text(goal.goalKindEnum == .target ? String(localized: "记当前数值") : String(localized: "记一笔"))
+                }
+            }
+            .buttonStyle(GoalJourneyPrimaryStyle())
+        case .healthKit:
+            Button { openHealthSource() } label: {
+                Label(healthActionTitle, systemImage: "heart")
+            }
+            .buttonStyle(HoloActionStyle(role: HealthRepository.shared.hasRequestedPermission ? .secondary : .primary))
+        }
+    }
+
+    private var healthDetailMetric: HealthMetricType? {
+        switch goal.healthMetricKindEnum {
+        case .sleepHours, .sleepAverage: return .sleep
+        case .stepCount: return .steps
+        case .workoutMinutes: return .workout
+        default: return nil
+        }
+    }
+
+    private var healthActionTitle: String {
+        if !HealthRepository.shared.hasRequestedPermission { return String(localized: "连接苹果健康") }
+        return healthDetailMetric == nil ? String(localized: "重新读取苹果健康") : String(localized: "查看苹果健康数据")
+    }
+
+    private func openHealthSource() {
+        if !HealthRepository.shared.hasRequestedPermission {
+            HealthRepository.shared.requestAuthorization()
+        } else if let metric = healthDetailMetric {
+            source = .health(metric)
+        } else {
+            Task { await GoalHealthKitCache.shared.refreshIfNeeded(for: goal, force: true) }
         }
     }
 
@@ -474,7 +558,7 @@ struct GoalProgressScrollSection: View {
                 case .ledger:
                     recentLedgerActivitySection(state)
                 case .habit:
-                    recentHabitActivitySection(state)
+                    if !model.recentHabitRecords.isEmpty { recentHabitActivitySection(state) }
                 case .manual:
                     manualLogsSection
                 case .healthKit:
@@ -556,7 +640,9 @@ struct GoalProgressScrollSection: View {
     @ViewBuilder
     private func recentHabitActivitySection(_ state: GoalReviewState) -> some View {
         let habitTitle = model.sourceHabit?.name ?? state.snapshot.result.sourceLabel
-        let unitSuffix = model.sourceHabit?.unitText.isEmpty == false ? " \(model.sourceHabit!.unitText)" : (goal.metricUnit.map { " \($0)" } ?? "")
+        let unit = model.sourceHabit?.unitText ?? goal.metricUnit ?? ""
+        let unitSuffix = unit.isEmpty ? "" : " \(unit)"
+        let records = model.recentHabitRecords.renderable
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
                 Text("\(habitTitle) · 最近同步记录")
@@ -578,45 +664,36 @@ struct GoalProgressScrollSection: View {
                 .accessibilityIdentifier("goal-result-source")
             }
 
-            if model.recentHabitRecords.isEmpty {
-                Text("还没有数值记录，点上方按钮去记一次")
-                    .goalJourneyText(.supporting)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(HoloSpacing.md)
-                    .holoSurface()
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(model.recentHabitRecords.enumerated()), id: \.element.id) { index, record in
-                        let valueText = record.valueDouble.map { GoalMetricEvaluator.formatValue($0) + unitSuffix } ?? "--"
-                        HStack(spacing: HoloSpacing.md) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(record.note.flatMap { $0.isEmpty ? nil : $0 } ?? habitTitle)
-                                    .goalJourneyText(.row)
-                                    .foregroundStyle(Color.holoToolText)
-                                    .lineLimit(1)
-                                Text(record.formattedDate)
-                                    .goalJourneyText(.metadata)
-                                    .foregroundStyle(Color.holoToolTextSecondary)
-                            }
-                            Spacer()
-                            Text(valueText)
-                                .goalJourneyText(.rowValue)
-                                .monospacedDigit()
-                                .foregroundStyle(GoalJourneyStyle.action)
+            VStack(spacing: 0) {
+                ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
+                    let valueText = record.valueDouble.map { GoalMetricEvaluator.formatValue($0) + unitSuffix } ?? "--"
+                    HStack(spacing: HoloSpacing.md) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.note.flatMap { $0.isEmpty ? nil : $0 } ?? habitTitle)
+                                .goalJourneyText(.row)
+                                .foregroundStyle(Color.holoToolText)
+                                .lineLimit(1)
+                            Text(record.formattedDate)
+                                .goalJourneyText(.metadata)
+                                .foregroundStyle(Color.holoToolTextSecondary)
                         }
-                        .padding(.horizontal, HoloSpacing.md)
-                        .padding(.vertical, 12)
-                        if index < model.recentHabitRecords.count - 1 {
-                            Rectangle()
-                                .fill(Color.holoToolBorder.opacity(0.6))
-                                .frame(height: 0.5)
-                                .padding(.leading, HoloSpacing.md)
-                        }
+                        Spacer()
+                        Text(valueText)
+                            .goalJourneyText(.rowValue)
+                            .monospacedDigit()
+                            .foregroundStyle(GoalJourneyStyle.action)
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                    if index < records.count - 1 {
+                        Rectangle()
+                            .fill(Color.holoToolBorder.opacity(0.6))
+                            .frame(height: 0.5)
+                            .padding(.leading, HoloSpacing.md)
                     }
                 }
-                .holoSurface()
             }
+            .holoSurface()
         }
     }
 
@@ -687,17 +764,13 @@ struct GoalProgressScrollSection: View {
         let habits = goal.sortedHabits
         let requirements = (state.snapshot.requirements ?? []).filter { $0.role != .result }
         let configured = Set((state.snapshot.requirements ?? []).map(\.id)).union(state.snapshot.constraints.map(\.id))
-        let executions = state.snapshot.execution.filter { !configured.contains($0.id) }
+        let executions = state.snapshot.execution.filter { $0.role != .result && !configured.contains($0.id) }
         let constraints = state.snapshot.constraints
         let hasPlanSteps = !requirements.isEmpty || !executions.isEmpty || !constraints.isEmpty
         let hasAnyStep = !tasks.isEmpty || !habits.isEmpty || hasPlanSteps
 
-        if !hasAnyStep && goal.isQuantitative {
-            // 量化目标尚未拆解步骤时只留一行克制入口，不占大块空白
-            HStack {
-                addStepMenu(label: String(localized: "+ 拆解任务或习惯"))
-                Spacer()
-            }
+        if !hasAnyStep {
+            if goal.isQuantitative { emptyGoalActions }
         } else {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 HStack {
@@ -708,65 +781,49 @@ struct GoalProgressScrollSection: View {
                     addStepMenu(label: String(localized: "+ 添加"))
                 }
 
-                if !hasAnyStep {
-                    Button(action: onNewTask) {
-                        HStack(spacing: HoloSpacing.sm) {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(GoalJourneyStyle.action)
-                            Text("添加第一个任务")
-                                .goalJourneyText(.supporting)
-                                .foregroundStyle(Color.holoToolText)
-                            Spacer()
+                if !tasks.isEmpty || !habits.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(tasks.renderable, id: \.id) { task in
+                            taskStepRow(task)
                         }
-                        .padding(HoloSpacing.md)
-                        .holoSurface()
-                    }
-                    .buttonStyle(HoloPressStyle())
-                } else {
-                    if !tasks.isEmpty || !habits.isEmpty {
-                        VStack(spacing: 0) {
-                            ForEach(tasks.renderable, id: \.id) { task in
-                                taskStepRow(task)
-                            }
-                            ForEach(habits.renderable, id: \.id) { habit in
-                                habitStepRow(habit, snapshot: state.snapshot)
-                            }
-                        }
-                        .holoSurface()
-                    }
-
-                    ForEach(requirements) { item in
-                        GoalJourneySourceRow(
-                            title: item.title,
-                            value: item.valueText,
-                            note: (item.requirement.calendarMonth ? "本月" : "最近\(item.requirement.windowDays)天") + " · " + (item.role == .constraint ? item.stateText : roleName(item.role)),
-                            identifier: "goal-source-" + item.title,
-                            progress: GoalFactsPresentation.progress(item),
-                            evidence: GoalFactsPresentation.evidence(item)
-                        ) { openRequirement(item) }
-                    }
-
-                    ForEach(executions.filter { $0.entityType != .task && $0.entityType != .habit }) { item in
-                        GoalJourneySourceRow(title: item.title, value: executionValue(item), note: roleName(item.role), identifier: "goal-source-" + item.title) {
-                            open(entityType: item.entityType, id: item.entityID, start: state.snapshot.windowStart, end: state.snapshot.windowEndExclusive)
+                        ForEach(habits.renderable, id: \.id) { habit in
+                            habitStepRow(habit, snapshot: state.snapshot)
                         }
                     }
+                    .holoSurface()
+                }
 
-                    ForEach(constraints) { item in
-                        GoalJourneySourceRow(
-                            title: item.title,
-                            value: item.observedValue.map { "\($0) / \(item.limitValue) \(item.unit ?? "")" } ?? "待确认",
-                            note: item.windowLabel + " · " + (item.isBreached == true ? "已超约定" : "进行中"),
-                            identifier: "goal-source-" + item.title,
-                            progress: item.isUnavailable ? nil : GoalJourneyProgress(value: item.observedValue.map { NSDecimalNumber(decimal: $0).doubleValue }, target: NSDecimalNumber(decimal: item.limitValue).doubleValue, kind: .allowance),
-                            evidence: item.expectedDays.map { "\(item.confirmedDays ?? 0) / \($0) 天已明确确认" } ?? ""
-                        ) {
-                            if item.kind == .budget { source = .budget(state.plan.payload.budgetRule?.accountID) }
-                            else if let rule = state.plan.payload.constraints.first(where: { $0.bindingID == item.id }) {
-                                open(entityType: .habit, id: rule.habitID, start: item.windowStart ?? state.snapshot.windowStart, end: item.windowEndExclusive ?? state.snapshot.windowEndExclusive)
-                            } else {
-                                onOpenPlanEditor()
-                            }
+                ForEach(requirements) { item in
+                    GoalJourneySourceRow(
+                        title: item.title,
+                        value: item.valueText,
+                        note: (item.requirement.calendarMonth ? "本月" : "最近\(item.requirement.windowDays)天") + " · " + (item.role == .constraint ? item.stateText : roleName(item.role)),
+                        identifier: "goal-source-" + item.title,
+                        progress: GoalFactsPresentation.progress(item),
+                        evidence: GoalFactsPresentation.evidence(item)
+                    ) { openRequirement(item) }
+                }
+
+                ForEach(executions.filter { $0.entityType != .task && $0.entityType != .habit }) { item in
+                    GoalJourneySourceRow(title: item.title, value: executionValue(item), note: roleName(item.role), identifier: "goal-source-" + item.title) {
+                        open(entityType: item.entityType, id: item.entityID, start: state.snapshot.windowStart, end: state.snapshot.windowEndExclusive)
+                    }
+                }
+
+                ForEach(constraints) { item in
+                    GoalJourneySourceRow(
+                        title: item.title,
+                        value: item.observedValue.map { "\($0) / \(item.limitValue) \(item.unit ?? "")" } ?? "待确认",
+                        note: item.windowLabel + " · " + (item.isBreached == true ? "已超约定" : "进行中"),
+                        identifier: "goal-source-" + item.title,
+                        progress: item.isUnavailable ? nil : GoalJourneyProgress(value: item.observedValue.map { NSDecimalNumber(decimal: $0).doubleValue }, target: NSDecimalNumber(decimal: item.limitValue).doubleValue, kind: .allowance),
+                        evidence: item.expectedDays.map { "\(item.confirmedDays ?? 0) / \($0) 天已明确确认" } ?? ""
+                    ) {
+                        if item.kind == .budget { source = .budget(state.plan.payload.budgetRule?.accountID) }
+                        else if let rule = state.plan.payload.constraints.first(where: { $0.bindingID == item.id }) {
+                            open(entityType: .habit, id: rule.habitID, start: item.windowStart ?? state.snapshot.windowStart, end: item.windowEndExclusive ?? state.snapshot.windowEndExclusive)
+                        } else {
+                            onOpenPlanEditor()
                         }
                     }
                 }
@@ -944,45 +1001,49 @@ struct GoalProgressScrollSection: View {
             .background((isDone ? Color.holoToolSuccess.opacity(0.12) : Color.holoToolBorder.opacity(0.5)), in: Capsule())
     }
 
-    private func heroHeadline(snapshot: GoalEvaluationSnapshot?, metric: GoalMetricProgress?) -> String {
-        if let snapshot {
-            if let money = snapshot.result.moneyValue {
-                let targetText = snapshot.result.targetValue.map { " / " + GoalJourneyNarrative.money(Decimal($0)) } ?? ""
-                return GoalJourneyNarrative.money(money) + targetText
-            }
-            if let value = snapshot.result.value {
-                let unit = snapshot.result.unit.map { " \($0)" } ?? ""
-                let targetText = snapshot.result.targetValue.map { " / " + GoalMetricEvaluator.formatValue($0) } ?? ""
-                return GoalMetricEvaluator.formatValue(value) + targetText + unit
-            }
+    private func heroHeadline(snapshot: GoalEvaluationSnapshot?) -> String {
+        guard let result = snapshot?.result else { return String(localized: "正在读取进展") }
+        if let money = result.moneyValue {
+            let current = GoalJourneyNarrative.money(money)
+            if goal.goalKindEnum == .target { return current }
+            return current + (result.targetValue.map { " / " + GoalJourneyNarrative.money(Decimal($0)) } ?? "")
         }
-        if let metric {
-            let unit = goal.metricUnit.map { " \($0)" } ?? ""
-            if goal.goalKindEnum == .target {
-                return "\(GoalMetricEvaluator.formatValue(metric.currentValue))\(unit) · 目标 \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))"
+        if let value = result.value {
+            let unit = result.unit.map { " " + $0 } ?? ""
+            let stepGoal = goal.healthMetricKindEnum == .stepCount
+            let current = stepGoal ? value.formatted(.number.locale(Locale(identifier: "zh_CN")).precision(.fractionLength(0))) : GoalMetricEvaluator.formatValue(value)
+            if goal.goalKindEnum == .target { return String(localized: "最新 \(current)\(unit)") }
+            let target = result.targetValue.map {
+                stepGoal ? $0.formatted(.number.locale(Locale(identifier: "zh_CN")).precision(.fractionLength(0))) : GoalMetricEvaluator.formatValue($0)
             }
-            return "\(GoalMetricEvaluator.formatValue(metric.currentValue)) / \(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unit)"
+            return current + (target.map { " / " + $0 } ?? "") + unit
         }
-        return goal.metricTargetValueDouble.map { "0 / \(GoalMetricEvaluator.formatValue($0))\(goal.metricUnit.map { " \($0)" } ?? "")" } ?? "待记录"
+        return result.status == .unavailable ? String(localized: "来源暂不可用") : String(localized: "待记录")
     }
 
     private func heroSubline(snapshot: GoalEvaluationSnapshot?, metric: GoalMetricProgress?) -> String? {
-        if let metric {
-            if metric.isAchieved { return String(localized: "已达成") }
-            if goal.goalKindEnum == .target, let baseline = goal.baselineValueDouble {
-                let target = goal.metricTargetValueDouble ?? 0
-                let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
-                let unit = goal.metricUnit.map { " \($0)" } ?? ""
-                return "\(verb) \(GoalMetricEvaluator.formatValue(abs(baseline - metric.currentValue)))\(unit) / 共 \(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)"
+        guard let result = snapshot?.result else { return nil }
+        if result.status == .unavailable { return result.unavailableReason }
+        if result.status == .stale { return result.note }
+        if let note = result.note { return note }
+        if result.isAchieved == true { return String(localized: "已达成") }
+        if goal.goalKindEnum == .target, let target = result.targetValue {
+            let down = result.comparison == .trendDown || result.comparison == .stayBelow
+            if let current = result.moneyValue {
+                let remaining = down ? current - Decimal(target) : Decimal(target) - current
+                return String(localized: "还差 \(GoalJourneyNarrative.money(remaining))")
             }
-            if let forecast = metric.forecast {
-                let dateText = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
-                return String(localized: "按当前节奏预计 \(dateText) 达成")
+            let unit = result.unit.map { " " + $0 } ?? ""
+            if let current = result.value {
+                let remaining = down ? current - target : target - current
+                return String(localized: "还差 \(GoalMetricEvaluator.formatValue(remaining))\(unit)")
             }
+            let amount = GoalMetricEvaluator.formatValue(target) + unit
+            return down ? String(localized: "目标降到 \(amount)") : String(localized: "目标达到 \(amount)")
         }
-        if let money = snapshot?.result.moneyValue, let target = snapshot?.result.targetValue {
-            let rem = Decimal(target) - money
-            return rem > 0 ? String(localized: "还差 \(GoalJourneyNarrative.money(rem))") : String(localized: "已达成")
+        if let forecast = metric?.forecast {
+            let date = GoalMetricEvaluator.displayDateFormatter.string(from: forecast.predictedDate)
+            return String(localized: "按当前节奏预计 \(date) 达成")
         }
         return nil
     }
@@ -1009,6 +1070,7 @@ struct GoalProgressScrollSection: View {
             return
         }
         switch result.sourceType {
+        case .healthKit: openHealthSource()
         case .manual: source = .manual(goal.id)
         case .habit:
             let isLatest = result.aggregation != .sum

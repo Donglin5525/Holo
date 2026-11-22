@@ -397,7 +397,7 @@ struct GoalAnalysisSection: View {
                 }
             }
             .holoText(.supporting).foregroundColor(.holoPrimary)
-        case .manual, .none:
+        case .manual, .healthKit, .none:
             EmptyView()
         }
     }

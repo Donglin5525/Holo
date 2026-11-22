@@ -309,10 +309,13 @@ class HabitRepository: ObservableObject {
         isBadHabit: Bool = false,
         reminderMode: HabitReminderMode = .follow,
         reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0),
-        dayEndTime: (hour: Int, minute: Int) = (hour: 0, minute: 0)
+        dayEndTime: (hour: Int, minute: Int) = (hour: 0, minute: 0),
+        folderID: UUID? = nil,
+        prefersQuantityInput: Bool? = nil
     ) throws -> Habit {
         if !isReady { setup() }
         // 计算新的排序顺序
+        try validateHabitFolder(folderID)
         let maxSortOrder = activeHabits.map { $0.sortOrder }.max() ?? -1
 
         let habit = Habit.create(
@@ -334,7 +337,10 @@ class HabitRepository: ObservableObject {
             dayEndTime: dayEndTime
         )
         
-        try context.save()
+        habit.folderID = folderID
+        habit.prefersQuantityInput = prefersQuantityInput.map { NSNumber(value: $0) }
+        do { try context.save() }
+        catch { context.delete(habit); throw error }
         loadActiveHabits()
         // 新建习惯需出现在今日看板；看板白名单非空时自动纳入（不限频率），避免新建后看不到
         HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
@@ -353,6 +359,7 @@ class HabitRepository: ObservableObject {
     func updateHabit(_ habit: Habit, updates: HabitUpdates) throws {
         if !isReady { setup() }
         if let type = updates.type, type.rawValue != habit.type {
+            habit.cumulativeStartDay = nil
             habit.type = type.rawValue
             bridgeRecordsForTypeChange(habit, to: type)
         }
@@ -363,7 +370,10 @@ class HabitRepository: ObservableObject {
         if let targetCount = updates.targetCount { habit.targetCount = NSNumber(value: targetCount) }
         if let targetValue = updates.targetValue { habit.targetValue = NSNumber(value: targetValue) }
         if let unit = updates.unit { habit.unit = unit }
-        if let aggregationType = updates.aggregationType { habit.aggregationType = aggregationType.rawValue }
+        if let aggregationType = updates.aggregationType {
+            habit.habitAggregationType = aggregationType
+            habit.cumulativeStartDay = nil
+        }
         if let isBadHabit = updates.isBadHabit { habit.isBadHabit = isBadHabit }
         if let reminderMode = updates.reminderMode { habit.habitReminderMode = reminderMode }
         if let reminderTime = updates.reminderTime { habit.reminderTime = reminderTime }
@@ -564,6 +574,19 @@ class HabitRepository: ObservableObject {
     }
     
     // MARK: - Record Operations
+
+    func validateHabitFolder(_ id: UUID?) throws {
+        guard let id else { return }
+        let request = NSFetchRequest<HabitFolder>(entityName: "HabitFolder")
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        guard try context.count(for: request) > 0 else { throw HabitError.notFound }
+    }
+
+    func hasRecordedMeasurement(for habit: Habit) -> Bool {
+        guard habit.isNumericType, habit.configuredAggregationType == .latest else { return false }
+        return getAllRecords(for: habit).contains { $0.valueDouble?.isFinite == true }
+    }
     
     /// 打卡（打卡型习惯）- 切换今日完成状态
     /// - Parameters:
@@ -654,13 +677,18 @@ class HabitRepository: ObservableObject {
     /// - Returns: 是否成功删除（false = 今日无记录可删，不抛错）
     @discardableResult
     func removeLatestTodayRecord(for habit: Habit) throws -> Bool {
+        try removeLatestTodayRecordValue(for: habit) != nil
+    }
+
+    func removeLatestTodayRecordValue(for habit: Habit) throws -> Double? {
         if !isReady { setup() }
         // 历史迁移或同步可能留下空值记录；撤销只针对最新一笔有效数值记录
-        guard let latest = getTodayRecords(for: habit).first(where: { $0.valueDouble?.isFinite == true }) else {
-            return false
+        guard let latest = getTodayRecords(for: habit).first(where: { $0.valueDouble?.isFinite == true }),
+              let value = latest.valueDouble else {
+            return nil
         }
         try deleteRecord(latest)
-        return true
+        return value
     }
     
     /// 更新记录
@@ -807,9 +835,10 @@ class HabitRepository: ObservableObject {
         } else {
             // 数值型：计数类默认补 1 次；测量类必须带值
             let numericValue: Double
-            if let value {
+            let isCount = habit.isCountType(on: dayStart)
+            if let value, value.isFinite, isCount ? value > 0 : value >= 0 {
                 numericValue = value
-            } else if habit.isCountType {
+            } else if value == nil, isCount, habit.prefersQuantityInput?.boolValue != true {
                 numericValue = 1
             } else {
                 return .invalidDate
@@ -1396,15 +1425,16 @@ class HabitRepository: ObservableObject {
     }
 
     /// 详情统计、趋势图和统计总览共享同一套数值口径（样本时刻为归属时刻，按习惯结算时间切天）。
-    func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord]) -> [DailyHabitData] {
-        let calendar = Calendar.current
+    func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord],
+                                     calendar: Calendar = .current) -> [DailyHabitData] {
+        guard habit.isNumericType else { return [] }
         let dayEnd = habit.dayEndMinutes
         return HabitNumericAggregator.aggregateDaily(
             samples: records.map {
-                HabitNumericSample(date: $0.attributedMoment(dayEndMinutes: dayEnd, calendar: calendar), value: $0.valueDouble)
+                HabitNumericSample(date: $0.attributedMoment(dayEndMinutes: dayEnd, calendar: calendar),
+                                   value: $0.valueDouble, recordedAt: $0.createdAt)
             },
-            isCountType: habit.isCountType,
-            calendar: calendar
+            calendar: calendar, isCountOnDay: habit.isCountType(on:)
         )
         .map { DailyHabitData(date: $0.date, value: $0.value) }
     }
@@ -1724,11 +1754,26 @@ extension HabitRepository {
         let isolated = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
         isolated.persistentStoreCoordinator = context.persistentStoreCoordinator
         guard let target = try isolated.existingObject(with: recordID) as? HabitRecord,
-              target.deletedAt == nil, let parent = target.habit, parent.deletedAt == nil else { throw HabitError.notFound }
+              target.deletedAt == nil else { throw HabitError.notFound }
+        let parent: Habit
+        if let linked = target.habit {
+            guard linked.id == habitID, linked.deletedAt == nil else { throw HabitError.notFound }
+            parent = linked
+        } else {
+            // 导入和旧记录可能只有 habitId，编辑与撤销沿用取数时的归属。
+            let request = Habit.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", habitID as CVarArg)
+            request.fetchLimit = 1
+            guard let matching = try isolated.fetch(request).first else { throw HabitError.notFound }
+            parent = matching
+        }
         if delete { isolated.delete(target) }
         else {
             if !parent.isCheckInType, let value {
-                guard value.isFinite, parent.isCountType ? value > 0 : value >= 0 else { throw HabitError.invalidData }
+                let day = target.attributedDay(dayEndMinutes: parent.dayEndMinutes, calendar: .current)
+                guard value.isFinite, parent.isCountType(on: day) ? value > 0 : value >= 0 else {
+                    throw HabitError.invalidData
+                }
                 target.valueDouble = value
             }
             target.note = note

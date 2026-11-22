@@ -326,13 +326,46 @@ extension CoreDataStack {
         let recordSoftDelete = CoreDataStack.makeSoftDeleteAttributes()
         habitRecordAttributes.append(contentsOf: recordSoftDelete.attributes)
 
+        let trackingFields: [(String, NSAttributeType)] = [
+            ("folderID", .UUIDAttributeType),
+            ("prefersQuantityInput", .booleanAttributeType),
+            ("cumulativeStartDay", .dateAttributeType)
+        ]
+        for (name, type) in trackingFields {
+            let attribute = NSAttributeDescription()
+            attribute.name = name
+            attribute.attributeType = type
+            attribute.isOptional = true
+            habitAttributes.append(attribute)
+        }
         habitEntity.properties = habitAttributes + [habitRecordsRelation, habitGoalRelation]
         CoreDataStack.applyIndexes(to: habitEntity, on: ["id": habitId, "type": habitType, "isArchived": habitIsArchived, "sortOrder": habitSortOrder, "deletedAt": habitSoftDelete.deletedAt, "deletedBatchId": habitSoftDelete.deletedBatchId])
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
         CoreDataStack.applyIndexes(to: habitRecordEntity, on: ["id": recordId, "habitId": recordHabitId, "date": recordDate, "deletedAt": recordSoftDelete.deletedAt, "deletedBatchId": recordSoftDelete.deletedBatchId])
 
         let confirmationEntity = createHabitDailyConfirmationEntity(habitEntity: habitEntity)
-        return [habitEntity, habitRecordEntity, confirmationEntity]
+        let folderEntity = NSEntityDescription()
+        folderEntity.name = "HabitFolder"
+        folderEntity.managedObjectClassName = "HabitFolder"
+        let folderFields: [(String, NSAttributeType, Any)] = [
+            ("id", .UUIDAttributeType, UUID()),
+            ("name", .stringAttributeType, ""),
+            ("sortOrder", .integer64AttributeType, 0)
+        ]
+        folderEntity.properties = folderFields.map { name, type, defaultValue in
+            let attribute = NSAttributeDescription()
+            attribute.name = name
+            attribute.attributeType = type
+            attribute.defaultValue = defaultValue
+            return attribute
+        }
+        let folderEmoji = NSAttributeDescription()
+        folderEmoji.name = "emoji"
+        folderEmoji.attributeType = .stringAttributeType
+        folderEmoji.isOptional = true
+        folderEntity.properties.append(folderEmoji)
+
+        return [habitEntity, habitRecordEntity, confirmationEntity, folderEntity]
     }
 
 }

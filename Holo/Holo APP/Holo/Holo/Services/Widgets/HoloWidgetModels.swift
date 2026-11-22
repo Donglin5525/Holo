@@ -21,6 +21,10 @@ nonisolated enum HoloWidgetSharedContainer {
     static let entitlementFileName = "widget_entitlement.json"
     static let thoughtWalkPoolFileName = "widget_thought_walk_pool.json"
     static let thoughtWalkSelectionFileName = "widget_thought_walk_selection.json"
+    static let healthFileName = "widget_health_snapshot.json"
+    static let insightPoolFileName = "widget_insight_pool.json"
+    static let insightSelectionFileName = "widget_insight_selection.json"
+    static let memoryFileName = "widget_memory_snapshot.json"
 }
 
 nonisolated struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
@@ -46,6 +50,13 @@ nonisolated enum HoloWidgetKind: String {
     case todo = "HoloTodoWidget"
     case goal = "HoloGoalWidget"
     case anniversary = "HoloAnniversaryWidget"
+    case dailyKanban = "HoloDailyKanbanWidget"
+    case dailyInsight = "HoloDailyInsightWidget"
+    case health = "HoloHealthWidget"
+    case memoryGallery = "HoloMemoryGalleryWidget"
+    case controlVoice = "HoloControlVoiceWidget"
+    case controlBookkeeping = "HoloControlBookkeepingWidget"
+    case controlThought = "HoloControlThoughtWidget"
 }
 
 nonisolated struct HoloWidgetQuickActionsSnapshot: Codable, Equatable {
@@ -110,9 +121,24 @@ nonisolated enum HoloWidgetDeepLink: Equatable {
     case habits
     /// 今日待办小组件：打开待办列表页
     case tasks
+    /// 今日待办小组件：直达指定待办详情
+    case taskDetail(id: UUID)
     case goalDetail(id: UUID)
     /// 纪念日倒数小组件：打开纪念日页
     case anniversaries
+    /// 今日健康小组件：打开健康仪表盘
+    case health
+    /// 记忆长廊 / 每日洞察小组件：打开记忆长廊（可聚焦洞察 Tab）
+    case memoryGallery(focusInsights: Bool)
+    /// 每日洞察小组件：精准回放某条洞察
+    case memoryInsight(id: UUID)
+    /// 每日洞察小组件「追问 Holo」：携带洞察 ID 进聊天，由主 App 反查完整洞察上下文；
+    /// 若洞察已删除或为示例态，回退使用 fallbackPrefill 预填文本。
+    case insightFollowUp(id: UUID, fallbackPrefill: String?)
+    /// 带预填问题进入 AI 对话
+    case chat(prefill: String?)
+    /// 今日全览小组件：回到首页今日看板
+    case dailyKanban
 
     static func parse(_ url: URL) -> HoloWidgetDeepLink? {
         guard url.scheme == "holo" else { return nil }
@@ -124,6 +150,15 @@ nonisolated enum HoloWidgetDeepLink: Equatable {
         switch path {
         case "ai":
             return .ai(voiceInput: url.queryValue(for: "voiceInput") == "true")
+        case "chat":
+            let prefill = url.queryValue(for: "prefill")
+            if let rawInsightId = url.queryValue(for: "insightId"),
+               let insightId = UUID(uuidString: rawInsightId) {
+                return .insightFollowUp(id: insightId, fallbackPrefill: prefill)
+            }
+            return .chat(prefill: prefill)
+        case "home":
+            return .dailyKanban
         case "finance/add":
             return .addTransaction
         case "finance/analysis":
@@ -134,6 +169,12 @@ nonisolated enum HoloWidgetDeepLink: Equatable {
             return .addTask
         case "tasks":
             return .tasks
+        case "tasks/detail":
+            guard
+                let rawId = url.queryValue(for: "id"),
+                let id = UUID(uuidString: rawId)
+            else { return nil }
+            return .taskDetail(id: id)
         case "thoughts/detail":
             guard
                 let rawId = url.queryValue(for: "id"),
@@ -150,6 +191,16 @@ nonisolated enum HoloWidgetDeepLink: Equatable {
             return .goalDetail(id: id)
         case "anniversaries":
             return .anniversaries
+        case "health":
+            return .health
+        case "memory":
+            return .memoryGallery(focusInsights: url.queryValue(for: "focus") == "insights")
+        case "insight/detail":
+            guard
+                let rawId = url.queryValue(for: "id"),
+                let id = UUID(uuidString: rawId)
+            else { return nil }
+            return .memoryInsight(id: id)
         default:
             return nil
         }
@@ -190,6 +241,11 @@ nonisolated struct HoloWidgetFinanceSnapshot: Codable, Equatable {
         if budgetProgress >= 1 { return .overBudget }
         if budgetProgress > timeProgress + 0.1 { return .aheadOfTime }
         return .onTrack
+    }
+
+    /// 今日支出：直接复用 weekExpense 末尾 isToday 桶，零破坏性兼容旧快照
+    var todayExpense: Double {
+        weekExpense?.last(where: \.isToday)?.amount ?? 0
     }
 }
 
@@ -401,6 +457,10 @@ nonisolated struct HoloWidgetTodoItem: Codable, Equatable, Identifiable {
     /// 3=紧急 2=高 1=中 0=低（TodoTask.priority 同口径）
     let priority: Int
     let isOverdue: Bool
+
+    var detailDeepLink: URL {
+        URL(string: "holo://tasks/detail?id=\(id.uuidString)") ?? URL(string: "holo://tasks")!
+    }
 }
 
 // MARK: - Goal（目标进度）
@@ -409,26 +469,59 @@ nonisolated struct HoloWidgetGoalSnapshot: Codable, Equatable {
     /// 当前没有进行中的目标时为 nil（组件展示空态）
     let goal: HoloWidgetGoalItem?
     let updatedAt: Date
+    /// 进行中的前 4 个目标（Large 多目标总览 & 长按编辑选目标用；旧快照缺省为 nil）
+    var goals: [HoloWidgetGoalItem]? = nil
+
+    var allGoals: [HoloWidgetGoalItem] {
+        if let goals, !goals.isEmpty { return goals }
+        return goal.map { [$0] } ?? []
+    }
 
     static func empty(date: Date = Date()) -> HoloWidgetGoalSnapshot {
-        HoloWidgetGoalSnapshot(goal: nil, updatedAt: date)
+        HoloWidgetGoalSnapshot(goal: nil, updatedAt: date, goals: [])
     }
 
     static func sample(date: Date = Date()) -> HoloWidgetGoalSnapshot {
-        HoloWidgetGoalSnapshot(
-            goal: HoloWidgetGoalItem(
-                goalId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                title: String(localized: "MacBook 基金"),
-                icon: "desktopcomputer",
-                progress: 0.68,
-                percentText: "68%",
-                currentText: "¥10,200",
-                targetText: "¥15,000",
-                remainingText: "¥4,800",
-                forecastText: String(localized: "按当前节奏 · 预计 10.24 达成"),
-                kindText: nil
-            ),
-            updatedAt: date
+        let first = HoloWidgetGoalItem(
+            goalId: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            title: String(localized: "MacBook 基金"),
+            icon: "desktopcomputer",
+            progress: 0.68,
+            percentText: "68%",
+            currentText: "¥10,200",
+            targetText: "¥15,000",
+            remainingText: "¥4,800",
+            forecastText: String(localized: "按当前节奏 · 预计 10.24 达成"),
+            kindText: nil
+        )
+        let second = HoloWidgetGoalItem(
+            goalId: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            title: String(localized: "全年阅读 24 本"),
+            icon: "book.fill",
+            progress: 0.75,
+            percentText: "75%",
+            currentText: "18 本",
+            targetText: "24 本",
+            remainingText: "6 本",
+            forecastText: nil,
+            kindText: nil
+        )
+        let third = HoloWidgetGoalItem(
+            goalId: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+            title: String(localized: "保持规律运动"),
+            icon: "figure.run",
+            progress: 0.50,
+            percentText: "50%",
+            currentText: "10 次",
+            targetText: "20 次",
+            remainingText: "10 次",
+            forecastText: nil,
+            kindText: nil
+        )
+        return HoloWidgetGoalSnapshot(
+            goal: first,
+            updatedAt: date,
+            goals: [first, second, third]
         )
     }
 }
@@ -570,6 +663,235 @@ nonisolated struct HoloWidgetAnniversaryItem: Codable, Equatable, Identifiable {
     var displayDays: Int { abs(days) }
 
     var isToday: Bool { days == 0 }
+}
+
+// MARK: - Health · 身心节律快照
+
+nonisolated struct HoloWidgetHealthSnapshot: Codable, Equatable {
+    let steps: Int
+    let stepsGoal: Int
+    let sleepHours: Double
+    let sleepGoalHours: Double
+    let activeMinutes: Int
+    let vitalityScore: Int
+    let statusLabel: String
+    let insightSummary: String?
+    let isAuthorized: Bool
+    let updatedAt: Date
+
+    var stepsProgress: Double {
+        guard stepsGoal > 0 else { return 0 }
+        return min(max(Double(steps) / Double(stepsGoal), 0), 1)
+    }
+
+    var sleepProgress: Double {
+        guard sleepGoalHours > 0 else { return 0 }
+        return min(max(sleepHours / sleepGoalHours, 0), 1)
+    }
+
+    var sleepText: String {
+        guard sleepHours > 0 else { return "--" }
+        let totalMinutes = Int((sleepHours * 60).rounded())
+        let h = totalMinutes / 60
+        let m = totalMinutes % 60
+        return m == 0 ? "\(h)h" : "\(h)h\(m)m"
+    }
+
+    var sleepShortText: String {
+        guard sleepHours > 0 else { return "--" }
+        return String(format: "%.1fh", sleepHours)
+    }
+
+    var stepsShortText: String {
+        if steps >= 10_000 {
+            return String(format: "%.1fw", Double(steps) / 10_000.0)
+        }
+        if steps >= 1_000 {
+            return String(format: "%.1fk", Double(steps) / 1_000.0)
+        }
+        return "\(steps)"
+    }
+
+    static func sample(date: Date = Date()) -> HoloWidgetHealthSnapshot {
+        HoloWidgetHealthSnapshot(
+            steps: 7_420,
+            stepsGoal: 8_000,
+            sleepHours: 7.4,
+            sleepGoalHours: 8.0,
+            activeMinutes: 42,
+            vitalityScore: 88,
+            statusLabel: String(localized: "状态佳"),
+            insightSummary: String(localized: "昨晚睡眠充足，精力恢复很好，适合安排高专注任务。"),
+            isAuthorized: true,
+            updatedAt: date
+        )
+    }
+
+    static func unauthorized(date: Date = Date()) -> HoloWidgetHealthSnapshot {
+        HoloWidgetHealthSnapshot(
+            steps: 0,
+            stepsGoal: 8_000,
+            sleepHours: 0,
+            sleepGoalHours: 8.0,
+            activeMinutes: 0,
+            vitalityScore: 0,
+            statusLabel: String(localized: "未授权"),
+            insightSummary: nil,
+            isAuthorized: false,
+            updatedAt: date
+        )
+    }
+}
+
+// MARK: - Daily Insight · 一个发现快照
+
+nonisolated struct HoloWidgetInsightComparison: Codable, Equatable {
+    let title: String
+    let deltaText: String
+    let primaryLabel: String
+    let primaryRatio: Double
+    let primaryValueText: String
+    let secondaryLabel: String
+    let secondaryRatio: Double
+    let secondaryValueText: String
+}
+
+nonisolated struct HoloWidgetInsightItem: Codable, Equatable, Identifiable {
+    let id: UUID
+    let tag: String
+    let badgeText: String
+    let isWarning: Bool
+    let title: String
+    let body: String
+    let metaText: String
+    let comparison: HoloWidgetInsightComparison?
+    let generatedAt: Date
+
+    var detailDeepLink: URL {
+        URL(string: "holo://insight/detail?id=\(id.uuidString)") ?? URL(string: "holo://memory?focus=insights")!
+    }
+
+    var askHoloDeepLink: URL {
+        var components = URLComponents(string: "holo://chat")
+        let prompt = String(localized: "展开说说这条发现：\(title)")
+        components?.queryItems = [
+            URLQueryItem(name: "insightId", value: id.uuidString),
+            URLQueryItem(name: "prefill", value: prompt)
+        ]
+        return components?.url ?? URL(string: "holo://ai")!
+    }
+}
+
+nonisolated struct HoloWidgetInsightPoolSnapshot: Codable, Equatable {
+    let items: [HoloWidgetInsightItem]
+    let updatedAt: Date
+
+    static func sample(date: Date = Date()) -> HoloWidgetInsightPoolSnapshot {
+        let first = HoloWidgetInsightItem(
+            id: UUID(uuidString: "44444444-4444-4444-4444-444444444441")!,
+            tag: String(localized: "消费 × 习惯"),
+            badgeText: String(localized: "正向信号"),
+            isWarning: false,
+            title: String(localized: "早睡日的外卖消费明显更克制"),
+            body: String(localized: "过去两周，你在 23:30 前入睡的日子里，次日餐饮与外卖支出比平时低了 18%，专注度更稳。"),
+            metaText: String(localized: "基于近 14 天跨模块规律"),
+            comparison: HoloWidgetInsightComparison(
+                title: String(localized: "次日日均餐饮对比"),
+                deltaText: String(localized: "-18% 波动"),
+                primaryLabel: String(localized: "早睡日"),
+                primaryRatio: 0.54,
+                primaryValueText: "¥42",
+                secondaryLabel: String(localized: "晚睡日"),
+                secondaryRatio: 0.86,
+                secondaryValueText: "¥68"
+            ),
+            generatedAt: date
+        )
+        let second = HoloWidgetInsightItem(
+            id: UUID(uuidString: "44444444-4444-4444-4444-444444444442")!,
+            tag: String(localized: "效率节律"),
+            badgeText: String(localized: "本周观察"),
+            isWarning: false,
+            title: String(localized: "上午是你推进高优待办的黄金窗"),
+            body: String(localized: "近三周高优先级待办有 74% 在中午前完成，且当天往往伴随 1 条以上想法记录。"),
+            metaText: String(localized: "记忆长廊 · 每日自动更新"),
+            comparison: nil,
+            generatedAt: date
+        )
+        return HoloWidgetInsightPoolSnapshot(items: [first, second], updatedAt: date)
+    }
+
+    static func empty(date: Date = Date()) -> HoloWidgetInsightPoolSnapshot {
+        HoloWidgetInsightPoolSnapshot(items: [], updatedAt: date)
+    }
+}
+
+nonisolated struct HoloWidgetInsightSelection: Codable, Equatable {
+    let insightId: UUID
+    let date: Date
+
+    func isActive(on referenceDate: Date = Date(), calendar: Calendar = .current) -> Bool {
+        calendar.isDate(date, inSameDayAs: referenceDate)
+    }
+}
+
+// MARK: - Memory Gallery · 记忆长廊快照（生活热力图 & 历史上的今天）
+
+nonisolated struct HoloWidgetOnThisDaySnapshot: Codable, Equatable {
+    let labelText: String
+    let dateText: String
+    let excerpt: String
+    let spendText: String?
+    let habitText: String?
+    let milestoneText: String?
+    let thoughtId: UUID?
+
+    var deepLink: URL {
+        if let thoughtId {
+            return URL(string: "holo://thoughts/detail?id=\(thoughtId.uuidString)") ?? URL(string: "holo://memory")!
+        }
+        return URL(string: "holo://memory")!
+    }
+}
+
+nonisolated struct HoloWidgetMemorySnapshot: Codable, Equatable {
+    let streakDays: Int
+    let monthRecordCount: Int
+    /// 最近 80 天逐日活跃等级（0...4），末尾为今天
+    let heatmapLevels: [Int]
+    let onThisDay: HoloWidgetOnThisDaySnapshot?
+    let updatedAt: Date
+
+    static func sample(date: Date = Date()) -> HoloWidgetMemorySnapshot {
+        let levels = (0..<80).map { i in
+            (i * 7 + (i % 5) * 3 + (i / 8)) % 5
+        }
+        return HoloWidgetMemorySnapshot(
+            streakDays: 28,
+            monthRecordCount: 64,
+            heatmapLevels: levels,
+            onThisDay: HoloWidgetOnThisDaySnapshot(
+                labelText: String(localized: "1 年前的今天"),
+                dateText: "2025.11.21",
+                excerpt: String(localized: "第一次把每天的开销、习惯和念头串在一起回看，突然觉得平淡的日子也有了形状。"),
+                spendText: String(localized: "当日 ¥86"),
+                habitText: String(localized: "习惯 5/5"),
+                milestoneText: String(localized: "早起满 30 天"),
+                thoughtId: nil
+            ),
+            updatedAt: date
+        )
+    }
+
+    static func empty(date: Date = Date()) -> HoloWidgetMemorySnapshot {
+        HoloWidgetMemorySnapshot(
+            streakDays: 0,
+            monthRecordCount: 0,
+            heatmapLevels: Array(repeating: 0, count: 80),
+            onThisDay: nil,
+            updatedAt: date
+        )
+    }
 }
 
 private nonisolated extension URL {

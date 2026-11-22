@@ -80,12 +80,54 @@ nonisolated struct PortraitDeltaUpsert: Codable, Equatable, Sendable {
     var evidenceSummary: String
     var sourceDomains: [String]
     var usageHint: String
+
+    init(
+        key: String,
+        dimension: String,
+        confidence: String,
+        statement: String,
+        evidenceSummary: String = "",
+        sourceDomains: [String] = [],
+        usageHint: String = ""
+    ) {
+        self.key = key
+        self.dimension = dimension
+        self.confidence = confidence
+        self.statement = statement
+        self.evidenceSummary = evidenceSummary
+        self.sourceDomains = sourceDomains
+        self.usageHint = usageHint
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        dimension = try c.decodeIfPresent(String.self, forKey: .dimension) ?? PortraitDimension.crossDomainInsight.rawValue
+        confidence = try c.decodeIfPresent(String.self, forKey: .confidence) ?? PortraitConfidence.inferred.rawValue
+        statement = try c.decode(String.self, forKey: .statement)
+        evidenceSummary = try c.decodeIfPresent(String.self, forKey: .evidenceSummary) ?? ""
+        sourceDomains = try c.decodeIfPresent([String].self, forKey: .sourceDomains) ?? []
+        usageHint = try c.decodeIfPresent(String.self, forKey: .usageHint) ?? ""
+    }
 }
 
 nonisolated struct PortraitDeltaClarification: Codable, Equatable, Sendable {
     var key: String
     var question: String
     var reason: String
+
+    init(key: String, question: String, reason: String = "") {
+        self.key = key
+        self.question = question
+        self.reason = reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        question = try c.decode(String.self, forKey: .question)
+        reason = try c.decodeIfPresent(String.self, forKey: .reason) ?? ""
+    }
 }
 
 nonisolated struct PortraitDeltaEnvelope: Codable, Equatable, Sendable {
@@ -324,9 +366,10 @@ nonisolated struct PortraitStore: Codable, Equatable, Sendable {
                 rejectedByGate.append("[\(item.key)] \(verdict.reason ?? "未通过核验")")
                 continue
             }
-            // 保留已确认状态：若用户此前点过「准」，模型更新措辞时不得降回 inferred。
+            // 保留已确认状态：若用户此前点过「准」，模型更新措辞时不得降回 inferred；
+            // 反之，模型新提出的条目一律先落入 inferred（「值得确认」），不得越权自封 confirmed。
             let wasConfirmed = entries[item.key]?.isUserConfirmed ?? false
-            let finalConf: PortraitConfidence = wasConfirmed ? .confirmed : conf
+            let finalConf: PortraitConfidence = wasConfirmed ? .confirmed : (conf == .needsClarification ? .needsClarification : .inferred)
             entries[item.key] = PortraitEntry(
                 key: item.key,
                 dimension: dim,
@@ -336,7 +379,7 @@ nonisolated struct PortraitStore: Codable, Equatable, Sendable {
                 sourceDomains: item.sourceDomains,
                 usageHint: PortraitTextSanitizer.sanitize(String(item.usageHint.prefix(60))),
                 updatedAt: now,
-                isUserConfirmed: wasConfirmed || finalConf == .confirmed
+                isUserConfirmed: wasConfirmed
             )
             upsertedKeys.append(item.key)
         }
@@ -412,14 +455,16 @@ nonisolated struct PortraitStore: Codable, Equatable, Sendable {
 // MARK: - 用户可见文案兜底清洗（严禁英文词典词透出给普通用户）
 
 nonisolated enum PortraitTextSanitizer {
+    /// 使用 ASCII 字母边界 (?<![A-Za-z])...(?![A-Za-z])，解决 ICU 中 \b 在中文紧邻英文
+    /// （如「集中在night/evening时段」）时不触发边界匹配的根因。
     private static let replacements: [(pattern: String, zh: String)] = [
-        ("(?i)\\bnight/evening\\b", "晚间和深夜"),
-        ("(?i)\\bevening/night\\b", "晚间和深夜"),
-        ("(?i)\\bmorning\\b", "上午"),
-        ("(?i)\\bafternoon\\b", "下午"),
-        ("(?i)\\bevening\\b", "晚间"),
-        ("(?i)\\bnight\\b", "深夜"),
-        ("(?i)\\bcoverage\\b", "数据覆盖度"),
+        ("(?i)(?<![A-Za-z])night\\s*/\\s*evening(?![A-Za-z])", "晚间和深夜"),
+        ("(?i)(?<![A-Za-z])evening\\s*/\\s*night(?![A-Za-z])", "晚间和深夜"),
+        ("(?i)(?<![A-Za-z])morning(?![A-Za-z])", "上午"),
+        ("(?i)(?<![A-Za-z])afternoon(?![A-Za-z])", "下午"),
+        ("(?i)(?<![A-Za-z])evening(?![A-Za-z])", "晚间"),
+        ("(?i)(?<![A-Za-z])night(?![A-Za-z])", "深夜"),
+        ("(?i)(?<![A-Za-z])coverage(?![A-Za-z])", "数据覆盖度"),
     ]
 
     static func sanitize(_ text: String) -> String {

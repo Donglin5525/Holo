@@ -43,9 +43,12 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
     private func enterHabitsModule() -> Bool {
         for label in ["习惯", "習慣"] {
             let match = app.buttons[label].firstMatch
-            if match.waitForExistence(timeout: 10) {
-                match.tap()
-                if waitFor("habit.tab.review", 8) { return true }
+            guard match.waitForExistence(timeout: 8) else { continue }
+            let add = app.buttons["habit.add"].firstMatch
+            for _ in 0..<2 {
+                if add.exists { return true }
+                if match.isHittable { match.tap() }
+                if add.waitForExistence(timeout: 5) { return true }
             }
         }
         return false
@@ -70,7 +73,7 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
     /// 弹层已打开的信号：底部入口组出现（identifier 挂在非交互容器上 XCUITest 查不到，
     /// 一律用入口按钮 label 判断——与 V2 走查同口径）
     private func waitSheetOpened(_ timeout: TimeInterval) -> Bool {
-        button(containing: "查看长期回顾").waitForExistence(timeout: timeout)
+        button(containing: "完整回顾").waitForExistence(timeout: timeout)
     }
 
     /// 打开播种习惯（晨间阅读，打卡型）的「今天的记录」弹层
@@ -109,8 +112,8 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
         // 弹层=操作层：近7天块在场（30 天大图已撤）——由弹层结构与入口断言
         XCTAssertTrue(waitFor("habit.todayrecord.manage", 4) || button(containing: "习惯管理").exists,
                       "缺 ··· 管理菜单")
-        XCTAssertTrue(button(containing: "查看长期回顾").waitForExistence(timeout: 3),
-                      "缺「查看长期回顾」入口（文案应已改向）")
+        XCTAssertTrue(button(containing: "完整回顾").waitForExistence(timeout: 3),
+                      "缺「完整回顾」入口")
         app.swipeUp(velocity: .fast) // 弹层拉到 large：露出底部入口组（截图与原型同视角）
         Thread.sleep(forTimeInterval: 0.8)
         snap("shot-02-sheet-checkin")
@@ -124,8 +127,8 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
         snap("shot-03-manage-menu")
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.94)).tap() // 收起菜单
 
-        // 查看长期回顾 → 单习惯回顾页（对比卡 + 每周完成率 + 日历）
-        let review = button(containing: "查看长期回顾")
+        // 完整回顾 → 单习惯回顾页（对比卡 + 每周完成率 + 日历）
+        let review = button(containing: "完整回顾")
         XCTAssertTrue(review.waitForExistence(timeout: 4), "回顾入口消失")
         review.tap()
         XCTAssertTrue(waitFor("habit.single.range.d30", 8), "未进入单习惯回顾（范围切换条缺失）")
@@ -212,6 +215,10 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
             found = row.waitForExistence(timeout: 4)
         }
         XCTAssertTrue(found, "未见新建的 Weight 习惯行")
+        if !row.isHittable || row.frame.maxY > 680 {
+            app.swipeUp(velocity: .fast)
+            Thread.sleep(forTimeInterval: 0.4)
+        }
         row.tap()
         XCTAssertTrue(waitSheetOpened(6), "Weight 弹层未打开")
         snap("shot-06-sheet-measure-empty")
@@ -263,5 +270,130 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
                 }
             }
         }
+    }
+
+    func test03_数值输入无完成重按钮与单点居中() throws {
+        XCTAssertTrue(enterHabitsModule(), "未进入习惯模块")
+
+        // 新建计数习惯「Squat」验证输入 + 单点稀疏态
+        tapIdentifier("habit.add")
+        let countSegment = app.buttons["累计"].firstMatch
+        XCTAssertTrue(countSegment.waitForExistence(timeout: 6), "未见记录方式分段控件")
+        let nameField = app.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 4), "未见名称输入")
+        nameField.tap()
+        let habitName = "Squat \(UUID().uuidString.prefix(6))"
+        nameField.typeText(habitName)
+        countSegment.tap()
+        app.buttons["保存"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.2)
+
+        let todayTab = app.buttons["habit.tab.today"].firstMatch
+        XCTAssertTrue(todayTab.waitForExistence(timeout: 6), "未回今天页")
+        let row = button(containing: habitName)
+        let listBottom = todayTab.frame.minY
+        // LazyVStack 会把底栏后方的行暴露给无障碍树，先把目标滚到可点击区域。
+        for _ in 0..<5 where !row.exists || row.frame.maxY + 12 >= listBottom {
+            app.swipeUp()
+        }
+        XCTAssertTrue(row.exists, "未见新建的 Squat 习惯行")
+        let habitID = row.identifier.replacingOccurrences(of: "habit.rowbody.", with: "")
+        let record = app.buttons["habit.row.\(habitID).record"].firstMatch
+        XCTAssertTrue(record.waitForExistence(timeout: 6), "习惯行缺少直接记数量入口")
+        XCTAssertLessThan(record.frame.maxY, listBottom, "记数量按钮应滑到页签的上方")
+        record.tap()
+
+        let field = app.textFields.matching(
+            NSPredicate(format: "identifier == 'habit.measure.value'")).firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 8), "未弹出数值输入")
+        Thread.sleep(forTimeInterval: 0.8)
+
+        // 键盘工具栏不再有冗余的「完成」按钮与「保存」叠压
+        XCTAssertFalse(app.buttons["完成"].exists, "数值输入键盘上方不应再出现冗余「完成」按钮")
+        snap("shot-measure-input-empty")
+
+        field.typeText("50")
+        Thread.sleep(forTimeInterval: 0.4)
+        snap("shot-measure-input-filled")
+        tapIdentifier("habit.record.save")
+        Thread.sleep(forTimeInterval: 1.0)
+
+        XCTAssertTrue((record.value as? String)?.hasPrefix("50") == true, "行内记录按钮应直接显示当天累计")
+        record.tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 6), "应能从当天累计继续记录")
+        field.typeText("40")
+        tapIdentifier("habit.record.save")
+        let totalUpdated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value BEGINSWITH '90'"), object: record)
+        XCTAssertEqual(XCTWaiter.wait(for: [totalUpdated], timeout: 5), .completed)
+
+        let decrement = app.buttons["habit.row.\(habitID).decrement"].firstMatch
+        XCTAssertTrue(decrement.isHittable, "当天有记录时应可在行内直接减去一笔")
+        decrement.tap()
+        let totalRestored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value BEGINSWITH '50'"), object: record)
+        XCTAssertEqual(XCTWaiter.wait(for: [totalRestored], timeout: 5), .completed)
+
+        // 再打开 Squat 弹层：唯一记录单点图应精致居中、无巨圆
+        let rowAgain = button(containing: habitName)
+        XCTAssertTrue(rowAgain.waitForExistence(timeout: 5), "保存后未见 Squat 行")
+        rowAgain.tap()
+        XCTAssertTrue(app.buttons["habit.todayrecord.primary"].firstMatch.waitForExistence(timeout: 6), "未重开 Squat 弹层")
+        Thread.sleep(forTimeInterval: 0.8)
+        snap("shot-sheet-measure-single")
+    }
+
+    func test04_创建主题后可在今天展开与收起() throws {
+        XCTAssertTrue(enterHabitsModule(), "未进入习惯模块")
+        tapIdentifier("habit.more")
+        XCTAssertTrue(app.buttons["habit.options.folders"].waitForExistence(timeout: 6), "缺少管理文件夹入口")
+        tapIdentifier("habit.options.folders")
+        XCTAssertTrue(app.buttons["habit.folders.create"].waitForExistence(timeout: 6), "缺少新建文件夹入口")
+        tapIdentifier("habit.folders.create")
+
+        let name = app.textFields["habit.folders.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 6))
+        name.tap()
+        let folderName = "Fitness \(UUID().uuidString.prefix(6))"
+        name.typeText("\(folderName)\n")
+        let appearance = app.buttons["habit.folders.appearance"].firstMatch
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        appearance.tap()
+        let sticker = app.buttons["选择贴纸"].firstMatch
+        XCTAssertTrue(sticker.waitForExistence(timeout: 5))
+        sticker.tap()
+        let stickerPicker = app.navigationBars["选择贴纸"]
+        XCTAssertTrue(stickerPicker.waitForExistence(timeout: 5), "应打开共用贴纸选择器")
+        let stickerBack = stickerPicker.buttons.firstMatch
+        XCTAssertTrue(stickerBack.waitForExistence(timeout: 5), "贴纸选择器应能返回文件夹编辑")
+        stickerBack.tap()
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        appearance.tap()
+        app.buttons["选择 Emoji"].firstMatch.tap()
+        let emoji = app.buttons["😀"].firstMatch
+        XCTAssertTrue(emoji.waitForExistence(timeout: 5), "应打开共用 Emoji 选择器")
+        emoji.tap()
+        let reading = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'habit.folders.candidate.' AND label CONTAINS %@", "晨间阅读"
+        )).firstMatch
+        let readingReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: reading)
+        XCTAssertEqual(XCTWaiter.wait(for: [readingReady], timeout: 5), .completed, "未找到可移入的播种习惯")
+        reading.tap()
+        XCTAssertTrue(reading.isSelected, "点整行应选中要移入的习惯")
+        tapIdentifier("habit.folders.save")
+
+        let back = app.navigationBars.buttons["更多选项"]
+        XCTAssertTrue(back.waitForExistence(timeout: 6))
+        back.tap()
+        let close = app.buttons["关闭"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 6))
+        close.tap()
+
+        let folder = button(containing: folderName)
+        let row = button(containing: "晨间阅读")
+        XCTAssertTrue(folder.waitForExistence(timeout: 6) && row.exists, "文件夹默认展开")
+        XCTAssertTrue((folder.value as? String)?.contains("1") == true, "文件夹里应有 1 项习惯")
+        folder.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 4), "收起后隐藏组内习惯")
+        folder.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 4), "展开后组内习惯可直接记录")
     }
 }

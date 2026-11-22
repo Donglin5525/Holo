@@ -2,10 +2,7 @@
 //  HabitTodayView.swift
 //  Holo
 //
-//  今天页（V2 §5）：日期与已记录数量 → 分节习惯列表（打卡主角/记数字/周月/坏习惯）
-//  → 底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
-//  长按行卡 = 编辑/暂停/归档/删除直达（2026-10-18 东林拍板，长按换序退役，
-//  排序统一走更多 → 今天列表排序弹层）。
+//  今天页按用户的主题文件夹组织，习惯行保留直接记录入口。
 //
 
 import SwiftUI
@@ -14,7 +11,7 @@ import Combine
 struct HabitTodayView: View {
 
     @ObservedObject var model: HabitModuleViewModel
-    let onOpenAddHabit: () -> Void
+    let onOpenAddHabit: (UUID?) -> Void
     /// 打开「今天的记录」弹层
     var onOpenTodayRecords: (UUID) -> Void
     /// 打开习惯编辑表单（长按菜单「编辑习惯」，容器接 AddHabitSheet 编辑态）
@@ -27,16 +24,26 @@ struct HabitTodayView: View {
 
     // MARK: 弹层状态
 
-    /// 测量输入目标（记录/再记录）
-    @State private var measureInputTarget: HabitRowSnapshot?
-    /// 补录的习惯选择
-    @State private var showRetroactiveHabitPicker = false
+    @State private var presentedSheet: HabitTodaySheet?
+
+    @AppStorage("habit.today.collapsedFolders") private var collapsedFolderStorage = ""
+
+    private var collapsedFolders: Set<UUID> {
+        Set(collapsedFolderStorage.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+    }
+
+    private func setFolderCollapsed(_ id: UUID, to collapsed: Bool) {
+        var ids = collapsedFolders
+        if collapsed { ids.insert(id) } else { ids.remove(id) }
+        collapsedFolderStorage = ids.map(\.uuidString).sorted().joined(separator: ",")
+    }
 
     // MARK: 排序（列表内长按换序已退役；顺序由更多 → 今天列表排序弹层落库）
 
     /// 主角区（每日打卡）显示上限，超出折叠（2026-10-15 东林拍板：放 4 个）
     private static let heroCardLimit = 4
-    @State private var heroExpanded = false
+    /// 折叠记忆（2026-11-21 东林反馈）：超过 4 张卡时记住展开状态，不再每次进入重置成折叠
+    @AppStorage("habit.today.heroExpanded") private var heroExpanded = false
 
     private var orderedRows: [HabitRowSnapshot] {
         model.todayRows
@@ -73,10 +80,14 @@ struct HabitTodayView: View {
                 LazyVStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     headerSection
 
-                    if model.todayRows.isEmpty {
+                    if model.todayRows.isEmpty, model.folders.isEmpty {
                         emptyState
                     } else {
-                        sectionList
+                        if model.folders.isEmpty {
+                            sectionList
+                        } else {
+                            folderList
+                        }
                         pausedEntry
                     }
                 }
@@ -88,20 +99,35 @@ struct HabitTodayView: View {
                 consumeFocus(proxy)
             }
             .onChange(of: focusHabitId) { _, _ in consumeFocus(proxy) }
+            .onChange(of: model.todayRows.map(\.id)) { _, _ in consumeFocus(proxy) }
         }
-        .sheet(item: $measureInputTarget) { snapshot in
-            HabitMeasureInputSheet(snapshot: snapshot) { value, note in
-                await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
+        .sheet(item: $presentedSheet) { route in
+            switch route {
+            case .numeric(let snapshot):
+                HabitMeasureInputSheet(snapshot: snapshot) { value, note in
+                    await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
+                }
+            case .retroactive:
+                RetroactiveHabitPicker(model: model)
+            case .move(let row):
+                HabitFolderMoveSheet(model: model, row: row)
+            case .addExisting(let folder):
+                HabitFolderEditSheet(model: model, folder: folder)
             }
-        }
-        .sheet(isPresented: $showRetroactiveHabitPicker) {
-            RetroactiveHabitPicker(model: model)
         }
     }
 
     /// 定位到目标习惯（「去今天记录」回跳；等行渲染完成后再滚）
     private func consumeFocus(_ proxy: ScrollViewProxy) {
-        guard let focusHabitId else { return }
+        guard let focusHabitId, let row = model.todayRows.first(where: { $0.id == focusHabitId }) else { return }
+        if let folderID = row.folderID {
+            setFolderCollapsed(folderID, to: false)
+        }
+        if model.folders.isEmpty,
+           let index = groupedRows[.checkInHero]?.firstIndex(where: { $0.id == focusHabitId }),
+           index >= Self.heroCardLimit {
+            heroExpanded = true
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation {
                 proxy.scrollTo(focusHabitId, anchor: .center)
@@ -128,10 +154,12 @@ struct HabitTodayView: View {
                 Task { await model.record(kind: .removeLatestNumeric, habitId: row.id) }
             },
             onMeasureRecord: {
-                measureInputTarget = row
+                presentedSheet = .numeric(row)
             }
         )
-        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings) {
+            presentedSheet = .move(row)
+        }
     }
 
     // MARK: 头部（日期 + 已记录数量 + 补录入口；P2 撤筛选，2026-10-15 东林拍板）
@@ -151,7 +179,7 @@ struct HabitTodayView: View {
             Spacer(minLength: 0)
 
             Button {
-                showRetroactiveHabitPicker = true
+                presentedSheet = .retroactive
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "clock.arrow.circlepath")
@@ -335,7 +363,9 @@ struct HabitTodayView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(accent.opacity(0.25), lineWidth: 1)
         )
-        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings) {
+            presentedSheet = .move(row)
+        }
     }
 
     /// 大卡副行：没打卡给习惯名+激励，已打卡给习惯名；周条贴卡底
@@ -344,6 +374,84 @@ struct HabitTodayView: View {
         return row.streak?.value ?? 0 > 0
             ? "\(row.name) · \(String(localized: "别断了今天"))"
             : row.name
+    }
+
+    // MARK: 主题文件夹
+
+    @ViewBuilder
+    private var folderList: some View {
+        let folderIDs = Set(model.folders.map(\.id))
+        let grouped = Dictionary(grouping: model.todayRows) { row in
+            row.folderID.flatMap { folderIDs.contains($0) ? $0 : nil }
+        }
+
+        ForEach(model.folders) { folder in
+            let rows = grouped[folder.id] ?? []
+            let isCollapsed = collapsedFolders.contains(folder.id)
+            folderHeader(folder, count: rows.count, isCollapsed: isCollapsed)
+            if !isCollapsed {
+                if rows.isEmpty {
+                    addToFolderMenu(folder)
+                } else {
+                    habitRows(rows)
+                }
+            }
+        }
+
+        if let ungrouped = grouped[nil], !ungrouped.isEmpty {
+            sectionLabel(String(localized: "未分组"))
+            habitRows(ungrouped)
+        }
+    }
+
+    private func habitRows(_ rows: [HabitRowSnapshot]) -> some View {
+        ForEach(rows) { row in
+            habitRow(row)
+                .id(row.id)
+        }
+    }
+
+    private func folderHeader(_ folder: HabitFolderSummary, count: Int, isCollapsed: Bool) -> some View {
+        Button {
+            withAnimation(HoloAnimation.quick) { setFolderCollapsed(folder.id, to: !isCollapsed) }
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 16)
+                    .foregroundColor(.holoToolTextSecondary)
+                HabitFolderBadge(emoji: folder.emoji, sticker: folder.sticker)
+                Text(folder.name)
+                    .holoText(.body)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+            }
+            .foregroundColor(.holoToolText)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(HoloPressStyle())
+        .accessibilityValue(isCollapsed
+                            ? String(localized: "已折叠，\(count) 项习惯")
+                            : String(localized: "已展开，\(count) 项习惯"))
+        .accessibilityIdentifier("habit.folder.\(folder.id)")
+    }
+
+    private func addToFolderMenu(_ folder: HabitFolderSummary) -> some View {
+        Menu {
+            if model.todayRows.contains(where: { $0.folderID != folder.id }) {
+                Button(String(localized: "从已有习惯添加")) { presentedSheet = .addExisting(folder) }
+            }
+            Button(String(localized: "新建习惯")) { onOpenAddHabit(folder.id) }
+        } label: {
+            Label(String(localized: "添加习惯"), systemImage: "plus")
+                .holoText(.supporting)
+                .foregroundColor(.holoToolAction)
+                .frame(minHeight: 44)
+        }
+        .padding(.leading, HoloSpacing.lg)
     }
 
     // MARK: 底部暂停轻量入口（有活跃列表且有暂停时）
@@ -400,7 +508,7 @@ struct HabitTodayView: View {
                 message: String(localized: "先创建一个习惯，今天就能留下第一条记录。"),
                 buttonTitle: String(localized: "创建第一个习惯")
             ) {
-                onOpenAddHabit()
+                onOpenAddHabit(nil)
             }
         }
     }
@@ -441,8 +549,29 @@ struct HabitTodayView: View {
 
 // MARK: - 测量输入弹层
 
+private enum HabitTodaySheet: Identifiable {
+    case numeric(HabitRowSnapshot)
+    case retroactive
+    case move(HabitRowSnapshot)
+    case addExisting(HabitFolderSummary)
+
+    var id: String {
+        switch self {
+        case .numeric(let row): return "numeric-\(row.id)"
+        case .retroactive: return "retroactive"
+        case .move(let row): return "move-\(row.id)"
+        case .addExisting(let folder): return "folder-\(folder.id)"
+        }
+    }
+}
+
 /// 测量记录输入：有限非负数值（含真实 0），可选备注（方案 §8.2/§11.4）
 struct HabitMeasureInputSheet: View {
+
+    private enum Field: Hashable {
+        case value
+        case note
+    }
 
     let snapshot: HabitRowSnapshot
     var onSave: (Double, String?) async -> Bool
@@ -453,7 +582,7 @@ struct HabitMeasureInputSheet: View {
     @State private var errorMessage: String?
     @State private var isSaving = false
     @State private var showDismissAlert = false
-    @FocusState private var valueFocused: Bool
+    @FocusState private var focusedField: Field?
 
     var body: some View {
         HoloSheetScaffold(
@@ -465,51 +594,60 @@ struct HabitMeasureInputSheet: View {
             primaryTitle: isSaving ? String(localized: "保存中…") : String(localized: "保存"),
             primaryAction: { Task { await save() } },
             primaryDisabled: isSaving || !isValidInput,
-            primaryHint: inputHint
+            primaryHint: inputHint,
+            footerBackground: .clear,
+            footerShowsDivider: false,
+            primaryIdentifier: "habit.record.save"
         ) {
-            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        TextField(unitPlaceholder, text: $valueText)
-                            #if canImport(UIKit)
-                            .keyboardType(.decimalPad)
-                            #endif
-                            .font(.system(size: 26, weight: .semibold).monospacedDigit())
-                            .foregroundColor(.holoToolText)
-                            .focused($valueFocused)
-                            .accessibilityIdentifier("habit.measure.value")
-                        if !unitText.isEmpty {
-                            Text(unitText)
-                                .font(.system(size: 15))
-                                .foregroundColor(.holoToolTextSecondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    if snapshot.kind == .count, let total = snapshot.today.todayValue {
+                        Text("今天已累计 \(HabitPresentationProjector.formatValue(total)) \(unitText)")
+                            .holoText(.metadata)
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            TextField(unitPlaceholder, text: $valueText)
+                                #if canImport(UIKit)
+                                .keyboardType(.decimalPad)
+                                #endif
+                                .font(.system(size: 26, weight: .semibold).monospacedDigit())
+                                .foregroundColor(.holoToolText)
+                                .focused($focusedField, equals: .value)
+                                .accessibilityIdentifier("habit.measure.value")
+                            if !unitText.isEmpty {
+                                Text(unitText)
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.holoToolTextSecondary)
+                            }
+                        }
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoToolError)
                         }
                     }
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoToolError)
-                    }
-                }
-                .padding()
-                .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
-
-                TextField(String(localized: "备注（可选）"), text: $note)
-                    .font(.holoBody)
-                    .foregroundColor(.holoToolText)
                     .padding()
                     .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
+
+                    TextField(String(localized: "备注（可选）"), text: $note)
+                        .font(.holoBody)
+                        .foregroundColor(.holoToolText)
+                        .focused($focusedField, equals: .note)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
+                }
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.sm)
             }
-            .padding(.horizontal, HoloSpacing.page)
-            .padding(.top, HoloSpacing.md)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .presentationDetents([.height(340)])
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button(String(localized: "完成")) { valueFocused = false }
-            }
-        }
-        .onAppear { valueFocused = true }
+        .presentationDetents([.height(300)])
+        .onAppear { focusedField = .value }
         .disabled(isSaving)
         .interactiveDismissDisabled(isSaving || !valueText.isEmpty || !note.isEmpty)
         .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
@@ -525,7 +663,7 @@ struct HabitMeasureInputSheet: View {
     private var inputHint: String? {
         guard !isSaving, !isValidInput else { return nil }
         return valueText.trimmingCharacters(in: .whitespaces).isEmpty
-            ? String(localized: "输入今天的数值后可保存")
+            ? String(localized: "输入本次数值后可保存")
             : String(localized: "数值格式不对，例如 70.5")
     }
 
@@ -540,17 +678,17 @@ struct HabitMeasureInputSheet: View {
         return value
     }
 
-    private var unitText: String { snapshot.target?.unit ?? "" }
+    private var unitText: String { snapshot.unit }
 
     private var unitPlaceholder: String {
-        snapshot.kind == .measure ? String(localized: "输入今天的数值") : String(localized: "输入数量")
+        snapshot.kind == .measure ? String(localized: "本次测量值") : String(localized: "本次数量")
     }
 
     private func save() async {
         guard !isSaving, let value = parsedValue else {
             if parsedValue == nil {
                 errorMessage = String(localized: "请输入有效的数值（不能为空或负数）")
-                valueFocused = true
+                focusedField = .value
             }
             return
         }

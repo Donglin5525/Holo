@@ -16,7 +16,7 @@ import CoreData
 import CryptoKit
 
 @MainActor
-final class GoalEvaluationSnapshotBuilder {
+struct GoalEvaluationSnapshotBuilder {
 
     private let context: NSManagedObjectContext
     private let financeRepository: FinanceRepository
@@ -57,7 +57,7 @@ final class GoalEvaluationSnapshotBuilder {
         var known: [String] = []
         var unknown: [String] = []
 
-        let result = buildResult(goal: goal, payload: payload, window: window, known: &known, unknown: &unknown)
+        let result = buildResult(goal: goal, source: payload.resultSource, window: window, known: &known, unknown: &unknown)
         let execution = buildExecution(bindings: resolvedBindings, window: window, known: &known, unknown: &unknown)
         let constraints = buildConstraints(payload: payload, window: window, known: &known, unknown: &unknown)
         let review = buildReview(goalID: goal.id, payload: payload, now: now)
@@ -101,12 +101,19 @@ final class GoalEvaluationSnapshotBuilder {
 
     // MARK: - 结果
 
+    func resultObservation(goal: Goal, source: GoalPlanResultSourceV2, reviewDays: Int, now: Date) -> GoalResultObservation {
+        var known: [String] = []
+        var unknown: [String] = []
+        let window = GoalObservationWindow.trailingDays(reviewDays, cutoff: now)
+        return buildResult(goal: goal, source: source, window: window, known: &known, unknown: &unknown)
+    }
+
     private func buildResult(goal: Goal,
-                             payload: GoalPlanPayloadV2,
+                             source: GoalPlanResultSourceV2?,
                              window: GoalObservationWindow,
                              known: inout [String],
                              unknown: inout [String]) -> GoalResultObservation {
-        guard let source = payload.resultSource else {
+        guard let source else {
             return GoalResultObservation(status: .notApplicable,
                                          sourceKind: nil,
                                          sourceLabel: String(localized: "过程型目标"),
@@ -123,14 +130,74 @@ final class GoalEvaluationSnapshotBuilder {
                                          baselineObservedAt: source.baselineObservedAt)
         }
 
+        var observation: GoalResultObservation
         switch source.sourceType {
         case .manual:
-            return manualResult(goal: goal, source: source, window: window, known: &known, unknown: &unknown)
+            observation = manualResult(goal: goal, source: source, window: window, known: &known, unknown: &unknown)
         case .habit:
-            return habitResult(source: source, window: window, known: &known, unknown: &unknown)
+            observation = habitResult(source: source, window: window, known: &known, unknown: &unknown)
         case .ledger:
-            return ledgerResult(goal: goal, source: source, window: window, known: &known, unknown: &unknown)
+            observation = ledgerResult(goal: goal, source: source, window: window, known: &known, unknown: &unknown)
+        case .healthKit:
+            observation = healthResult(goal: goal, source: source, cutoff: window.cutoff)
+            if let note = observation.note {
+                unknown.append(note)
+            } else if observation.status == .observed {
+                known.append(String(localized: "已读取「\(observation.sourceLabel)」"))
+            } else {
+                unknown.append(observation.unavailableReason ?? String(localized: "暂未读到健康记录"))
+            }
         }
+        observation.comparison = source.comparison
+        if observation.status == .observed,
+           let value = observation.value ?? observation.moneyValue.map({ NSDecimalNumber(decimal: $0).doubleValue }),
+           let target = observation.targetValue {
+            let comparison = source.comparison ?? .reach
+            observation.isAchieved = comparison == .trendDown || comparison == .stayBelow ? value <= target : value >= target
+        }
+        return observation
+    }
+
+    private func healthResult(goal: Goal, source: GoalPlanResultSourceV2, cutoff: Date) -> GoalResultObservation {
+        let kind = source.healthMetricKind
+        var observation = GoalResultObservation(
+            status: .missing, sourceKind: .healthKit,
+            sourceLabel: kind?.displayName ?? String(localized: "苹果健康"),
+            unit: kind?.defaultUnit, targetValue: source.targetValue,
+            baselineObservedAt: source.baselineObservedAt
+        )
+        guard let kind, let reading = GoalHealthKitCache.shared.reading(for: goal, kind: kind, cutoff: cutoff) else { return observation }
+        switch reading.current {
+        case .noData:
+            return observation
+        case .waitingForUnlock:
+            observation.status = .unavailable
+            observation.unavailableReason = String(localized: "解锁设备后读取苹果健康")
+        case .unavailable(let error):
+            observation.status = .unavailable
+            switch error {
+            case .authorizationDenied: observation.unavailableReason = String(localized: "无法访问苹果健康")
+            case .recoverable(let reason): observation.unavailableReason = reason
+            }
+        case .value(let sample):
+            guard sample.value.isFinite, sample.coveredNights != 0 else { return observation }
+            observation.value = sample.value
+            observation.observedAt = sample.date
+            if let nights = sample.coveredNights, !sample.hasEnoughData {
+                observation.note = String(localized: "已记录 \(nights)/7 晚")
+                return observation
+            }
+            observation.status = .observed
+            let baseline = reading.baseline?.value ?? goal.baselineValueDouble
+            observation.baselineValue = baseline
+            if kind == .bodyMass || kind == .bodyFatPercentage {
+                applyStaleness(&observation, source: source, cutoff: cutoff)
+            }
+            var measurement = source
+            measurement.baselineValue = baseline
+            observation.progressFraction = Self.progressFraction(value: sample.value, source: measurement)
+        }
+        return observation
     }
 
     private func manualResult(goal: Goal,
@@ -201,18 +268,26 @@ final class GoalEvaluationSnapshotBuilder {
                                              targetValue: source.targetValue, baselineValue: source.baselineValue,
                                              baselineObservedAt: source.baselineObservedAt)
             }
+            var measurement = source
+            if measurement.baselineValue == nil, let since = source.baselineObservedAt,
+               let first = Self.valuedHabitRecord(habitID: habit.id, in: context, before: window.cutoff, firstRecordedAfter: since) {
+                measurement.baselineValue = first.value
+            }
             var observation = GoalResultObservation(status: .observed, sourceKind: .habit, sourceLabel: label,
                                                     value: record.value, unit: unit, observedAt: record.date,
-                                                    targetValue: source.targetValue, baselineValue: source.baselineValue,
+                                                    targetValue: source.targetValue, baselineValue: measurement.baselineValue,
                                                     baselineObservedAt: source.baselineObservedAt)
             applyStaleness(&observation, source: source, cutoff: window.cutoff)
-            observation.progressFraction = Self.progressFraction(value: record.value, source: source)
+            observation.progressFraction = Self.progressFraction(value: record.value, source: measurement)
             known.append(String(localized: "「\(label)」最新观测 \(Self.dayText(record.date))"))
             return observation
         case .sum:
-            let records = windowRecords(habit: habit, window: window)
-            let valued = records.compactMap { $0.valueDouble }.filter(\.isFinite)
-            guard !records.isEmpty else {
+            let since = source.countsFromBaseline == true ? source.baselineObservedAt : nil
+            let resultWindow = GoalObservationWindow(start: since ?? window.start, endExclusive: window.endExclusive, cutoff: window.cutoff, timeZone: window.timeZone)
+            let records = windowRecords(habit: habit, window: resultWindow)
+                .filter { record in record.valueDouble?.isFinite == true && since.map { record.date >= $0 } != false }
+            let valued = records.compactMap(\.valueDouble)
+            guard !valued.isEmpty else {
                 unknown.append(String(localized: "「\(label)」本窗口无记录"))
                 return GoalResultObservation(status: .missing, sourceKind: .habit, sourceLabel: label, unit: unit,
                                              targetValue: source.targetValue, baselineValue: source.baselineValue,
@@ -351,17 +426,19 @@ final class GoalEvaluationSnapshotBuilder {
 
     /// 结果进度：reach/sum 用 value/target；trendDown 用 (baseline-value)/(baseline-target)；无意义时 nil
     static func progressFraction(value: Double, source: GoalPlanResultSourceV2) -> Double? {
-        guard let target = source.targetValue else { return nil }
+        guard let target = source.targetValue, target.isFinite, value.isFinite else { return nil }
         switch source.comparison ?? .reach {
         case .reach:
             guard target > 0 else { return nil }
             return min(max(value / target, 0), 1)
         case .trendDown:
+            if value <= target { return 1 }
             guard let baseline = source.baselineValue, baseline > target else { return nil }
-            return min(max((baseline - value) / (baseline - target), 0), 1)
+            return max((baseline - value) / (baseline - target), 0)
         case .trendUp:
+            if value >= target { return 1 }
             guard let baseline = source.baselineValue, target > baseline else { return nil }
-            return min(max((value - baseline) / (target - baseline), 0), 1)
+            return max((value - baseline) / (target - baseline), 0)
         case .stayBelow:
             return nil
         }
@@ -436,7 +513,8 @@ final class GoalEvaluationSnapshotBuilder {
             return item
         }
         item.title = habit.name
-        item.habitAggregation = habit.isMeasureType ? "latest" : "sum"
+        let lastDay = habit.attributedDay(window.cutoff.addingTimeInterval(-1), calendar: calendar)
+        item.habitAggregation = habit.isNumericType && !habit.isCountType(on: lastDay) ? "latest" : "sum"
         item.habitFrequency = habit.frequency
         item.habitIsPaused = habit.isPaused
         item.habitUnit = habit.unit
@@ -454,7 +532,9 @@ final class GoalEvaluationSnapshotBuilder {
         item.habitExpectedDays = expected
         item.habitCompletionRate = expected > 0 ? min(Double(recordedDays) / Double(expected), 1) : nil
         if habit.isNumericType {
-            let valued = records.compactMap(\.valueDouble).filter(\.isFinite)
+            let valued = records.lazy.filter {
+                habit.cumulativeStartDay == nil || habit.isCountType(on: $0.attributedDay(dayEndMinutes: dayEnd, calendar: self.calendar))
+            }.compactMap(\.valueDouble).filter(\.isFinite)
             item.habitWindowSum = valued.isEmpty ? nil : valued.reduce(0, +)
             if let latest = latestValuedRecord(habitID: habit.id, before: window.cutoff) {
                 item.habitLatestValue = latest.value
@@ -694,18 +774,26 @@ final class GoalEvaluationSnapshotBuilder {
             .filter { $0.date < window.cutoff }
     }
 
-    private struct ValuedRecord { let value: Double; let date: Date }
+    struct ValuedRecord { let value: Double; let date: Date }
 
     private func latestValuedRecord(habitID: UUID, before cutoff: Date) -> ValuedRecord? {
+        Self.valuedHabitRecord(habitID: habitID, in: context, before: cutoff)
+    }
+
+    static func valuedHabitRecord(habitID: UUID, in context: NSManagedObjectContext, before cutoff: Date,
+                                  firstRecordedAfter start: Date? = nil) -> ValuedRecord? {
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "habitId == %@ AND value != nil AND date < %@ AND deletedAt == nil",
-            habitID as CVarArg, cutoff as NSDate
-        )
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "date", ascending: false),
-            NSSortDescriptor(key: "createdAt", ascending: false),
-        ]
+        let eligible = NSPredicate(format: "habitId == %@ AND value != nil AND date < %@ AND deletedAt == nil",
+                                   habitID as CVarArg, cutoff as NSDate)
+        if let start {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                eligible, NSPredicate(format: "createdAt >= %@ AND date >= %@", start as NSDate, Calendar.current.startOfDay(for: start) as NSDate)
+            ])
+            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true), NSSortDescriptor(key: "date", ascending: true)]
+        } else {
+            request.predicate = eligible
+            request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false), NSSortDescriptor(key: "createdAt", ascending: false)]
+        }
         request.fetchLimit = 1
         guard let row = (try? context.fetch(request))?.first, let value = row.valueDouble, value.isFinite else { return nil }
         return ValuedRecord(value: value, date: row.date)

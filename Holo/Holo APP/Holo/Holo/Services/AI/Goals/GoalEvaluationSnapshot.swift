@@ -43,8 +43,16 @@ struct GoalResultObservation: Codable, Equatable, Sendable {
     var baselineObservedAt: Date?
     /// 仅在结果量与目标值都有意义时给出（0...1）；过程型/缺测恒 nil
     var progressFraction: Double?
+    var isAchieved: Bool? = nil
+    var comparison: GoalResultComparison? = nil
     var unavailableReason: String?
     var note: String?
+
+    /// 达成与比较方向供本机展示使用，保持已有回顾快照的跨端格式。
+    private enum CodingKeys: String, CodingKey {
+        case status, sourceKind, sourceLabel, value, moneyValue, unit, observedAt
+        case targetValue, baselineValue, baselineObservedAt, progressFraction, unavailableReason, note
+    }
 }
 
 struct GoalExecutionItem: Codable, Equatable, Identifiable, Sendable {

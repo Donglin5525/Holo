@@ -29,6 +29,7 @@ enum AIContextSectionRegistry {
         DataCoverageContextSection(),
         RecentLinkedTaskContextSection(),
         MatterContextSection(),
+        InsightFollowUpContextSection(),
     ]
 }
 
@@ -166,6 +167,46 @@ struct RecentLinkedTaskContextSection: AIContextSection {
             block += "\n- 现有条目：（暂无）"
         }
         block += "\n规则：仅当用户明确针对上面这个最近的任务补充/删除/替换条目时，用 modify_task_items（填 addItems 新增、removeItems 删除，removeItems 必须引用现有条目的确切名称）；用户不是针对这个任务时不要使用。"
+        return block
+    }
+}
+
+// MARK: - 追问中的洞察发现（桌面小组件「追问 Holo」）
+
+struct InsightFollowUpContextSection: AIContextSection {
+    let id = "insightFollowUp"
+    let priority = 40
+
+    func chatBlock(_ context: UserContext) -> String? {
+        guard let followUp = context.insightFollowUp else { return nil }
+        var lines: [String] = [
+            "--- 用户正在追问这条生活发现（\(followUp.periodLabel) · \(followUp.periodRange)） ---",
+            "- 发现标题：\(followUp.title)"
+        ]
+        let trimmedSummary = followUp.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSummary.isEmpty {
+            lines.append("- 摘要：\(trimmedSummary)")
+        }
+        if !followUp.cards.isEmpty {
+            lines.append("- 完整内容：")
+            for card in followUp.cards.prefix(6) {
+                lines.append("  · \(card.title)：\(card.body)")
+            }
+        }
+        lines.append("规则：用户是通过这条发现的「追问 Holo」入口进入对话的。请直接承接上面这条发现的具体内容展开解释、补充原因或给出可执行建议，不要反问用户「这条发现是什么」。")
+        return lines.joined(separator: "\n")
+    }
+
+    func intentBlock(_ context: UserContext) -> String? {
+        guard let followUp = context.insightFollowUp else { return nil }
+        var block = "--- 用户正在追问这条生活发现（\(followUp.periodLabel) · \(followUp.periodRange)） ---"
+        block += "\n- 标题：\(followUp.title)"
+        let preview = followUp.previewBody
+        if !preview.isEmpty {
+            let clipped = preview.count > 160 ? String(preview.prefix(160)) + "…" : preview
+            block += "\n- 内容：\(clipped)"
+        }
+        block += "\n规则：用户消息中的「这条发现」「它」「背后的数据」「为什么」均指代以上发现；上下文已明确，不得触发 clarification 反问用户是什么发现。若用户要求展开查证具体数据/统计/趋势，路由到 query_analysis；若是讨论建议或聊天则走普通对话。"
         return block
     }
 }

@@ -190,9 +190,14 @@ struct GoalListCard: View {
            let baseline = snapshot.result.baselineValue ?? goal.baselineValueDouble,
            let target = snapshot.result.targetValue ?? goal.metricTargetValueDouble {
             let unit = goal.metricUnit.map { " \($0)" } ?? ""
-            let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
+            let down = snapshot.result.comparison == .trendDown || (snapshot.result.comparison == nil && target < baseline)
+            let moved = down ? baseline - current : current - baseline
+            let verb = down ? String(localized: "已减") : String(localized: "已增")
+            let summary = moved < 0
+                ? String(localized: "最新 \(GoalMetricEvaluator.formatValue(current))\(unit)")
+                : "\(verb) \(GoalMetricEvaluator.formatValue(moved)) / \(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)"
             return GoalListCardFacts(
-                valueText: "\(verb) \(GoalMetricEvaluator.formatValue(abs(baseline - current))) / \(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)",
+                valueText: summary,
                 summaryText: nil,
                 progress: progress
             )

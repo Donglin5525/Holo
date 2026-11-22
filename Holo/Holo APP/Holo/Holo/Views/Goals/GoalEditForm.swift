@@ -2,137 +2,106 @@
 //  GoalEditForm.swift
 //  Holo
 //
-//  目标创建/编辑表单（Holo 原生视觉重构）：
-//  1. 暖灰圆角标题输入条 + 实时图标预览（同 TaskCreationSheet）
-//  2. 四张直觉场景卡（攒钱 / 累计 / 达标 / 做成一件事），零工程术语，底层无损映射既有 GoalKind
-//  3. 单一白色分组卡片（数据来源 / 数值 / Holo 定制半屏期限选择卡），彻底移除系统 DatePicker 与 DisclosureGroup
-//
 
 import SwiftUI
 import CoreData
+import Combine
 
-private enum MetricPlaceholder {
-    static let cumulativeTarget = "300"
-    static let cumulativeUnit = "km"
-    static let targetBaseline = "75"
-    static let targetTarget = "65"
-    static let targetUnit = "kg"
-    static let savingTarget = "50000"
+enum GoalProgressDataSelection: Equatable {
+    case manual
+    case habit(UUID)
+    case ledger(GoalLedgerScopePayload)
+    case health(GoalHealthMetricKind)
+
+    var id: String {
+        switch self {
+        case .manual: return "manual"
+        case .habit(let id): return "habit-\(id)"
+        case .ledger(let scope): return "ledger-\(scope.kind.rawValue)-\(scope.accountID?.uuidString ?? "")"
+        case .health(let kind): return "health-\(kind.rawValue)"
+        }
+    }
+
+    func matchesSource(_ other: Self?) -> Bool {
+        if case .ledger(let left) = self, case .ledger(let right) = other, let accountID = left.accountID {
+            return accountID == right.accountID
+        }
+        return self == other
+    }
 }
 
 private enum GoalEditPickerSheet: Identifiable {
-    case domain, icon, account, habit, dataSource, deadline
+    case domain, icon, dataSource, deadline
     var id: Self { self }
-}
-
-private enum GoalScenarioIntent: CaseIterable, Identifiable {
-    case saving, cumulative, target, process
-    var id: Self { self }
-
-    var emoji: String {
-        switch self {
-        case .saving: return "💰"
-        case .cumulative: return "🏃"
-        case .target: return "⚖️"
-        case .process: return "✅"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .saving: return String(localized: "攒钱")
-        case .cumulative: return String(localized: "累计")
-        case .target: return String(localized: "达标")
-        case .process: return String(localized: "做成一件事")
-        }
-    }
 }
 
 struct GoalEditForm: View {
     @Binding var draft: GoalDraft
-    /// 编辑模式为 true 时底部提供「补充说明、动机与图标」折叠区；新建模式保持 false 维持零干扰极速创建
     var showsExtendedFields: Bool = false
 
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var health = HealthRepository.shared
     @State private var showExtendedDetails = false
     @State private var activePicker: GoalEditPickerSheet?
-
-    /// 数值输入用文本驱动（draft 存 Double），避免输入中途 "3." 被解析回写打断
-    @State private var metricTargetText: String
-    @State private var metricBaselineText: String
-
-    /// 达标型自动读取基线时的来源说明
-    @State private var baselineNote: String?
-
     @State private var numericHabits: [Habit] = []
     @State private var ledgerAccounts: [Account] = []
-
-    @FocusState private var isFieldFocused: Bool
+    @State private var preview: GoalHealthSample?
+    @State private var previewMessage: String?
+    @State private var healthRefresh = 0
+    @State private var loadingHealth = false
+    @State private var metricTargetText: String
+    @State private var metricBaselineText: String
+    @State private var sourceTargets: [String: String] = [:]
+    @State private var changedMeasurement = false
+    private enum Field: Hashable { case title, baseline, target, unit }
+    @FocusState private var focusedField: Field?
 
     init(draft: Binding<GoalDraft>, showsExtendedFields: Bool = false) {
         self._draft = draft
         self.showsExtendedFields = showsExtendedFields
-        self._metricTargetText = State(
-            initialValue: draft.wrappedValue.metricTargetValue.map(GoalMetricEvaluator.formatValue) ?? ""
-        )
-        self._metricBaselineText = State(
-            initialValue: draft.wrappedValue.metricBaselineValue.map(GoalMetricEvaluator.formatValue) ?? ""
-        )
-    }
-
-    private var currentIntent: GoalScenarioIntent {
-        switch draft.goalKind {
-        case .process: return .process
-        case .target: return .target
-        case .cumulative: return draft.metricSource == .ledger ? .saving : .cumulative
-        }
-    }
-
-    private var titlePreviewIcon: String {
-        if let chosen = draft.iconEmoji, !chosen.isEmpty { return chosen }
-        let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            let inferred = GoalDomain.infer(from: trimmed)
-            if inferred != .other { return inferred.defaultEmoji }
-        }
-        return currentIntent.emoji
+        self._metricTargetText = State(initialValue: draft.wrappedValue.metricTargetValue.map(Self.inputText) ?? "")
+        self._metricBaselineText = State(initialValue: draft.wrappedValue.metricBaselineValue.map(Self.inputText) ?? "")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
             titleInputRow
-
-            scenarioSelector
-
-            if let hintNumber = activeHintNumber {
-                cumulativeHintRow(hintNumber)
-                    .transition(.opacity)
+            VStack(spacing: 0) {
+                sourceRow
+                if draft.isQuantitative {
+                    rowDivider
+                    metricFields
+                }
             }
+            .holoSurface(.independent)
 
-            groupedFormCard
+            deadlineRow
+                .holoSurface(.independent)
 
             if showsExtendedFields {
                 extendedDetailsCard
             }
         }
         .padding(.top, HoloSpacing.md)
-        .animation(.easeInOut(duration: 0.2), value: currentIntent)
-        .animation(.easeInOut(duration: 0.2), value: activeHintNumber)
-        .animation(.easeInOut(duration: 0.2), value: showExtendedDetails)
-        .onAppear {
-            loadHabits()
-            loadAccounts()
-            applyAutoBaselineForPrefilledDraft()
+        .onAppear(perform: loadSources)
+        .onReceive(Publishers.Merge(
+            NotificationCenter.default.publisher(for: .habitDataDidChange),
+            NotificationCenter.default.publisher(for: .financeDataDidChange)
+        )) { _ in loadSources() }
+        .onChange(of: health.dataSourceState) { _, _ in healthRefresh += 1 }
+        .onChange(of: draft.metricStartDate) { _, _ in healthRefresh += 1 }
+        .onChange(of: draft.title) { _, _ in
+            if !showsExtendedFields { refreshAutomaticComparison() }
         }
-        .onChange(of: draft.sourceHabitId) { _, newId in
-            applyBaselineFromHabit(newId)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { healthRefresh += 1 }
         }
-        .sheet(item: $activePicker) { picker in
-            sheetView(for: picker)
-        }
+        .task(id: healthRefresh) { await refreshHealthPreview() }
+        .sheet(item: $activePicker, content: sheetView)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button(String(localized: "完成")) { isFieldFocused = false }
+                Button("完成") { focusedField = nil }
             }
         }
     }
@@ -144,414 +113,476 @@ struct GoalEditForm: View {
             GoalDomainPickerSheet(current: draft.domain) { draft.domain = $0 }
         case .icon:
             EmojiIconPickerSheet(currentIcon: draft.iconEmoji ?? draft.domain.defaultEmoji) { draft.iconEmoji = $0 }
-        case .account:
-            GoalLedgerScopePickerSheet(
-                goalKind: draft.goalKind,
-                accounts: ledgerAccounts,
-                selection: ledgerScopeSelection
-            )
-        case .habit:
-            GoalNumericHabitPickerSheet(habits: numericHabits, selectedId: $draft.sourceHabitId)
         case .dataSource:
             GoalDataSourcePickerSheet(
-                goalKind: draft.goalKind,
-                habits: numericHabits,
-                accounts: ledgerAccounts,
-                metricSource: Binding(
-                    get: { draft.metricSource },
-                    set: { newSource in
-                        draft.metricSource = newSource
-                        if newSource == .ledger {
-                            draft.metricUnit = "¥"
-                        } else if draft.metricUnit == "¥" {
-                            draft.metricUnit = nil
-                        }
-                    }
-                ),
-                selectedHabitId: $draft.sourceHabitId,
-                ledgerScope: $draft.ledgerScope,
-                healthMetricKind: Binding(
-                    get: { draft.healthMetricKind },
-                    set: { newKind in
-                        draft.healthMetricKind = newKind
-                        if let newKind, (draft.metricUnit ?? "").isEmpty {
-                            draft.metricUnit = newKind.defaultUnit
-                        }
-                    }
-                ),
-                onPickedAccount: { scope in
-                    applyBaselineFromAccount(scope)
-                }
+                habits: numericHabits, accounts: ledgerAccounts, selection: selection,
+                allowsRemoval: draft.isQuantitative, onSelect: selectSource
             )
         case .deadline:
             GoalDeadlinePickerSheet(deadlineText: $draft.deadlineText)
         }
     }
 
-    // MARK: - 1. Holo 暖灰圆角标题输入条
-
     private var titleInputRow: some View {
-        HStack(spacing: HoloSpacing.md) {
-            Text(titlePreviewIcon)
-                .font(.system(size: 22))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(width: 42, height: 42)
-                .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            fieldLabel(String(localized: "目标名称"))
+            TextField("想做成什么？", text: $draft.title, axis: .vertical)
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolText)
+                .lineLimit(1...3)
+                .focused($focusedField, equals: .title)
+                .padding(HoloSpacing.md)
+                .holoSurface(.independent)
+                .accessibilityIdentifier("goal-title")
+        }
+    }
 
-            TextField(
-                String(localized: "想做成什么？"),
-                text: $draft.title,
-                prompt: Text(String(localized: "想做成什么？")).foregroundStyle(Color.holoTextPlaceholder)
+    private var sourceRow: some View {
+        Button {
+            focusedField = nil
+            activePicker = .dataSource
+        } label: {
+            groupedPickerRow(
+                label: draft.isQuantitative ? String(localized: "进度数据") : String(localized: "添加进度数据"),
+                value: sourceName
             )
-            .goalJourneyText(.heading)
-            .tracking(-0.2)
-            .foregroundStyle(Color.holoToolText)
-            .lineLimit(1)
-            .submitLabel(.done)
-            .onSubmit { isFieldFocused = false }
-            .focused($isFieldFocused)
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 10)
-        .frame(minHeight: 62)
-        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("goal-progress-source")
     }
 
-    // MARK: - 2. 四直觉场景选择卡
-
-    private var scenarioSelector: some View {
-        HStack(spacing: 8) {
-            ForEach(GoalScenarioIntent.allCases) { intent in
-                let isSelected = currentIntent == intent
-                Button {
-                    selectIntent(intent)
-                } label: {
-                    VStack(spacing: 4) {
-                        Text(intent.emoji)
-                            .font(.system(size: 18))
-                        Text(intent.title)
-                            .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                            .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 4)
-                    .frame(maxWidth: .infinity, minHeight: 62)
-                    .background(
-                        isSelected ? GoalJourneyStyle.action.opacity(0.08) : Color.holoToolSurface,
-                        in: RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                            .strokeBorder(isSelected ? GoalJourneyStyle.action : Color.holoToolBorder, lineWidth: isSelected ? 1.2 : 0.5)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-                .buttonStyle(HoloPressStyle())
-            }
+    private var selection: GoalProgressDataSelection? {
+        guard draft.isQuantitative else { return nil }
+        switch draft.metricSource {
+        case .manual: return .manual
+        case .habit: return draft.sourceHabitId.map(GoalProgressDataSelection.habit)
+        case .ledger: return draft.ledgerScope.map(GoalProgressDataSelection.ledger)
+        case .healthKit: return draft.healthMetricKind.map(GoalProgressDataSelection.health)
         }
     }
 
-    private func selectIntent(_ intent: GoalScenarioIntent) {
-        isFieldFocused = false
-        switch intent {
-        case .saving:
-            draft.goalKind = .cumulative
-            draft.metricSource = .ledger
-            draft.sourceHabitId = nil
-            draft.metricUnit = "¥"
-            normalizeLedgerScope()
-            baselineNote = nil
-        case .cumulative:
-            draft.goalKind = .cumulative
-            if draft.metricSource == .ledger {
-                draft.metricSource = .manual
-                if draft.metricUnit == "¥" { draft.metricUnit = nil }
-            }
-            baselineNote = nil
-        case .target:
-            draft.goalKind = .target
-            if draft.metricSource == .ledger && ledgerAccounts.isEmpty {
-                draft.metricSource = .manual
-            }
-            if draft.metricUnit == "¥" && draft.metricSource != .ledger {
-                draft.metricUnit = nil
-            }
-            if draft.metricSource == .ledger {
-                normalizeLedgerScope()
-                applyBaselineFromAccount(draft.ledgerScope)
-            } else if draft.metricSource == .habit {
-                applyBaselineFromHabit(draft.sourceHabitId)
-            }
-        case .process:
-            draft.goalKind = .process
+    private var sourceName: String {
+        guard draft.isQuantitative else { return String(localized: "可选") }
+        switch selection {
+        case .manual: return String(localized: "手动记录")
+        case .habit(let id):
+            return numericHabits.renderable.first(where: { $0.id == id }).map { "\(String(localized: "习惯")) · \($0.name)" }
+                ?? String(localized: "原习惯不可用")
+        case .ledger(let scope):
+            if scope.kind == .wholeLedgerDelta { return String(localized: "全部账本 · 净增加") }
+            return ledgerAccounts.renderable.first(where: { $0.id == scope.accountID })
+                .map { String(localized: "财务 · \($0.name)") } ?? String(localized: "原账户不可用")
+        case .health(let kind): return String(localized: "苹果健康 · \(kind.displayName)")
+        case nil: return String(localized: "请选择")
+        }
+    }
+
+    private func loadSources() {
+        let repo = HabitRepository.shared
+        repo.setup()
+        numericHabits = repo.activeHabits.filter(\.isNumericType)
+        ledgerAccounts = FinanceRepository.shared.getAccounts()
+        reloadSourcePreview(setBaseline: !showsExtendedFields && draft.metricBaselineValue == nil)
+    }
+
+    private func selectSource(_ picked: GoalProgressDataSelection?) {
+        guard picked != selection || (picked == nil && draft.isQuantitative) else { return }
+        if let selection { sourceTargets[selection.id] = metricTargetText }
+        changedMeasurement = true
+        draft.metricComparisonIsExplicit = nil
+        let priorUnit = draft.metricUnit
+        let priorKind = draft.goalKind
+        let priorHadSource = draft.isQuantitative
+
+        draft.sourceHabitId = nil
+        draft.ledgerScope = nil
+        draft.healthMetricKind = nil
+        draft.metricBaselineValue = nil
+        draft.metricStartDate = nil
+        draft.metricUnit = nil
+        metricBaselineText = ""
+        switch picked {
+        case .manual:
             draft.metricSource = .manual
-            draft.sourceHabitId = nil
-            baselineNote = nil
+            draft.goalKind = .cumulative
+            draft.metricUnit = priorUnit
+        case .habit(let id):
+            let habit = numericHabits.renderable.first { $0.id == id }
+            draft.metricSource = .habit
+            draft.sourceHabitId = id
+            draft.goalKind = habit?.isCountType == true ? .cumulative : .target
+            draft.metricUnit = habit?.unit
+        case .ledger(let scope):
+            draft.metricSource = .ledger
+            draft.ledgerScope = scope
+            draft.goalKind = scope.kind == .accountBalance ? .target : .cumulative
+            draft.metricUnit = "¥"
+        case .health(let kind):
+            draft.metricSource = .healthKit
+            draft.healthMetricKind = kind
+            draft.goalKind = kind.isLatestSample ? .target : .cumulative
+            draft.metricUnit = kind.defaultUnit
+        case nil:
+            draft.metricSource = .manual
+            draft.goalKind = .process
         }
+        if let picked, let remembered = sourceTargets[picked.id] {
+            metricTargetText = remembered
+            draft.metricTargetValue = Self.parseNumber(remembered)
+        } else if priorHadSource && (priorUnit != draft.metricUnit || priorKind != draft.goalKind) {
+            metricTargetText = ""
+            draft.metricTargetValue = nil
+        }
+
+        draft.metricComparison = draft.goalKind == .cumulative ? .reach : nil
+        preview = nil
+        previewMessage = nil
+        reloadSourcePreview(setBaseline: true)
+        refreshAutomaticComparison()
+        healthRefresh += 1
     }
 
-    // MARK: - 数字提示行
-
-    private var activeHintNumber: Int? {
-        Self.showsCumulativeHint(in: draft)
-            ? Self.cumulativeHintNumber(inTitle: draft.title) : nil
-    }
-
-    private func cumulativeHintRow(_ number: Int) -> some View {
-        Button {
-            applyCumulativeHint(number)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13))
-                Text("标题里有 \(number) —— 点一下按数量累计追踪")
-                    .goalJourneyText(.metadata)
-                    .lineLimit(2)
+    private func reloadSourcePreview(setBaseline: Bool = false) {
+        switch selection {
+        case .habit(let id):
+            let active = numericHabits.renderable.contains { $0.id == id }
+            let record = active ? GoalEvaluationSnapshotBuilder.valuedHabitRecord(habitID: id, in: HabitRepository.shared.context, before: Date()) : nil
+            preview = record.map { GoalHealthSample(value: $0.value, date: $0.date) }
+            previewMessage = active ? nil : String(localized: "请选择其他进度数据，或等原习惯恢复")
+        case .ledger(let scope) where scope.accountID != nil:
+            if let id = scope.accountID,
+               case .observed(let balance, let date, _, let type) = FinanceRepository.shared.accountBalanceObservation(accountId: id, before: Date()) {
+                preview = GoalHealthSample(value: NSDecimalNumber(decimal: balance).doubleValue, date: date)
+                previewMessage = type == .creditCard ? String(localized: "余额回到 0 表示还清") : nil
+            } else {
+                preview = nil
+                previewMessage = String(localized: "暂时无法读取这个账户")
             }
-            .foregroundStyle(GoalJourneyStyle.action)
-            .padding(.horizontal, HoloSpacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-            .contentShape(Rectangle())
+        default:
+            return
         }
-        .buttonStyle(HoloPressStyle())
+        if setBaseline && draft.goalKind == .target { draft.metricBaselineValue = preview?.value }
+        if !showsExtendedFields || changedMeasurement { refreshAutomaticComparison() }
     }
 
-    private func applyCumulativeHint(_ number: Int) {
-        selectIntent(.cumulative)
-        if metricTargetText.isEmpty {
-            metricTargetText = GoalMetricEvaluator.formatValue(Double(number))
-            draft.metricTargetValue = Double(number)
+    private func refreshHealthPreview() async {
+        guard let kind = draft.healthMetricKind, draft.metricSource == .healthKit else {
+            loadingHealth = false
+            return
         }
-        if (draft.metricUnit ?? "").isEmpty, let unit = Self.unitKeyword(in: draft.title) {
-            draft.metricUnit = unit
-            if unit == "¥" && !ledgerAccounts.isEmpty {
-                selectIntent(.saving)
+        let now = Date()
+        let start = draft.metricStartDate ?? now
+        loadingHealth = true
+        if draft.goalKind == .cumulative && start >= now {
+            loadingHealth = false
+            preview = nil
+            previewMessage = nil
+            return
+        }
+        let reading = await health.fetchGoalMetric(kind: kind, since: start, before: now)
+        guard !Task.isCancelled, draft.metricSource == .healthKit, draft.healthMetricKind == kind else { return }
+        loadingHealth = false
+        preview = nil
+        switch reading {
+        case .value(let sample):
+            preview = sample
+            previewMessage = sample.coveredNights.map { String(localized: "已记录 \($0)/7 晚") }
+        case .noData: previewMessage = String(localized: "暂无可用记录")
+        case .waitingForUnlock: previewMessage = String(localized: "解锁设备后读取苹果健康")
+        case .unavailable(.authorizationDenied): previewMessage = String(localized: "无法访问苹果健康")
+        case .unavailable(.recoverable(let message)): previewMessage = message
+        }
+        if !showsExtendedFields || changedMeasurement { refreshAutomaticComparison() }
+    }
+
+    private var isSleep: Bool {
+        draft.healthMetricKind == .sleepHours || draft.healthMetricKind == .sleepAverage
+    }
+
+    private var comparison: GoalResultComparison {
+        draft.metricComparison ?? (draft.goalKind == .target ? suggestedComparison : .reach)
+    }
+
+    private var suggestedComparison: GoalResultComparison {
+        .inferredTarget(title: draft.title, unit: draft.metricUnit, healthMetric: draft.healthMetricKind,
+                        baseline: draft.metricBaselineValue ?? preview?.value, target: draft.metricTargetValue)
+    }
+
+    private func refreshAutomaticComparison() {
+        guard draft.goalKind == .target, draft.metricComparisonIsExplicit != true else { return }
+        draft.metricComparison = suggestedComparison
+        draft.metricComparisonIsExplicit = false
+    }
+
+    private var metricFields: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            if showsSourcePreview {
+                sourcePreview
+            } else if draft.metricSource == .manual && draft.goalKind == .target {
+                numericField(String(localized: "起始值"), text: $metricBaselineText, field: .baseline)
+                    .onChange(of: metricBaselineText) { _, value in
+                        draft.metricBaselineValue = Self.parseNumber(value)
+                        changedMeasurement = true
+                        refreshAutomaticComparison()
+                    }
             }
-        }
-    }
 
-    // MARK: - 3. 统一白色分组参数卡
-
-    private var groupedFormCard: some View {
-        VStack(spacing: 0) {
-            switch currentIntent {
-            case .saving:
-                savingFields
-                rowDivider
-            case .cumulative:
-                cumulativeFields
-                rowDivider
-            case .target:
-                targetFields
-                rowDivider
-            case .process:
-                processHintRow
-                rowDivider
-            }
-
-            deadlineRow
-        }
-        .holoSurface()
-    }
-
-    @ViewBuilder
-    private var savingFields: some View {
-        HStack {
-            fieldLabel(String(localized: "目标金额"))
-            Spacer(minLength: 12)
-            Text("¥")
-                .goalJourneyText(.rowValue)
-                .foregroundStyle(Color.holoToolTextSecondary)
-            TextField(MetricPlaceholder.savingTarget, text: $metricTargetText)
-                .goalJourneyText(.rowValue)
-                .monospacedDigit()
-                .foregroundStyle(Color.holoToolText)
-                .multilineTextAlignment(.trailing)
-                .frame(minWidth: 80, maxWidth: 150)
-                .focused($isFieldFocused)
-                #if canImport(UIKit)
-                .keyboardType(.decimalPad)
-                #endif
-                .onChange(of: metricTargetText) { _, newValue in
-                    draft.metricTargetValue = Double(newValue)
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                fieldLabel(String(localized: "达成条件"))
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: HoloSpacing.md) { conditionMenu; targetField }
+                    VStack(alignment: .leading, spacing: HoloSpacing.xs) { conditionMenu; targetField }
                 }
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .frame(minHeight: 52)
-
-        rowDivider
-
-        Button {
-            activePicker = .account
-        } label: {
-            groupedPickerRow(
-                label: String(localized: "关联账户"),
-                value: ledgerAccounts.isEmpty ? String(localized: "还没有账户") : ledgerScopeDisplayValue,
-                subtitle: ledgerScopeExplanationText
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(ledgerAccounts.isEmpty)
-    }
-
-    @ViewBuilder
-    private var cumulativeFields: some View {
-        HStack(spacing: 8) {
-            fieldLabel(String(localized: "目标累计"))
-            Spacer(minLength: 12)
-            TextField(MetricPlaceholder.cumulativeTarget, text: $metricTargetText)
-                .goalJourneyText(.rowValue)
-                .monospacedDigit()
-                .foregroundStyle(Color.holoToolText)
-                .multilineTextAlignment(.trailing)
-                .frame(minWidth: 64, maxWidth: 120)
-                .focused($isFieldFocused)
-                #if canImport(UIKit)
-                .keyboardType(.decimalPad)
-                #endif
-                .onChange(of: metricTargetText) { _, newValue in
-                    draft.metricTargetValue = Double(newValue)
-                }
-            TextField(MetricPlaceholder.cumulativeUnit, text: unitBinding)
-                .goalJourneyText(.body)
-                .foregroundStyle(Color.holoToolTextSecondary)
-                .multilineTextAlignment(.trailing)
-                .frame(width: 48)
-                .focused($isFieldFocused)
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .frame(minHeight: 52)
-
-        rowDivider
-
-        Button {
-            activePicker = .dataSource
-        } label: {
-            groupedPickerRow(
-                label: String(localized: "数据来源"),
-                value: dataSourceDisplayValue,
-                valueColor: draft.metricSource == .manual ? Color.holoToolText : GoalJourneyStyle.action,
-                subtitle: aggregationMismatchText
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var targetFields: some View {
-        Button {
-            activePicker = .dataSource
-        } label: {
-            groupedPickerRow(
-                label: String(localized: "数据来源"),
-                value: dataSourceDisplayValue,
-                valueColor: GoalJourneyStyle.action,
-                subtitle: aggregationMismatchText
-            )
-        }
-        .buttonStyle(.plain)
-
-        rowDivider
-
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                fieldLabel(String(localized: "当前数值"))
-                if let baselineNote {
-                    Text(baselineNote)
-                        .font(.system(size: 11))
+                if currentReadingMeetsTarget {
+                    Text("按当前记录已达成此条件")
+                        .holoText(.metadata)
                         .foregroundStyle(Color.holoToolTextSecondary)
-                        .lineLimit(1)
                 }
             }
-            Spacer(minLength: 8)
-            if draft.metricSource == .ledger {
-                Text("¥")
-                    .goalJourneyText(.body)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-            }
-            TextField(MetricPlaceholder.targetBaseline, text: $metricBaselineText)
-                .goalJourneyText(.rowValue)
-                .monospacedDigit()
-                .foregroundStyle(Color.holoToolText)
-                .multilineTextAlignment(.trailing)
-                .frame(minWidth: 56, maxWidth: 110)
-                .focused($isFieldFocused)
-                #if canImport(UIKit)
-                .keyboardType(.decimalPad)
-                #endif
-                .onChange(of: metricBaselineText) { _, newValue in
-                    draft.metricBaselineValue = Double(newValue)
-                    baselineNote = nil
-                }
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, baselineNote == nil ? 0 : 8)
-        .frame(minHeight: 52)
-
-        rowDivider
-
-        HStack(spacing: 8) {
-            fieldLabel(String(localized: "想达到"))
-            Spacer(minLength: 8)
-            if draft.metricSource == .ledger {
-                Text("¥")
-                    .goalJourneyText(.rowValue)
-                    .foregroundStyle(GoalJourneyStyle.action)
-            }
-            TextField(MetricPlaceholder.targetTarget, text: $metricTargetText)
-                .goalJourneyText(.rowValue)
-                .fontWeight(.semibold)
-                .monospacedDigit()
-                .foregroundStyle(GoalJourneyStyle.action)
-                .multilineTextAlignment(.trailing)
-                .frame(minWidth: 56, maxWidth: 110)
-                .focused($isFieldFocused)
-                #if canImport(UIKit)
-                .keyboardType(.decimalPad)
-                #endif
-                .onChange(of: metricTargetText) { _, newValue in
-                    draft.metricTargetValue = Double(newValue)
-                }
-            if draft.metricSource != .ledger {
-                TextField(MetricPlaceholder.targetUnit, text: unitBinding)
-                    .goalJourneyText(.body)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 44)
-                    .focused($isFieldFocused)
+            if draft.goalKind == .cumulative {
+                cumulativeStartMenu
             }
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .frame(minHeight: 52)
+        .padding(HoloSpacing.md)
     }
 
-    private var processHintRow: some View {
-        HStack {
-            Text("怎么推进")
-                .goalJourneyText(.supporting)
-                .foregroundStyle(Color.holoToolTextSecondary)
-            Spacer()
-            Text("创建后到详情页拆成小任务或习惯")
-                .goalJourneyText(.metadata)
-                .foregroundStyle(Color.holoToolTextSecondary)
+    private var showsSourcePreview: Bool {
+        switch draft.metricSource {
+        case .manual: return false
+        case .habit: return draft.goalKind == .target
+        case .ledger: return draft.ledgerScope?.accountID != nil
+        case .healthKit:
+            return draft.goalKind == .target || loadingHealth || preview != nil || previewMessage != nil || offersHealthConnection
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .frame(minHeight: 48)
+    }
+
+    private var offersHealthConnection: Bool {
+        draft.metricSource == .healthKit && (health.dataSourceState == .notRequested || health.dataSourceState == .denied)
+    }
+
+    private var currentReadingMeetsTarget: Bool {
+        guard draft.goalKind == .target, let preview, preview.hasEnoughData,
+              let target = draft.metricTargetValue, Self.invalidTargetHint(for: draft, target: target) == nil else { return false }
+        return comparison == .trendDown || comparison == .stayBelow ? preview.value <= target : preview.value >= target
+    }
+
+    private var sourcePreview: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            if loadingHealth {
+                HStack { ProgressView(); Text("正在读取苹果健康") }
+                    .holoText(.supporting)
+            } else if let preview, preview.coveredNights != 0, draft.metricSource != .healthKit || draft.goalKind == .target {
+                latestReading(preview)
+            } else if draft.goalKind == .target, previewMessage == nil {
+                Text("暂无记录，首次记录将作为起点")
+                    .holoText(.supporting)
+            }
+            if !loadingHealth, draft.goalKind == .cumulative, let preview, draft.metricSource == .healthKit {
+                let value = draft.healthMetricKind == .stepCount
+                    ? preview.value.formatted(.number.locale(Locale(identifier: "zh_CN")).precision(.fractionLength(0)))
+                    : Self.inputText(preview.value)
+                Text("已累计 \(value) \(draft.metricUnit ?? "")")
+                    .holoText(.body)
+            }
+            if let previewMessage, !loadingHealth {
+                Text(previewMessage).holoText(.metadata)
+            }
+            if offersHealthConnection {
+                Button("连接苹果健康") { health.requestAuthorization() }
+                    .holoText(.body)
+                    .foregroundStyle(Color.holoToolAction)
+                    .frame(minHeight: 44)
+            }
+        }
+        .foregroundStyle(Color.holoToolTextSecondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func latestReading(_ preview: GoalHealthSample) -> some View {
+        let isStartingPoint = draft.metricBaselineValue == preview.value && draft.goalKind == .target
+        let title = draft.metricSource == .ledger ? String(localized: "当前余额")
+            : (isSleep ? String(localized: "当前统计") : String(localized: "最新记录"))
+        let value = draft.metricSource == .ledger
+            ? GoalJourneyNarrative.money(Decimal(preview.value))
+            : "\(Self.inputText(preview.value)) \(draft.metricUnit ?? "")"
+        return VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            Text(title).holoText(.metadata)
+            Text(value)
+                .holoText(.sectionTitle)
+                .monospacedDigit()
+                .foregroundStyle(Color.holoToolText)
+                .accessibilityIdentifier("goal-reference-value")
+            if let date = preview.date {
+                Text(isStartingPoint
+                     ? String(localized: "\(Self.shortDayText(date)) · 用作起点")
+                     : Self.shortDayText(date))
+                    .holoText(.metadata)
+            }
+            if let baseline = draft.metricBaselineValue, !isStartingPoint {
+                let value = draft.metricSource == .ledger ? GoalJourneyNarrative.money(Decimal(baseline)) : "\(Self.inputText(baseline)) \(draft.metricUnit ?? "")"
+                Text("起点 \(value)").holoText(.metadata)
+            }
+        }
+    }
+
+    private var conditionMenu: some View {
+        Menu {
+            if draft.metricSource == .ledger, let id = draft.ledgerScope?.accountID {
+                Button("账户余额达到") {
+                    selectSource(.ledger(GoalLedgerScopePayload(kind: .accountBalance, accountID: id)))
+                    setCondition(.target, comparison: .trendUp)
+                }
+                Button("账户余额降到") {
+                    selectSource(.ledger(GoalLedgerScopePayload(kind: .accountBalance, accountID: id)))
+                    setCondition(.target, comparison: .trendDown)
+                }
+                Button("账户余额增加") {
+                    selectSource(.ledger(GoalLedgerScopePayload(kind: .accountDelta, accountID: id)))
+                }
+            } else if draft.metricSource == .manual || draft.goalKind == .target && !isSleep {
+                Button("达到") { setCondition(.target, comparison: .trendUp) }
+                Button("降到") { setCondition(.target, comparison: .trendDown) }
+                if draft.metricSource == .manual {
+                    Button("累计到") { setCondition(.cumulative, comparison: .reach) }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(conditionTitle)
+                if canChooseCondition {
+                    Image(systemName: "chevron.down").font(.caption2)
+                }
+            }
+            .holoText(.body)
+            .foregroundStyle(canChooseCondition ? Color.holoToolAction : Color.holoToolText)
+            .frame(minHeight: 44)
+            .fixedSize()
+        }
+        .disabled(!canChooseCondition)
+        .accessibilityIdentifier("goal-condition")
+    }
+
+    private var canChooseCondition: Bool {
+        if draft.metricSource == .ledger { return draft.ledgerScope?.accountID != nil }
+        return draft.metricSource == .manual || draft.goalKind == .target && !isSleep
+    }
+
+    private var conditionTitle: String {
+        if draft.metricSource == .ledger {
+            if draft.goalKind == .cumulative { return String(localized: "余额增加") }
+            return comparison == .trendDown ? String(localized: "余额降到") : String(localized: "余额达到")
+        }
+        if draft.goalKind == .cumulative { return String(localized: "累计到") }
+        return comparison == .trendDown || comparison == .stayBelow ? String(localized: "降到") : String(localized: "达到")
+    }
+
+    private var cumulativeStartMenu: some View {
+        Menu {
+            Button(showsExtendedFields ? "从现在开始" : "从创建开始") { draft.metricStartDate = nil }
+            Button("从今天开始") { draft.metricStartDate = Date().startOfDay }
+            Button("从本周开始") { draft.metricStartDate = Date().startOfWeek }
+            Button("从本月开始") { draft.metricStartDate = Date().startOfMonth }
+        } label: {
+            groupedPickerRow(
+                label: String(localized: "累计起点"),
+                value: draft.metricStartDate.map(Self.shortDayText)
+                    ?? (showsExtendedFields ? String(localized: "现在") : String(localized: "创建时"))
+            )
+            .padding(.horizontal, -HoloSpacing.md)
+        }
+        .accessibilityIdentifier("goal-cumulative-start")
+    }
+
+    private func setCondition(_ kind: GoalKind, comparison: GoalResultComparison) {
+        draft.goalKind = kind
+        draft.metricComparison = comparison
+        draft.metricComparisonIsExplicit = kind == .target ? true : nil
+        if kind != .cumulative { draft.metricStartDate = nil }
+    }
+
+    private var targetField: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            numericField(String(localized: "目标值"), text: $metricTargetText, field: .target)
+                .onChange(of: metricTargetText) { _, value in
+                    let target = Self.parseNumber(value)
+                    guard target != draft.metricTargetValue else { return }
+                    draft.metricTargetValue = target
+                    changedMeasurement = true
+                    refreshAutomaticComparison()
+                }
+            if draft.metricSource == .manual {
+                TextField("单位", text: Binding(
+                    get: { draft.metricUnit ?? "" },
+                    set: { draft.metricUnit = $0.isEmpty ? nil : $0 }
+                ))
+                .holoText(.supporting)
+                .frame(minWidth: 44, idealWidth: 52, maxWidth: 72)
+                .focused($focusedField, equals: .unit)
+            } else if let unit = draft.metricUnit, !unit.isEmpty {
+                Text(unit).holoText(.supporting).fixedSize()
+            }
+        }
+    }
+
+    private func numericField(_ label: String, text: Binding<String>, field: Field) -> some View {
+        HStack(spacing: HoloSpacing.xs) {
+            TextField(label, text: text)
+                .holoText(.body)
+                .monospacedDigit()
+                .foregroundStyle(Color.holoToolText)
+                .focused($focusedField, equals: field)
+                .accessibilityIdentifier(field == .target ? "goal-target" : "goal-baseline")
+                #if canImport(UIKit)
+                .keyboardType(numericKeyboard)
+                #endif
+            if focusedField == field {
+                Button {
+                    focusedField = nil
+                } label: {
+                    Image(systemName: "keyboard.chevron.compact.down")
+                        .font(.body)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("收起键盘")
+                .accessibilityIdentifier("goal-hide-keyboard")
+            }
+        }
+        .padding(.leading, HoloSpacing.sm)
+        .padding(.trailing, focusedField == field ? 0 : HoloSpacing.sm)
+        .frame(minWidth: 104, minHeight: 44)
+        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    #if canImport(UIKit)
+    private var numericKeyboard: UIKeyboardType {
+        if draft.healthMetricKind == .stepCount { return .numberPad }
+        if draft.goalKind == .target && (draft.metricSource == .manual || draft.metricSource == .ledger) {
+            return .numbersAndPunctuation
+        }
+        return .decimalPad
+    }
+    #endif
+
+    private static func inputText(_ value: Double) -> String {
+        value.formatted(.number.locale(Locale(identifier: "zh_CN")).grouping(.never).precision(.fractionLength(0...10)))
+    }
+
+    private static func parseNumber(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(trimmed.replacingOccurrences(of: "−", with: "-")), value.isFinite else { return nil }
+        return value
     }
 
     private var deadlineRow: some View {
         Button {
-            isFieldFocused = false
+            focusedField = nil
             activePicker = .deadline
         } label: {
-            groupedPickerRow(
-                label: String(localized: "截止期限"),
-                value: deadlineDisplayText,
-                valueColor: draft.deadlineText == nil ? Color.holoToolTextSecondary : GoalJourneyStyle.action
-            )
+            let value = draft.deadlineText.map { GoalListCard.dayText(Self.parseDeadlineText($0)) } ?? String(localized: "不设期限")
+            groupedPickerRow(label: String(localized: "截止期限"), value: value)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("goal-deadline-row")
@@ -648,42 +679,26 @@ struct GoalEditForm: View {
 
     private func fieldLabel(_ text: String) -> some View {
         Text(text)
-            .goalJourneyText(.supporting)
+            .holoText(.supporting)
             .foregroundStyle(Color.holoToolTextSecondary)
-            .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func groupedPickerRow(
-        label: String,
-        value: String,
-        valueColor: Color = Color.holoToolText,
-        subtitle: String? = nil
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 10) {
-                fieldLabel(label)
-                Spacer(minLength: 12)
-                HStack(spacing: 4) {
-                    Text(value)
-                        .goalJourneyText(.body)
-                        .fontWeight(.medium)
-                        .foregroundStyle(valueColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.holoToolTextSecondary)
-                }
-            }
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                    .lineLimit(2)
-            }
+    private func groupedPickerRow(label: String, value: String) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            fieldLabel(label)
+            Spacer(minLength: HoloSpacing.sm)
+            Text(value)
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.trailing)
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, subtitle == nil ? 0 : 10)
+        .padding(.vertical, HoloSpacing.xs)
         .frame(minHeight: 50)
         .contentShape(Rectangle())
     }
@@ -700,282 +715,7 @@ struct GoalEditForm: View {
         .padding(.vertical, 10)
     }
 
-    private var unitBinding: Binding<String> {
-        Binding(
-            get: { draft.metricUnit ?? "" },
-            set: { draft.metricUnit = $0.isEmpty ? nil : $0 }
-        )
-    }
-
-    // MARK: - 展示文案计算
-
-    private var deadlineDisplayText: String {
-        guard let text = draft.deadlineText, !text.isEmpty else {
-            return String(localized: "不设期限")
-        }
-        let date = Self.parseDeadlineText(text)
-        return GoalListCard.dayText(date)
-    }
-
-    private var selectedHabit: Habit? {
-        guard let id = draft.sourceHabitId else { return nil }
-        return numericHabits.first { $0.id == id }
-    }
-
-    private var dataSourceDisplayValue: String {
-        switch draft.metricSource {
-        case .manual:
-            return String(localized: "手动记录")
-        case .habit:
-            if let habit = selectedHabit {
-                return String(localized: "习惯：\(habit.name)")
-            }
-            return numericHabits.isEmpty ? String(localized: "还没有数值习惯") : String(localized: "选择习惯")
-        case .ledger:
-            return String(localized: "账本：\(ledgerScopeDisplayValue)")
-        case .healthKit:
-            if let kind = draft.healthMetricKind {
-                return String(localized: "苹果健康：\(kind.displayName)")
-            }
-            return String(localized: "苹果健康")
-        }
-    }
-
-    private var ledgerScopeDisplayValue: String {
-        switch draft.ledgerScope?.kind {
-        case .wholeLedgerDelta:
-            return String(localized: "全部账本")
-        case .accountDelta, .accountBalance:
-            if let id = draft.ledgerScope?.accountID,
-               let account = ledgerAccounts.first(where: { $0.id == id }) {
-                return account.name
-            }
-            return String(localized: "未选择")
-        case nil:
-            return draft.goalKind == .cumulative ? String(localized: "全部账本") : String(localized: "未选择")
-        }
-    }
-
-    private var ledgerScopeExplanationText: String? {
-        guard draft.metricSource == .ledger else { return nil }
-        let scope = draft.ledgerScope ?? GoalLedgerScopePayload(
-            kind: draft.goalKind == .cumulative ? .wholeLedgerDelta : .accountBalance,
-            accountID: nil
-        )
-        let name = scope.accountID.flatMap { id in ledgerAccounts.first { $0.id == id }?.name }
-        return Self.ledgerScopeExplanation(kind: scope.kind, accountName: name)
-    }
-
-    private var ledgerScopeSelection: Binding<GoalLedgerScopePayload> {
-        Binding(
-            get: {
-                draft.ledgerScope ?? GoalLedgerScopePayload(
-                    kind: draft.goalKind == .cumulative ? .wholeLedgerDelta : .accountBalance,
-                    accountID: draft.goalKind == .cumulative ? nil : ledgerAccounts.first?.id
-                )
-            },
-            set: { newValue in
-                draft.ledgerScope = newValue
-                applyBaselineFromAccount(newValue)
-            }
-        )
-    }
-
-    private var aggregationMismatchText: String? {
-        guard draft.metricSource == .habit, let habit = selectedHabit else { return nil }
-        switch draft.goalKind {
-        case .process:
-            return nil
-        case .cumulative:
-            guard habit.isMeasureType else { return nil }
-            return String(localized: "「\(habit.name)」每天只记最新值，累计会逐日相加")
-        case .target:
-            guard habit.isCountType else { return nil }
-            return String(localized: "「\(habit.name)」每天累加，达标只看最新一条")
-        }
-    }
-
-    // MARK: - 数据加载与自动基线
-
-    private func loadHabits() {
-        let repo = HabitRepository.shared
-        repo.setup()
-        numericHabits = repo.activeHabits.filter { $0.isNumericType }
-        if let id = draft.sourceHabitId, !numericHabits.contains(where: { $0.id == id }) {
-            draft.sourceHabitId = nil
-        }
-        if draft.metricSource == .habit, draft.sourceHabitId == nil, let first = numericHabits.first {
-            draft.sourceHabitId = first.id
-        }
-    }
-
-    private func loadAccounts() {
-        ledgerAccounts = FinanceRepository.shared.getAccounts()
-        if draft.metricSource == .ledger {
-            draft.metricUnit = "¥"
-            normalizeLedgerScope()
-        }
-    }
-
-    private func applyBaselineFromHabit(_ habitId: UUID?) {
-        guard draft.goalKind == .target,
-              let habitId,
-              let habit = numericHabits.first(where: { $0.id == habitId }),
-              let record = latestNumericRecord(of: habit, before: Date()) else {
-            baselineNote = nil
-            return
-        }
-        metricBaselineText = GoalMetricEvaluator.formatValue(record.value)
-        draft.metricBaselineValue = record.value
-        if (draft.metricUnit ?? "").isEmpty && !habit.unitText.isEmpty {
-            draft.metricUnit = habit.unitText
-        }
-        baselineNote = String(localized: "取自「\(habit.name)」最新记录（\(Self.shortDayText(record.date))）")
-    }
-
-    private func applyBaselineFromAccount(_ scope: GoalLedgerScopePayload?) {
-        guard draft.goalKind == .target,
-              let id = scope?.accountID,
-              let account = ledgerAccounts.first(where: { $0.id == id }),
-              case .observed(let balance, let asOf, _, _) = FinanceRepository.shared.accountBalanceObservation(accountId: id, before: Date()) else {
-            baselineNote = nil
-            return
-        }
-        let value = NSDecimalNumber(decimal: balance).doubleValue
-        metricBaselineText = GoalMetricEvaluator.formatValue(value)
-        draft.metricBaselineValue = value
-        baselineNote = Self.accountBaselineNote(
-            accountName: account.name,
-            asOf: asOf,
-            isCreditLiability: account.accountType == .creditCard
-        )
-    }
-
-    private func applyAutoBaselineForPrefilledDraft() {
-        guard draft.goalKind == .target,
-              draft.metricBaselineValue == nil,
-              draft.metricSource == .habit || draft.metricSource == .ledger else { return }
-        switch draft.metricSource {
-        case .habit:
-            applyBaselineFromHabit(draft.sourceHabitId)
-        case .ledger:
-            applyBaselineFromAccount(draft.ledgerScope)
-        case .manual, .healthKit:
-            break
-        }
-    }
-
-    private func latestNumericRecord(of habit: Habit, before date: Date) -> (value: Double, date: Date)? {
-        guard let record = habit.recordsArray.first(where: { $0.valueDouble != nil && $0.date < date }),
-              let value = record.valueDouble else {
-            return nil
-        }
-        return (value, record.date)
-    }
-
-    private func normalizeLedgerScope() {
-        draft.ledgerScope = Self.normalizedLedgerScope(
-            current: draft.ledgerScope,
-            goalKind: draft.goalKind,
-            accountIDs: ledgerAccounts.map(\.id)
-        )
-    }
-
-    // MARK: - 静态规则与工厂（供单测与表单共用）
-
-    static let cumulativeHintNumberThreshold = 30
-    static let cumulativeHintUnitNumberThreshold = 2
-
-    static func unitKeyword(in title: String) -> String? {
-        let table: [(String, String)] = [
-            ("公里", "km"), ("kg", "kg"), ("公斤", "kg"),
-            ("元", "¥"), ("块", "¥"),
-            ("本", "本"), ("次", "次"), ("页", "页"),
-        ]
-        let lower = title.lowercased()
-        return table.first { lower.contains($0.0) }?.1
-    }
-
-    static func cumulativeHintThreshold(forTitle title: String) -> Int {
-        unitKeyword(in: title) == nil ? cumulativeHintNumberThreshold : cumulativeHintUnitNumberThreshold
-    }
-
-    static func cumulativeHintNumber(inTitle title: String) -> Int? {
-        var runs: [Substring] = []
-        var start: Substring.Index?
-        for index in title.indices {
-            let ch = title[index]
-            if ch.isASCII, ch.isNumber {
-                if start == nil { start = index }
-            } else if let s = start {
-                runs.append(title[s..<index])
-                start = nil
-            }
-        }
-        if let s = start { runs.append(title[s...]) }
-        let threshold = cumulativeHintThreshold(forTitle: title)
-        return runs.lazy.compactMap { Int($0) }.first { $0 >= threshold }
-    }
-
-    static func showsCumulativeHint(in draft: GoalDraft) -> Bool {
-        draft.goalKind == .process
-            && draft.metricTargetValue == nil
-            && cumulativeHintNumber(inTitle: draft.title) != nil
-    }
-
-    static func normalizedLedgerScope(
-        current scope: GoalLedgerScopePayload?,
-        goalKind: GoalKind,
-        accountIDs: [UUID]
-    ) -> GoalLedgerScopePayload {
-        func accountExists(_ id: UUID?) -> Bool {
-            guard let id else { return false }
-            return accountIDs.contains(id)
-        }
-        if let scope {
-            let stillValid: Bool
-            switch scope.kind {
-            case .wholeLedgerDelta: stillValid = goalKind == .cumulative
-            case .accountDelta: stillValid = goalKind == .cumulative && accountExists(scope.accountID)
-            case .accountBalance: stillValid = goalKind == .target && accountExists(scope.accountID)
-            }
-            if stillValid { return scope }
-            if scope.kind != .wholeLedgerDelta, accountExists(scope.accountID) {
-                return GoalLedgerScopePayload(
-                    kind: goalKind == .target ? .accountBalance : .accountDelta,
-                    accountID: scope.accountID
-                )
-            }
-        }
-        if goalKind == .target, let first = accountIDs.first {
-            return GoalLedgerScopePayload(kind: .accountBalance, accountID: first)
-        }
-        return GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-    }
-
-    static func ledgerMenuTitle(accountName: String, kind: GoalKind) -> String {
-        let qualifier = kind == .cumulative ? String(localized: "净增加") : String(localized: "余额达到")
-        return "\(accountName)·\(qualifier)"
-    }
-
-    static func ledgerScopeExplanation(kind: GoalLedgerScopeKind, accountName: String?) -> String? {
-        switch kind {
-        case .wholeLedgerDelta:
-            return String(localized: "按全部账本收入减支出的净增加衡量；还债、转账不改变净资产")
-        case .accountDelta:
-            return String(localized: "从今天起算「\(accountName ?? "？")」的净增加，已有余额不计入")
-        case .accountBalance:
-            return nil
-        }
-    }
-
-    static func accountBaselineNote(accountName: String, asOf: Date, isCreditLiability: Bool) -> String {
-        var note = String(localized: "取自「\(accountName)」当前余额（\(shortDayText(asOf))）")
-        if isCreditLiability {
-            note += String(localized: "；余额还到 0 即还清")
-        }
-        return note
-    }
+    // MARK: - 日期与草案
 
     static func shortDayText(_ date: Date) -> String {
         let formatter = DateFormatter()
@@ -1019,6 +759,7 @@ struct GoalEditForm: View {
 
     static func draft(from goal: Goal) -> GoalDraft {
         let deadlineText: String? = goal.deadline.map { formatDeadline($0) }
+        let resultSource = goal.managedObjectContext.flatMap { GoalPlanResolver.resultConfiguration(goal: goal, in: $0).source }
         return GoalDraft(
             id: goal.id.uuidString,
             title: goal.title,
@@ -1037,7 +778,11 @@ struct GoalEditForm: View {
             metricTargetValue: goal.metricTargetValueDouble,
             metricBaselineValue: goal.baselineValueDouble,
             sourceHabitId: goal.sourceHabitId,
-            ledgerScope: goal.metricSourceEnum == .ledger ? prefilledLedgerScope(of: goal) : nil
+            ledgerScope: goal.metricSourceEnum == .ledger ? prefilledLedgerScope(of: goal) : nil,
+            healthMetricKind: goal.healthMetricKindEnum,
+            metricComparison: resultSource?.comparison,
+            metricComparisonIsExplicit: resultSource?.comparisonIsExplicit,
+            metricStartDate: goal.goalKindEnum == .cumulative ? goal.baselineDate ?? goal.createdAt : nil
         )
     }
 
@@ -1057,6 +802,20 @@ struct GoalEditForm: View {
         )
     }
 
+    static func invalidTargetHint(for draft: GoalDraft, target: Double) -> String? {
+        guard draft.metricSource == .healthKit, let kind = draft.healthMetricKind else { return nil }
+        switch kind {
+        case .stepCount:
+            return target > 0 && target.rounded() == target ? nil : String(localized: "请输入大于 0 的整数步数")
+        case .sleepHours, .sleepAverage:
+            return target > 0 && target <= 24 ? nil : String(localized: "请输入大于 0 且不超过 24 小时的目标")
+        case .bodyFatPercentage:
+            return target > 0 && target <= 100 ? nil : String(localized: "请输入大于 0 且不超过 100% 的目标")
+        case .bodyMass, .distanceWalkingRunning, .activeEnergyBurned, .workoutMinutes:
+            return target > 0 ? nil : String(localized: "目标值要大于 0")
+        }
+    }
+
     static func disabledHint(
         for draft: GoalDraft,
         hasActiveLedgerAccounts: Bool,
@@ -1069,18 +828,30 @@ struct GoalEditForm: View {
         case .process:
             break
         case .cumulative:
-            guard let target = draft.metricTargetValue else { return String(localized: "数字还没填完") }
+            guard let target = draft.metricTargetValue, target.isFinite else { return String(localized: "数字还没填完") }
             guard target > 0 else { return String(localized: "目标量要大于 0") }
         case .target:
-            guard let baseline = draft.metricBaselineValue,
-                  let target = draft.metricTargetValue else { return String(localized: "数字还没填完") }
-            guard baseline != target else { return String(localized: "现在和目标不能一样") }
+            guard let target = draft.metricTargetValue, target.isFinite else { return String(localized: "数字还没填完") }
+            if draft.metricSource == .manual {
+                guard let baseline = draft.metricBaselineValue, baseline.isFinite else { return String(localized: "数字还没填完") }
+                if draft.metricComparison == nil, baseline == target { return String(localized: "现在和目标不能一样") }
+            }
+        }
+        if draft.isQuantitative, let target = draft.metricTargetValue,
+           let hint = invalidTargetHint(for: draft, target: target) {
+            return hint
         }
         if draft.metricSource == .ledger {
             guard hasActiveLedgerAccounts else { return String(localized: "还没有账户") }
             guard hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts) else {
                 return String(localized: "还没有可用的账本账户")
             }
+        }
+        if draft.isQuantitative && draft.metricSource == .habit && draft.sourceHabitId == nil {
+            return String(localized: "请选择一个数值习惯")
+        }
+        if draft.isQuantitative && draft.metricSource == .healthKit && draft.healthMetricKind == nil {
+            return String(localized: "请选择一个健康指标")
         }
         if criteriaUnconfirmed {
             return String(localized: "修改了成功条件——勾选下方确认后可保存")
@@ -1102,16 +873,18 @@ struct GoalEditForm: View {
 
     static func metricFieldsValid(in draft: GoalDraft, hasActiveLedgerAccounts: Bool) -> Bool {
         guard draft.isQuantitative else { return true }
-        guard let target = draft.metricTargetValue, target > 0 else { return false }
-        if draft.goalKind == .target {
-            guard let baseline = draft.metricBaselineValue, baseline != target else { return false }
+        guard let target = draft.metricTargetValue, target.isFinite,
+              draft.goalKind != .cumulative || target > 0,
+              invalidTargetHint(for: draft, target: target) == nil else { return false }
+        if draft.metricSource == .manual, draft.goalKind == .target {
+            guard let baseline = draft.metricBaselineValue, baseline.isFinite,
+                  draft.metricComparison != nil || baseline != target else { return false }
         }
-        if draft.metricSource == .habit, draft.sourceHabitId == nil {
-            return false
+        switch draft.metricSource {
+        case .habit: return draft.sourceHabitId != nil
+        case .ledger: return hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
+        case .healthKit: return draft.healthMetricKind != nil
+        case .manual: return true
         }
-        if draft.metricSource == .ledger {
-            return hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
-        }
-        return true
     }
 }

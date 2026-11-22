@@ -5,8 +5,6 @@
 //  目标表单专属 Holo 定制选择弹层家族（HoloSheetScaffold）：
 //  - GoalDeadlinePickerSheet：快捷期限芯片 + Holo 自绘月历网格（彻底替代系统灰色 DatePicker）
 //  - GoalDataSourcePickerSheet：统一的数据来源选择（同步数值习惯 / 关联账本 / 手动更新）
-//  - GoalLedgerScopePickerSheet：账本范围/账户选择（展示账户图标、余额与口径）
-//  - GoalNumericHabitPickerSheet：数值习惯选择（统一 habit.iconImage 渲染 Emoji/图标）
 //
 
 import SwiftUI
@@ -195,367 +193,266 @@ struct GoalDeadlinePickerSheet: View {
     }
 }
 
-// MARK: - 统一数据来源选择弹窗（达标/累计：选同步习惯、关联账户或手动）
+// MARK: - 按原模块选择进度数据
 
 struct GoalDataSourcePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let goalKind: GoalKind
     let habits: [Habit]
     let accounts: [Account]
-    @Binding var metricSource: GoalMetricSource
-    @Binding var selectedHabitId: UUID?
-    @Binding var ledgerScope: GoalLedgerScopePayload?
-    var healthMetricKind: Binding<GoalHealthMetricKind?> = .constant(nil)
-    let onPickedAccount: (GoalLedgerScopePayload) -> Void
+    let selection: GoalProgressDataSelection?
+    let allowsRemoval: Bool
+    let onSelect: (GoalProgressDataSelection?) -> Void
+
+    @State private var search = ""
+    @State private var group: SourceGroup = .all
+    @FocusState private var isSearchFocused: Bool
+    @State private var habitRows: [Option] = []
+    @State private var financeRows: [Option] = []
+    @State private var hasLoaded = false
+
+    private enum SourceGroup: String, CaseIterable, Identifiable {
+        case all, habits, finance, health
+        var id: Self { self }
+        var title: String {
+            switch self {
+            case .all: return String(localized: "全部")
+            case .habits: return String(localized: "习惯")
+            case .finance: return String(localized: "财务")
+            case .health: return String(localized: "苹果健康")
+            }
+        }
+    }
+
+    private struct Option: Identifiable {
+        let title: String
+        let subtitle: String
+        let icon: String
+        let selection: GoalProgressDataSelection
+        var id: String { selection.id }
+    }
 
     var body: some View {
-        HoloSheetScaffold(
-            title: goalKind == .target ? String(localized: "怎么更新当前数值") : String(localized: "数据来源"),
-            onClose: { dismiss() }
-        ) {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                    sectionTitle(String(localized: "自动同步习惯"))
-                    if habits.isEmpty {
-                        emptyHintCard(String(localized: "还没有数值型习惯，可在「习惯」里新建后回来绑定"))
-                    } else {
-                        ForEach(habits.renderable, id: \.id) { habit in
-                            let isSelected = metricSource == .habit && selectedHabitId == habit.id
-                            let mode = habit.isCountType ? String(localized: "每天累加") : String(localized: "同步最新数值")
-                            let unit = habit.unitText.isEmpty ? "" : " · \(habit.unitText)"
-                            Button {
-                                metricSource = .habit
-                                selectedHabitId = habit.id
-                                dismiss()
-                            } label: {
-                                HStack(spacing: HoloSpacing.md) {
-                                    habitBadge(habit, isSelected: isSelected)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(habit.name)
-                                            .goalJourneyText(.row)
-                                            .foregroundStyle(Color.holoToolText)
-                                            .lineLimit(1)
-                                        Text(mode + unit)
-                                            .goalJourneyText(.metadata)
-                                            .foregroundStyle(Color.holoToolTextSecondary)
-                                    }
-                                    Spacer(minLength: 8)
-                                    if isSelected {
-                                        selectedCheck
-                                    }
-                                }
-                                .padding(HoloSpacing.md)
-                                .holoSurface()
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(HoloPressStyle())
+        HoloSheetScaffold(title: String(localized: "选择进度数据"), onClose: { dismiss() }) {
+            VStack(spacing: HoloSpacing.sm) {
+                VStack(spacing: HoloSpacing.sm) {
+                    searchField
+                    groupFilter
+                }
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, HoloSpacing.sm)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                        if hasLoaded {
+                            sections
+                        } else {
+                            ProgressView().frame(maxWidth: .infinity)
                         }
                     }
+                    .padding(.horizontal, HoloSpacing.page)
+                    .padding(.vertical, HoloSpacing.sm)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .id(group)
+            }
+        }
+        .task { prepareRows() }
+        .presentationDetents([.large])
+    }
 
-                    sectionTitle(String(localized: "从苹果健康自动同步"))
-                    ForEach(GoalHealthMetricKind.allCases.filter {
-                        goalKind == .target ? $0.isLatestSample : !$0.isLatestSample
-                    }) { kind in
-                        let isSelected = metricSource == .healthKit && healthMetricKind.wrappedValue == kind
-                        Button {
-                            metricSource = .healthKit
-                            healthMetricKind.wrappedValue = kind
-                            selectedHabitId = nil
-                            ledgerScope = nil
-                            dismiss()
-                        } label: {
-                            HStack(spacing: HoloSpacing.md) {
-                                Image(systemName: "heart.fill")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolError)
-                                    .frame(width: 40, height: 40)
-                                    .background(
-                                        Circle().fill(isSelected ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-                                    )
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(kind.displayName)
-                                        .goalJourneyText(.row)
-                                        .foregroundStyle(Color.holoToolText)
-                                    Text("苹果健康 · \(kind.defaultUnit) · \(kind.isLatestSample ? "取最新观测" : "自动累计")")
-                                        .goalJourneyText(.metadata)
-                                        .foregroundStyle(Color.holoToolTextSecondary)
-                                }
-                                Spacer(minLength: 8)
-                                if isSelected {
-                                    selectedCheck
-                                }
-                            }
-                            .padding(HoloSpacing.md)
-                            .holoSurface()
-                            .contentShape(Rectangle())
+    private var searchField: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.holoToolTextSecondary)
+            TextField("搜索来源", text: $search, prompt: Text("搜索习惯、账户或健康指标").foregroundStyle(Color.holoToolTextSecondary))
+                .holoText(.body)
+                .focused($isSearchFocused)
+                .accessibilityIdentifier("goal-source-search")
+        }
+        .padding(HoloSpacing.md)
+        .holoSurface(.independent)
+    }
+
+    private var groupFilter: some View {
+        ViewThatFits(in: .horizontal) {
+            groupButtons
+            ScrollView(.horizontal, showsIndicators: false) { groupButtons }
+        }
+    }
+
+    private var groupButtons: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            ForEach(SourceGroup.allCases) { item in
+                Button {
+                    isSearchFocused = false
+                    group = item
+                } label: {
+                    Text(item.title)
+                        .holoText(.supporting)
+                        .fixedSize()
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(group == item ? Color.holoToolText : Color.holoToolTextSecondary)
+                        .background(group == item ? Color.holoToolSurface : Color.clear, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(group == item ? .isSelected : [])
+                .accessibilityIdentifier("goal-source-group-\(item.rawValue)")
+            }
+        }
+        .padding(HoloSpacing.xs)
+        .background(Color.holoToolInset, in: Capsule())
+    }
+
+    @ViewBuilder
+    private var sections: some View {
+        let habits = group == .all || group == .habits ? matching(habitRows, section: SourceGroup.habits.title) : []
+        let finance = group == .all || group == .finance ? matching(financeRows, section: SourceGroup.finance.title) : []
+        let health = group == .all || group == .health ? matching(healthRows, section: SourceGroup.health.title) : []
+        let hasQuery = !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if habits.isEmpty && finance.isEmpty && health.isEmpty {
+            if hasQuery {
+                emptySources(String(localized: "找不到匹配的数据"), message: String(localized: "试试习惯名称、账户名称或健康指标。"),
+                             action: String(localized: "清除搜索")) { search = "" }
+            } else if group == .habits {
+                emptySources(String(localized: "还没有数值习惯"), message: String(localized: "在习惯中记录的重量、时长或数量可以用来跟踪目标。"),
+                             action: String(localized: "查看全部来源")) { group = .all }
+            } else if group == .finance {
+                emptySources(String(localized: "还没有可用账户"), message: String(localized: "添加账本账户后，可以跟踪它的余额或余额变化。"),
+                             action: String(localized: "查看全部来源")) { group = .all }
+            }
+        }
+        optionSection(SourceGroup.habits.title, options: habits, showsHeading: group == .all)
+        optionSection(SourceGroup.finance.title, options: finance, showsHeading: group == .all)
+        optionSection(SourceGroup.health.title, options: health, showsHeading: group == .all)
+        if group == .all && !hasQuery {
+            optionSection(String(localized: "其他"), options: [
+                Option(title: String(localized: "手动记录"), subtitle: String(localized: "在目标详情记录数值"),
+                       icon: "square.and.pencil", selection: .manual)
+            ])
+            if allowsRemoval {
+                Button("移除进度数据") { choose(nil) }
+                    .holoText(.body)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("goal-source-remove")
+            }
+        }
+    }
+
+    private func emptySources(_ title: String, message: String, action: String, onAction: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Label(title, systemImage: "magnifyingglass").holoText(.body)
+            Text(message).holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
+            Button(action, action: onAction)
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolAction)
+                .frame(minHeight: 44)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(HoloSpacing.md)
+        .holoSurface()
+    }
+
+    private func matching(_ options: [Option], section: String) -> [Option] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty, !section.localizedCaseInsensitiveContains(query) else { return options }
+        return options.filter {
+            $0.title.localizedCaseInsensitiveContains(query) || $0.subtitle.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    @ViewBuilder
+    private func optionSection(_ title: String, options: [Option], showsHeading: Bool = true) -> some View {
+        if !options.isEmpty {
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                if showsHeading {
+                    Text(title).holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
+                }
+                LazyVStack(spacing: 0) {
+                    ForEach(options) { option in
+                        if option.id != options.first?.id {
+                            Divider().padding(.leading, HoloSpacing.lg)
+                        }
+                        let selected = option.selection.matchesSource(selection)
+                        Button { choose(selected ? selection : option.selection) } label: {
+                            optionRow(option, selected: selected)
                         }
                         .buttonStyle(HoloPressStyle())
-                    }
-
-                    sectionTitle(String(localized: "自己记在目标里"))
-                    Button {
-                        metricSource = .manual
-                        selectedHabitId = nil
-                        dismiss()
-                    } label: {
-                        HStack(spacing: HoloSpacing.md) {
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(metricSource == .manual ? GoalJourneyStyle.action : Color.holoToolTextSecondary)
-                                .frame(width: 40, height: 40)
-                                .background(
-                                    Circle().fill(metricSource == .manual ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-                                )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("在目标里手动更新")
-                                    .goalJourneyText(.row)
-                                    .foregroundStyle(Color.holoToolText)
-                                Text("不关联其他模块，想记时在目标详情里填数")
-                                    .goalJourneyText(.metadata)
-                                    .foregroundStyle(Color.holoToolTextSecondary)
-                            }
-                            Spacer(minLength: 8)
-                            if metricSource == .manual {
-                                selectedCheck
-                            }
-                        }
-                        .padding(HoloSpacing.md)
-                        .holoSurface()
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(HoloPressStyle())
-
-                    if !accounts.isEmpty {
-                        sectionTitle(String(localized: "自动同步账户"))
-                        ForEach(accounts.renderable, id: \.id) { account in
-                            let scope = GoalLedgerScopePayload(
-                                kind: goalKind == .cumulative ? .accountDelta : .accountBalance,
-                                accountID: account.id
-                            )
-                            let isSelected = metricSource == .ledger && ledgerScope == scope
-                            let balance = FinanceRepository.shared.getAccountBalance(account)
-                            let mode = goalKind == .cumulative ? String(localized: "净增加") : String(localized: "当前余额")
-                            Button {
-                                metricSource = .ledger
-                                selectedHabitId = nil
-                                ledgerScope = scope
-                                onPickedAccount(scope)
-                                dismiss()
-                            } label: {
-                                HStack(spacing: HoloSpacing.md) {
-                                    Image(systemName: account.icon)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolTextSecondary)
-                                        .frame(width: 40, height: 40)
-                                        .background(
-                                            Circle().fill(isSelected ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-                                        )
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(account.name)
-                                            .goalJourneyText(.row)
-                                            .foregroundStyle(Color.holoToolText)
-                                        Text("\(mode) · \(GoalJourneyNarrative.money(balance))")
-                                            .goalJourneyText(.metadata)
-                                            .monospacedDigit()
-                                            .foregroundStyle(Color.holoToolTextSecondary)
-                                    }
-                                    Spacer(minLength: 8)
-                                    if isSelected {
-                                        selectedCheck
-                                    }
-                                }
-                                .padding(HoloSpacing.md)
-                                .holoSurface()
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(HoloPressStyle())
-                        }
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                        .accessibilityIdentifier("goal-source-\(option.id)")
                     }
                 }
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.xl)
+                .holoSurface(.independent)
             }
         }
-        .presentationDetents([.height(500), .large])
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .goalJourneyText(.metadata)
-            .foregroundStyle(Color.holoToolTextSecondary)
-            .padding(.top, 2)
-    }
-
-    private func emptyHintCard(_ text: String) -> some View {
-        Text(text)
-            .goalJourneyText(.supporting)
-            .foregroundStyle(Color.holoToolTextSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(HoloSpacing.md)
-            .holoSurface()
-    }
-
-    private func habitBadge(_ habit: Habit, isSelected: Bool) -> some View {
-        habit.iconImage(size: 18)
-            .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolTextSecondary)
-            .frame(width: 40, height: 40)
-            .background(
-                Circle().fill(isSelected ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-            )
-    }
-
-    private var selectedCheck: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 18))
-            .foregroundStyle(GoalJourneyStyle.action)
-    }
-}
-
-// MARK: - Holo 账本账户选择弹窗（显示图标、余额、口径）
-
-struct GoalLedgerScopePickerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let goalKind: GoalKind
-    let accounts: [Account]
-    @Binding var selection: GoalLedgerScopePayload
-
-    var body: some View {
-        HoloSheetScaffold(title: String(localized: "选择账本"), onClose: { dismiss() }) {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.sm) {
-                    if goalKind == .cumulative {
-                        let whole = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-                        optionCard(
-                            icon: "books.vertical",
-                            title: String(localized: "全部账本"),
-                            subtitle: String(localized: "总收入减支出净增加"),
-                            isSelected: selection == whole
-                        ) {
-                            selection = whole
-                            dismiss()
-                        }
-                    }
-
-                    ForEach(accounts.renderable, id: \.id) { account in
-                        let scope = GoalLedgerScopePayload(
-                            kind: goalKind == .cumulative ? .accountDelta : .accountBalance,
-                            accountID: account.id
-                        )
-                        let balance = FinanceRepository.shared.getAccountBalance(account)
-                        let modeText = goalKind == .cumulative ? String(localized: "净增加") : String(localized: "余额达到")
-                        optionCard(
-                            icon: account.icon,
-                            title: account.name,
-                            subtitle: "\(modeText) · 当前 \(GoalJourneyNarrative.money(balance))",
-                            isSelected: selection == scope
-                        ) {
-                            selection = scope
-                            dismiss()
-                        }
-                    }
-                }
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.xl)
+    private func optionRow(_ option: Option, selected: Bool) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: option.icon)
+                .font(.body)
+                .frame(width: 24)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text(option.title).holoText(.body).foregroundStyle(Color.holoToolText)
+                Text(option.subtitle).holoText(.metadata).foregroundStyle(Color.holoToolTextSecondary)
+            }
+            Spacer(minLength: 0)
+            if selected {
+                Image(systemName: "checkmark").foregroundStyle(Color.holoToolAction).accessibilityHidden(true)
             }
         }
-        .presentationDetents([.height(440), .large])
+        .padding(HoloSpacing.sm)
+        .frame(minHeight: 48)
+        .contentShape(Rectangle())
     }
 
-    private func optionCard(
-        icon: String,
-        title: String,
-        subtitle: String,
-        isSelected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: HoloSpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolTextSecondary)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        Circle().fill(isSelected ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-                    )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .goalJourneyText(.row)
-                        .foregroundStyle(Color.holoToolText)
-                    Text(subtitle)
-                        .goalJourneyText(.metadata)
-                        .monospacedDigit()
-                        .foregroundStyle(Color.holoToolTextSecondary)
-                }
-                Spacer(minLength: 8)
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(GoalJourneyStyle.action)
-                }
-            }
-            .padding(HoloSpacing.md)
-            .holoSurface()
-            .contentShape(Rectangle())
+    @MainActor
+    private func prepareRows() {
+        let now = Date()
+        habitRows = habits.renderable.map { habit in
+            let record = GoalEvaluationSnapshotBuilder.valuedHabitRecord(habitID: habit.id, in: HabitRepository.shared.context, before: now)
+            let summary = record.map {
+                "\(GoalMetricEvaluator.formatValue($0.value)) \(habit.unitText) · \(GoalEditForm.shortDayText($0.date))"
+            } ?? String(localized: "暂无数值记录")
+            let mode = habit.isCountType ? String(localized: "累计") : String(localized: "取最新一条")
+            return Option(title: habit.name, subtitle: "\(mode) · \(summary)",
+                          icon: habit.isCountType ? "number" : "ruler", selection: .habit(habit.id))
         }
-        .buttonStyle(HoloPressStyle())
+        financeRows = accounts.renderable.map { account in
+            let balance: String
+            if case .observed(let value, _, _, _) = FinanceRepository.shared.accountBalanceObservation(accountId: account.id, before: now) {
+                balance = GoalJourneyNarrative.money(value)
+            } else {
+                balance = String(localized: "暂无可用余额")
+            }
+            return Option(title: account.name, subtitle: balance, icon: "wallet.bifold",
+                          selection: .ledger(GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id)))
+        }
+        if !financeRows.isEmpty {
+            financeRows.append(Option(title: String(localized: "全部账本"), subtitle: String(localized: "累计净增加"),
+                                      icon: "books.vertical", selection: .ledger(GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))))
+        }
+        hasLoaded = true
     }
-}
 
-// MARK: - Holo 数值习惯选择弹窗（修复 Emoji/自定义图标渲染）
-
-struct GoalNumericHabitPickerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let habits: [Habit]
-    @Binding var selectedId: UUID?
-
-    var body: some View {
-        HoloSheetScaffold(title: String(localized: "选择数值习惯"), onClose: { dismiss() }) {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.sm) {
-                    ForEach(habits.renderable, id: \.id) { habit in
-                        let isSelected = selectedId == habit.id
-                        let mode = habit.isCountType ? String(localized: "每天累加") : String(localized: "每天记最新值")
-                        let unit = habit.unitText.isEmpty ? "" : " · \(habit.unitText)"
-                        Button {
-                            selectedId = habit.id
-                            dismiss()
-                        } label: {
-                            HStack(spacing: HoloSpacing.md) {
-                                habit.iconImage(size: 18)
-                                    .foregroundStyle(isSelected ? GoalJourneyStyle.action : Color.holoToolTextSecondary)
-                                    .frame(width: 40, height: 40)
-                                    .background(
-                                        Circle().fill(isSelected ? GoalJourneyStyle.action.opacity(0.12) : Color.holoToolInset)
-                                    )
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(habit.name)
-                                        .goalJourneyText(.row)
-                                        .foregroundStyle(Color.holoToolText)
-                                    Text(mode + unit)
-                                        .goalJourneyText(.metadata)
-                                        .foregroundStyle(Color.holoToolTextSecondary)
-                                }
-                                Spacer(minLength: 8)
-                                if isSelected {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(GoalJourneyStyle.action)
-                                }
-                            }
-                            .padding(HoloSpacing.md)
-                            .holoSurface()
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(HoloPressStyle())
-                    }
-                }
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.xl)
+    private var healthRows: [Option] {
+        GoalHealthMetricKind.allCases.map { kind in
+            let detail: String
+            switch kind {
+            case .sleepHours: detail = String(localized: "最近一晚的睡眠时长")
+            case .sleepAverage: detail = String(localized: "最近 7 晚的平均值")
+            default: detail = kind.isLatestSample ? String(localized: "取最近一条记录") : String(localized: "从目标开始时累计")
             }
+            return Option(title: kind.displayName, subtitle: "\(detail) · \(kind.defaultUnit)",
+                          icon: "heart", selection: .health(kind))
         }
-        .presentationDetents([.height(420), .large])
+    }
+
+    private func choose(_ selection: GoalProgressDataSelection?) {
+        onSelect(selection)
+        dismiss()
     }
 }

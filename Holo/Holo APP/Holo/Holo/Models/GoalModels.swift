@@ -77,8 +77,15 @@ enum GoalDomain: String, Codable, CaseIterable, Identifiable {
     /// 纯客户端零后端；career 排 life 前（「跳槽后陪家人」类歧义按职业归）。
     static func infer(from title: String) -> GoalDomain {
         let text = title.lowercased()
+        if text.range(of: #"(跑|走)\s*[0-9]|[0-9]\s*步"#, options: .regularExpression) != nil {
+            return .health
+        }
         let table: [(GoalDomain, [String])] = [
-            (.health, ["跑", "步", "走", "体重", "公斤", "kg", "睡", "熬", "烟", "酒", "健身", "游泳"]),
+            (.health, [
+                "跑步", "晨跑", "夜跑", "慢跑", "跑满", "马拉松", "徒步", "散步", "快走", "步数",
+                "减肥", "减重", "体重", "公斤", "kg", "睡眠", "早睡", "晚睡", "午睡", "睡满", "睡够",
+                "熬夜", "戒烟", "戒酒", "健身", "游泳",
+            ]),
             (.finance, ["存款", "贷款", "攒", "还", "花", "省钱", "预算", "投资", "基金", "股票", "万", "块"]),
             (.learning, ["读", "书", "学", "考", "证", "雅思", "英语", "日语", "课", "单词"]),
             (.project, ["上线", "发布", "交付", "项目", "开发", "写完", "做完"]),
@@ -163,6 +170,8 @@ enum GoalHealthMetricKind: String, Codable, CaseIterable, Identifiable, Sendable
     case distanceWalkingRunning
     case activeEnergyBurned
     case sleepHours
+    case sleepAverage
+    case workoutMinutes
 
     var id: String { rawValue }
 
@@ -173,7 +182,9 @@ enum GoalHealthMetricKind: String, Codable, CaseIterable, Identifiable, Sendable
         case .stepCount: return String(localized: "步数")
         case .distanceWalkingRunning: return String(localized: "步行/跑步距离")
         case .activeEnergyBurned: return String(localized: "活动能量")
-        case .sleepHours: return String(localized: "睡眠时长")
+        case .sleepHours: return String(localized: "昨晚睡眠")
+        case .sleepAverage: return String(localized: "最近 7 晚平均睡眠")
+        case .workoutMinutes: return String(localized: "运动时长")
         }
     }
 
@@ -184,16 +195,17 @@ enum GoalHealthMetricKind: String, Codable, CaseIterable, Identifiable, Sendable
         case .stepCount: return String(localized: "步")
         case .distanceWalkingRunning: return "km"
         case .activeEnergyBurned: return "kcal"
-        case .sleepHours: return String(localized: "小时")
+        case .sleepHours, .sleepAverage: return String(localized: "小时")
+        case .workoutMinutes: return String(localized: "分钟")
         }
     }
 
     /// true = 取最新观测值（如体重、体脂率、睡眠）；false = 累计求和（如步数、距离、热量）
     var isLatestSample: Bool {
         switch self {
-        case .bodyMass, .bodyFatPercentage, .sleepHours:
+        case .bodyMass, .bodyFatPercentage, .sleepHours, .sleepAverage:
             return true
-        case .stepCount, .distanceWalkingRunning, .activeEnergyBurned:
+        case .stepCount, .distanceWalkingRunning, .activeEnergyBurned, .workoutMinutes:
             return false
         }
     }
@@ -282,6 +294,9 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var ledgerScope: GoalLedgerScopePayload? = nil
     /// healthKit 源对应的苹果健康指标类型（体重 / 步数 / 距离 / 睡眠等）
     var healthMetricKind: GoalHealthMetricKind? = nil
+    var metricComparison: GoalResultComparison? = nil
+    var metricComparisonIsExplicit: Bool? = nil
+    var metricStartDate: Date? = nil
 
     var isQuantitative: Bool { goalKind != .process }
 
@@ -341,6 +356,9 @@ extension GoalDraft {
         sourceHabitId = try? c.decodeIfPresent(UUID.self, forKey: .sourceHabitId)
         ledgerScope = try? c.decodeIfPresent(GoalLedgerScopePayload.self, forKey: .ledgerScope)
         healthMetricKind = try? c.decodeIfPresent(GoalHealthMetricKind.self, forKey: .healthMetricKind)
+        metricComparison = try? c.decodeIfPresent(GoalResultComparison.self, forKey: .metricComparison)
+        metricComparisonIsExplicit = try? c.decodeIfPresent(Bool.self, forKey: .metricComparisonIsExplicit)
+        metricStartDate = try? c.decodeIfPresent(Date.self, forKey: .metricStartDate)
         // 若模型给出了有效目标值但漏标 goalKind，自动按达标/累积兜底，避免量化目标退化成纯过程型
         if goalKind == .process, metricTargetValue != nil {
             goalKind = metricBaselineValue != nil ? .target : .cumulative
@@ -365,7 +383,7 @@ extension GoalDraft {
         case id, title, summary, domain, iconEmoji, desiredOutcome, motivation, deadlineText
         case tasks, habits, missingInfoWarnings
         case goalKind, metricSource, metricUnit, metricTargetValue, metricBaselineValue, sourceHabitId
-        case ledgerScope, healthMetricKind
+        case ledgerScope, healthMetricKind, metricComparison, metricComparisonIsExplicit, metricStartDate
     }
 }
 

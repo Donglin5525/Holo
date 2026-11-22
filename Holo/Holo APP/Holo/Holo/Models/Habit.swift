@@ -28,6 +28,10 @@ public class Habit: NSManagedObject {
     /// 习惯描述（用户自写一句话，可含 Emoji；nil = 没写）。写入一律经 normalizedDescription
     @NSManaged public var habitDescription: String?
     @NSManaged public var aggregationType: Int16
+    @NSManaged public var folderID: UUID?
+    @NSManaged public var prefersQuantityInput: NSNumber?
+    /// 生效日前的数值按测量读取，生效日及以后按累计读取。
+    @NSManaged public var cumulativeStartDay: Date?
     @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
     @NSManaged public var isPaused: Bool
@@ -65,6 +69,10 @@ public class Habit: NSManagedObject {
     var habitAggregationType: HabitAggregationType {
         get { HabitAggregationType(rawValue: aggregationType) ?? .sum }
         set { aggregationType = newValue.rawValue }
+    }
+
+    var configuredAggregationType: HabitAggregationType {
+        cumulativeStartDay == nil ? habitAggregationType : .sum
     }
 
     /// 打卡提醒模式（原始值不认识时回落 follow，仅打卡型参与提醒）
@@ -158,14 +166,26 @@ public class Habit: NSManagedObject {
     
     /// 是否为计数类（SUM 聚合）
     var isCountType: Bool {
-        isNumericType && habitAggregationType == .sum
+        isCountType(on: currentDay())
+    }
+
+    func isCountType(on day: Date) -> Bool {
+        guard isNumericType else { return false }
+        if let cumulativeStartDay { return day >= cumulativeStartDay }
+        return habitAggregationType == .sum
+    }
+
+    func nextCumulativeDay(now: Date = Date(), dayEndMinutes: Int) -> Date? {
+        let calendar = Calendar.current
+        let day = HabitDayAttribution.attributedDay(now, dayEndMinutes: dayEndMinutes, calendar: calendar)
+        return calendar.date(byAdding: .day, value: 1, to: day)
     }
     
     /// 是否为测量类（LATEST 聚合）
     var isMeasureType: Bool {
-        isNumericType && habitAggregationType == .latest
+        isNumericType && !isCountType
     }
-    
+
     /// 目标次数（打卡型使用）
     var targetCountValue: Int? {
         get { targetCount?.intValue }
@@ -229,6 +249,14 @@ public class Habit: NSManagedObject {
     public func delete() {
         managedObjectContext?.delete(self)
     }
+}
+
+@objc(HabitFolder)
+final class HabitFolder: NSManagedObject {
+    @NSManaged var id: UUID
+    @NSManaged var name: String
+    @NSManaged var sortOrder: Int64
+    @NSManaged var emoji: String?
 }
 
 // MARK: - Identifiable

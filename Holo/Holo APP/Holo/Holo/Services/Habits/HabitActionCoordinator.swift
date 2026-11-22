@@ -149,8 +149,9 @@ final class HabitActionCoordinator: ObservableObject {
             return .invalidated(.habitUnavailable)
         }
         do {
-            let removed = try repository.removeLatestTodayRecord(for: habit)
-            guard removed else { return .unchanged(.nothingToUndo) }
+            guard let removed = try repository.removeLatestTodayRecordValue(for: habit) else {
+                return .unchanged(.nothingToUndo)
+            }
             return .confirmed(HabitActionReceipt(
                 operationID: UUID(),
                 habitId: habitId,
@@ -158,7 +159,8 @@ final class HabitActionCoordinator: ObservableObject {
                 recordId: nil,
                 previousCheckInState: nil,
                 newCheckInState: nil,
-                isTodayFirstCompletion: false
+                isTodayFirstCompletion: false,
+                removedNumericValue: removed
             ))
         } catch let error as HabitError {
             return mapRepositoryError(error)

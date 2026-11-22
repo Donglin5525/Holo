@@ -216,7 +216,7 @@ enum HabitPresentationProjector {
         let habitToday = data.today(for: habit.id)
 
         let isCheckIn = habit.isCheckInType
-        let kind: HabitRowKind = isCheckIn ? .checkIn : (habit.isCountType ? .count : .measure)
+        let kind: HabitRowKind = isCheckIn ? .checkIn : (habit.isCountType(on: habitToday) ? .count : .measure)
 
         // 今日状态
         let todayFacts = data.records(facts, on: habitToday)
@@ -301,7 +301,10 @@ enum HabitPresentationProjector {
             today: today,
             streak: streak,
             trail: trail,
-            allowsTodayRecord: lifecycle == .active
+            allowsTodayRecord: lifecycle == .active,
+            folderID: habit.folderID,
+            prefersQuantityInput: habit.prefersQuantityInput?.boolValue ?? false,
+            unit: habit.unit ?? (kind == .count ? String(localized: "次") : "")
         )
     }
 
@@ -343,11 +346,10 @@ enum HabitPresentationProjector {
             let value = dailyAggregate(habit: habit, facts: todayFacts, data: data)
             guard let value else { return (nil, nil) }
             let valueText = formatValue(value)
+            if !habit.isCountType(on: data.today(for: habit.id)) {
+                return (String(localized: "最新 \(valueText) \(unit)"), nil)
+            }
             if let target {
-                if habit.isMeasureType {
-                    // 测量目标是参考值，不做 x / y 进展（方案 §8.2）
-                    return (String(localized: "今天 \(valueText) \(unit)"), nil)
-                }
                 let targetText = formatValue(target.value ?? 0)
                 return (String(localized: "今天 \(valueText) / \(targetText) \(unit)"), nil)
             }
@@ -388,7 +390,7 @@ enum HabitPresentationProjector {
         guard let value else { return (nil, rangeText) }
         let unit = habit.unitText
         let valueText = formatValue(value)
-        if let target, let targetValue = target.value, !habit.isMeasureType {
+        if let target, let targetValue = target.value, habit.isCountType(on: data.today(for: habit.id)) {
             let targetText = formatValue(targetValue)
             return (String(localized: "\(unitName) \(valueText) / \(targetText) \(unit)"), rangeText)
         }
@@ -423,7 +425,7 @@ enum HabitPresentationProjector {
             guard let targetValue = target.value else { return false }
             let daily = data.dailyNumericByHabit[habit.id] ?? []
             let todayValue = daily.last { $0.date == habitToday }?.value
-            if habit.isMeasureType { return false } // 测量参考目标不做自动达标
+            if !habit.isCountType(on: habitToday) { return false } // 测量参考目标不做自动达标
             return (todayValue ?? 0) >= targetValue
 
         case .weekly:
@@ -447,7 +449,7 @@ enum HabitPresentationProjector {
             guard let count = target.count else { return false }
             return distinctDays(facts.filter(\.isCompleted), data: data).count >= count
         }
-        guard let targetValue = target.value, !habit.isMeasureType else { return false }
+        guard let targetValue = target.value, habit.isCountType(on: data.today(for: habit.id)) else { return false }
         let value = periodNumericValue(habit: habit, facts: facts, data: data) ?? 0
         return value >= targetValue
     }
@@ -693,7 +695,7 @@ enum HabitPresentationProjector {
 
             let hasTargetValue = target?.value
             let kindName: String
-            if habit.isMeasureType || hasTargetValue == nil {
+            if !habit.isCountType(on: habitToday) || hasTargetValue == nil {
                 kindName = String(localized: "连续记录")
             } else {
                 kindName = String(localized: "连续达标")
@@ -702,7 +704,7 @@ enum HabitPresentationProjector {
 
             var checkStart = currentStart
             var currentSatisfied = false
-            if let tv = targetValue, !habit.isMeasureType {
+            if let tv = targetValue, habit.isCountType(on: habitToday) {
                 currentSatisfied = numericPeriodSatisfied(daily: daily, habit: habit, from: checkStart,
                                                           component: component, target: tv, data: data)
             } else {
@@ -723,7 +725,7 @@ enum HabitPresentationProjector {
                     continue
                 }
                 let satisfied: Bool
-                if let tv = targetValue, !habit.isMeasureType {
+                if let tv = targetValue, habit.isCountType(on: data.dayStart(periodEnd.addingTimeInterval(-1))) {
                     // 部分冻结不折算数值目标：满额判定
                     satisfied = numericPeriodSatisfied(daily: daily, habit: habit, from: checkStart,
                                                        component: component, target: tv, data: data)
@@ -752,7 +754,7 @@ enum HabitPresentationProjector {
     ) -> Bool {
         guard let periodEnd = nextPeriod(periodStart, component: component, calendar: data.calendar) else { return false }
         let sum = daily
-            .filter { $0.date >= periodStart && $0.date < periodEnd }
+            .filter { $0.date >= periodStart && $0.date < periodEnd && habit.isCountType(on: $0.date) }
             .reduce(0.0) { $0 + $1.value }
         return sum >= target
     }
@@ -921,24 +923,24 @@ enum HabitPresentationProjector {
 
     /// 当日数值聚合值（计数 SUM / 测量 LATEST，复用既有聚合器口径）
     static func dailyAggregate(habit: Habit, facts: [HabitRecordFact], data: HabitProjectionData) -> Double? {
-        let values = facts.compactMap(\.finiteValue)
-        guard !values.isEmpty else { return nil }
-        if habit.isCountType {
-            return values.reduce(0, +)
+        guard let first = facts.first else { return nil }
+        if habit.isCountType(on: data.dayStart(first.date)) {
+            let values = facts.compactMap(\.finiteValue)
+            return values.isEmpty ? nil : values.reduce(0, +)
         }
-        // 测量：当天最后一条有效值（与聚合器 max(by: date) 一致）
-        let sorted = facts.filter { $0.finiteValue != nil }.sorted { $0.date < $1.date }
-        return sorted.last?.finiteValue
+        return facts.lazy.filter { $0.finiteValue != nil }
+            .max { ($0.date, $0.recordedAt) < ($1.date, $1.recordedAt) }?.finiteValue
     }
 
     /// 周期内数值（计数 SUM / 测量 LATEST-of-day 再取周期内最后一天）
     static func periodNumericValue(habit: Habit, facts: [HabitRecordFact], data: HabitProjectionData) -> Double? {
         let daily = HabitNumericAggregator.aggregateDaily(
-            samples: facts.map { HabitNumericSample(date: $0.date, value: $0.value) },
-            isCountType: habit.isCountType
+            samples: facts.map { HabitNumericSample(date: $0.date, value: $0.value, recordedAt: $0.recordedAt) },
+            calendar: data.calendar, isCountOnDay: habit.isCountType(on:)
         )
-        if habit.isCountType {
-            return daily.reduce(0.0) { $0 + $1.value }
+        if habit.isCountType(on: data.today(for: habit.id)) {
+            let cumulative = daily.filter { habit.isCountType(on: $0.date) }
+            return cumulative.isEmpty ? nil : cumulative.reduce(0.0) { $0 + $1.value }
         }
         return daily.last?.value
     }

@@ -61,6 +61,26 @@ struct GoalJourneyPrimaryStyle: ButtonStyle {
     }
 }
 
+struct GoalIdentityBadge: View {
+    let goal: Goal
+    var size: CGFloat = 44
+
+    var body: some View {
+        Group {
+            if let icon = goal.iconEmoji, !icon.isEmpty {
+                Text(icon).font(.system(size: size * 0.5))
+            } else {
+                Image(systemName: goal.goalDomain.icon)
+                    .font(.system(size: size * 0.45, weight: .medium))
+                    .foregroundStyle(Color.holoToolText)
+            }
+        }
+        .frame(width: size, height: size)
+        .background(goal.goalDomain.badgeColor.opacity(0.12), in: RoundedRectangle(cornerRadius: HoloRadius.md))
+        .accessibilityHidden(true)
+    }
+}
+
 struct GoalJourneySourceRow: View {
     let title: String
     let value: String

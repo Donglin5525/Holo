@@ -17,8 +17,8 @@ struct HoloTodoWidget: Widget {
             HoloTodoWidgetView(entry: entry)
         }
         .configurationDisplayName("今日待办")
-        .description("今天还剩什么，桌面看一眼。")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .description("今天还剩什么，桌面和锁屏看一眼。")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -36,11 +36,16 @@ private struct HoloTodoProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetTodoSnapshot>>) -> Void) {
+        let now = Date()
         let store = HoloWidgetSnapshotStore()
         let entitlement = store.readEntitlement() ?? .free()
         let snapshot = entitlement.isPlusActive ? (store.readTodo() ?? .sample()) : .sample()
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 30))))
+        let entry = HoloWidgetEntry(date: now, value: snapshot, entitlement: entitlement)
+        var refreshAt = now.addingTimeInterval(60 * 30)
+        if let nextMidnight = Calendar.current.nextDate(after: now, matching: DateComponents(hour: 0, minute: 2), matchingPolicy: .nextTime) {
+            refreshAt = min(refreshAt, nextMidnight)
+        }
+        completion(Timeline(entries: [entry], policy: .after(refreshAt)))
     }
 }
 
@@ -54,29 +59,95 @@ private struct HoloTodoWidgetView: View {
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                // 勾选圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
-                // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
-                if value.items.isEmpty {
-                    Link(destination: tasksURL) { emptyState }
-                } else if family == .systemLarge {
-                    todoLarge
+                if family == .accessoryRectangular {
+                    accessoryRectangular
+                        .containerBackground(for: .widget) { Color.clear }
                 } else {
-                    todoMedium
+                    // 勾选圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
+                    // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
+                    Group {
+                        if value.items.isEmpty {
+                            Link(destination: tasksURL) { emptyState }
+                        } else if family == .systemSmall {
+                            todoSmall
+                        } else if family == .systemLarge {
+                            todoLarge
+                        } else {
+                            todoMedium
+                        }
+                    }
+                    .holoWidgetBackground(colorScheme: colorScheme)
                 }
             } else {
                 HoloLockedWidgetView()
+                    .holoLockedWidgetBackground(family: family, colorScheme: colorScheme)
             }
         }
-        .holoWidgetBackground(colorScheme: colorScheme)
     }
 
     private var tasksURL: URL { URL(string: "holo://tasks")! }
+    private var addTaskURL: URL { URL(string: "holo://tasks/new")! }
+
+    // MARK: Small · 剩 N 项 + 最紧急 2 条（WidgetKit systemSmall 仅支持 widgetURL + Button(intent:)）
+
+    private var todoSmall: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(value.pendingCount == 0 ? String(localized: "已清零") : String(localized: "剩 \(value.pendingCount) 项"))
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(textPrimary)
+                Spacer()
+                if !value.dateText.isEmpty {
+                    Text(value.dateText)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(textSecondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(leadingItems(2, includeCompleted: true)) { item in
+                    todoSmallRow(item)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .widgetURL(tasksURL)
+    }
+
+    private func todoSmallRow(_ item: HoloWidgetTodoItem) -> some View {
+        HStack(spacing: 7) {
+            Button(intent: HoloTodoToggleIntent(taskID: item.id.uuidString)) {
+                ZStack {
+                    if item.isCompleted {
+                        Circle().fill(greenTint)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .heavy))
+                            .foregroundStyle(Color.white)
+                    } else {
+                        Circle().strokeBorder(trackTint, lineWidth: 1.6)
+                    }
+                }
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Text(item.title)
+                .font(.system(size: 12, weight: item.isCompleted ? .medium : .semibold))
+                .foregroundStyle(item.isCompleted ? textSecondary.opacity(0.7) : textPrimary)
+                .strikethrough(item.isCompleted, color: textSecondary.opacity(0.6))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+    }
 
     // MARK: Medium · 3 待办 + 1 已划掉
 
     private var todoMedium: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Link(destination: tasksURL) { header }
+            header
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(leadingItems(3, includeCompleted: true)) { item in
                     todoRow(item)
@@ -91,7 +162,7 @@ private struct HoloTodoWidgetView: View {
 
     private var todoLarge: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Link(destination: tasksURL) { header }
+            header
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(leadingItems(5, includeCompleted: true)) { item in
                     todoRow(item)
@@ -137,15 +208,27 @@ private struct HoloTodoWidgetView: View {
     // MARK: 零件
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(value.items.isEmpty ? "今日待办" : "今日 · 剩 \(value.pendingCount) 项")
-                .font(.system(size: family == .systemLarge ? 15 : 14, weight: .bold))
-                .foregroundStyle(textPrimary)
-            Spacer()
-            if !value.dateText.isEmpty {
-                Text(value.dateText)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(textSecondary)
+        HStack(alignment: .center, spacing: 8) {
+            Link(destination: tasksURL) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(value.items.isEmpty ? "今日待办" : "今日 · 剩 \(value.pendingCount) 项")
+                        .font(.system(size: family == .systemLarge ? 15 : 14, weight: .bold))
+                        .foregroundStyle(textPrimary)
+                    Spacer()
+                    if !value.dateText.isEmpty {
+                        Text(value.dateText)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(textSecondary)
+                    }
+                }
+            }
+            Link(destination: addTaskURL) {
+                Image(systemName: "plus")
+                    .font(.system(size: 10.5, weight: .heavy))
+                    .foregroundStyle(primaryTint)
+                    .frame(width: 22, height: 22)
+                    .background(HoloWidgetBrand.primarySubtle(for: colorScheme))
+                    .clipShape(Circle())
             }
         }
     }
@@ -181,10 +264,10 @@ private struct HoloTodoWidgetView: View {
             // 行文字等其余区域单独挂 Link：与勾选按钮平级，互不接管。
             // 标题/占位/徽章必须包在显式 HStack 里：Link label 直接铺多个子视图时
             // 系统不按一行排（iOS 26 实测逾期徽章掉到标题下一行互相叠压）
-            Link(destination: tasksURL) {
+            Link(destination: item.detailDeepLink) {
                 HStack(spacing: 6) {
                     Text(item.title)
-                        .font(.system(size: family == .systemLarge ? 14 : 13, weight: item.isCompleted ? .medium : .semibold))
+                        .font(.system(size: family == .systemLarge ? 14 : (family == .systemSmall ? 12 : 13), weight: item.isCompleted ? .medium : .semibold))
                         .foregroundStyle(item.isCompleted ? textSecondary.opacity(0.7) : textPrimary)
                         .strikethrough(item.isCompleted, color: textSecondary.opacity(0.6))
                         .lineLimit(1)
@@ -234,6 +317,32 @@ private struct HoloTodoWidgetView: View {
 
     private var progressText: String {
         "\(value.completedToday) / \(value.totalToday) · \(Int((progressRatio * 100).rounded()))%"
+    }
+
+    // MARK: - 锁屏矩形配件
+
+    private var accessoryRectangular: some View {
+        let nextTodo = value.items.first(where: { !$0.isCompleted })
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(value.pendingCount == 0
+                 ? String(localized: "今日待办 · 已清零")
+                 : String(localized: "待办 · 剩 \(value.pendingCount) 项"))
+                .font(.system(size: 11.5, weight: .heavy))
+                .lineLimit(1)
+            if let nextTodo {
+                Text(nextTodo.title)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+            } else {
+                Text(String(localized: "留白的一天"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .widgetURL(nextTodo?.detailDeepLink ?? tasksURL)
+        .widgetAccentable()
     }
 
     private var primaryTint: Color { HoloWidgetBrand.primary(for: colorScheme) }

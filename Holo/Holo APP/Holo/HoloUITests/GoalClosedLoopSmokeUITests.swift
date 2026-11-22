@@ -63,15 +63,11 @@ final class GoalClosedLoopSmokeUITests: XCTestCase {
             existingCard.tap()
         } else {
             newButton.tap()
-            let createItem = app.buttons["手动创建"].firstMatch
-            if createItem.waitForExistence(timeout: 4) {
-                createItem.tap()
-                let titleField = app.textFields["想做成什么？"].firstMatch
-                XCTAssertTrue(titleField.waitForExistence(timeout: 8), "手动创建表单应出现")
-                titleField.tap()
-                titleField.typeText("闭环冒烟目标")
-                app.buttons["创建"].firstMatch.tap()
-            }
+            let titleField = app.descendants(matching: .any)["goal-title"].firstMatch
+            XCTAssertTrue(titleField.waitForExistence(timeout: 8), "创建表单应出现")
+            titleField.tap()
+            titleField.typeText("闭环冒烟目标")
+            app.buttons["创建目标"].firstMatch.tap()
         }
         return app.navigationBars["目标详情"].waitForExistence(timeout: 10)
     }

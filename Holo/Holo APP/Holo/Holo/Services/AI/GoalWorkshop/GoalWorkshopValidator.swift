@@ -204,7 +204,7 @@ enum GoalWorkshopValidator {
         let habitDraftIDs = Set(plan.draft.habits.map(\.id))
 
         if let source = plan.resultSource {
-            guard let kind = GoalResultSourceKind(rawValue: source.sourceType) else {
+            guard let kind = GoalResultSourceKind(rawValue: source.sourceType), kind != .healthKit else {
                 throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.sourceType", value: source.sourceType)
             }
             if let scope = source.ledgerScope, GoalLedgerScopeKind(rawValue: scope) == nil {
@@ -234,7 +234,7 @@ enum GoalWorkshopValidator {
                     guard candidates.account(ref: ref) != nil else {
                         throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
                     }
-                case .manual:
+                case .manual, .healthKit:
                     throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
                 }
             }

@@ -73,6 +73,52 @@ enum GoalProgressUITestSeeder {
         } catch { assertionFailure("目标进展验收种子失败：\(error)") }
     }
 
+    private static var progressSourcesSeededInThisProcess = false
+
+    static func seedProgressSourcesIfNeeded() {
+        guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_GOAL_PROGRESS_DATA"),
+              !progressSourcesSeededInThisProcess else { return }
+        progressSourcesSeededInThisProcess = true
+        let context = CoreDataStack.shared.viewContext
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "name == %@ AND deletedAt == nil", "验收·体重")
+        request.fetchLimit = 1
+        let habit = (try? context.fetch(request).first) ?? Habit.create(
+            in: context, name: "验收·体重", icon: "scalemass", color: "#EA580C",
+            type: .numeric, unit: "kg", aggregationType: .latest
+        )
+        let existingRecords = HabitRecord.fetchRequest()
+        existingRecords.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
+        if (try? context.count(for: existingRecords)) == 0 {
+            for index in 1...12 {
+                let row = HabitRecord.createNumeric(in: context, habit: habit, value: 75 + Double(index) / 10)
+                row.date = Date().addingTimeInterval(Double(-index) * 3_600)
+            }
+        }
+        _ = HabitRecord.createNumeric(in: context, habit: habit, value: 75)
+        let names = Set((try? context.fetch(Habit.fetchRequest()))?.map(\.name) ?? [])
+        for name in ["验收·空体重"] + (1...12).map({ "验收·阅读分钟 \($0)" }) where !names.contains(name) {
+            _ = Habit.create(in: context, name: name, icon: "book", color: "#EA580C", type: .numeric,
+                             unit: name.contains("体重") ? "kg" : "分钟",
+                             aggregationType: name.contains("体重") ? .latest : .sum)
+        }
+        let accounts = Account.fetchRequest()
+        accounts.predicate = NSPredicate(format: "name == %@ AND deletedAt == nil", "验收·应急金")
+        if (try? context.fetch(accounts).first) == nil {
+            _ = Account.create(in: context, name: "验收·应急金", type: AccountType.bank.rawValue, initialBalance: 8000)
+        }
+        let tasks = TodoTask.fetchRequest()
+        tasks.predicate = NSPredicate(format: "title == %@ AND deletedAt == nil", "验收·打印作品集")
+        if (try? context.fetch(tasks).first) == nil {
+            _ = TodoTask.create(in: context, title: "验收·打印作品集")
+        }
+        DarkModeManager.shared.currentSetting = ProcessInfo.processInfo.arguments.contains("UITEST_GOAL_DARK") ? .dark : .light
+        do {
+            try context.save()
+            HabitRepository.shared.loadActiveHabits()
+        } catch { assertionFailure("目标来源验收种子失败：\(error)") }
+    }
+
     /// 目标界面减法重设计走查（2026-11-13；R2 补数据 2026-11-14）：列表五状态各造一张卡——
     /// 进行中量化（128/300 非零进度 + 期限）/ 进行中过程型（真实回顾摘要）/ 已暂停 /
     /// 已完成（终值 + 达成日）/ 已到期（齐数据 + 逾期胶囊）；幂等：

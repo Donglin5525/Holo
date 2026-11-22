@@ -301,8 +301,9 @@ struct HoloApp: App {
                     if !appStoreScreenshotModeActive {
                         Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
                         // 2026-11-20 记忆洞察重构（Phase 1-4）：停用旧版财务算术模板直写记忆；
-                        // 启动期按智能节流（72h/新异常20h）运行全局画像与跨模块洞察合成。
+                        // 冷启动预热记忆中心快照缓存（实现秒开），并按智能节流运行全局画像与跨模块洞察合成。
                         Task.detached(priority: .utility) {
+                            await HoloMemoryCenterViewModel.prewarmIfNeeded()
                             await UnderstandingShadowScheduler.runIfDue()
                             _ = await HoloPortraitSynthesisRuntime.runIfDue()
                         }

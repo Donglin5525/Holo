@@ -181,12 +181,42 @@ enum PortraitSynthesisStandaloneTests {
         check(payload.rejectedBlacklist.count == 1, "请求载荷应携带黑名单喂回模型")
         check(payload.encodeJSON()?.contains("coffee_sleep_link") == true, "序列化 JSON 应包含黑名单 key")
 
-        // 6. 校验英文词典词兜底清洗（严禁 night/evening/afternoon/morning 透出给用户）
-        let cleanedText = PortraitTextSanitizer.sanitize("消费集中在 night/evening 时段，afternoon 也有记录，morning 较少")
+        // 6. 校验英文词典词兜底清洗（含中文紧邻英文无空格场景：集中在night/evening时段）
+        let cleanedText = PortraitTextSanitizer.sanitize("消费集中在night/evening时段，afternoon也有记录，morning较少")
         check(!cleanedText.contains("night") && !cleanedText.contains("evening") && !cleanedText.contains("afternoon") && !cleanedText.contains("morning"),
               "用户可见文案不得残留英文时段词（实际：\(cleanedText)）")
         check(cleanedText.contains("晚间和深夜") && cleanedText.contains("下午") && cleanedText.contains("上午"),
               "英文时段词应被自然替换为中文（实际：\(cleanedText)）")
+
+        // 7. 校验真机实锤（2026-11-20 qwen3.7-flash 省略 usageHint + 自封 confirmed）：必须宽容解析且新项强制落入 inferred
+        let omittedUsageHintJSON = """
+        {
+          "schemaVersion": 1,
+          "upserts": [
+            {
+              "key": "work_health_tradeoff",
+              "dimension": "crossDomainInsight",
+              "confidence": "confirmed",
+              "statement": "近期晚睡且运动量回落，减脂目标面临阻力",
+              "evidenceSummary": "近14天活动时长下降38%，入睡推迟至02:10",
+              "sourceDomains": ["health", "habit"]
+            }
+          ],
+          "retireKeys": [],
+          "clarifications": [
+            {
+              "key": "work_health_tradeoff",
+              "question": "最近体重上升，是运动变少了还是没记录？"
+            }
+          ]
+        }
+        """
+        let parsedOmitted = try PortraitDeltaParser.parse(from: omittedUsageHintJSON)
+        check(parsedOmitted.upserts.count == 1, "省略 usageHint 时必须正常解析而非报 invalidJSON")
+        var freshStore = PortraitStore()
+        _ = freshStore.apply(delta: parsedOmitted, now: now)
+        check(freshStore.entries["work_health_tradeoff"]?.confidence == .inferred,
+              "模型新提出的条目不得越权自封 confirmed，必须先落入 inferred 供用户确认")
 
         print("PortraitSynthesisStandaloneTests: \(passed) passed, \(failed) failed")
         if failed > 0 {

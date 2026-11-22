@@ -11,7 +11,6 @@ import Foundation
 import SwiftUI
 import CoreData
 import Combine
-import os
 
 // MARK: - MemoryGalleryViewModel
 
@@ -43,15 +42,6 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 洞察数（预留字段）
     @Published var totalInsights: Int = 0
-
-    /// 年鉴卡当前展示的年份数据（2026-11-21 取代 13 周活跃热力图）
-    @Published var almanac: MemoryAlmanacYear?
-
-    /// 开始记录日：翻年下限与新用户副行；随快照计算
-    @Published var almanacFirstRecordDate: Date?
-
-    /// 年鉴中选中的日期（驱动「当天轨迹」伴生卡）
-    @Published var selectedHeatmapDate: Date?
 
     // MARK: - AI Insight Properties
 
@@ -268,8 +258,6 @@ class MemoryGalleryViewModel: ObservableObject {
         let milestones: [(date: Date, data: MilestoneData)]
         let totalMemoryCount: Int
         let totalRecordedDays: Int
-        let almanacCounts: [Date: Int]
-        let firstRecordDate: Date?
     }
 
     private func computeSnapshot() async throws -> GallerySnapshot {
@@ -280,16 +268,12 @@ class MemoryGalleryViewModel: ObservableObject {
             let highlights = HighlightDetector.detect(for: dates, context: context, achievements: achievements)
             let milestones = try MilestoneDetector.detect(context: context, achievements: achievements)
             let stats = Self.computeAggregateStats(context: context)
-            let almanacCounts = MemoryDayCountQuery.dayCounts(year: Calendar.current.component(.year, from: Date()), context: context)
-            let firstRecordDate = MemoryDayCountQuery.firstRecordDate(context: context)
             return GallerySnapshot(
                 items: items,
                 batchHighlights: highlights,
                 milestones: milestones,
                 totalMemoryCount: stats.memoryCount,
-                totalRecordedDays: stats.recordedDays,
-                almanacCounts: almanacCounts,
-                firstRecordDate: firstRecordDate
+                totalRecordedDays: stats.recordedDays
             )
         }
     }
@@ -316,18 +300,6 @@ class MemoryGalleryViewModel: ObservableObject {
                 totalMemoryCount = snapshot.totalMemoryCount
                 totalRecordedDays = snapshot.totalRecordedDays
                 totalInsights = 0
-                almanacFirstRecordDate = snapshot.firstRecordDate
-                // 刷新时保持用户正在看的年份；当年数据随快照一起来，往年再按需加载
-                let currentYear = Calendar.current.component(.year, from: Date())
-                let shownYear = almanac?.year ?? currentYear
-                if shownYear == currentYear {
-                    almanac = MemoryAlmanacBuilder.build(
-                        year: currentYear, dayCounts: snapshot.almanacCounts,
-                        today: Date(), firstRecordDate: snapshot.firstRecordDate
-                    )
-                } else {
-                    Task { await loadAlmanacYear(shownYear) }
-                }
             }
 
             // 计算日期范围
@@ -674,35 +646,6 @@ class MemoryGalleryViewModel: ObservableObject {
         let positive = values.filter { $0 > 0 }
         guard !positive.isEmpty else { return nil }
         return positive.reduce(0, +) / Double(positive.count)
-    }
-
-    // MARK: - 年鉴
-
-    private static let almanacLogger = Logger(subsystem: "com.holo.app", category: "MemoryAlmanac")
-
-    /// 切换 / 刷新年鉴年份：后台查询该年按天件数后在主线程组装
-    func loadAlmanacYear(_ year: Int) async {
-        let firstRecordDate = almanacFirstRecordDate
-        do {
-            let counts = try await CoreDataStack.shared.performBackgroundTask { context in
-                MemoryDayCountQuery.dayCounts(year: year, context: context)
-            }
-            almanac = MemoryAlmanacBuilder.build(year: year, dayCounts: counts, today: Date(), firstRecordDate: firstRecordDate)
-        } catch {
-            Self.almanacLogger.error("年鉴加载失败 year=\(year, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// 年鉴选中某天的「当天轨迹」：直接从全量缓存组装，不依赖时间线分页（往年同样可用）
-    func daySection(for date: Date) -> TimelineSection? {
-        let dayStart = Calendar.current.startOfDay(for: date)
-        let section = TimelineSectionBuilder.buildSection(
-            date: dayStart,
-            items: items(on: dayStart),
-            highlights: cachedHighlights[dayStart] ?? [],
-            milestones: filteredMilestones(for: dayStart)
-        )
-        return section.nodes.isEmpty ? nil : section
     }
 
     // MARK: - AI Insight Methods

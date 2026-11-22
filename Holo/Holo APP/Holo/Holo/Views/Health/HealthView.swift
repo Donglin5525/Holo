@@ -796,6 +796,7 @@ struct HealthView: View {
         .padding(.horizontal, HoloSpacing.md)
         .padding(.bottom, HoloSpacing.md)
         .holoSurface()
+        .daySwipeExcluded()
     }
 
     private var trendData: [DailyHealthData] {

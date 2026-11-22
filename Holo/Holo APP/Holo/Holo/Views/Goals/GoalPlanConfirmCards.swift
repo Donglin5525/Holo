@@ -34,6 +34,8 @@ struct GoalResultSourceConfirmCard: View {
                     .pickerStyle(.segmented)
 
                     switch source.sourceType {
+                    case .healthKit:
+                        goalConfirmHint(source.healthMetricKind?.displayName ?? String(localized: "苹果健康"))
                     case .manual:
                         goalConfirmHint(String(localized: "创建后在目标详情里手动更新数值即可"))
                     case .habit:
@@ -94,7 +96,7 @@ struct GoalResultSourceConfirmCard: View {
                     current.sourceType = kind
                     current.sourceID = nil
                     switch kind {
-                    case .manual:
+                    case .manual, .healthKit:
                         current.ledgerScope = nil
                         current.isPending = false
                     case .habit:
@@ -115,7 +117,7 @@ struct GoalResultSourceConfirmCard: View {
         switch source.sourceType {
         case .habit: return String(localized: "暂未选定具体习惯，创建后仍可随时在目标详情里绑定")
         case .ledger: return String(localized: "暂未选定具体账户，创建后仍可随时在目标详情里绑定")
-        case .manual: return String(localized: "待补齐")
+        case .manual, .healthKit: return String(localized: "待补齐")
         }
     }
 

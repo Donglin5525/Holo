@@ -42,6 +42,10 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
     /// 底栏衬底；nil=默认 ultraThinMaterial。传色时改用该色实底并在顶部加 0.5 发丝线
     /// （目标模块表单奶油同源底，2026-11-14 R6——不改共享默认）
     var footerBackground: Color? = nil
+    /// 底栏顶部分割发丝线；非滚动短表单传 false 可避免空隙处出现硬分割线
+    var footerShowsDivider: Bool = true
+    /// 底部主按钮可选无障碍标识；nil 时不覆盖系统默认标识
+    var primaryIdentifier: String? = nil
     /// 内容区
     let content: () -> Content
 
@@ -56,6 +60,8 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         primaryHint: String? = nil,
         primaryActionColor: Color = .holoToolAction,
         footerBackground: Color? = nil,
+        footerShowsDivider: Bool = true,
+        primaryIdentifier: String? = nil,
         @ViewBuilder primaryAccessory: @escaping () -> PrimaryAccessory = { EmptyView() },
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -69,6 +75,8 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         self.primaryHint = primaryHint
         self.primaryActionColor = primaryActionColor
         self.footerBackground = footerBackground
+        self.footerShowsDivider = footerShowsDivider
+        self.primaryIdentifier = primaryIdentifier
         self.primaryAccessory = primaryAccessory
         self.content = content
     }
@@ -165,19 +173,12 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
                         .accessibilityIdentifier("holo.sheet.primaryHint")
                 }
                 primaryAccessory()
-                Button(action: primaryAction) {
-                    Text(primaryTitle)
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .foregroundStyle(primaryDisabled ? Color.holoToolTextSecondary : Color.holoToolOnAction)
-                        .background(
-                            Capsule().fill(primaryDisabled ? Color.holoToolInset : primaryActionColor)
-                        )
-                        .contentShape(Rectangle())
+                if let primaryIdentifier {
+                    primaryButton(title: primaryTitle, action: primaryAction)
+                        .accessibilityIdentifier(primaryIdentifier)
+                } else {
+                    primaryButton(title: primaryTitle, action: primaryAction)
                 }
-                .buttonStyle(HoloPressStyle())
-                .disabled(primaryDisabled)
             }
             .padding(.horizontal, HoloSpacing.page)
             .padding(.top, HoloSpacing.sm)
@@ -187,13 +188,31 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         }
     }
 
-    /// 底栏衬底：默认 ultraThinMaterial；传 footerBackground 时为实底 + 顶部 0.5 发丝线
+    private func primaryButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(primaryDisabled ? Color.holoToolTextSecondary : Color.holoToolOnAction)
+                .background(
+                    Capsule().fill(primaryDisabled ? Color.holoToolInset : primaryActionColor)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoloPressStyle())
+        .disabled(primaryDisabled)
+    }
+
+    /// 底栏衬底：默认 ultraThinMaterial；传 footerBackground 时为实底（可关闭顶部发丝线）
     @ViewBuilder
     private var footerBackdrop: some View {
         if let footerBackground {
             ZStack(alignment: .top) {
                 Rectangle().fill(footerBackground)
-                Rectangle().fill(Color.holoToolBorder).frame(height: 0.5)
+                if footerShowsDivider {
+                    Rectangle().fill(Color.holoToolBorder).frame(height: 0.5)
+                }
             }
         } else {
             Rectangle().fill(.ultraThinMaterial)

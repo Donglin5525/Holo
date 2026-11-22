@@ -64,6 +64,7 @@ struct DailyKanbanView: View {
     @State private var habitSource: HabitSourceRoute?
     @State private var habitOperationError: String?
     @State private var showGoalCreate = false
+    @State private var goalPlanningTitle: String?
     @State private var showReliefSheet = false
     @FocusState private var isInputFocused: Bool
 
@@ -358,10 +359,21 @@ struct DailyKanbanView: View {
             }
         }
         .animation(HoloAnimation.standard, value: editingHabit != nil)
-        .sheet(isPresented: $showGoalCreate) {
+        .sheet(isPresented: $showGoalCreate, onDismiss: {
+            guard let title = goalPlanningTitle else { return }
+            goalPlanningTitle = nil
+            DeepLinkState.shared.navigate(to: .chat(prefill: title.isEmpty ? nil : title))
+        }) {
             GoalManualCreateSheet(
-                onSaved: { _ in showGoalCreate = false },
-                onCancel: { showGoalCreate = false }
+                onSaved: { result in
+                    showGoalCreate = false
+                    DeepLinkState.shared.navigate(to: .goalDetail(goalId: result.goal.id))
+                },
+                onCancel: { showGoalCreate = false },
+                onPlan: { title in
+                    goalPlanningTitle = title
+                    showGoalCreate = false
+                }
             )
         }
         #if canImport(UIKit)

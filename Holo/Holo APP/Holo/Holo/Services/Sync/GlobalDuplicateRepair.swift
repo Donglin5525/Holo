@@ -225,6 +225,7 @@ extension GlobalDuplicateRepair {
         "HoloTodayPlanRevision": .todoDataDidChange,
         // 习惯域
         "Habit": .habitDataDidChange,
+        "HabitFolder": .habitDataDidChange,
         "HabitRecord": .habitDataDidChange,
         // 想法域
         "Thought": .thoughtDataDidChange,

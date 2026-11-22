@@ -1947,84 +1947,130 @@ class HealthRepository: ObservableObject {
         )
     }
 
-    // MARK: - Goal Metric Sync (Apple Health 被动数据源)
+    // MARK: - 目标健康指标
 
-    /// 读取目标关联的苹果健康指标当前值（最新样本或自 startDate 起的累计值）
-    func fetchGoalMetricValue(kind: GoalHealthMetricKind, since startDate: Date) async -> Double? {
-        if useMockData {
-            switch kind {
-            case .bodyMass: return nil
-            case .bodyFatPercentage: return nil
-            case .stepCount: return todaySteps > 0 ? todaySteps : nil
-            case .distanceWalkingRunning: return nil
-            case .activeEnergyBurned: return nil
-            case .sleepHours: return todaySleep > 0 ? todaySleep : nil
-            }
+    func fetchGoalMetric(kind: GoalHealthMetricKind, since start: Date, before cutoff: Date, firstSample: Bool = false) async -> HoloHealthQueryOutcome<GoalHealthSample> {
+        guard useMockData || HKHealthStore.isHealthDataAvailable() else {
+            return .unavailable(.recoverable(String(localized: "这台设备无法读取苹果健康")))
         }
-        guard HKHealthStore.isHealthDataAvailable() else { return nil }
-
-        let now = Date()
         switch kind {
-        case .bodyMass:
-            let lookback = min(startDate, Calendar.current.date(byAdding: .day, value: -90, to: now) ?? startDate)
-            return await fetchLatestQuantitySample(identifier: .bodyMass, unit: .gramUnit(with: .kilo), since: lookback)
-        case .bodyFatPercentage:
-            let lookback = min(startDate, Calendar.current.date(byAdding: .day, value: -90, to: now) ?? startDate)
-            if let ratio = await fetchLatestQuantitySample(identifier: .bodyFatPercentage, unit: .percent(), since: lookback) {
-                return ratio * 100.0
+        case .sleepHours, .sleepAverage:
+            return await fetchGoalSleep(kind: kind, before: cutoff)
+        case .bodyMass, .bodyFatPercentage:
+            guard !useMockData else { return .noData }
+            let isWeight = kind == .bodyMass
+            let identifier: HKQuantityTypeIdentifier = isWeight ? .bodyMass : .bodyFatPercentage
+            let unit: HKUnit = isWeight ? .gramUnit(with: .kilo) : .percent()
+            return await fetchGoalQuantity(identifier, unit: unit, from: firstSample ? start : nil, before: cutoff, firstSample: firstSample)
+                .map { GoalHealthSample(value: $0.value * (isWeight ? 1 : 100), date: $0.date) }
+        case .workoutMinutes:
+            return await fetchGoalWorkoutMinutes(from: start, before: cutoff)
+        case .stepCount, .distanceWalkingRunning, .activeEnergyBurned:
+            if useMockData {
+                let type: HealthMetricType = kind == .stepCount ? .steps : .activeMinutes
+                guard kind == .stepCount || kind == .activeEnergyBurned else { return .noData }
+                if kind == .activeEnergyBurned {
+                    return await fetchEnergyRangeStrict(from: start, to: cutoff).map {
+                        GoalHealthSample(value: $0.reduce(0) { $0 + $1.value }, date: nil)
+                    }
+                }
+                return await fetchDailyRangeStrict(for: type, from: start, to: cutoff).map {
+                    GoalHealthSample(value: $0.reduce(0) { $0 + $1.value }, date: nil)
+                }
             }
-            return nil
-        case .stepCount:
-            return await fetchCumulativeQuantitySum(identifier: .stepCount, unit: .count(), from: startDate, to: now)
-        case .distanceWalkingRunning:
-            return await fetchCumulativeQuantitySum(identifier: .distanceWalkingRunning, unit: .meterUnit(with: .kilo), from: startDate, to: now)
-        case .activeEnergyBurned:
-            return await fetchCumulativeQuantitySum(identifier: .activeEnergyBurned, unit: .kilocalorie(), from: startDate, to: now)
-        case .sleepHours:
-            if todaySleep > 0 { return todaySleep }
-            return nil
+            switch kind {
+            case .stepCount: return await fetchGoalQuantity(.stepCount, unit: .count(), from: start, before: cutoff)
+            case .distanceWalkingRunning: return await fetchGoalQuantity(.distanceWalkingRunning, unit: .meterUnit(with: .kilo), from: start, before: cutoff)
+            default: return await fetchGoalQuantity(.activeEnergyBurned, unit: .kilocalorie(), from: start, before: cutoff)
+            }
         }
     }
 
-    private func fetchLatestQuantitySample(
-        identifier: HKQuantityTypeIdentifier,
-        unit: HKUnit,
-        since startDate: Date
-    ) async -> Double? {
-        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: Date(), options: .strictEndDate)
-        let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+    private func fetchGoalSleep(kind: GoalHealthMetricKind, before cutoff: Date) async -> HoloHealthQueryOutcome<GoalHealthSample> {
+        let calendar = Calendar.current
+        let count = kind == .sleepAverage ? 7 : 1
+        let endDay = calendar.startOfDay(for: cutoff)
+        guard let startDay = calendar.date(byAdding: .day, value: 1 - count, to: endDay) else { return .noData }
+        switch await fetchNightSleepRangeStrict(from: startDay, to: endDay) {
+        case .value(let nights):
+            let completed = nights.compactMap(\.mainSession).filter {
+                $0.asleepEnd < cutoff && $0.asleepHours > 0 && !$0.excludedFromTrends && !$0.possiblyIncomplete
+            }
+            guard let latest = completed.map(\.asleepEnd).max() else { return .noData }
+            return .value(GoalHealthSample(
+                value: completed.reduce(0) { $0 + $1.asleepHours } / Double(completed.count),
+                date: latest,
+                coveredNights: count == 7 ? completed.count : nil
+            ))
+        case .noData: return .noData
+        case .waitingForUnlock: return .waitingForUnlock
+        case .unavailable(let error): return .unavailable(error)
+        }
+    }
+
+    private func fetchGoalQuantity(
+        _ identifier: HKQuantityTypeIdentifier, unit: HKUnit, from start: Date?, before cutoff: Date, firstSample: Bool = false
+    ) async -> HoloHealthQueryOutcome<GoalHealthSample> {
+        guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return .noData }
+        if let start, start >= cutoff { return .noData }
+        let datePredicate = HKQuery.predicateForSamples(
+            withStart: start, end: cutoff, options: start == nil ? .strictEndDate : [.strictStartDate, .strictEndDate]
+        )
         return await withCheckedContinuation { continuation in
-            let query = HKSampleQuery(sampleType: quantityType, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, _ in
-                guard let sample = samples?.first as? HKQuantitySample else {
-                    continuation.resume(returning: nil)
-                    return
+            if start != nil && !firstSample {
+                let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: datePredicate, options: .cumulativeSum) { _, result, error in
+                    if let failure: HoloHealthQueryOutcome<GoalHealthSample> = HoloStrictHealthQueryService.failure(from: error) {
+                        continuation.resume(returning: failure)
+                    } else if let quantity = result?.sumQuantity() {
+                        continuation.resume(returning: .value(GoalHealthSample(value: quantity.doubleValue(for: unit), date: nil)))
+                    } else {
+                        continuation.resume(returning: .noData)
+                    }
                 }
-                continuation.resume(returning: sample.quantity.doubleValue(for: unit))
+                healthStore.execute(query)
+            } else {
+                let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: firstSample)
+                let query = HKSampleQuery(sampleType: type, predicate: datePredicate, limit: 1, sortDescriptors: [sort]) { _, samples, error in
+                    if let failure: HoloHealthQueryOutcome<GoalHealthSample> = HoloStrictHealthQueryService.failure(from: error) {
+                        continuation.resume(returning: failure)
+                    } else if let sample = samples?.first as? HKQuantitySample {
+                        continuation.resume(returning: .value(GoalHealthSample(value: sample.quantity.doubleValue(for: unit), date: sample.endDate)))
+                    } else {
+                        continuation.resume(returning: .noData)
+                    }
+                }
+                healthStore.execute(query)
+            }
+        }
+    }
+
+    private func fetchGoalWorkoutMinutes(from start: Date, before cutoff: Date) async -> HoloHealthQueryOutcome<GoalHealthSample> {
+        guard start < cutoff else { return .noData }
+        if useMockData {
+            let sessions = await fetchWorkoutSessionsRange(from: start, to: cutoff)
+            let included = sessions.filter { $0.start >= start && $0.end < cutoff }
+            guard let latest = included.map(\.end).max() else { return .noData }
+            return .value(GoalHealthSample(value: included.reduce(0) { $0 + $1.minutes }, date: latest))
+        }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: cutoff, options: [.strictStartDate, .strictEndDate])
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: .workoutType(), predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<GoalHealthSample> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                } else {
+                    let workouts = (samples as? [HKWorkout]) ?? []
+                    if let latest = workouts.map(\.endDate).max() {
+                        let minutes = workouts.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) / 60 }
+                        continuation.resume(returning: .value(GoalHealthSample(value: minutes, date: latest)))
+                    } else {
+                        continuation.resume(returning: .noData)
+                    }
+                }
             }
             healthStore.execute(query)
         }
     }
 
-    private func fetchCumulativeQuantitySum(
-        identifier: HKQuantityTypeIdentifier,
-        unit: HKUnit,
-        from startDate: Date,
-        to endDate: Date
-    ) async -> Double? {
-        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictStartDate)
-        return await withCheckedContinuation { continuation in
-            let query = HKStatisticsQuery(quantityType: quantityType, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, _ in
-                guard let sum = result?.sumQuantity() else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                continuation.resume(returning: sum.doubleValue(for: unit))
-            }
-            healthStore.execute(query)
-        }
-    }
 }
 
 // MARK: - HealthError

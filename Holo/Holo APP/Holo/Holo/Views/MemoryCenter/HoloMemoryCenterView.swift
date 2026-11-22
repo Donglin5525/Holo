@@ -135,12 +135,11 @@ struct HoloMemoryCenterView: View {
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
-        case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed:
             failureView
-        case .loaded:
+        case .loading, .loaded:
+            // 秒开设计（2026-11-20）：即使极罕见情况下冷启动尚未预热完成，也立即渲染完整页面框架与
+            // 本地 0ms 读出的动态画像，绝不用全屏 loading 菊花挡住用户。
             loadedContent
         }
     }

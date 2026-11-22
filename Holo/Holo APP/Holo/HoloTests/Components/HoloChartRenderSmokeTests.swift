@@ -52,6 +52,12 @@ final class HoloChartRenderSmokeTests: XCTestCase {
             color: .holoChart6, title: "样例测量", valueText: { String(format: "%.1f", $0) })
         try render(mini, size: CGSize(width: 390, height: 150), to: "/tmp/holo-chart-render-mini.png")
 
+        // 3b) 迷你趋势单点稀疏态（唯一记录，必须定径 10pt，不能撑满绘图区）
+        let miniSingle = HoloMiniTrendChart(
+            points: [.init(date: origin, value: 50)],
+            color: .holoChart6, title: "深蹲", valueText: { "\(Int($0)) 个" })
+        try render(miniSingle, size: CGSize(width: 390, height: 100), to: "/tmp/holo-chart-render-mini-single.png", minBytes: 4_000)
+
         // 4) 增强组合：参考线 + 上期淡影 + 图例开关胶囊
         let comboBuckets = (0..<6).map {
             HoloChartBucket(id: "r-\($0)", label: "\($0 + 1)日", values: [Double($0 * 10 + 15)])
@@ -67,7 +73,7 @@ final class HoloChartRenderSmokeTests: XCTestCase {
     }
 
     @MainActor
-    private func render<V: View>(_ view: V, size: CGSize, to path: String) throws {
+    private func render<V: View>(_ view: V, size: CGSize, to path: String, minBytes: Int = 10_000) throws {
         // 显式浅色环境 + 垫白底：ImageRenderer 默认透明底（PNG 透明被读成黑底/灰字发糊）
         let renderer = ImageRenderer(content:
             view.frame(width: size.width, height: size.height)
@@ -78,6 +84,6 @@ final class HoloChartRenderSmokeTests: XCTestCase {
         XCTAssertGreaterThan(image.size.width * image.size.height, 100 * 100, "渲染面积异常（疑似空白）: \(path)")
         let data = try XCTUnwrap(image.pngData(), "PNG 编码失败: \(path)")
         try data.write(to: URL(fileURLWithPath: path))
-        XCTAssertGreaterThan(data.count, 10_000, "PNG 过小（疑似空白）: \(path)")
+        XCTAssertGreaterThan(data.count, minBytes, "PNG 过小（疑似空白）: \(path)")
     }
 }

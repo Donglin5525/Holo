@@ -185,6 +185,10 @@ final class GoalRepository: ObservableObject {
         metricSource: GoalMetricSource? = nil,
         sourceHabitId: UUID?? = nil,
         ledgerScope: GoalLedgerScopePayload?? = nil,
+        healthMetricKind: GoalHealthMetricKind?? = nil,
+        metricComparison: GoalResultComparison? = nil,
+        metricComparisonIsExplicit: Bool? = nil,
+        metricStartDate: Date?? = nil,
         expectedPlanRevisionID: UUID? = nil
     ) throws {
         let priorRow = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context)
@@ -196,6 +200,12 @@ final class GoalRepository: ObservableObject {
         }
         let priorAttributes = goal.dictionaryWithValues(forKeys: Array(goal.entity.attributesByName.keys))
         var insertedRevision: GoalPlanRevisionMO?
+        let previousKind = goal.goalKindEnum
+        let previousSource = goal.metricSourceEnum
+        let previousHabitID = goal.sourceHabitId
+        let previousHealthKind = goal.healthMetricKindEnum
+        let previousPlanSource = priorRow?.planPayloadV2?.resultSource
+        let previousLedgerScope = goal.ledgerScopePayload ?? previousPlanSource?.ledgerScope
         if let title { goal.title = title }
         if let summary { goal.summary = summary }
         if let domain { goal.goalDomain = domain }
@@ -224,42 +234,60 @@ final class GoalRepository: ObservableObject {
         if let metricBaselineValue { goal.baselineValueDouble = metricBaselineValue }
 
         // 换源/换源习惯/换账本范围：口径变了，旧累计起点无意义，重置为当前时刻
-        let ledgerScopeChanged = ledgerScope.map { $0 != goal.ledgerScopePayload } ?? false
-        let sourceChanged = (metricSource != nil && metricSource != goal.metricSourceEnum)
-            || (sourceHabitId != nil && sourceHabitId != goal.sourceHabitId)
-            || ledgerScopeChanged
+        let startChanged = metricStartDate.map { $0 != goal.baselineDate } ?? false
+        let sourceChanged = (goalKind != nil && goalKind != previousKind)
+            || (metricSource != nil && metricSource != previousSource)
+            || (sourceHabitId.map { $0 != previousHabitID } ?? false)
+            || (healthMetricKind.map { $0 != previousHealthKind } ?? false)
+            || (ledgerScope.map { $0 != previousLedgerScope } ?? false)
         if let metricSource { goal.metricSourceEnum = metricSource }
         if let sourceHabitId { goal.sourceHabitId = sourceHabitId }
-        if let ledgerScope { goal.ledgerScopePayload = ledgerScope }
-        if sourceChanged && goal.isQuantitative {
-            goal.baselineDate = Date()
+        if let ledgerScope, goal.metricSourceEnum != .healthKit { goal.ledgerScopePayload = ledgerScope }
+        if goal.metricSourceEnum == .healthKit {
+            if let healthMetricKind { goal.healthMetricKindEnum = healthMetricKind }
+            if sourceChanged { goal.baselineValueDouble = nil }
+        }
+        if goal.isQuantitative && (sourceChanged || startChanged) {
+            goal.baselineDate = goal.goalKindEnum == .cumulative ? metricStartDate.flatMap { $0 } ?? Date() : Date()
         }
         if goal.isQuantitative && goal.metricSource == nil {
             goal.metricSource = GoalMetricSource.manual.rawValue
         }
         goal.updatedAt = Date()
         do {
-            if let priorRow, var next = priorRow.planPayloadV2 {
-                let old = next
+            if priorRow?.planPayloadV2 != nil || metricComparison != nil {
+                var next = priorRow?.planPayloadV2 ?? GoalPlanResolver.legacyBaselinePayload(goal: goal, legacySummary: nil, now: Date())
+                let old = priorRow?.planPayloadV2
                 next.intent.deadline = goal.deadline
                 next.intent.successCriteria = goal.desiredOutcome
                 if !goal.isQuantitative { next.resultSource = nil }
-                else if sourceChanged || next.resultSource == nil {
-                    next.resultSource = GoalPlanResolver.legacyBaselinePayload(goal: goal, legacySummary: nil, now: Date()).resultSource
+                else if sourceChanged || next.resultSource == nil || (goal.metricSourceEnum == .healthKit && next.resultSource?.sourceType != .healthKit) {
+                    next.resultSource = GoalPlanResolver.legacyResultSource(goal: goal)
                 } else {
                     next.resultSource?.targetValue = goal.metricTargetValueDouble
                     next.resultSource?.unit = goal.metricUnit
                     next.resultSource?.baselineValue = goal.baselineValueDouble
+                    if startChanged {
+                        next.resultSource?.baselineObservedAt = goal.baselineDate
+                        if next.resultSource?.sourceType == .habit && next.resultSource?.aggregation == .sum {
+                            next.resultSource?.countsFromBaseline = true
+                        }
+                    }
                     if goal.metricSourceEnum == .ledger {
                         next.resultSource?.ledgerScope = goal.ledgerScopePayload
                     }
+                }
+                if let metricComparison { next.resultSource?.comparison = metricComparison }
+                if let metricComparisonIsExplicit { next.resultSource?.comparisonIsExplicit = metricComparisonIsExplicit }
+                if sourceChanged {
+                    updateResultBindings(in: &next, previous: previousPlanSource)
                 }
                 if next.resultSource?.sourceType != .ledger { next.fundSchedule = [] }
                 if old != next {
                     next.schemaVersion = 3
                     next.basis = GoalPlanDecisionBasisV2(origin: .adjustment, confirmedAt: Date(), selectedChangeSummaries: ["用户编辑目标条件"])
                     insertedRevision = try GoalPlanRevisionStore.makeRevisionRow(in: context, goalID: goal.id, sourceSessionID: nil,
-                        revisionNumber: Int(priorRow.revisionNumber) + 1, baseRevisionID: priorRow.id, operationID: UUID(), effectiveFrom: Date(), payload: next, legacySummary: nil)
+                        revisionNumber: Int(priorRow?.revisionNumber ?? 0) + 1, baseRevisionID: priorRow?.id, operationID: UUID(), effectiveFrom: Date(), payload: next, legacySummary: nil)
                 }
             }
             try context.save()
@@ -269,6 +297,31 @@ final class GoalRepository: ObservableObject {
             throw error
         }
         loadGoals()
+    }
+
+    private func updateResultBindings(in plan: inout GoalPlanPayloadV2, previous: GoalPlanResultSourceV2?) {
+        let replaced = Set([previous?.sourceID, previous?.ledgerScope?.accountID].compactMap { $0 })
+        plan.bindings.removeAll { binding in
+            binding.role == .result && !binding.isGoalOwned && binding.entityID.map { replaced.contains($0) } == true
+        }
+        guard let source = plan.resultSource else { return }
+        let type: GoalPlanBindingEntityType
+        let id: UUID
+        if source.sourceType == .habit, let habitID = source.sourceID {
+            type = .habit
+            id = habitID
+        } else if source.sourceType == .ledger, let accountID = source.ledgerScope?.accountID {
+            type = .account
+            id = accountID
+        } else {
+            return
+        }
+        guard !plan.bindings.contains(where: { $0.isActive && $0.entityType == type && $0.entityID == id }) else { return }
+        plan.bindings.append(GoalPlanBindingV2(
+            id: GoalPlanBindingV2.stableID(entityType: type, entityID: id), entityType: type,
+            entityID: id, role: .result, effectiveFrom: source.baselineObservedAt,
+            isGoalOwned: false
+        ))
     }
 
     func linkTask(_ task: TodoTask, to goal: Goal) throws {

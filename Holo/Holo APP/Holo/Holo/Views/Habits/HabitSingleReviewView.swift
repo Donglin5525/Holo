@@ -85,9 +85,10 @@ struct HabitSingleReviewView: View {
         .sheet(isPresented: $rangeSheetShown) { rangeSheet }
         .sheet(item: $editingRecord) { target in
             if let record = findRecord(target.recordId) {
+                let day = record.attributedDay(dayEndMinutes: snapshot?.dayEndMinutes ?? 0)
                 HabitRecordEditSheet(
                     record: record,
-                    kind: snapshot?.info.kind ?? .checkIn,
+                    kind: snapshot?.info.kind(on: day) ?? .checkIn,
                     unit: snapshot?.info.unit
                 ) { value, note in
                     await model.record(kind: .updateRecord(recordId: target.recordId,
@@ -1165,13 +1166,13 @@ struct HabitSingleReviewView: View {
         let snap = HabitReviewProjector.rangeSnapshot(info: info, range: selectedRange, data: data)
         snapshot = snap
         comparison = HabitReviewProjector.periodComparison(snapshot: snap, data: data)
-        switch info.kind {
+        switch snap.info.kind {
         case .checkIn: trend = HabitReviewProjector.checkInTrend(snapshot: snap, data: data)
         case .count: trend = HabitReviewProjector.countTrend(snapshot: snap, data: data)
         case .measure: trend = nil
         }
         // 测量型大数字的回落值：全量最近一次（范围内没记时也说得出上次是多少）
-        if info.kind == .measure {
+        if snap.info.kind == .measure {
             let allSnap = HabitReviewProjector.rangeSnapshot(info: info, range: .all, data: data)
             latestOverall = allSnap.latestMeasure.map { (value: $0.value, day: $0.day) }
         } else {

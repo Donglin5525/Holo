@@ -6,6 +6,10 @@ struct HoloGrowthView: View {
     @State private var showRules = false
     @State private var nextMetric: HoloGrowthMetric?
     @State private var selectedEvent: HoloGrowthMilestone?
+    /// 人生年鉴（2026-11-22 从记忆长廊迁来）：今年怎么过的
+    @StateObject private var almanacStore = MemoryAlmanacStore()
+    @State private var almanacSelectedDay: Date?
+    @State private var showAlmanacShare = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onOpenModule: @MainActor @Sendable (DeepLinkTarget) -> Void
 
@@ -22,6 +26,9 @@ struct HoloGrowthView: View {
                 }
                 if let snapshot = service.snapshot {
                     HoloGrowthHero(days: snapshot.recordedDays, isSyncing: service.isDownloading)
+                    if snapshot.recordedDays > 0, let almanac = almanacStore.almanac {
+                        almanacCard(almanac)
+                    }
                     if snapshot.recordedDays > 0 || !service.isDownloading {
                         metricList(snapshot)
                         if let next = stableNext(snapshot) {
@@ -67,13 +74,42 @@ struct HoloGrowthView: View {
         .sheet(item: $selectedEvent) { event in
             NavigationStack { HoloGrowthMilestoneView(event: event, service: service) }
         }
+        .sheet(isPresented: $showAlmanacShare) {
+            if let almanac = almanacStore.almanac {
+                MemoryAlmanacShareSheet(almanac: almanac)
+            }
+        }
+        .task { await almanacStore.load() }
         .task {
             await service.refresh()
             if nextMetric == nil { nextMetric = service.snapshot?.next?.metric }
         }
-        .refreshable { await service.refresh() }
+        .refreshable {
+            await service.refresh()
+            await almanacStore.load()
+        }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: service.snapshot?.recordedDays)
         .accessibilityIdentifier("growth.overview")
+    }
+
+    /// 人生年鉴紧凑版：累计大数字之下讲「今年」；选中某天可跳到长廊时间线的那一天
+    private func almanacCard(_ almanac: MemoryAlmanacYear) -> some View {
+        MemoryAlmanacCard(
+            almanac: almanac,
+            earliestYear: almanacStore.earliestYear,
+            selectedDate: almanacSelectedDay,
+            onSelectDate: { almanacSelectedDay = $0 },
+            onChangeYear: { year in
+                almanacSelectedDay = nil
+                Task { await almanacStore.load(year: year) }
+            },
+            onShare: { showAlmanacShare = true },
+            showsHero: false,
+            onOpenDay: { day in
+                MemoryGalleryDayRequest.shared.request(day)
+                onOpenModule(.memoryGallery(focusNewMemories: false))
+            }
+        )
     }
 
     private func stableNext(_ snapshot: HoloGrowthSnapshot) -> HoloGrowthProgress? {

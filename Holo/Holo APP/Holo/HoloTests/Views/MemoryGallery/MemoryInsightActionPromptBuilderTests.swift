@@ -56,4 +56,42 @@ final class MemoryInsightActionPromptBuilderTests: XCTestCase {
 
         XCTAssertNil(MemoryInsightActionPromptBuilder.chatPrefill(for: action, card: card))
     }
+
+    func testInsightFollowUpContextInjectsIntoChatIntentAndCloudBrief() {
+        let insightID = UUID(uuidString: "44444444-4444-4444-4444-444444444441")!
+        let followUp = HoloInsightFollowUpContext(
+            insightID: insightID,
+            periodLabel: "本周观察",
+            periodRange: "11月15日 - 11月21日",
+            title: "早睡日的外卖消费明显更克制",
+            summary: "过去两周作息与餐饮支出存在明显联动。",
+            cards: [
+                .init(
+                    title: "早睡日的外卖消费明显更克制",
+                    body: "过去两周，你在 23:30 前入睡的日子里，次日餐饮与外卖支出比平时低了 18%。"
+                )
+            ]
+        )
+
+        var context = UserContext.empty
+        let section = InsightFollowUpContextSection()
+        XCTAssertNil(section.chatBlock(context), "未挂载洞察追问时不应注入 chatBlock")
+        XCTAssertNil(section.intentBlock(context), "未挂载洞察追问时不应注入 intentBlock")
+
+        context.insightFollowUp = followUp
+        let chatBlock = section.chatBlock(context)
+        XCTAssertNotNil(chatBlock)
+        XCTAssertTrue(chatBlock?.contains("早睡日的外卖消费明显更克制") == true)
+        XCTAssertTrue(chatBlock?.contains("次日餐饮与外卖支出比平时低了 18%") == true)
+        XCTAssertTrue(chatBlock?.contains("11月15日 - 11月21日") == true)
+
+        let intentBlock = section.intentBlock(context)
+        XCTAssertNotNil(intentBlock)
+        XCTAssertTrue(intentBlock?.contains("不得触发 clarification") == true)
+
+        let cloudBrief = followUp.makeCloudAnalysisBrief()
+        XCTAssertTrue(cloudBrief.contains("本周观察 · 11月15日 - 11月21日"))
+        XCTAssertTrue(cloudBrief.contains("次日餐饮与外卖支出比平时低了 18%"))
+        XCTAssertEqual(followUp.previewBody, "过去两周，你在 23:30 前入睡的日子里，次日餐饮与外卖支出比平时低了 18%。")
+    }
 }

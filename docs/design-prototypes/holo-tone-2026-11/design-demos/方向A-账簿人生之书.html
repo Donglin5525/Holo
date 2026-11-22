@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 基调探索 · 方向A 账簿·人生之书</title>
+<script src="vendor/react.js"></script>
+<script src="vendor/react-dom.js"></script>
+<script src="vendor/babel.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Serif SC','Songti SC','STSong', serif; background: #E9E2D2; color: #26221C; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+/* ---------- IosFrame（skill 标准设备框，勿改） ---------- */
+const iosFrameStyles = {
+  wrapper: { display:'inline-block', padding:12, background:'#000', borderRadius:60, boxShadow:'0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)', position:'relative' },
+  screen: { position:'relative', borderRadius:48, overflow:'hidden', background:'#fff' },
+  statusBar: { position:'absolute', top:0, left:0, right:0, height:54, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', fontSize:16, fontWeight:600, fontFamily:'-apple-system, "SF Pro Text", sans-serif', zIndex:20, pointerEvents:'none' },
+  dynamicIsland: { position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', width:124, height:36, background:'#000', borderRadius:999, zIndex:30 },
+  statusIcons: { display:'flex', alignItems:'center', gap:6 },
+  signalIcon: { display:'flex', alignItems:'flex-end', gap:2, height:12 },
+  signalBar: { width:3, background:'currentColor', borderRadius:1 },
+  batteryIcon: { width:26, height:12, border:'1.5px solid currentColor', borderRadius:3, padding:1, position:'relative', opacity:0.8 },
+  batteryCap: { position:'absolute', top:3, right:-3, width:2, height:6, background:'currentColor', borderRadius:'0 1px 1px 0' },
+  content: { position:'absolute', top:54, left:0, right:0, bottom:34, overflow:'auto' },
+  homeIndicator: { position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', width:140, height:5, background:'rgba(0,0,0,0.3)', borderRadius:999, zIndex:10 },
+  homeIndicatorDark: { background:'rgba(255,255,255,0.5)' },
+};
+function IosFrame({ children, width=393, height=852, time='9:41', battery=85, darkMode=false }) {
+  const textColor = darkMode ? '#fff' : '#000';
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{...iosFrameStyles.screen, width, height, background: darkMode ? '#000' : '#fff'}}>
+        <div style={{...iosFrameStyles.statusBar, color:textColor}}>
+          <span>{time}</span>
+          <div style={iosFrameStyles.statusIcons}>
+            <div style={iosFrameStyles.signalIcon}>
+              <div style={{...iosFrameStyles.signalBar, height:4}}/><div style={{...iosFrameStyles.signalBar, height:6}}/><div style={{...iosFrameStyles.signalBar, height:9}}/><div style={{...iosFrameStyles.signalBar, height:11}}/>
+            </div>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{color:textColor}}>
+              <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+              <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round"/>
+              <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.7"/>
+            </svg>
+            <div style={iosFrameStyles.batteryIcon}>
+              <div style={{width:`${battery}%`, height:'100%', background:'currentColor', borderRadius:1, opacity:0.9}}/>
+              <div style={iosFrameStyles.batteryCap}/>
+            </div>
+          </div>
+        </div>
+        <div style={iosFrameStyles.dynamicIsland}/>
+        <div style={iosFrameStyles.content}>{children}</div>
+        <div style={{...iosFrameStyles.homeIndicator, ...(darkMode ? iosFrameStyles.homeIndicatorDark : {})}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 方向A 色彩与字体系统 ---------- */
+const tomeC = {
+  paper: '#F5F0E4',      // 暖纸底
+  ink: '#29241B',        // 墨黑
+  inkSoft: '#6E6553',    // 次墨
+  hairline: '#D8CFBB',   // 界栏细线
+  cinnabar: '#B23B2A',   // 朱砂（全页唯一强调色）
+  paperDeep: '#EDE6D4',
+};
+
+/* 虚构示例数据（非真实） */
+const tomeData = {
+  nov: {
+    label: '十一月', income: 18500, spend: 12860, rest: 5640,
+    prevSpend: 14520, delta: -0.114,
+    cats: [
+      { name:'餐饮', amount:3860, note:'外卖三十八单，较上月少十二单' },
+      { name:'房住', amount:3200, note:'房租如常' },
+      { name:'购物', amount:2680, note:'吸尘器一千八百九十九，为月内最大一笔' },
+      { name:'娱乐', amount:1580, note:'连续两月回落' },
+      { name:'交通', amount:1240, note:'地铁为主' },
+      { name:'其他', amount:300, note:'' },
+    ],
+    days: [380,120,760,540,90,620,950,320,80,460,620,60,40,780,350,540,70,680,1899,50,300,410,60,460,470,850,0,280,290,331],
+    peakNote: '十九日 · 吸尘器',
+  },
+  oct: {
+    label: '十月', income: 17200, spend: 14520, rest: 2680,
+    prevSpend: 13100, delta: +0.108,
+    cats: [
+      { name:'餐饮', amount:4620, note:'外卖五十单' },
+      { name:'房住', amount:3200, note:'房租如常' },
+      { name:'购物', amount:3510, note:'秋装两批' },
+      { name:'娱乐', amount:1840, note:'演唱会一场' },
+      { name:'交通', amount:1010, note:'打车偏多' },
+      { name:'其他', amount:340, note:'' },
+    ],
+    days: [420,150,890,600,110,700,1050,360,90,520,680,70,50,860,390,600,80,750,1680,60,340,450,70,520,520,980,120,320,340,750],
+    peakNote: '十九日 · 秋装一批',
+  },
+};
+
+/* ---------- 手机屏：月账簿一页 ---------- */
+const tomeScreenStyles = {
+  page: { background: tomeC.paper, minHeight: '100%', padding: '34px 22px 60px 24px', fontFamily: "'Noto Serif SC','Songti SC','STSong', serif", color: tomeC.ink, position: 'relative' },
+  bookSpine: { position:'absolute', left:0, top:0, bottom:0, width:7, background:'linear-gradient(90deg, rgba(0,0,0,0.10), rgba(0,0,0,0.02))' },
+  monthRow: { display:'flex', alignItems:'flex-end', justifyContent:'space-between', borderBottom:`1.5px solid ${tomeC.ink}`, paddingBottom:10 },
+  monthBig: { fontSize:40, fontWeight:900, letterSpacing:6, lineHeight:1 },
+  monthSub: { fontFamily:"'Cormorant Garamond', serif", fontStyle:'italic', fontSize:15, color:tomeC.inkSoft, letterSpacing:1 },
+  ledgerHead: { display:'flex', justifyContent:'space-between', fontSize:12, color:tomeC.inkSoft, letterSpacing:3, marginTop:14, marginBottom:2 },
+  restBlock: { marginTop:18, display:'flex', alignItems:'flex-start', justifyContent:'space-between' },
+  restNumCol: {},
+  restLabel: { fontSize:13, letterSpacing:6, color:tomeC.ink, fontWeight:600 },
+  restNum: { fontSize:54, fontWeight:900, letterSpacing:1, marginTop:4, fontVariantNumeric:'tabular-nums' },
+  restNumUnit: { fontSize:16, fontWeight:400, color:tomeC.inkSoft, marginLeft:4, letterSpacing:2 },
+  restDelta: { marginTop:6, fontSize:13.5, color:tomeC.inkSoft, letterSpacing:1 },
+  seal: { marginTop:6, width:58, height:58, background:tomeC.cinnabar, color:'#F7F1E2', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, fontWeight:700, transform:'rotate(-3deg)', borderRadius:4, boxShadow:`0 0 0 1px rgba(178,59,42,0.25), 1px 2px 0 rgba(178,59,42,0.35)`, cursor:'pointer', letterSpacing:0 },
+  incomeSpendRow: { display:'flex', gap:26, marginTop:14, fontSize:13.5 },
+  incomeSpendItem: { display:'flex', alignItems:'baseline', gap:7 },
+  incomeSpendLabel: { color:tomeC.inkSoft, letterSpacing:3 },
+  incomeSpendVal: { fontWeight:700, fontSize:17, fontVariantNumeric:'tabular-nums' },
+  flowSection: { marginTop:26 },
+  sectionTitle: { display:'flex', alignItems:'center', gap:10, fontSize:12.5, letterSpacing:5, color:tomeC.ink, fontWeight:600 },
+  sectionTitleLine: { flex:1, height:1, background:tomeC.hairline },
+  catList: { marginTop:6 },
+  catRow: { display:'flex', alignItems:'center', padding:'13px 0 12px', borderBottom:`1px solid ${tomeC.hairline}`, cursor:'pointer' },
+  catName: { width:52, fontSize:16, fontWeight:600, letterSpacing:3 },
+  catNote: { flex:1, fontSize:12, color:tomeC.inkSoft, letterSpacing:0.5, lineHeight:1.5, paddingRight:8 },
+  catAmount: { fontSize:16, fontWeight:700, fontVariantNumeric:'tabular-nums' },
+  catBarTrack: { height:3, background:tomeC.paperDeep, marginTop:5 },
+  catBar: { height:3, background:tomeC.ink, transition:'width 0.5s ease' },
+  marginNote: { marginTop:24, borderLeft:`2px solid ${tomeC.ink}`, paddingLeft:12, fontSize:13, lineHeight:2, color:tomeC.ink, letterSpacing:1 },
+  marginNoteLabel: { fontSize:11, letterSpacing:4, color:tomeC.inkSoft, marginBottom:4 },
+  monthTabs: { position:'sticky', top:0, display:'flex', gap:0, background:tomeC.paper, paddingTop:2, paddingBottom:10, zIndex:5 },
+  monthTab: { fontSize:14, letterSpacing:3, padding:'5px 16px', cursor:'pointer', color:tomeC.inkSoft, borderBottom:'2px solid transparent' },
+  monthTabActive: { color:tomeC.ink, fontWeight:700, borderBottom:`2px solid ${tomeC.ink}` },
+};
+
+function DayBars({ days, peakNote, w=330, h=78 }) {
+  const max = Math.max(...days);
+  const peakIdx = days.indexOf(max);
+  const bw = 8, gap = (w - bw*30) / 29;
+  return (
+    <svg width={w} height={h} style={{display:'block', marginTop:10}}>
+      {days.map((v,i)=>{
+        const bh = Math.max(2, (v/max)*(h-22));
+        const x = i*(bw+gap);
+        return <rect key={i} x={x.toFixed(1)} y={(h-8-bh).toFixed(1)} width={bw} height={bh.toFixed(1)}
+          fill={tomeC.ink} opacity={i===peakIdx?1:(0.28+0.5*(v/max))} rx={1}/>;
+      })}
+      <line x1="0" y1={h-8} x2={w} y2={h-8} stroke={tomeC.hairline} strokeWidth="1"/>
+      <text x={Math.min(peakIdx*(bw+gap)+4, w-6).toFixed(1)} y="9" textAnchor="end" fontSize="9.5"
+        fill={tomeC.inkSoft} fontFamily="'Noto Sans SC','Songti SC',sans-serif" letterSpacing="1">{peakNote}</text>
+    </svg>
+  );
+}
+
+function TomeScreen() {
+  const [month, setMonth] = useState('nov');
+  const [cat, setCat] = useState(0);
+  const d = tomeData[month];
+  const maxCat = Math.max(...d.cats.map(c=>c.amount));
+  const deltaTxt = d.delta < 0 ? `用度较上月收敛 ${Math.abs(Math.round(d.delta*100))}%` : `用度较上月增加 ${Math.round(d.delta*100)}%`;
+  const cn = (n) => n.toLocaleString('zh-Hans-CN');
+  return (
+    <div style={tomeScreenStyles.page}>
+      <div style={tomeScreenStyles.bookSpine}/>
+      <div style={tomeMonthTabsWrap}>
+        <div style={tomeScreenStyles.monthTab} onClick={()=>{setMonth('oct'); setCat(0);}}>
+          <span style={month==='oct'?tomeScreenStyles.monthTabActive:{}}>十月</span>
+        </div>
+        <div style={tomeScreenStyles.monthTab} onClick={()=>{setMonth('nov'); setCat(0);}}>
+          <span style={month==='nov'?tomeScreenStyles.monthTabActive:{}}>十一月</span>
+        </div>
+        <div style={{flex:1}}/>
+        <div style={{fontSize:12, color:tomeC.inkSoft, letterSpacing:2, paddingTop:7, fontFamily:"'Noto Sans SC', sans-serif"}}>岁次丙午 · 第十一页</div>
+      </div>
+
+      <div style={tomeScreenStyles.monthRow}>
+        <div style={tomeScreenStyles.monthBig}>{d.label}</div>
+        <div style={tomeScreenStyles.monthSub}>MMXXVI<br/>{month==='nov'?'NOV':'OCT'}</div>
+      </div>
+
+      <div style={tomeScreenStyles.restBlock}>
+        <div style={tomeScreenStyles.restNumCol}>
+          <div style={tomeScreenStyles.restLabel}>本月所余</div>
+          <div style={tomeScreenStyles.restNum}>
+            {cn(d.rest)}<span style={tomeScreenStyles.restNumUnit}>元</span>
+          </div>
+          <div style={tomeScreenStyles.restDelta}>{deltaTxt}，{month==='nov'?'冬衣添置两回，未伤大体。':'秋装两批，用度稍纵。'}</div>
+          <div style={tomeScreenStyles.incomeSpendRow}>
+            <div style={tomeScreenStyles.incomeSpendItem}>
+              <span style={tomeScreenStyles.incomeSpendLabel}>进</span>
+              <span style={tomeScreenStyles.incomeSpendVal}>{cn(d.income)}</span>
+            </div>
+            <div style={tomeScreenStyles.incomeSpendItem}>
+              <span style={tomeScreenStyles.incomeSpendLabel}>出</span>
+              <span style={tomeScreenStyles.incomeSpendVal}>{cn(d.spend)}</span>
+            </div>
+          </div>
+        </div>
+        <div style={tomeScreenStyles.seal} title="月末讫">{month==='nov'?'讫':'阅'}</div>
+      </div>
+
+      <div style={tomeScreenStyles.flowSection}>
+        <div style={tomeScreenStyles.sectionTitle}>
+          <span>每日用度</span><div style={tomeScreenStyles.sectionTitleLine}/>
+        </div>
+        <DayBars days={d.days} peakNote={d.peakNote}/>
+        <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:tomeC.inkSoft, marginTop:4, fontFamily:"'Noto Sans SC', sans-serif", letterSpacing:1}}>
+          <span>初一</span><span>望</span><span>晦</span>
+        </div>
+      </div>
+
+      <div style={{...tomeScreenStyles.flowSection, marginTop:24}}>
+        <div style={tomeScreenStyles.sectionTitle}>
+          <span>出入明细</span><div style={tomeScreenStyles.sectionTitleLine}/>
+        </div>
+        <div style={tomeScreenStyles.catList}>
+          {d.cats.map((c,i)=>(
+            <div key={c.name} style={tomeScreenStyles.catRow} onClick={()=>setCat(i)}>
+              <div style={{width:'100%'}}>
+                <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between'}}>
+                  <span style={{...tomeScreenStyles.catName, ...(cat===i?{fontWeight:900}:{})}}>{c.name}</span>
+                  <span style={{...tomeScreenStyles.catAmount, ...(cat===i?{fontWeight:900}:{})}}>{cn(c.amount)}</span>
+                </div>
+                <div style={tomeScreenStyles.catBarTrack}>
+                  <div style={{...tomeScreenStyles.catBar, width:`${(c.amount/maxCat)*100}%`, opacity: cat===i? 1 : 0.72, height: cat===i? 4:3}}/>
+                </div>
+                {cat===i && c.note && (
+                  <div style={{fontSize:12, color:tomeC.inkSoft, marginTop:7, lineHeight:1.6, letterSpacing:0.5}}>{c.note}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={tomeScreenStyles.marginNote}>
+        <div style={tomeScreenStyles.marginNoteLabel}>Holo 旁注</div>
+        {month==='nov'
+          ? '外卖三十八单，较上月少十二单；理发仍是同一间店，第三个月了。娱乐支出连续两月回落，生活正在慢下来。'
+          : '打车十二次，多在雨夜；演唱会一场，值回票价。十月用度偏纵，十一月已见收敛。'}
+      </div>
+    </div>
+  );
+}
+const tomeMonthTabsWrap = { display:'flex', alignItems:'center', gap:4, marginBottom:14 };
+
+/* ---------- 展示板 ---------- */
+const boardStyles = {
+  board: { minHeight:'100vh', background:'#E9E2D2', padding:'56px 64px 72px', position:'relative', overflow:'hidden' },
+  boardDeco: { position:'absolute', right:36, top:56, writingMode:'vertical-rl', fontSize:15, letterSpacing:14, color:'rgba(41,36,27,0.34)', fontWeight:600 },
+  boardDeco2: { position:'absolute', right:70, top:56, writingMode:'vertical-rl', fontSize:15, letterSpacing:14, color:'rgba(178,59,42,0.45)', fontWeight:600 },
+  head: { marginBottom:36 },
+  headKicker: { fontFamily:"'Cormorant Garamond', serif", fontStyle:'italic', fontSize:15, color:'#6B6150', letterSpacing:2 },
+  headTitle: { fontSize:42, fontWeight:900, letterSpacing:8, marginTop:6 },
+  headSub: { fontSize:14.5, color:'#6E6553', marginTop:10, letterSpacing:2, lineHeight:1.9, maxWidth:560 },
+  stage: { display:'flex', gap:44, alignItems:'flex-start', flexWrap:'wrap' },
+  phoneLabel: { fontSize:13, color:'#6B6150', letterSpacing:3, marginBottom:12 },
+  featureCol: { flex:1, minWidth:300, maxWidth:430, display:'flex', flexDirection:'column', gap:22, paddingTop:6 },
+  featureCard: { background:'#F5F0E4', border:'1px solid #D8CFBB', padding:'20px 22px', position:'relative' },
+  featureTag: { position:'absolute', top:-9, left:16, background:'#B23B2A', color:'#F7F1E2', fontSize:11, letterSpacing:3, padding:'2px 10px', fontFamily:"'Noto Sans SC', sans-serif" },
+  featureTitle: { fontSize:16, fontWeight:700, letterSpacing:3, marginTop:4 },
+  featureBody: { fontSize:14, color:'#6E6553', lineHeight:1.9, marginTop:6, letterSpacing:0.5 },
+  specimenRow: { display:'flex', alignItems:'baseline', gap:14, marginTop:10 },
+};
+
+function FeatureCard({ tag, title, children }) {
+  return (
+    <div style={boardStyles.featureCard}>
+      <div style={boardStyles.featureTag}>{tag}</div>
+      <div style={boardStyles.featureTitle}>{title}</div>
+      <div style={boardStyles.featureBody}>{children}</div>
+    </div>
+  );
+}
+
+function Board() {
+  return (
+    <div style={boardStyles.board}>
+      <div style={boardStyles.boardDeco}>人生之书</div>
+      <div style={boardStyles.boardDeco2}>月月一页</div>
+      <div style={boardStyles.head}>
+        <div style={boardStyles.headKicker}>Holo · Direction A</div>
+        <div style={boardStyles.headTitle}>账簿 · 人生之书</div>
+        <div style={boardStyles.headSub}>
+          月报不是一张数据卡片，是一页账簿。界栏行代替卡片列表，衬线大字立起层级，
+          朱砂全页只落一处——月末所余。Holo 已有的印章与暖纸资产，在这里长成整套语法。
+        </div>
+      </div>
+      <div style={boardStyles.stage}>
+        <div>
+          <div style={boardStyles.phoneLabel}>载体 · 财务月报页（点月份与明细行可交互）</div>
+          <IosFrame><TomeScreen/></IosFrame>
+        </div>
+        <div style={boardStyles.featureCol}>
+          <FeatureCard tag="语法一" title="界栏行，不是卡片">
+            明细不装箱：一条细界栏隔一行，留白靠行距撑开。信息密度不降，模板感消失。
+          </FeatureCard>
+          <FeatureCard tag="语法二" title="朱砂只落一处">
+            全页唯一强调色给「本月所余」，旁注、警示、分类一律墨色。重要的东西自然最亮。
+          </FeatureCard>
+          <FeatureCard tag="语法三" title="数字也会说话">
+            <div style={boardStyles.specimenRow}>
+              <span style={{fontSize:34, fontWeight:900}}>5,640</span>
+              <span style={{fontSize:15, color:'#6E6455', fontFamily:"'Cormorant Garamond', serif", fontStyle:'italic'}}>-11.4% 收敛</span>
+            </div>
+            衬线大数字配一句账簿批注，先说人话，再给数。
+          </FeatureCard>
+          <FeatureCard tag="嗓音" title="文案像批注，不像报表">
+            「冬衣添置两回，未伤大体」——Holo 的 AI 旁注用账房先生的口气，落在页脚旁注栏。
+          </FeatureCard>
+          <FeatureCard tag="落地成本" title="从 Holo 已有资产长出来">
+            暖纸底、印章红、衬线字、界栏式明细行——四样都在现役设计系统里（Background / holoSealRed /
+            holoSerifTitle / Divider），这个方向不是换血，是把散落的资产编成一套语法。
+          </FeatureCard>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Board/>);
+</script>
+</body>
+</html>

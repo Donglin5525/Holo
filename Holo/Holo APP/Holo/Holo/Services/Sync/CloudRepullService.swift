@@ -52,6 +52,7 @@ final class CloudRepullService: ObservableObject {
         ("Transaction", String(localized: "交易")),
         ("Thought", String(localized: "想法")),
         ("Habit", String(localized: "习惯")),
+        ("HabitFolder", String(localized: "习惯文件夹")),
         ("HabitRecord", String(localized: "习惯打卡")),
         ("CheckItem", String(localized: "清单项")),
         ("Goal", String(localized: "目标")),

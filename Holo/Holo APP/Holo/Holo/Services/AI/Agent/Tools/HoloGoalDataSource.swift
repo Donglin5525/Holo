@@ -49,7 +49,8 @@ struct HoloDefaultGoalDataSource: HoloGoalDataSource {
     /// 量化目标指标快照：进度每次展示时实时计算（单一事实来源），非量化/源失效返回 nil
     @MainActor
     private static func metricSnapshot(for goal: Goal) -> HoloGoalMetricSnapshot? {
-        guard let progress = GoalMetricEvaluator.evaluate(goal: goal) else { return nil }
+        guard goal.metricSourceEnum != .healthKit,
+              let progress = GoalMetricEvaluator.evaluate(goal: goal) else { return nil }
         return HoloGoalMetricSnapshot(
             kind: goal.goalKindEnum.rawValue,
             source: goal.metricSourceEnum.rawValue,

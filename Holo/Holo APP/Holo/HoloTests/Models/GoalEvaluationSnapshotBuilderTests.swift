@@ -190,7 +190,20 @@ final class GoalEvaluationSnapshotBuilderTests: XCTestCase {
                                                 budgetRepository: budget,
                                                 habitRepository: habits,
                                                 calendar: calendar)
-        CoreDataTestSupport.retain(builder)
+    }
+
+    func testResultObservationKeepsLocalProgressFieldsOutOfWirePayload() throws {
+        let result = GoalResultObservation(
+            status: .observed, sourceKind: .habit, sourceLabel: "体重",
+            value: 65, unit: "kg", targetValue: 65, baselineValue: 75,
+            progressFraction: 1, isAchieved: true, comparison: .trendDown
+        )
+        let bytes = try JSONEncoder().encode(result)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        XCTAssertEqual(payload["value"] as? Double, 65)
+        XCTAssertEqual(payload["progressFraction"] as? Double, 1)
+        XCTAssertNil(payload["isAchieved"])
+        XCTAssertNil(payload["comparison"])
     }
 
     // MARK: - 夹具

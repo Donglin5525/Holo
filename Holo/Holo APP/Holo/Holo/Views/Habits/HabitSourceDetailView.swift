@@ -51,6 +51,9 @@ struct HabitSourceDetailView: View {
                 Group {
                 if let habit, !habit.isDeleted, habit.deletedAt == nil {
                     sourceHeader(habit)
+                    if habit.isMeasureType {
+                        recordActions(for: habit)
+                    }
                     if habit.isBadHabit || habit.isCheckInType || habit.isCountType {
                         sourceTabs
                     }
@@ -73,18 +76,9 @@ struct HabitSourceDetailView: View {
                                 .contextMenu { Button("删除这条记录", role: .destructive) { deleteID = row.id } }
                         }
                     }
-                    VStack(spacing: 0) {
-                        Button(habit.isCheckInType ? (HabitRepository.shared.findTodayCheckInRecord(for: habit)?.isCompleted == true ? "撤回今天的打卡" : "记录今天已做到") : "记录本次数值") {
-                            if habit.isCheckInType {
-                                Task { let saved = await model.record(kind: .toggleCheckIn, habitId: route.habitID); reload(); if !saved { error = "没有保存成功，请重试" } }
-                            } else { editor = .numeric }
-                        }.buttonStyle(GoalJourneyPrimaryStyle()).disabled(habit.isPaused || habit.isArchived)
-                        if !habit.isBadHabit {
-                            Button("补录过去的记录") { editor = .retro }
-                                .goalJourneyText(.supporting).foregroundStyle(GoalJourneyStyle.action)
-                                .frame(maxWidth: .infinity, minHeight: 44).disabled(habit.isPaused || habit.isArchived)
-                        }
-                    }.padding(.top, 16)
+                    if !habit.isMeasureType {
+                        recordActions(for: habit)
+                    }
                     if !usages.isEmpty {
                         Text("被这些目标使用").goalJourneyText(.body).foregroundStyle(Color.holoToolTextSecondary).padding(.top, 20).padding(.bottom, 6)
                         ForEach(usages) { usage in
@@ -141,13 +135,28 @@ struct HabitSourceDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in goals.loadGoals() }
     }
 
+    private func recordActions(for habit: Habit) -> some View {
+        VStack(spacing: 0) {
+            Button(habit.isCheckInType ? (HabitRepository.shared.findTodayCheckInRecord(for: habit)?.isCompleted == true ? "撤回今天的打卡" : "记录今天已做到") : "记录本次数值") {
+                if habit.isCheckInType {
+                    Task { let saved = await model.record(kind: .toggleCheckIn, habitId: route.habitID); reload(); if !saved { error = "没有保存成功，请重试" } }
+                } else { editor = .numeric }
+            }.buttonStyle(GoalJourneyPrimaryStyle()).disabled(habit.isPaused || habit.isArchived)
+            if !habit.isBadHabit {
+                Button("补录过去的记录") { editor = .retro }
+                    .goalJourneyText(.supporting).foregroundStyle(GoalJourneyStyle.action)
+                    .frame(maxWidth: .infinity, minHeight: 44).disabled(habit.isPaused || habit.isArchived)
+            }
+        }.padding(.top, 16)
+    }
+
     private func sourceHeader(_ habit: Habit) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("习惯 · 原模块明细").goalJourneyText(.metadata).foregroundStyle(Color.holoToolTextSecondary).padding(.top, 8)
             Text("\(GoalAnalysisSection.dayText(route.start))–\(GoalAnalysisSection.dayText(route.endExclusive.addingTimeInterval(-1)))")
                 .goalJourneyText(.heading).padding(.top, 7)
             Text(summary(habit)).goalJourneyText(.amount).monospacedDigit().padding(.top, 12).accessibilityIdentifier("habit-source-summary")
-            Text(route.metric == .eventCount ? "次数按原记录条数计算；点某条改数值，误记请删除那一条。" : (route.metric == .latest || (route.metric == nil && habit.isMeasureType)) ? "显示最新一次真实测量。" : "汇总由下面的原始记录计算；修改具体记录后会重新计算。")
+            Text(route.metric == .eventCount ? "次数按原记录条数计算；点某条改数值，误记请删除那一条。" : usesLatestValue(habit) ? "显示最新一次真实测量。" : "汇总由下面的原始记录计算；修改具体记录后会重新计算。")
                 .goalJourneyText(.supporting).foregroundStyle(Color.holoToolTextSecondary).lineSpacing(5).padding(.vertical, 11)
             if habit.isBadHabit {
                 Text("\(confirmations.values.filter { $0.isValid && $0.status != .asOf }.count) / \(days(habit).count) 天已明确确认；其余只显示已记录量。")
@@ -218,7 +227,9 @@ struct HabitSourceDetailView: View {
         switch target {
         case .record(let id):
             if let record = record(id), let habit {
-                HabitRecordEditSheet(record: record, kind: habit.isCheckInType ? .checkIn : habit.isMeasureType ? .measure : .count, unit: habit.unit) { value, note in
+                let day = record.attributedDay(dayEndMinutes: habit.dayEndMinutes)
+                let kind: HabitRowKind = habit.isCheckInType ? .checkIn : (habit.isCountType(on: day) ? .count : .measure)
+                HabitRecordEditSheet(record: record, kind: kind, unit: habit.unit) { value, note in
                     await model.record(kind: .updateRecord(recordId: id, value: value, note: note), habitId: route.habitID)
                 }
             }
@@ -266,10 +277,17 @@ struct HabitSourceDetailView: View {
         if habit.isCheckInType, eligible.isEmpty, !confirmations.values.contains(where: { $0.isValid }) { return "尚未记录完成情况" }
         if route.metric == .eventCount { return "\(eligible.count) 次" }
         if route.metric == .recordedDays || (route.metric == nil && habit.isCheckInType) { return "\(Set(eligible.map(\.day)).count) 天有记录" }
-        let values = rows.compactMap(\.value)
-        let latest = route.metric == .latest || (route.metric == nil && habit.isMeasureType)
+        let latest = usesLatestValue(habit)
+        let values = rows.lazy.filter {
+            latest || route.metric != nil || habit.cumulativeStartDay == nil || habit.isCountType(on: $0.day)
+        }.compactMap(\.value).filter(\.isFinite)
         let value = latest ? values.first : values.isEmpty ? nil : values.reduce(0, +)
         return value.map { HabitPresentationProjector.formatValue($0) + " " + habit.unitText } ?? "尚无测量"
+    }
+
+    private func usesLatestValue(_ habit: Habit) -> Bool {
+        let lastDay = min(habit.currentDay(), Calendar.current.startOfDay(for: route.endExclusive.addingTimeInterval(-1)))
+        return route.metric == .latest || (route.metric == nil && habit.isNumericType && !habit.isCountType(on: lastDay))
     }
     private func days(_ habit: Habit) -> [Date] {
         var day = Calendar.current.startOfDay(for: max(route.start, habit.createdAt))

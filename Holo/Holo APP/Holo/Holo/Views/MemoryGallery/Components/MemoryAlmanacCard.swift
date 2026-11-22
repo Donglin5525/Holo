@@ -2,7 +2,8 @@
 //  MemoryAlmanacCard.swift
 //  Holo
 //
-//  记忆长廊 · 洞察 Tab 的「人生年鉴」卡（2026-11-21 取代 13 周活跃热力图）。
+//  「人生年鉴」卡。2026-11-21 首版放在记忆长廊洞察 Tab；2026-11-22 按《记忆长廊减法设计》
+//  退役出长廊，移到个人页「我的积累」（紧凑版：页面已有累计大数字，卡片不再重复大数字）。
 //  定稿 D：12 条目录式月度条（长度 = 当月记录天数占比）+ 点开某月展开每日刻度；
 //  按住滑动选日 → 由外部展示「当天轨迹」。刻意不用圆点阵列，避免密集恐惧感。
 //  方案：docs/_common/plans/2026-11-21-记忆长廊年鉴卡/01-方案.md
@@ -19,6 +20,10 @@ struct MemoryAlmanacCard: View {
     let onChangeYear: (Int) -> Void
     /// 为 nil 时不显示分享按钮
     var onShare: (() -> Void)? = nil
+    /// false = 紧凑版：不显示衬线大数字，天数并入副行（所在页面已有累计大数字时使用）
+    var showsHero: Bool = true
+    /// 选中某天后显示「在长廊里看这一天 ›」；为 nil 时不显示
+    var onOpenDay: ((Date) -> Void)? = nil
 
     @State private var expandedMonth: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -31,12 +36,16 @@ struct MemoryAlmanacCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            hero.padding(.top, HoloSpacing.xs)
-            Text(subtitle)
-                .holoText(.metadata)
-                .foregroundStyle(Color.holoToolTextSecondary)
-                .monospacedDigit()
-                .padding(.top, 2)
+            if showsHero {
+                hero.padding(.top, HoloSpacing.xs)
+                Text(subtitle)
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .monospacedDigit()
+                    .padding(.top, 2)
+            } else {
+                compactSummary.padding(.top, HoloSpacing.xs)
+            }
             months.padding(.top, HoloSpacing.md)
             legend.padding(.top, HoloSpacing.sm)
             Text(hint)
@@ -44,6 +53,9 @@ struct MemoryAlmanacCard: View {
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .monospacedDigit()
                 .padding(.top, HoloSpacing.xs)
+            if let onOpenDay, let selectedDate {
+                openDayButton { onOpenDay(selectedDate) }
+            }
         }
         .padding(HoloSpacing.md)
         .holoSurface(.independent)
@@ -97,6 +109,45 @@ struct MemoryAlmanacCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "\(String(almanac.year)) 年，\(almanac.recordedDays) 天有记录，共 \(almanac.totalCount) 件事"))
+    }
+
+    /// 紧凑版摘要：「今年 315 天有记录 · 共 1,977 件事」，天数用衬线（与「我的积累」大数字同一语气）
+    private var compactSummary: some View {
+        let days = Text(verbatim: "\(almanac.recordedDays)")
+            .font(.holoHeroNumber(size: 17))
+            .foregroundColor(.holoToolText)
+        let total = almanac.totalCount.formatted()
+        let line: Text
+        if let start = almanac.startDate {
+            line = Text("今年 \(days) 天有记录 · 从 \(Self.monthDay(start)) 开始")
+        } else if almanac.dayOfYear != nil {
+            line = Text("今年 \(days) 天有记录 · 共 \(total) 件事")
+        } else {
+            line = Text("\(days) 天有记录 · 共 \(total) 件事")
+        }
+        return line
+            .holoText(.metadata)
+            .foregroundStyle(Color.holoToolTextSecondary)
+            .monospacedDigit()
+            .accessibilityLabel(String(localized: "\(String(almanac.year)) 年，\(almanac.recordedDays) 天有记录，共 \(almanac.totalCount) 件事"))
+    }
+
+    private func openDayButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text("在长廊里看这一天")
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption)
+            }
+            .holoText(.supporting)
+            .fontWeight(.medium)
+            .foregroundStyle(Color.holoToolAction)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, HoloSpacing.sm)
+        .overlay(alignment: .top) { Divider().padding(.top, HoloSpacing.xs) }
     }
 
     private var subtitle: String {

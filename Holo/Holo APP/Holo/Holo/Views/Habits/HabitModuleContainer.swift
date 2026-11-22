@@ -12,6 +12,7 @@ import SwiftUI
 struct HabitModuleContainer: View {
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.holoDismiss) private var holoDismiss
     @Environment(\.holoContentWidth) private var holoContentWidth
     private var isExpandedWidth: Bool {
@@ -54,7 +55,7 @@ struct HabitModuleContainer: View {
                 case .today:
                     HabitTodayView(
                         model: model,
-                        onOpenAddHabit: { addHabitDraft = HabitPrefillDraft() },
+                        onOpenAddHabit: { addHabitDraft = HabitPrefillDraft(folderID: $0) },
                         onOpenTodayRecords: { todayRecordTarget = $0 },
                         // 长按菜单「编辑习惯」（§9 同款节拍：菜单收起后再开编辑表单）
                         onOpenHabitSettings: { openSettingsAfterSheetDismiss($0) },
@@ -149,6 +150,12 @@ struct HabitModuleContainer: View {
         .onAppear {
             model.warmUp()
             handleDeepLink(deepLinkState.pendingTarget)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            model.refresh()
         }
         .onChange(of: deepLinkState.pendingTarget) { _, target in
             handleDeepLink(target)

@@ -43,6 +43,12 @@ struct HabitModuleOptionsSheet: View {
                               identifier: "habit.options.lifecycle") {
                         navigate(.lifecycle)
                     }
+                    optionRow(icon: "folder",
+                              title: String(localized: "管理文件夹"),
+                              subtitle: String(localized: "按主题整理今天的习惯"),
+                              identifier: "habit.options.folders") {
+                        navigate(.folders)
+                    }
                     optionRow(icon: "arrow.up.arrow.down",
                               title: String(localized: "今天列表排序"),
                               subtitle: String(localized: "只调整进行中的习惯"),
@@ -85,6 +91,7 @@ struct HabitModuleOptionsSheet: View {
                                                    onOpenSingleReview: onOpenSingleReview,
                                                    onOpenSettings: onOpenSettings)
                 case .sort: SortPage(model: model)
+                case .folders: HabitFolderManagementPage(model: model)
                 case .reviewVisibility: VisibilityPage(model: model, kind: .review)
                 case .dashboardVisibility: VisibilityPage(model: model, kind: .dashboard)
                 case .reminders: HabitReminderDetailView()
@@ -112,7 +119,7 @@ struct HabitModuleOptionsSheet: View {
     }
 
     enum Page: Hashable {
-        case lifecycle, sort, reviewVisibility, dashboardVisibility, reminders, data
+        case lifecycle, folders, sort, reviewVisibility, dashboardVisibility, reminders, data
     }
 
     private func navigate(_ page: Page) {

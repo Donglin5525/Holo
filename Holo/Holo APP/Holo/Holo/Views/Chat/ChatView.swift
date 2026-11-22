@@ -658,15 +658,24 @@ struct ChatView: View {
         #endif
     }
 
-    /// 消费 .memoryInsight 深链（首页洞察胶囊 / 系统通知）：
-    /// 在聊天流直接打开该洞察的回放卡片，落已读后首页胶囊让位下一条候选。
+    /// 消费 .memoryInsight / .insightFollowUp 深链（首页洞察胶囊 / 系统通知 / 小组件「追问 Holo」）：
+    /// - .memoryInsight：在聊天流直接打开该洞察的回放卡片，落已读后首页胶囊让位下一条候选；
+    /// - .insightFollowUp：反查完整 MemoryInsight 挂载到输入栏承接条，确保追问自带完整上下文。
     /// 无论目标洞察是否还可用都先清空 pendingTarget，避免残留目标反复触发导航。
     private func consumeInsightDeepLink() {
-        guard case .memoryInsight(let insightId) = deepLinkState.pendingTarget else { return }
-        deepLinkState.pendingTarget = nil
-        selectedPageTab = .chat
-        Task {
-            await viewModel.openScheduledInsight(id: insightId)
+        switch deepLinkState.pendingTarget {
+        case .memoryInsight(let insightId):
+            deepLinkState.pendingTarget = nil
+            selectedPageTab = .chat
+            Task {
+                await viewModel.openScheduledInsight(id: insightId)
+            }
+        case .insightFollowUp(let insightId, let fallbackPrefill):
+            deepLinkState.pendingTarget = nil
+            selectedPageTab = .chat
+            viewModel.prepareInsightFollowUp(id: insightId, fallbackPrefill: fallbackPrefill)
+        default:
+            return
         }
     }
 

@@ -358,12 +358,16 @@ struct HoloPortraitInsightsSection: View {
         store = HoloPortraitSynthesisRuntime.loadStore()
         isSynthesizing = false
         if let err = result.errorMessage {
-            statusBanner = "更新失败：\(err.prefix(60))"
+            // 技术报错只进日志，绝不向普通用户暴露 invalidJSON 等程序术语。
+            NSLog("[HoloPortraitInsightsSection] 手动更新洞察失败: %@", err)
+            statusBanner = "这次分析暂时没成功，请稍后再试"
         } else if let reason = result.skipReason {
             statusBanner = reason
         } else if let report = result.applyReport {
             if mode == .confirmed && store.pendingReviewCount > 0 {
-                statusBanner = "发现 \(store.pendingReviewCount) 条待确认洞察"
+                statusBanner = "发现 \(store.pendingReviewCount) 条新洞察，去「值得确认」看看"
+            } else if report.upsertedKeys.isEmpty {
+                statusBanner = "当前画像已是最新，暂无新增洞察"
             } else {
                 statusBanner = "已更新 \(report.upsertedKeys.count) 条画像与洞察"
             }

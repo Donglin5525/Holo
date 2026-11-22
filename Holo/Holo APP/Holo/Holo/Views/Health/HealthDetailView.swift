@@ -62,6 +62,7 @@ struct HealthDetailView: View {
                             if let sleepDetail, sleepDetail.hasStageData {
                                 if let sleepTimeline {
                                     SleepTimelineCard(timeline: sleepTimeline, detail: sleepDetail)
+                                        .daySwipeExcluded()
                                 }
                                 SleepStagesCard(detail: sleepDetail)
                             } else if let sleepDetail, sleepDetail.totalHours > 0 {
@@ -80,6 +81,7 @@ struct HealthDetailView: View {
 
                         if type == .steps, let hourlySteps {
                             DailyActivityPatternCard(hourly: hourlySteps)
+                                .daySwipeExcluded()
                         }
 
                         if type == .workout {
@@ -155,6 +157,7 @@ struct HealthDetailView: View {
         }
         .padding(HoloSpacing.md)
         .holoSurface()
+        .daySwipeExcluded()
     }
 
     private var detailHeader: some View {

@@ -318,6 +318,7 @@ final class GoalReviewCoordinator: ObservableObject {
     nonisolated static func isReviewDue(goalID: UUID, now: Date = Date(), calendar: Calendar = .current,
                                         in context: NSManagedObjectContext) -> Bool {
         guard let payload = GoalPlanRevisionStore.latestRevisionRow(goalID: goalID, in: context)?.planPayloadV2,
+              payload.resultSource?.sourceType != .healthKit,
               let review = payload.review, let cadence = review.cadenceDays, cadence > 0 else { return false }
         let request = NSFetchRequest<GoalReviewLinkMO>(entityName: "GoalReviewLinkMO")
         request.predicate = NSPredicate(format: "goalID == %@ AND statusRaw == %@ AND deletedAt == nil",

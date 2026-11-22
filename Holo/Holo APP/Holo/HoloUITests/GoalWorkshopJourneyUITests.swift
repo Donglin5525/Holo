@@ -50,7 +50,7 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
         }
     }
 
-    private func openWorkshopMenu(_ app: XCUIApplication) {
+    private func openCreateForm(_ app: XCUIApplication) {
         let newButton = app.buttons["新建目标"].firstMatch
         XCTAssertTrue(newButton.waitForExistence(timeout: 8), "新建菜单应可见")
         newButton.tap()
@@ -58,8 +58,8 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
 
     /// 进共创流程；若存在上次会话残留，先「换个新的想法」另建
     private func enterWorkshopFresh(_ app: XCUIApplication) {
-        openWorkshopMenu(app)
-        let workshopItem = app.buttons["一起想清楚"].firstMatch
+        openCreateForm(app)
+        let workshopItem = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "和 HoloAI 一起想")).firstMatch
         XCTAssertTrue(workshopItem.waitForExistence(timeout: 6), "开闸后应显示「一起想清楚」入口")
         workshopItem.tap()
         let fresh = app.buttons["换个新的想法"].firstMatch
@@ -111,8 +111,8 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
         app.buttons["关闭"].firstMatch.tap()
 
         // 再次进入：恢复卡出现「继续」
-        openWorkshopMenu(app)
-        app.buttons["一起想清楚"].firstMatch.tap()
+        openCreateForm(app)
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "和 HoloAI 一起想")).firstMatch.tap()
         let resume = app.buttons["继续"].firstMatch
         XCTAssertTrue(resume.waitForExistence(timeout: 8), "退出再进应给继续入口")
         resume.tap()
@@ -122,8 +122,8 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
 
         // 放弃：清掉会话
         app.buttons["关闭"].firstMatch.tap()
-        openWorkshopMenu(app)
-        app.buttons["一起想清楚"].firstMatch.tap()
+        openCreateForm(app)
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "和 HoloAI 一起想")).firstMatch.tap()
         let discard = app.buttons["放弃规划"].firstMatch
         if discard.waitForExistence(timeout: 6) {
             discard.tap()
@@ -145,11 +145,13 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
         app.launchArguments = ["GOAL_WORKSHOP_UI_MOCK"]
         app.launch()
         openGoalList(app)
-        openWorkshopMenu(app)
+        openCreateForm(app)
 
-        XCTAssertFalse(app.buttons["一起想清楚"].waitForExistence(timeout: 3), "关闸时不应显示新入口")
-        XCTAssertTrue(app.buttons["让 HoloAI 规划"].firstMatch.waitForExistence(timeout: 6), "旧规划入口应保留")
-        XCTAssertTrue(app.buttons["手动创建"].firstMatch.waitForExistence(timeout: 4), "手动创建应保留")
+        XCTAssertTrue(app.buttons["创建目标"].firstMatch.waitForExistence(timeout: 6))
+        let plan = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "和 HoloAI 一起想")).firstMatch
+        XCTAssertTrue(plan.waitForExistence(timeout: 4))
+        plan.tap()
+        XCTAssertFalse(app.buttons["先跳过这个问题"].firstMatch.waitForExistence(timeout: 3), "关闸时应使用旧规划入口")
     }
 
     func testVisualAuditConfirmPageAllResultSources() throws {

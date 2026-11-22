@@ -60,15 +60,21 @@ struct GoalPlanConfirmation: Equatable {
             let aggregation: GoalHabitAggregationKind = draft.goalKind == .cumulative ? .sum : .latest
             let kind: GoalResultSourceKind
             switch draft.metricSource {
-            case .manual, .healthKit: kind = .manual
+            case .manual: kind = .manual
+            case .healthKit: kind = .healthKit
             case .habit: kind = .habit
             case .ledger: kind = .ledger
             }
             let comparison: GoalResultComparison
-            if draft.goalKind == .target, let target = draft.metricTargetValue, let baseline = draft.metricBaselineValue, target < baseline {
-                comparison = .trendDown
+            if let explicitComparison = draft.metricComparison {
+                comparison = explicitComparison
             } else if draft.habits.contains(where: { $0.isBadHabit == true && $0.successRule == "stayBelowTarget" }) {
                 comparison = .stayBelow
+            } else if draft.goalKind == .target {
+                let inferred = GoalResultComparison.inferredTarget(title: draft.title, unit: draft.metricUnit,
+                    healthMetric: draft.healthMetricKind, baseline: draft.metricBaselineValue, target: draft.metricTargetValue)
+                // 旧 AI 草案缺少手建表单的方向选择，上升时沿用已有的直接达标口径。
+                comparison = inferred == .trendDown ? .trendDown : .reach
             } else {
                 comparison = .reach
             }
@@ -79,12 +85,15 @@ struct GoalPlanConfirmation: Equatable {
                 aggregation: aggregation,
                 comparison: comparison,
                 targetValue: draft.metricTargetValue,
-                baselineValue: draft.goalKind == .target ? draft.metricBaselineValue : nil,
-                baselineObservedAt: now,
+                baselineValue: draft.goalKind == .target && kind != .healthKit ? draft.metricBaselineValue : nil,
+                baselineObservedAt: draft.goalKind == .cumulative ? draft.metricStartDate ?? now : now,
                 freshnessDays: aggregation == .latest ? 14 : nil,
                 // 表单选定的账本范围随草案进计划（2026-11-14）：全账本/指定账户净结余增加/账户余额
                 ledgerScope: kind == .ledger ? draft.ledgerScope : nil,
-                isPending: kind == .habit && draft.sourceHabitId == nil
+                isPending: (kind == .habit && draft.sourceHabitId == nil) || (kind == .healthKit && draft.healthMetricKind == nil),
+                healthMetricKind: kind == .healthKit ? draft.healthMetricKind : nil,
+                countsFromBaseline: kind == .habit && aggregation == .sum && draft.metricComparison != nil ? true : nil,
+                comparisonIsExplicit: draft.metricComparisonIsExplicit
             )
         }
         return GoalPlanConfirmation(
@@ -107,7 +116,7 @@ struct GoalPlanConfirmation: Equatable {
         var confirmation = defaults(from: plan.draft, successEvidence: plan.successEvidence, now: now)
         confirmation.originalWish = plan.draft.desiredOutcome ?? plan.draft.summary
 
-        if let source = plan.resultSource, let kind = GoalResultSourceKind(rawValue: source.sourceType) {
+        if let source = plan.resultSource, let kind = GoalResultSourceKind(rawValue: source.sourceType), kind != .healthKit {
             var sourceID: UUID?
             var pending = source.isPending ?? false
             var ledgerScope: GoalLedgerScopePayload?
@@ -131,7 +140,7 @@ struct GoalPlanConfirmation: Equatable {
                 } else {
                     ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
                 }
-            case .manual:
+            case .manual, .healthKit:
                 break
             }
             let aggregation = source.aggregation.flatMap(GoalHabitAggregationKind.init(rawValue:))

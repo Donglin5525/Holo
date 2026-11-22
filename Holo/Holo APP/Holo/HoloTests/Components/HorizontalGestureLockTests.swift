@@ -124,4 +124,72 @@ final class HorizontalGestureLockTests: XCTestCase {
             FinanceDetailSortOrder.timeAscending.areInIncreasingOrder(older, newer)
         )
     }
+
+    // MARK: - DaySwipeContainer 豁免区与子手势锁
+
+    func testDaySwipeExclusionPolicyExcludesLeftEdgeAndChartFrames() {
+        let trendCard = CGRect(x: 16, y: 260, width: 358, height: 220)
+        let timelineCard = CGRect(x: 16, y: 520, width: 358, height: 180)
+        let frames = [trendCard, timelineCard, .zero]
+
+        // 左缘 24pt 内让位给边缘返回
+        XCTAssertTrue(
+            DaySwipeExclusionPolicy.shouldExclude(
+                startLocation: CGPoint(x: 12, y: 120),
+                edgeExclusionWidth: 24,
+                excludedFrames: frames
+            )
+        )
+        // 趋势图卡片内起手应豁免切天
+        XCTAssertTrue(
+            DaySwipeExclusionPolicy.shouldExclude(
+                startLocation: CGPoint(x: 180, y: 360),
+                edgeExclusionWidth: 24,
+                excludedFrames: frames
+            )
+        )
+        // 睡眠时间轴卡片内起手应豁免切天
+        XCTAssertTrue(
+            DaySwipeExclusionPolicy.shouldExclude(
+                startLocation: CGPoint(x: 220, y: 600),
+                edgeExclusionWidth: 24,
+                excludedFrames: frames
+            )
+        )
+        // 顶部摘要卡片（非图表、非左缘）放行切天
+        XCTAssertFalse(
+            DaySwipeExclusionPolicy.shouldExclude(
+                startLocation: CGPoint(x: 180, y: 120),
+                edgeExclusionWidth: 24,
+                excludedFrames: frames
+            )
+        )
+        // 两张卡片之间的间隙放行切天
+        XCTAssertFalse(
+            DaySwipeExclusionPolicy.shouldExclude(
+                startLocation: CGPoint(x: 180, y: 500),
+                edgeExclusionWidth: 24,
+                excludedFrames: frames
+            )
+        )
+    }
+
+    func testDaySwipeGestureStateChildGestureLockIsReferenceCountedAndClamped() {
+        let state = DaySwipeGestureState()
+        XCTAssertFalse(state.isChildGestureActive)
+
+        state.beginChildGesture()
+        XCTAssertTrue(state.isChildGestureActive)
+
+        state.beginChildGesture()
+        state.endChildGesture()
+        XCTAssertTrue(state.isChildGestureActive)
+
+        state.endChildGesture()
+        XCTAssertFalse(state.isChildGestureActive)
+
+        // 重复释放不会下溢成负数
+        state.endChildGesture()
+        XCTAssertFalse(state.isChildGestureActive)
+    }
 }

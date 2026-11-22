@@ -10,6 +10,7 @@ import CoreData
 import Combine
 
 struct GoalListView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var repository = GoalRepository.shared
     let onPlanGoal: () -> Void
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
@@ -19,6 +20,7 @@ struct GoalListView: View {
 
     /// 手动创建目标
     @State private var showManualCreate = false
+    @State private var pendingPlanningTitle: String?
 
     /// 目标共创（一起想清楚）流程
     @State private var goalWorkshopLaunch: GoalWorkshopLaunch?
@@ -93,39 +95,16 @@ struct GoalListView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
-                Menu {
-                    if workshopEnabled {
-                        Button {
-                            goalWorkshopLaunch = .new(seedText: nil)
-                        } label: {
-                            Label("一起想清楚", systemImage: "lightbulb")
-                        }
-                    }
-                    Button {
-                        onPlanGoal()
-                    } label: {
-                        Label("去 AI 对话里规划", systemImage: "smallcircle.filled.circle")
-                    }
-                    Divider()
-                    Button {
-                        openManualCreate(prefill: nil)
-                    } label: {
-                        Label("手动创建", systemImage: "square.and.pencil")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.holoToolOnAction)
-                        .frame(width: 30, height: 30)
-                        .background(GoalJourneyStyle.action, in: Circle())
+                HoloIconButton(systemName: "plus", title: "新建目标", showsSurface: true) {
+                    openManualCreate(prefill: nil)
                 }
-                .accessibilityLabel(String(localized: "新建目标"))
+                .accessibilityIdentifier("goal-new")
             }
         }
         .sheet(item: $goalWorkshopLaunch) { launch in
             GoalWorkshopFlowView(launch: launch)
         }
-        .sheet(isPresented: $showManualCreate) {
+        .sheet(isPresented: $showManualCreate, onDismiss: openPendingPlanning) {
             GoalManualCreateSheet(
                 initialDraft: createPrefillDraft,
                 onSaved: { result in
@@ -137,6 +116,10 @@ struct GoalListView: View {
                 onCancel: {
                     showManualCreate = false
                     createPrefillDraft = nil
+                },
+                onPlan: { title in
+                    pendingPlanningTitle = title
+                    showManualCreate = false
                 }
             )
         }
@@ -206,10 +189,15 @@ struct GoalListView: View {
             #if DEBUG && targetEnvironment(simulator)
             GoalProgressUITestSeeder.seedIfNeeded()
             GoalProgressUITestSeeder.seedListStatesIfNeeded()
+            GoalProgressUITestSeeder.seedProgressSourcesIfNeeded()
             #endif
             repository.loadGoals()
             hasLoadedOnce = true
             refreshEntryState()
+        }
+        .task(id: healthRefreshKeys) { await refreshHealthGoals() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshHealthGoals(force: true) } }
         }
         .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
             refreshEntryState()
@@ -406,9 +394,10 @@ struct GoalListView: View {
     /// 「再来一轮」预填草案（规格 A4）：复制标题/类型/数字与来源链路；
     /// 期限不继承（旧期限多半已过），落库时领域按标题重新认领；
     /// 达标型不继承旧基线（红队 U3）：旧「现在」多半已过期，预填后开屏 100%，
-    /// 由 GoalEditForm 入场按当前余额/最新记录重取（applyAutoBaselineForPrefilledDraft）
+    /// 由 GoalEditForm 入场按当前余额或最新记录重取。
     static func newRoundDraft(from goal: Goal) -> GoalDraft {
-        GoalDraft(
+        let resultSource = goal.managedObjectContext.flatMap { GoalPlanResolver.resultConfiguration(goal: goal, in: $0).source }
+        return GoalDraft(
             id: UUID().uuidString,
             title: goal.title,
             summary: nil,
@@ -426,7 +415,10 @@ struct GoalListView: View {
             metricTargetValue: goal.metricTargetValueDouble,
             metricBaselineValue: nil,
             sourceHabitId: goal.sourceHabitId,
-            ledgerScope: goal.metricSourceEnum == .ledger ? goal.ledgerScopePayload : nil
+            ledgerScope: goal.metricSourceEnum == .ledger ? GoalEditForm.prefilledLedgerScope(of: goal) : nil,
+            healthMetricKind: goal.healthMetricKindEnum,
+            metricComparison: resultSource?.comparison,
+            metricComparisonIsExplicit: resultSource?.comparisonIsExplicit
         )
     }
 
@@ -484,46 +476,16 @@ struct GoalListView: View {
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .padding(.top, 8)
             Button {
-                if workshopEnabled {
-                    goalWorkshopLaunch = .new(seedText: nil)
-                } else {
-                    onPlanGoal()
-                }
+                openManualCreate(prefill: nil)
             } label: {
-                Text(workshopEnabled ? String(localized: "和 Holo 一起想清楚") : String(localized: "让 HoloAI 规划"))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.holoToolOnAction)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .background(GoalJourneyStyle.action, in: RoundedRectangle(cornerRadius: 14))
+                Text("新建目标").frame(maxWidth: .infinity)
             }
-            .buttonStyle(HoloPressStyle())
-            .padding(.top, 28)
-            emptyStateLinks
-                .padding(.top, 18)
+            .buttonStyle(HoloActionStyle(role: .primary))
+            .padding(.top, HoloSpacing.lg)
         }
         .padding(.horizontal, GoalJourneyStyle.pageInset)
         .padding(.top, 80)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-
-    /// 关闸去重（v2）：主按钮已是「让 HoloAI 规划」时链接只留「手动创建」
-    private var emptyStateLinks: some View {
-        HStack(spacing: 22) {
-            if workshopEnabled {
-                Button {
-                    onPlanGoal()
-                } label: {
-                    Text("或让 HoloAI 规划").underline()
-                }
-            }
-            Button {
-                openManualCreate(prefill: nil)
-            } label: {
-                Text("手动创建").underline()
-            }
-        }
-        .font(.system(size: 13))
-        .foregroundStyle(Color.holoToolTextSecondary)
     }
 
     // MARK: - 恢复条（规格 A0/A11：行动色 8% 底、圆角 12、继续胶囊 + 小 X 放弃）
@@ -599,6 +561,20 @@ struct GoalListView: View {
         refreshReviewDueState()
     }
 
+    private var healthRefreshKeys: [String] {
+        repository.goals.renderable.compactMap { goal in
+            guard let kind = goal.healthMetricKindEnum, goal.goalStatus != .completed else { return nil }
+            return "\(goal.id)/\(kind.rawValue)/\(goal.baselineDate ?? goal.createdAt)"
+        }
+    }
+
+    private func refreshHealthGoals(force: Bool = false) async {
+        for goal in repository.goals.renderable where goal.goalStatus != .completed {
+            guard !Task.isCancelled else { return }
+            await GoalHealthKitCache.shared.refreshIfNeeded(for: goal, force: force)
+        }
+    }
+
     private func refreshCardFacts() {
         guard CoreDataStack.shared.isReady else { return }
         for goal in repository.goals where !goal.isDeleted && goal.deletedAt == nil {
@@ -659,6 +635,20 @@ struct GoalListView: View {
         }
     }
 
+    private func openPendingPlanning() {
+        createPrefillDraft = nil
+        guard let title = pendingPlanningTitle else { return }
+        pendingPlanningTitle = nil
+        let seed = title.isEmpty ? nil : title
+        if workshopEnabled {
+            goalWorkshopLaunch = .new(seedText: seed)
+        } else if let seed {
+            onOpenLinkedEntity(.chat(prefill: seed))
+        } else {
+            onPlanGoal()
+        }
+    }
+
     /// 打开手动创建 sheet；prefill 非空=「再来一轮」预填（长按菜单进入）
     private func openManualCreate(prefill: GoalDraft?) {
         createPrefillDraft = prefill
@@ -680,30 +670,47 @@ private struct GoalEditRoute: Identifiable {
 struct GoalManualCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: GoalDraft
+    @State private var showDiscardDraft = false
     @State private var isSaving = false
     @State private var saveError: String?
     /// 是否存在活跃账本账户（红队 U1）：无账户时账本源不可保存（恒 0% 目标）；
     /// 与 GoalEditForm.loadAccounts 同源，onAppear 取一次不在 body 里反复 fetch
     @State private var hasActiveLedgerAccounts = true
 
+    private let initialDraft: GoalDraft
     let onSaved: (GoalDraftSaveResult) -> Void
     let onCancel: () -> Void
+    let onPlan: (String) -> Void
 
     /// 预填草案（列表「再来一轮」入口传入）；nil=空白创建
     init(
         initialDraft: GoalDraft? = nil,
         onSaved: @escaping (GoalDraftSaveResult) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        onPlan: @escaping (String) -> Void
     ) {
-        self._draft = State(initialValue: initialDraft ?? GoalEditForm.emptyDraft())
+        let draft = initialDraft ?? GoalEditForm.emptyDraft()
+        self.initialDraft = draft
+        self._draft = State(initialValue: draft)
         self.onSaved = onSaved
         self.onCancel = onCancel
+        self.onPlan = onPlan
     }
 
     private var canSave: Bool {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
+    }
+
+    private var hasDraftChanges: Bool {
+        var edited = draft
+        if edited.metricSource != .manual { edited.metricBaselineValue = initialDraft.metricBaselineValue }
+        if edited.metricComparisonIsExplicit != true {
+            edited.metricComparison = initialDraft.metricComparison
+            edited.metricComparisonIsExplicit = initialDraft.metricComparisonIsExplicit
+        }
+        return edited != initialDraft
     }
 
     /// 禁用文案（规格 B0 + 红队 U1）：随输入即时消失
@@ -714,22 +721,26 @@ struct GoalManualCreateSheet: View {
     var body: some View {
         HoloSheetScaffold(
             title: String(localized: "新建目标"),
-            onClose: {
-                onCancel()
-                dismiss()
-            },
-            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "创建"),
+            onClose: closeDraft,
+            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "创建目标"),
             primaryAction: { save() },
             primaryDisabled: !canSave,
-            primaryHint: disabledHint,
-            primaryActionColor: GoalJourneyStyle.action,
-            footerBackground: GoalJourneyStyle.sheetFooterCream
+            primaryHint: disabledHint
         ) {
             ScrollView(showsIndicators: false) {
-                GoalEditForm(draft: $draft)
-                    .padding(.horizontal, HoloSpacing.page)
-                    .padding(.top, 4)
-                    .padding(.bottom, 20)
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    GoalEditForm(draft: $draft)
+                    Button {
+                        onPlan(draft.title.trimmingCharacters(in: .whitespacesAndNewlines))
+                    } label: {
+                        Label("和 HoloAI 一起想", systemImage: "smallcircle.filled.circle")
+                            .holoText(.supporting)
+                            .frame(minHeight: 44)
+                    }
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                }
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.bottom, HoloSpacing.page)
             }
             .scrollDismissesKeyboard(.interactively)
         }
@@ -737,6 +748,11 @@ struct GoalManualCreateSheet: View {
             hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
         }
         .presentationDetents([.large])
+        .interactiveDismissDisabled(isSaving || hasDraftChanges)
+        .sheetDismissGuard { if !isSaving && hasDraftChanges { showDiscardDraft = true } }
+        .unsavedChangesAlert(isPresented: $showDiscardDraft, message: String(localized: "目标还没创建，退出会丢掉这次填写的内容。")) {
+            discardDraft()
+        }
         .alert("保存失败", isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
@@ -747,6 +763,16 @@ struct GoalManualCreateSheet: View {
         }
     }
 
+    private func closeDraft() {
+        guard !isSaving else { return }
+        if hasDraftChanges { showDiscardDraft = true } else { discardDraft() }
+    }
+
+    private func discardDraft() {
+        onCancel()
+        dismiss()
+    }
+
     private func save() {
         isSaving = true
         DispatchQueue.main.async {
@@ -755,7 +781,11 @@ struct GoalManualCreateSheet: View {
                 // AI 上下文开关已移至目标设置面板，创建流默认允许；
                 // 领域按标题自动认领（S3b，规格 v3）：认领结果落库，认不出=其他
                 var draftToSave = draft
-                draftToSave.domain = GoalDomain.infer(from: draftToSave.title)
+                switch draftToSave.metricSource {
+                case .ledger: draftToSave.domain = .finance
+                case .healthKit: draftToSave.domain = .health
+                case .manual, .habit: draftToSave.domain = GoalDomain.infer(from: draftToSave.title)
+                }
                 let result = try GoalRepository.shared.saveDraft(draftToSave, allowAIContext: true, source: "manual")
                 GoalNotificationService.broadcastGoalDataChange()
                 HapticManager.success()

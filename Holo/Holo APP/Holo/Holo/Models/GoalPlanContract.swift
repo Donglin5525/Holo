@@ -23,6 +23,7 @@ enum GoalResultSourceKind: String, Codable, Equatable, Sendable {
     case manual
     case habit
     case ledger
+    case healthKit
 }
 
 /// 财务范围（§6.2）：老目标空值按 wholeLedgerDelta 解释，不静默切账户余额
@@ -59,6 +60,28 @@ enum GoalResultComparison: String, Codable, Equatable, Sendable {
     case stayBelow      // 不超过目标值（<=）
     case trendDown      // 向下趋势（减重）
     case trendUp
+
+    static func namedTargetDirection(title: String, unit: String?, healthMetric: GoalHealthMetricKind?) -> Self? {
+        let downward = ["降到", "降至", "降低到", "减到", "减至", "不超过", "低于"]
+        let upward = ["升到", "升至", "提高到", "增加到", "增到", "增至", "至少", "不低于"]
+        if title.contains("不低于") { return .trendUp }
+        if title.contains("不高于") || downward.contains(where: title.contains) { return .trendDown }
+        if upward.contains(where: title.contains) { return .trendUp }
+        let isWeight = healthMetric == .bodyMass || ["kg", "公斤", "千克", "斤", "lb", "lbs", "磅"]
+            .contains(unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "")
+        if (isWeight || healthMetric == .bodyFatPercentage)
+            && ["减肥", "减重", "瘦身", "减脂"].contains(where: title.contains) { return .trendDown }
+        if isWeight && ["增重", "增肥"].contains(where: title.contains) { return .trendUp }
+        return nil
+    }
+
+    static func inferredTarget(title: String, unit: String?, healthMetric: GoalHealthMetricKind?,
+                               baseline: Double?, target: Double?) -> Self {
+        if healthMetric == .sleepHours || healthMetric == .sleepAverage { return .reach }
+        if let named = namedTargetDirection(title: title, unit: unit, healthMetric: healthMetric) { return named }
+        if let baseline, let target, target < baseline { return .trendDown }
+        return .trendUp
+    }
 }
 
 struct GoalPlanResultSourceV2: Codable, Equatable, Sendable {
@@ -77,6 +100,11 @@ struct GoalPlanResultSourceV2: Codable, Equatable, Sendable {
     var ledgerScope: GoalLedgerScopePayload?
     /// 用户尚未选定可靠来源（§4.1「待补齐」）
     var isPending: Bool = false
+    var healthMetricKind: GoalHealthMetricKind? = nil
+    /// 手动创建的累计目标从确认来源时起计算，旧共创仍按原回顾窗口。
+    var countsFromBaseline: Bool? = nil
+    /// nil 表示旧计划，true 表示用户在表单中亲自选了方向。
+    var comparisonIsExplicit: Bool? = nil
 
     var resolvedLedgerScope: GoalLedgerScopeKind {
         ledgerScope?.kind ?? .wholeLedgerDelta
@@ -223,9 +251,9 @@ struct GoalPlanDecisionBasisV2: Codable, Equatable, Sendable {
 // MARK: - 生效计划 payload
 
 struct GoalPlanPayloadV2: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
-    var schemaVersion: Int = GoalPlanPayloadV2.currentSchemaVersion
+    var schemaVersion: Int = 3
     var intent: GoalPlanIntentV2
     var resultSource: GoalPlanResultSourceV2?
     var bindings: [GoalPlanBindingV2]
@@ -303,7 +331,11 @@ enum GoalPlanPayloadCodec {
 
     static func encode(_ payload: GoalPlanPayloadV2) throws -> String {
         var payload = payload
-        if payload.bindings.contains(where: { $0.requirement != nil }) { payload.schemaVersion = 3 }
+        if payload.resultSource?.sourceType == .healthKit {
+            payload.schemaVersion = 4
+        } else if payload.bindings.contains(where: { $0.requirement != nil }) {
+            payload.schemaVersion = max(payload.schemaVersion, 3)
+        }
         let data = try makeEncoder().encode(payload)
         guard let text = String(data: data, encoding: .utf8) else {
             throw GoalPlanContractError.encodingFailed

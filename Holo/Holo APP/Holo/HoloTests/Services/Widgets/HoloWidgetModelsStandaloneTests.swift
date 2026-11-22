@@ -27,7 +27,11 @@ struct HoloWidgetModelsStandaloneTests {
         testFinanceSnapshotComparesBudgetAgainstTimeProgress()
         testThoughtMemorySnapshotProtectsPrivateContentByDefault()
         testHabitSnapshotComputesRemaining()
+        testDeepLinkParsesNextBatchEntries()
+        testHealthSnapshotComputesProgressAndFormatting()
+        testFinanceSnapshotComputesTodayExpense()
         try testSnapshotStoreRoundTripsJSON()
+        try testSnapshotStoreResolvesInsightSelection()
         print("HoloWidgetModels standalone tests passed")
     }
 
@@ -119,5 +123,112 @@ struct HoloWidgetModelsStandaloneTests {
         try store.writeQuickActions(quickActions)
 
         expect(store.readQuickActions() == quickActions, "快照存储应能读回快捷动作 JSON")
+
+        let health = HoloWidgetHealthSnapshot.sample(date: Date(timeIntervalSince1970: 0))
+        try store.writeHealth(health)
+        expect(store.readHealth() == health, "快照存储应能读回健康快照 JSON")
+
+        let memory = HoloWidgetMemorySnapshot.sample(date: Date(timeIntervalSince1970: 0))
+        try store.writeMemory(memory)
+        expect(store.readMemory() == memory, "快照存储应能读回记忆长廊快照 JSON")
+    }
+
+    private static func testDeepLinkParsesNextBatchEntries() {
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://health")!) == .health, "健康小组件深链应解析为 .health")
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://home")!) == .dailyKanban, "今日全览深链应解析为 .dailyKanban")
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://memory?focus=insights")!) == .memoryGallery(focusInsights: true),
+            "记忆长廊洞察深链应解析为 focusInsights=true"
+        )
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://memory")!) == .memoryGallery(focusInsights: false),
+            "记忆长廊默认深链应解析为 focusInsights=false"
+        )
+        let id = UUID(uuidString: "44444444-4444-4444-4444-444444444441")!
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://insight/detail?id=\(id.uuidString)")!) == .memoryInsight(id: id),
+            "单条洞察深链应解析出 UUID"
+        )
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://chat?prefill=hello")!) == .chat(prefill: "hello"),
+            "AI 预填追问深链应解析出 prefill"
+        )
+        let followUpInsight = HoloWidgetInsightPoolSnapshot.sample().items[0]
+        let followUpURL = followUpInsight.askHoloDeepLink
+        let parsedFollowUp = HoloWidgetDeepLink.parse(followUpURL)
+        expect(
+            parsedFollowUp == .insightFollowUp(
+                id: followUpInsight.id,
+                fallbackPrefill: "展开说说这条发现：\(followUpInsight.title)"
+            ),
+            "小组件「追问 Holo」深链应携带 insightId 并解析为 .insightFollowUp"
+        )
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://chat?insightId=not-a-uuid&prefill=fallback")!)
+                == .chat(prefill: "fallback"),
+            "insightId 非法时应安全降级为 .chat(prefill:)"
+        )
+        let taskId = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        expect(
+            HoloWidgetDeepLink.parse(URL(string: "holo://tasks/detail?id=\(taskId.uuidString)")!) == .taskDetail(id: taskId),
+            "待办单行详情深链应解析出任务 UUID"
+        )
+        let goalSample = HoloWidgetGoalSnapshot.sample()
+        expect(goalSample.allGoals.count == 3, "目标快照示例应包含 3 个目标供 Large 总览与编辑器选用")
+    }
+
+    private static func testHealthSnapshotComputesProgressAndFormatting() {
+        let snapshot = HoloWidgetHealthSnapshot.sample(date: Date(timeIntervalSince1970: 0))
+        expect(abs(snapshot.stepsProgress - 0.9275) < 0.001, "步数进度应为 steps / stepsGoal")
+        expect(abs(snapshot.sleepProgress - 0.925) < 0.001, "睡眠进度应为 sleepHours / sleepGoalHours")
+        expect(snapshot.sleepShortText == "7.4h", "睡眠短文案应保留一位小数")
+        expect(snapshot.stepsShortText == "7.4k", "千级步数短文案应显示 k")
+    }
+
+    private static func testFinanceSnapshotComputesTodayExpense() {
+        let snapshot = HoloWidgetFinanceSnapshot(
+            monthExpense: 620,
+            monthIncome: 8_500,
+            monthBudget: 1_000,
+            dayOfMonth: 14,
+            daysInMonth: 30,
+            weekExpense: [
+                HoloWidgetDailyExpense(weekdayText: "六", amount: 50, isToday: false),
+                HoloWidgetDailyExpense(weekdayText: "今", amount: 128.5, isToday: true)
+            ],
+            topCategories: nil,
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        expect(snapshot.todayExpense == 128.5, "今日支出应取 weekExpense 中 isToday == true 的金额")
+    }
+
+    private static func testSnapshotStoreResolvesInsightSelection() throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("holo-widget-insight-tests-\(UUID().uuidString)", isDirectory: true)
+        let store = HoloWidgetSnapshotStore(directoryURL: directory)
+        let now = Date()
+        let pool = HoloWidgetInsightPoolSnapshot.sample(date: now)
+        try store.writeInsightPool(pool)
+
+        expect(store.resolvedInsightItem(on: now)?.id == pool.items[0].id, "未手选时应默认返回第一条洞察")
+
+        let picked = pool.items[1]
+        try store.writeInsightSelection(HoloWidgetInsightSelection(insightId: picked.id, date: now))
+        expect(store.resolvedInsightItem(on: now)?.id == picked.id, "当天手动换条后应返回手选洞察")
+
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now)!
+        expect(store.resolvedInsightItem(on: tomorrow)?.id == pool.items[0].id, "次日手选失效后应自动恢复第一条洞察")
     }
 }
+
+#if HOLO_XCTEST_BRIDGE
+/// 回归保护：直接对真实 CoreData SQLite Store 执行快照刷新，防 NSPredicate 引用不存在的实体字段（2026-11-22 闪退实锤）。
+@MainActor
+final class HoloWidgetSnapshotServiceTests: XCTestCase {
+    func testRefreshMemoryAndInsightSnapshotsExecuteValidCoreDataPredicates() async {
+        HoloWidgetSnapshotService.shared.refreshMemorySnapshot(force: true)
+        HoloWidgetSnapshotService.shared.refreshInsightSnapshot()
+        await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
+    }
+}
+#endif

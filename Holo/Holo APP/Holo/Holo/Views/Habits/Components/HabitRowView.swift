@@ -53,6 +53,11 @@ struct HabitRowView: View {
 
     /// 副标题（方案 §4.3）：打卡行=连续+状态；数值行=今日/周期进展+状态
     private var subtitleText: String {
+        if let inlineErrorMessage { return inlineErrorMessage }
+        if snapshot.folderID != nil, snapshot.kind == .checkIn,
+           snapshot.frequency != .daily, let period = snapshot.today.periodValueText {
+            return period
+        }
         var parts: [String] = []
         switch snapshot.kind {
         case .checkIn:
@@ -100,6 +105,7 @@ struct HabitRowView: View {
     private var showsStreakFlame: Bool {
         guard case .checkIn = snapshot.kind,
               inlineErrorMessage == nil,
+              snapshot.folderID == nil || snapshot.frequency == .daily,
               let streak = snapshot.streak else { return false }
         return streak.value > 0
     }
@@ -200,7 +206,14 @@ struct HabitRowView: View {
         case .checkIn:
             checkInButton
         case .count:
-            countControls
+            if snapshot.prefersQuantityInput {
+                HStack(spacing: 10) {
+                    if snapshot.today.isRecorded { decrementButton }
+                    measureButton
+                }
+            } else {
+                countControls
+            }
         case .measure:
             measureButton
         }
@@ -240,20 +253,7 @@ struct HabitRowView: View {
     private var countControls: some View {
         HStack(spacing: 10) {
             if snapshot.today.isRecorded {
-                // −：撤销最近一条今日记录（有记录才出现，避免「− - +」三个横线并排）
-                Button {
-                    onDecrement()
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 32, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(HoloPressStyle())
-                .disabled(isSaving)
-                .accessibilityIdentifier("habit.row.\(snapshot.id).decrement")
-                .accessibilityLabel(Text(String(localized: "撤销最近一次记录")))
+                decrementButton
 
                 Text(todayValueText)
                     .font(.system(size: 19, weight: .semibold).monospacedDigit())
@@ -280,6 +280,23 @@ struct HabitRowView: View {
         }
     }
 
+    /// 有记录才显示减号，共用原有计数行的点击区域和图标。
+    private var decrementButton: some View {
+        Button(action: onDecrement) {
+            Image(systemName: "minus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.holoToolText)
+                .frame(width: 32, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoloPressStyle())
+        .disabled(isSaving)
+        .accessibilityIdentifier("habit.row.\(snapshot.id).decrement")
+        .accessibilityLabel(Text(snapshot.prefersQuantityInput
+            ? String(localized: "撤销上一笔")
+            : String(localized: "撤销最近一次记录")))
+    }
+
     private var measureButton: some View {
         Button {
             onMeasureRecord()
@@ -296,7 +313,7 @@ struct HabitRowView: View {
                     }
                     .frame(minWidth: 56, minHeight: 44)
                 } else {
-                    Text(String(localized: "记录"))
+                    Text(snapshot.kind == .count ? String(localized: "记数量") : String(localized: "记录"))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(isOverLimit ? Color.holoError : Color(hex: snapshot.colorHex))
                         .padding(.horizontal, 16)
@@ -314,12 +331,13 @@ struct HabitRowView: View {
         .accessibilityIdentifier("habit.row.\(snapshot.id).record")
         .accessibilityLabel(Text(snapshot.today.isRecorded
             ? String(localized: "再记录一次")
-            : String(localized: "记录数值")))
+            : snapshot.kind == .count ? String(localized: "记数量") : String(localized: "记录数值")))
+        .accessibilityValue(Text(snapshot.today.isRecorded ? "\(todayValueText) \(unitText)" : ""))
     }
 
     // MARK: 数值文本
 
-    private var unitText: String { snapshot.target?.unit ?? "" }
+    private var unitText: String { snapshot.unit }
 
     private var todayValueText: String {
         guard let value = snapshot.today.todayValue else { return "-" }

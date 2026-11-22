@@ -61,6 +61,7 @@ final class HabitModuleViewModel: ObservableObject {
 
     @Published var selectedTab: Tab = .today
     @Published private(set) var todayRows: [HabitRowSnapshot] = []
+    @Published private(set) var folders: [HabitFolderSummary] = []
     @Published private(set) var pausedRows: [HabitRowSnapshot] = []
     @Published private(set) var archivedRows: [HabitRowSnapshot] = []
     /// 回顾：当前月份（模块级唯一月份持有者，V2 §A03）
@@ -152,6 +153,14 @@ final class HabitModuleViewModel: ObservableObject {
                 self?.refresh()
             }
             .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: .visualAssetsDidChange)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.repository.isReady,
+                      let folders = try? self.repository.fetchFolderSummaries() else { return }
+                self.folders = folders
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: 数据刷新（批量投影，固定窗口）
@@ -170,6 +179,7 @@ final class HabitModuleViewModel: ObservableObject {
         let facts: [HabitRecordFact]
         do {
             facts = try repository.tryAllRecordFacts()
+            folders = try repository.fetchFolderSummaries()
             reviewLoadFailed = false
         } catch {
             // 查询失败：保留旧快照并明确标记（§10 失败可表达），不拿空数据冒充无记录
@@ -269,6 +279,11 @@ final class HabitModuleViewModel: ObservableObject {
         case .confirmed(let receipt):
             // 先刷新真实快照，再呈现反馈（方案 §12.3）
             refresh()
+            if let removed = receipt.removedNumericValue {
+                let value = HabitPresentationProjector.formatValue(removed)
+                let unit = todayRows.first(where: { $0.id == habitId })?.unit ?? ""
+                HoloToastCenter.shared.show(String(localized: "已撤销上一笔 \(value) \(unit)"), type: .info)
+            }
             warnIfOverLimit(receipt: receipt)
             announceMilestoneIfCrossed(habitId: habitId)
             return true

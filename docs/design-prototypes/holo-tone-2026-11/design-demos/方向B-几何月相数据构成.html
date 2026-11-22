@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 基调探索 · 方向B 几何月相·数据构成</title>
+<script src="vendor/react.js"></script>
+<script src="vendor/react-dom.js"></script>
+<script src="vendor/babel.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700;900&family=Archivo:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans SC', sans-serif; background: #DDD6C4; color: #191712; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+/* ---------- IosFrame（skill 标准设备框，勿改） ---------- */
+const iosFrameStyles = {
+  wrapper: { display:'inline-block', padding:12, background:'#000', borderRadius:60, boxShadow:'0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)', position:'relative' },
+  screen: { position:'relative', borderRadius:48, overflow:'hidden', background:'#fff' },
+  statusBar: { position:'absolute', top:0, left:0, right:0, height:54, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 32px', fontSize:16, fontWeight:600, fontFamily:'-apple-system, "SF Pro Text", sans-serif', zIndex:20, pointerEvents:'none' },
+  dynamicIsland: { position:'absolute', top:12, left:'50%', transform:'translateX(-50%)', width:124, height:36, background:'#000', borderRadius:999, zIndex:30 },
+  statusIcons: { display:'flex', alignItems:'center', gap:6 },
+  signalIcon: { display:'flex', alignItems:'flex-end', gap:2, height:12 },
+  signalBar: { width:3, background:'currentColor', borderRadius:1 },
+  batteryIcon: { width:26, height:12, border:'1.5px solid currentColor', borderRadius:3, padding:1, position:'relative', opacity:0.8 },
+  batteryCap: { position:'absolute', top:3, right:-3, width:2, height:6, background:'currentColor', borderRadius:'0 1px 1px 0' },
+  content: { position:'absolute', top:54, left:0, right:0, bottom:34, overflow:'auto' },
+  homeIndicator: { position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', width:140, height:5, background:'rgba(0,0,0,0.3)', borderRadius:999, zIndex:10 },
+  homeIndicatorDark: { background:'rgba(255,255,255,0.5)' },
+};
+function IosFrame({ children, width=393, height=852, time='9:41', battery=85, darkMode=false }) {
+  const textColor = darkMode ? '#fff' : '#000';
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{...iosFrameStyles.screen, width, height, background: darkMode ? '#000' : '#fff'}}>
+        <div style={{...iosFrameStyles.statusBar, color:textColor}}>
+          <span>{time}</span>
+          <div style={iosFrameStyles.statusIcons}>
+            <div style={iosFrameStyles.signalIcon}>
+              <div style={{...iosFrameStyles.signalBar, height:4}}/><div style={{...iosFrameStyles.signalBar, height:6}}/><div style={{...iosFrameStyles.signalBar, height:9}}/><div style={{...iosFrameStyles.signalBar, height:11}}/>
+            </div>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{color:textColor}}>
+              <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+              <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round"/>
+              <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.7"/>
+            </svg>
+            <div style={iosFrameStyles.batteryIcon}>
+              <div style={{width:`${battery}%`, height:'100%', background:'currentColor', borderRadius:1, opacity:0.9}}/>
+              <div style={iosFrameStyles.batteryCap}/>
+            </div>
+          </div>
+        </div>
+        <div style={iosFrameStyles.dynamicIsland}/>
+        <div style={iosFrameStyles.content}>{children}</div>
+        <div style={{...iosFrameStyles.homeIndicator, ...(darkMode ? iosFrameStyles.homeIndicatorDark : {})}}/>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 方向B 色彩系统：田中一光四色 + 米纸 ---------- */
+const geoC = {
+  paper: '#F2EDE0',     // 米纸底
+  ink: '#191712',       // 墨
+  food: '#D9381E',      // 朱红 = 食
+  live: '#2D5B8E',      // 钢蓝 = 住
+  move: '#E0A526',      // 芥黄 = 行/购（大黄给购物，行用蓝灰）——见下映射
+  joy: '#191712',       // 墨黑 = 娱乐
+  moveBlue: '#7A93A8',  // 蓝灰 = 交通
+  soft: '#756D5C',
+};
+
+/* 五领域映射（Bevel 机制：选中谁，整屏氛围跟谁）+ 其他零头 */
+const geoDomains = [
+  { key:'food',  name:'食', color: geoC.food,  amount:3860, claim:'吃掉三千八', line:'外卖退潮，厨房回火' },
+  { key:'live',  name:'住', color: geoC.live,  amount:3200, claim:'房子拿走四分之一', line:'房租如常，纹丝不动' },
+  { key:'shop',  name:'购', color: geoC.move,  amount:2680, claim:'最大一笔是吸尘器', line:'1,899 元，全月之最' },
+  { key:'joy',   name:'乐', color: geoC.joy,   amount:1580, claim:'娱乐连续两月回落', line:'演唱会没去，电影三场' },
+  { key:'move2', name:'行', color: geoC.moveBlue, amount:1240, claim:'地铁为主，打车只剩两次', line:'两次都在雨夜' },
+];
+const geoOthers = { name:'其他', amount:300 };
+
+/* ---------- 手机屏：几何构成月报 ---------- */
+const geoS = {
+  page: { background: geoC.paper, minHeight:'100%', fontFamily:"'Noto Sans SC', sans-serif", color: geoC.ink, position:'relative' },
+  canvas: { position:'relative', height:378, margin:'8px 14px 0', overflow:'hidden' },
+  vertMonth: { position:'absolute', right:6, top:6, writingMode:'vertical-rl', fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:38, letterSpacing:10, color: geoC.ink, zIndex:5 },
+  vertMonthEn: { position:'absolute', right:52, top:8, writingMode:'vertical-rl', fontFamily:'Archivo, sans-serif', fontWeight:800, fontSize:12, letterSpacing:4, color: geoC.soft, zIndex:5 },
+  restBadge: { position:'absolute', left:0, bottom:6, zIndex:5 },
+  restLabel: { fontSize:11, letterSpacing:4, color: geoC.soft, fontWeight:700 },
+  restNum: { fontFamily:'Archivo, sans-serif', fontWeight:800, fontSize:44, lineHeight:1.05, letterSpacing:-0.5 },
+  restUnit: { fontSize:13, color: geoC.soft, marginLeft:3, fontFamily:"'Noto Sans SC', sans-serif" },
+  restDelta: { fontSize:12, marginTop:2, color: geoC.ink, fontWeight:700 },
+  domainTabs: { display:'flex', margin:'18px 14px 0', border:'2px solid '+geoC.ink },
+  domainTab: { flex:1, textAlign:'center', padding:'9px 0', cursor:'pointer', borderRight:'1.5px solid '+geoC.ink, transition:'all .25s' },
+  domainTabName: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:17 },
+  domainTabNum: { fontFamily:"'Archivo','Arial Narrow', sans-serif", fontWeight:700, fontSize:10.5, marginTop:2 },
+  infoSection: { padding:'20px 18px 0' },
+  infoRow: { borderTop:'3px solid', paddingTop:10, marginTop:14 },
+  infoClaim: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:24, letterSpacing:1 },
+  infoLine: { fontSize:13, color: geoC.soft, marginTop:5, letterSpacing:1 },
+  infoNumRow: { display:'flex', alignItems:'baseline', gap:10, marginTop:8 },
+  infoNum: { fontFamily:'Archivo, sans-serif', fontWeight:800, fontSize:34 },
+  infoPct: { fontFamily:'Archivo, sans-serif', fontSize:13, color: geoC.soft, fontWeight:700 },
+  scaleBar: { display:'flex', height:10, marginTop:16, margin:'16px 18px 0' },
+  scaleSeg: { height:'100%', cursor:'pointer', transition:'all .25s' },
+  scaleLabels: { display:'flex', margin:'6px 18px 0', fontSize:11, color: geoC.soft, letterSpacing:1 },
+  motto: { marginTop:26, padding:'0 18px 56px', display:'flex', alignItems:'center', gap:12 },
+  mottoSeal: { width:34, height:34, background: geoC.food, color:'#F2EDE0', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:17 },
+  mottoText: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontSize:14.5, letterSpacing:2, color: geoC.ink },
+};
+
+/* 田中一光式构成主图：SVG 网格方圆 */
+function GeoCanvas({ active }) {
+  const dim = (key) => active && active.key !== key ? 0.28 : 1;
+  return (
+    <svg viewBox="0 0 330 378" style={{position:'absolute', inset:0, width:'100%', height:'100%'}}>
+      {/* 网格基线（极淡） */}
+      {Array.from({length:7},(_,i)=>(
+        <line key={'h'+i} x1="0" y1={54*i} x2="330" y2={54*i} stroke="#191712" strokeWidth="0.5" opacity="0.07"/>
+      ))}
+      {/* 食：朱红大方块 + 内圆（主角，左中） */}
+      <g opacity={dim('food')}>
+        <rect x="8" y="100" width="150" height="150" fill={geoC.food}/>
+        <circle cx="83" cy="175" r="42" fill="#F2EDE0" opacity="0.22"/>
+      </g>
+      {/* 住：钢蓝半圆（左下，与食方块咬合） */}
+      <g opacity={dim('live')}>
+        <path d="M8 336 A74 74 0 0 1 156 336 L8 336 Z" fill={geoC.live}/>
+      </g>
+      {/* 购：芥黄横条阵（左上） */}
+      <g opacity={dim('shop')}>
+        <rect x="8" y="14" width="118" height="26" fill={geoC.move}/>
+        <rect x="8" y="44" width="84" height="26" fill={geoC.move} opacity="0.85"/>
+      </g>
+      {/* 乐：墨黑四分圆（右下） */}
+      <g opacity={dim('joy')}>
+        <path d="M190 318 A54 54 0 0 1 298 318 Z" fill={geoC.joy}/>
+      </g>
+      {/* 行：蓝灰小圆点阵（右中） */}
+      <g opacity={dim('move2')}>
+        <circle cx="238" cy="96" r="13" fill={geoC.moveBlue}/>
+        <circle cx="262" cy="96" r="13" fill={geoC.moveBlue} opacity="0.65"/>
+        <circle cx="250" cy="120" r="13" fill={geoC.moveBlue} opacity="0.4"/>
+      </g>
+      {/* 轨道细线（月相母题，食方块右侧） */}
+      <circle cx="212" cy="210" r="26" fill="none" stroke="#191712" strokeWidth="1" opacity="0.35"/>
+      <circle cx="212" cy="210" r="16" fill={geoC.joy} opacity="0.9"/>
+    </svg>
+  );
+}
+
+function GeoScreen() {
+  const [activeKey, setActiveKey] = useState('food');
+  const active = geoDomains.find(d=>d.key===activeKey) || null;
+  const total = 12860;
+  const darkText = (k) => k==='shop' ? '#B07E0F' : (k==='move2' ? '#5A7186' : (k==='joy' ? geoC.ink : active.color));
+  const yearRest = [1200,2400,1800,2900,2200,3100,2600,3400,2100,2680,5640,null];
+  return (
+    <div style={{...geoS.page, background: active ? mixPaper(active.color) : geoC.paper}}>
+      <div style={geoS.canvas}>
+        <GeoCanvas active={active}/>
+        <div style={geoS.vertMonth}>十一月</div>
+        <div style={geoS.restBadge}>
+          <div style={geoS.restLabel}>本月所余</div>
+          <div style={geoS.restNum}>5,640<span style={geoS.restUnit}>元</span></div>
+          <div style={{...geoS.restDelta, color: geoC.ink}}>▲ 较十月多 2,960</div>
+        </div>
+      </div>
+
+      <div style={geoS.domainTabs}>
+        {geoDomains.map(d=>{
+          const on = activeKey===d.key;
+          return (
+            <div key={d.key} style={{...geoS.domainTab, borderRight: d.key==='move2'?'none':'1.5px solid '+geoC.ink,
+              background: on? d.color:'transparent', color: on? (d.key==='shop'? '#191712':'#F2EDE0') : geoC.ink }}
+              onClick={()=>setActiveKey(on?null:d.key)}>
+              <div style={geoS.domainTabName}>{d.name}</div>
+              <div style={geoS.domainTabNum}>{d.amount.toLocaleString()}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={geoS.scaleBar}>
+        {geoDomains.map(d=>(
+          <div key={d.key} style={{...geoS.scaleSeg, width:`${d.amount/total*100}%`, background:d.color,
+            opacity: activeKey && activeKey!==d.key ? 0.3 : 1}} onClick={()=>setActiveKey(activeKey===d.key?null:d.key)}/>
+        ))}
+        <div style={{...geoS.scaleSeg, width:`${geoOthers.amount/total*100}%`, background:'#B8B0A0'}}/>
+      </div>
+      <div style={{...geoS.scaleLabels, display:'flex', whiteSpace:'nowrap'}}>
+        <span>{geoDomains.map(d=>`${d.name} ${Math.round(d.amount/total*100)}`).join(' · ')} · 零头 2（%）</span>
+      </div>
+
+      <div style={geoS.infoSection}>
+        {active ? (
+          <div style={{...geoS.infoRow, borderTopColor: active.color}}>
+            <div style={{...geoS.infoClaim, color: darkText(active.key)}}>{active.claim}</div>
+            <div style={geoS.infoLine}>{active.line} · 点其他领域切换，再点一次取消</div>
+            <div style={geoS.infoNumRow}>
+              <span style={{...geoS.infoNum, color: darkText(active.key)}}>{active.amount.toLocaleString()}</span>
+              <span style={geoS.infoPct}>元 / 占全月 {Math.round(active.amount/total*100)}%</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{...geoS.infoRow, borderTopColor: geoC.ink}}>
+            <div style={geoS.infoClaim}>这个月，五件事加一点零头</div>
+            <div style={geoS.infoLine}>点上面任一领域，看它在这个月的位置</div>
+          </div>
+        )}
+      </div>
+
+      <div style={{padding:'22px 18px 0'}}>
+        <div style={{fontSize:11, letterSpacing:4, color: geoC.soft, fontWeight:700, fontFamily:"'Noto Sans SC', sans-serif"}}>一年十二块 · 深浅=当月所余</div>
+        <div style={{display:'flex', gap:6, marginTop:10}}>
+          {yearRest.map((v,i)=>(
+            <div key={i} style={{
+              width:22, height:22,
+              background: v===null ? 'transparent' : `rgba(25,23,18,${(0.12+0.88*(v/5640)).toFixed(2)})`,
+              border: i===10 ? `2.5px solid ${geoC.food}` : (v===null ? '1.5px dashed #B8B0A0' : 'none'),
+              position:'relative',
+            }}>
+              {i===10 && <span style={{position:'absolute', top:-20, left:'50%', transform:'translateX(-50%)', fontSize:10, color: geoC.food, fontWeight:700, whiteSpace:'nowrap', fontFamily:"'Noto Sans SC', sans-serif"}}>今</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={geoS.motto}>
+        <div style={geoS.mottoSeal}>生</div>
+        <div style={geoS.mottoText}>每月拼一次，一年成阵 · 数据为虚构示例</div>
+      </div>
+    </div>
+  );
+}
+
+/* 选中领域时，米纸底混入极淡的该领域色（Bevel 机制） */
+function mixPaper(hex) {
+  const map = { '#D9381E':'#F4E4DD', '#2D5B8E':'#E4E9EF', '#E0A526':'#F3ECDA', '#191712':'#EAE7DE', '#7A93A8':'#E8EBEE' };
+  return map[hex] || geoC.paper;
+}
+
+/* ---------- 展示板 ---------- */
+const bBoard = {
+  board: { minHeight:'100vh', background:'#DDD6C4', padding:'0', fontFamily:"'Noto Sans SC', sans-serif", color:'#191712' },
+  topBand: { background:'#D9381E', color:'#F2EDE0', padding:'52px 64px 44px', display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:20 },
+  topKicker: { fontFamily:'Archivo, sans-serif', fontWeight:800, fontSize:14, letterSpacing:3, opacity:0.85 },
+  topTitle: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontWeight:900, fontSize:44, letterSpacing:6, marginTop:8 },
+  topBlocks: { display:'flex', gap:8 },
+  topBlock: { width:34, height:34 },
+  subBand: { padding:'22px 64px 8px', fontSize:14.5, color:'#5C5748', lineHeight:1.9, maxWidth:760 },
+  stage: { display:'flex', gap:44, alignItems:'flex-start', padding:'28px 64px 72px', flexWrap:'wrap' },
+  phoneLabel: { fontSize:13, color:'#6B6455', letterSpacing:3, marginBottom:12 },
+  featureCol: { flex:1, minWidth:300, maxWidth:430, display:'flex', flexDirection:'column', gap:22 },
+  card: { background:'#F6F2E7', border:'1.5px solid #191712', padding:'18px 20px' },
+  cardTitle: { fontFamily:"'Noto Serif SC','Songti SC','STSong', serif", fontSize:16.5, fontWeight:900, letterSpacing:3 },
+  cardBody: { fontSize:14, color:'#5C5748', lineHeight:1.9, marginTop:6 },
+};
+
+function BCard({title, children, top}) {
+  return <div style={{...bBoard.card, borderTop: top? `4px solid ${top}`:'1.5px solid #191712'}}><div style={bBoard.cardTitle}>{title}</div><div style={bBoard.cardBody}>{children}</div></div>;
+}
+
+function BBoard() {
+  return (
+    <div style={bBoard.board}>
+      <div style={bBoard.topBand}>
+        <div>
+          <div style={bBoard.topKicker}>HOLO · DIRECTION B</div>
+          <div style={bBoard.topTitle}>几何月相 · 数据构成</div>
+        </div>
+        <div style={bBoard.topBlocks}>
+          <div style={{...bBoard.topBlock, background:'#D9381E', border:'1.5px solid #F2EDE0'}}/>
+          <div style={{...bBoard.topBlock, background:'#2D5B8E'}}/>
+          <div style={{...bBoard.topBlock, background:'#E0A526'}}/>
+          <div style={{...bBoard.topBlock, background:'#191712'}}/>
+        </div>
+      </div>
+      <div style={bBoard.subBand}>
+        田中一光把艺伎的脸拆成方块与四分圆——这个方向把一个月的开销拆成几何：食是朱红方块、住是钢蓝半圆、购是芥黄条、乐是墨黑扇、行是蓝灰圆点。
+        借 Bevel 的机制：点哪个领域，整屏底色随之变化，颜色即「你在看哪一块」（页面默认聚焦在「食」，点其他领域试试）。
+      </div>
+      <div style={bBoard.stage}>
+        <div>
+          <div style={bBoard.phoneLabel}>载体 · 财务月报页（点食/住/购/乐可交互）</div>
+          <IosFrame><GeoScreen/></IosFrame>
+        </div>
+        <div style={bBoard.featureCol}>
+          <BCard title="五色图腾，全 App 的砖" top="#D9381E">
+            食红、住蓝、购黄、乐黑、行灰蓝——这五块几何是签名物件：月报里是构成图，
+            习惯页、健康页、年度报告里反复出现，截图一看就认得是 Holo。
+          </BCard>
+          <BCard title="底色跟着你看的那块走" top="#2D5B8E">
+            聚焦「住」，整屏米纸里就渗进一点钢蓝。不弹窗、不跳页——
+            颜色本身就是导航。这是获奖 App Bevel 的机制，长在 Holo 的四色系统上。
+          </BCard>
+          <BCard title="竖排粗宋 + 窄体大数" top="#E0A526">
+            「十一月」竖排压在构成图上，数字用窄长粗体——
+            东方版式的骨 + 国际主义的数，两种秩序不打架。
+          </BCard>
+          <BCard title="文案有主张" top="#191712">
+            「吃掉三千八」「房子拿走四分之一」——不写「餐饮支出：¥3,860」。
+            每块几何配一句判断，先说结论，数字随后。
+          </BCard>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<BBoard/>);
+</script>
+</body>
+</html>

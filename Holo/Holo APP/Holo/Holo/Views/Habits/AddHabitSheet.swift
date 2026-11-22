@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import Combine
 import os.log
 
 /// 新建习惯的预填草稿（空状态示例磁贴入口）
@@ -19,6 +20,7 @@ struct HabitPrefillDraft: Identifiable {
     var icon: String = "checkmark.circle"
     var color: String = "#13A4EC"
     var goalId: UUID? = nil
+    var folderID: UUID? = nil
 }
 
 /// 新建习惯表单
@@ -56,6 +58,10 @@ struct AddHabitSheet: View {
     @State private var targetValue: String = ""
     @State private var unit: String = ""
     @State private var selectedAggregationType: HabitAggregationType = .sum
+    @State private var prefersQuantityInput = true
+    @State private var selectedFolderID: UUID?
+    @State private var folders: [HabitFolderSummary] = []
+    @State private var hasMeasurements = false
     @State private var isBadHabit = false
 
     // 打卡提醒（仅打卡型；solo 模式的时刻，默认 09:00）
@@ -121,6 +127,7 @@ struct AddHabitSheet: View {
 
                     // 记录方式：第二个必要决定（打卡/计数/测量，方案 §8.1）
                     methodSection
+                    folderField
 
                     // 外观：图标 + 快捷色点
                     appearanceSection
@@ -129,20 +136,21 @@ struct AddHabitSheet: View {
                     moreSettingsSection
 
                     // 编辑模式且类型有改动：预告历史记录的转换方式（复用既有幂等桥接）
-                    if let habit = editingHabit,
-                       selectedType != habit.habitType || selectedAggregationType != habit.habitAggregationType {
+                    // 2026-11-21 原型：中性灰底灰字 + 橙图标锚点，橙色不再整条铺开
+                    if let conversionText {
                         HStack(alignment: .top, spacing: 6) {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 12))
-                            Text(String(localized: "保存后历史记录会自动转换，可随时切回"))
+                                .foregroundColor(.holoPrimary)
+                            Text(conversionText)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolText)
                         }
-                        .font(.holoCaption)
-                        .foregroundColor(.holoPrimary)
-                        .padding(10)
+                        .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
-                            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(Color.holoPrimary.opacity(0.08))
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.holoToolInset)
                         )
                     }
 
@@ -170,6 +178,10 @@ struct AddHabitSheet: View {
         }
         .onAppear {
             loadEditingData()
+            reloadFolders()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
+            reloadFolders()
         }
         .sheet(isPresented: $showIconPicker) {
             UnifiedIconPickerSheet(currentIcon: selectedIcon, onSelect: { selectedIcon = $0 }) {
@@ -209,7 +221,11 @@ struct AddHabitSheet: View {
                 || selectedIcon != habit.icon
                 || selectedColor != habit.color
                 || selectedType.rawValue != habit.type
+                || selectedAggregationType != habit.configuredAggregationType
                 || selectedFrequency.rawValue != habit.frequency
+                || selectedFolderID != habit.folderID
+                || (selectedType == .numeric && unit != (habit.unit ?? ""))
+                || (usesCumulativeMode && prefersQuantityInput != originalQuantityPreference(habit))
                 || dayEndHour != Int(habit.dayEndHour)
 
             // 打卡型：提醒模式/时间改动也算未保存修改
@@ -229,7 +245,6 @@ struct AddHabitSheet: View {
                 changed = changed
                     || (Int(targetCount) ?? habit.targetCountValue ?? -1) != (habit.targetCountValue ?? -1)
                     || (Double(targetValue) ?? habit.targetValueDouble ?? -1) != (habit.targetValueDouble ?? -1)
-                    || unit != (habit.unit ?? "")
             }
             return changed
         } else {
@@ -255,7 +270,10 @@ struct AddHabitSheet: View {
             selectedIcon = habit.icon
             selectedColor = habit.color
             selectedFrequency = habit.habitFrequency
-            selectedAggregationType = habit.habitAggregationType
+            selectedAggregationType = habit.configuredAggregationType
+            prefersQuantityInput = originalQuantityPreference(habit)
+            selectedFolderID = habit.folderID
+            hasMeasurements = repository.hasRecordedMeasurement(for: habit)
             isBadHabit = habit.isBadHabit
 
             if let tc = habit.targetCountValue {
@@ -286,6 +304,7 @@ struct AddHabitSheet: View {
             name = draft.name
             selectedIcon = draft.icon
             selectedColor = draft.color
+            selectedFolderID = draft.folderID
             if let goalId = draft.goalId {
                 goalSelection = GoalRepository.shared.findGoal(by: goalId)
             }
@@ -338,6 +357,37 @@ struct AddHabitSheet: View {
 
     // MARK: - 记录方式（分段控件灰轨白块 §8.8.3；「想减少」= 记录方向的第四分支，同卡）
 
+    private var usesCumulativeMode: Bool {
+        selectedType == .numeric && selectedAggregationType == .sum
+    }
+
+    private func originalQuantityPreference(_ habit: Habit) -> Bool {
+        habit.prefersQuantityInput?.boolValue ?? (habit.isCheckInType || habit.configuredAggregationType == .latest)
+    }
+
+    private var conversionText: String? {
+        guard let habit = editingHabit else { return nil }
+        if usesCumulativeMode {
+            let startDay: Date?
+            if habit.isNumericType, habit.configuredAggregationType == .latest, hasMeasurements {
+                startDay = habit.nextCumulativeDay(dayEndMinutes: dayEndHour * 60)
+            } else {
+                startDay = habit.cumulativeStartDay
+            }
+            if let startDay, startDay > habit.currentDay() {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "zh_CN")
+                formatter.dateFormat = "M月d日"
+                let dateText = formatter.string(from: startDay)
+                return String(localized: "\(dateText) 起开始累计，之前仍按测量显示")
+            }
+        }
+        if selectedType != habit.habitType || selectedAggregationType != habit.configuredAggregationType {
+            return String(localized: "保存后会按新的记录方式显示。")
+        }
+        return nil
+    }
+
     /// 三档与存储类型的映射（selection 双字段）
     private var recordMethodIndex: Binding<Int> {
         Binding(
@@ -357,41 +407,195 @@ struct AddHabitSheet: View {
         )
     }
 
-    private var methodSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(String(localized: "你每天要记什么？"))
-                .holoText(.sectionTitle)
-                .fontWeight(.semibold)
-                .foregroundColor(.holoToolText)
+    // MARK: - 记录方式（2026-11-21 重设计原型 1:1：卡内小标题 + 分段控件；
+    //  单位走快捷 chips，列表快捷操作走两张选择卡，不再放常驻说明文案）
 
-            VStack(spacing: 0) {
-                Picker(String(localized: "记录方式"), selection: recordMethodIndex) {
-                    Text(String(localized: "做了没")).tag(0)
-                    Text(String(localized: "数几次")).tag(1)
-                    Text(String(localized: "记一个数")).tag(2)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+    private var methodSection: some View {
+        VStack(spacing: 0) {
+            Text(String(localized: "记录方式"))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+
+            Picker(String(localized: "记录方式"), selection: recordMethodIndex) {
+                Text(String(localized: "打卡")).tag(0)
+                Text(String(localized: "累计")).tag(1)
+                Text(String(localized: "测量")).tag(2)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .accessibilityIdentifier("habit.edit.method")
+
+            if selectedType == .numeric {
+                unitChipsRow
+            }
+
+            if usesCumulativeMode {
+                quantityActionRow
+            }
+
+            Rectangle()
+                .fill(Color.holoToolBorder.opacity(0.5))
+                .frame(height: 0.5)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .accessibilityIdentifier("habit.edit.method")
 
-                Rectangle()
-                    .fill(Color.holoToolBorder.opacity(0.5))
-                    .frame(height: 0.5)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
+            badHabitRow
+        }
+        .editorCardBackground()
+        .animation(allowsMotion ? HoloAnimation.standard : nil, value: selectedType)
+        .animation(allowsMotion ? HoloAnimation.standard : nil, value: usesCumulativeMode)
+    }
 
-                badHabitRow
+    /// 数值档单位：常用单位点一下即选，少数单位填自定义框（免弹键盘选词）
+    private static let commonUnitChips = ["个", "杯", "分钟", "kg"]
+
+    private var unitChipsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "单位"))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
+            HStack(spacing: 8) {
+                ForEach(Self.commonUnitChips, id: \.self) { candidate in
+                    unitChip(candidate)
+                }
+                unitCustomField
             }
-            .editorCardBackground()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    private func unitChip(_ candidate: String) -> some View {
+        let isSelected = unit == candidate
+        return Button {
+            unit = candidate
+        } label: {
+            Text(candidate)
+                .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? Color.holoToolAction : Color.holoToolText)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .background(
+                    Capsule().fill(isSelected ? Color.holoToolAction.opacity(0.09) : Color.holoToolInset)
+                )
+                .overlay(
+                    Capsule().strokeBorder(isSelected ? Color.holoToolAction : Color.holoToolBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(HoloPressStyle())
+        .accessibilityIdentifier("habit.edit.unit.\(candidate)")
+        .accessibilityLabel(Text(String(localized: "单位 \(candidate)")))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// 自定义单位输入：编辑回填 chips 之外的单位（如「页」）时高亮为选中态；
+    /// 已选快捷单位时框内不复读该值（同屏不出现两个「个」），显示占位等待输入
+    private var unitCustomField: some View {
+        let isCustom = !unit.isEmpty && !Self.commonUnitChips.contains(unit)
+        return TextField(String(localized: "自定义"), text: Binding(
+            get: { Self.commonUnitChips.contains(unit) ? "" : unit },
+            set: { unit = $0 }
+        ))
+            .font(.system(size: 15))
+            .foregroundColor(.holoToolText)
+            .multilineTextAlignment(.center)
+            .frame(width: 72)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 34)
+            .background(
+                Capsule().fill(isCustom ? Color.holoToolAction.opacity(0.09) : Color.holoToolInset)
+            )
+            .overlay(
+                Capsule().strokeBorder(isCustom ? Color.holoToolAction : Color.holoToolBorder, lineWidth: 1)
+            )
+            .accessibilityIdentifier("habit.edit.unit")
+    }
+
+    /// 累计档的列表快捷操作：输入数量 / 快捷 +1（两张并排选择卡）
+    private var quantityActionRow: some View {
+        HStack(spacing: 10) {
+            quantityActionCard(
+                title: String(localized: "输入数量"),
+                icon: "keyboard",
+                isSelected: prefersQuantityInput
+            ) { prefersQuantityInput = true }
+            quantityActionCard(
+                title: String(localized: "快捷 +1"),
+                icon: "plus",
+                isSelected: !prefersQuantityInput
+            ) { prefersQuantityInput = false }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+    }
+
+    private func quantityActionCard(title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? Color.holoToolAction : Color.holoToolInset)
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(isSelected ? Color.holoToolOnAction : Color.holoToolTextSecondary)
+                }
+                .frame(width: 36, height: 36)
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Color.holoToolText)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.holoToolAction.opacity(0.09) : Color.holoToolSurface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isSelected ? Color.holoToolAction : Color.holoToolBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(HoloPressStyle())
+        .accessibilityIdentifier("habit.edit.quantity.\(title)")
+        .accessibilityLabel(Text(title))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var folderField: some View {
+        Picker(String(localized: "文件夹"), selection: $selectedFolderID) {
+            Text(String(localized: "未分组")).tag(UUID?.none)
+            ForEach(folders) { folder in
+                Text(folder.name).tag(Optional(folder.id))
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .padding(.horizontal, 16)
+        .editorCardBackground()
+        .accessibilityIdentifier("habit.edit.folder")
+    }
+
+    private func reloadFolders() {
+        guard !repository.shouldDeferSetup() else { return }
+        do {
+            folders = try repository.fetchFolderSummaries()
+            if let selectedFolderID, !folders.contains(where: { $0.id == selectedFolderID }) {
+                self.selectedFolderID = nil
+            }
+        } catch {
+            logger.error("加载习惯文件夹失败: \(error)")
         }
     }
 
     private var badHabitRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(String(localized: "这是想减少的事"))
+                Text(String(localized: "这是坏习惯"))
                     .holoText(.body)
                     .foregroundColor(.holoToolText)
                 Spacer()
@@ -399,11 +603,11 @@ struct AddHabitSheet: View {
                     .labelsHidden()
                     .tint(Color.holoError)
                     .scaleEffect(0.88)
-                    .accessibilityLabel(Text(String(localized: "这是想减少的事")))
+                    .accessibilityLabel(Text(String(localized: "这是坏习惯")))
             }
             .frame(minHeight: 44)
             if isBadHabit {
-                Text(String(localized: "记录「发生了」，超过目标会提醒你控制"))
+                Text(String(localized: "记录坏习惯发生的次数，超过目标会提醒你控制"))
                     .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
                     .padding(.bottom, 8)
@@ -733,14 +937,11 @@ struct AddHabitSheet: View {
                         .background(Color.holoToolSurface)
                         .cornerRadius(HoloRadius.sm)
 
-                    TextField("单位", text: $unit)
-                        .font(.holoBody)
-                        .foregroundColor(.holoToolText)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color.holoToolSurface)
-                        .cornerRadius(HoloRadius.sm)
-                        .frame(width: 70)
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
                 }
             }
         }
@@ -756,7 +957,8 @@ struct AddHabitSheet: View {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let tc = targetEnabled ? Int(targetCount) : nil
         let tv = targetEnabled ? Double(targetValue) : nil
-        let u = targetEnabled && !unit.isEmpty ? unit : nil
+        let trimmedUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        let u = trimmedUnit.isEmpty ? nil : trimmedUnit
         let badHabit = isBadHabit
         let calendar = Calendar.current
         // 打卡提醒仅打卡型有意义；数值型不参与提醒（方案 §6.3）
@@ -800,7 +1002,13 @@ struct AddHabitSheet: View {
                     return
                 }
             }
-            payload.unit = targetEnabled ? (u.map { HabitFieldUpdate<String>.set($0) } ?? .clear) : .clear
+            payload.unit = isCheckIn ? .clear : (u.map { .set($0) } ?? .clear)
+            if selectedFolderID != habit.folderID {
+                payload.folderID = selectedFolderID.map { .set($0) } ?? .clear
+            }
+            if usesCumulativeMode {
+                payload.prefersQuantityInput = .set(prefersQuantityInput)
+            }
             payload.habitDescription = Habit.normalizedDescription(habitDescription).map { .set($0) } ?? .clear
             // 目标关系三态
             switch (initialGoalId, goalSelection?.id) {
@@ -845,7 +1053,9 @@ struct AddHabitSheet: View {
                     isBadHabit: badHabit,
                     reminderMode: isCheckIn ? reminderMode : .follow,
                     reminderTime: reminderTimeComponents,
-                    dayEndTime: dayEndTimeComponents
+                    dayEndTime: dayEndTimeComponents,
+                    folderID: selectedFolderID,
+                    prefersQuantityInput: usesCumulativeMode ? prefersQuantityInput : nil
                 )
                 // 目标关联失败不回滚基础习惯：保留同一草稿 ID 只补关联（方案 §8.3）
                 if goalSelection != nil {
@@ -895,6 +1105,9 @@ private extension View {
         self.background(
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
                 .fill(Color.holoToolSurface)
+                // 2026-11-21 原型：双层 4% 微投影让白卡从米白底上浮起来（暗色下自然隐去）
+                .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.04), radius: 5, y: 3)
         )
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)

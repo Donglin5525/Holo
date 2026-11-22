@@ -504,7 +504,8 @@ final class UserContextBuilder {
                 return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
             }()
             // 量化目标：注入当前值/目标值/速率/预测结论（紧凑两行），替代过程型任务习惯摘要
-            if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
+            if goal.isQuantitative, goal.metricSourceEnum != .healthKit,
+               let metric = GoalMetricEvaluator.evaluate(goal: goal) {
                 var line = """
                 - \(goal.title)
                   - 量化目标（来源：\(goal.metricSourceEnum.displayName)）\(deadlineSuffix)：当前 \(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(goal.metricUnitText)

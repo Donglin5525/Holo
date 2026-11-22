@@ -53,6 +53,8 @@ final class GoalUIRedesignTests: XCTestCase {
     func testInferDomainKeywordTable() {
         let cases: [(String, GoalDomain)] = [
             ("今年跑满 300 公里", .health), ("戒掉熬夜", .health),
+            ("跑 300 公里", .health), ("每周累计 50000 步", .health),
+            ("走查·交付作品集", .project), ("逐步学会素描", .learning),
             ("存 5 万应急金", .finance), ("还清房贷", .finance),
             ("考过雅思 7 分", .learning), ("背 5000 个单词", .learning),
             ("App 正式上线", .project), ("写完毕业论文", .project),
@@ -77,32 +79,7 @@ final class GoalUIRedesignTests: XCTestCase {
 
     // MARK: - S3a 数字提示行触发规则
 
-    func testCumulativeHintNumberExtraction() {
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "今年跑满 300 公里"), 300)
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "攒 30 万"), 30) // 阈值边界：≥30 触发
-        XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "每天睡前读 20 分钟书"))
-        XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "读三百页")) // 中文数字不触发
-        XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "跑３００公里")) // 全角数字不触发
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "每天走 10000 步"), 10000)
-        // 多个数字串取首个达到阈值的（无单位词、阈值 30）
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "跑 20 圈累计 400 分钟"), 400)
-    }
 
-    func testShowsCumulativeHintRule() {
-        var draft = GoalEditForm.emptyDraft()
-        draft.title = "今年跑满 300 公里"
-        XCTAssertTrue(GoalEditForm.showsCumulativeHint(in: draft)) // 过程型+数字达标：出现
-        draft.goalKind = .cumulative
-        XCTAssertFalse(GoalEditForm.showsCumulativeHint(in: draft)) // 切走类型：消失
-        draft.goalKind = .target
-        XCTAssertFalse(GoalEditForm.showsCumulativeHint(in: draft))
-        draft.goalKind = .process
-        draft.metricTargetValue = 300
-        XCTAssertFalse(GoalEditForm.showsCumulativeHint(in: draft)) // 数字已出现：消失
-        draft.metricTargetValue = nil
-        draft.title = "每天睡前读 20 分钟书"
-        XCTAssertFalse(GoalEditForm.showsCumulativeHint(in: draft)) // 数字 < 阈值：不出现
-    }
 
     // MARK: - S3b 编辑不覆写领域
 
@@ -258,6 +235,40 @@ final class GoalUIRedesignTests: XCTestCase {
 
     // MARK: - R5 单位可选 + 提示行单位微型映射
 
+    func testSourceSpecificGoalInputRejectsInvalidHealthValues() {
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "本周走路"
+        draft.goalKind = .cumulative
+        draft.metricSource = .healthKit
+        draft.healthMetricKind = .stepCount
+        draft.metricTargetValue = 10.5
+        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: false))
+        draft.metricTargetValue = 10_000
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: false))
+
+        draft.goalKind = .target
+        draft.healthMetricKind = .sleepAverage
+        draft.metricTargetValue = 25
+        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: false))
+        draft.metricTargetValue = 7.5
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: false))
+    }
+
+    func testTargetDirectionUsesIntentAndStartingValue() {
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "减肥", unit: " KG ", healthMetric: nil,
+                                                            baseline: 82.5, target: 75), .trendDown)
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "减肥", unit: nil, healthMetric: .bodyMass,
+                                                            baseline: nil, target: 75), .trendDown)
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "屏幕时间", unit: "小时", healthMetric: nil,
+                                                            baseline: 5, target: 2), .trendDown)
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "减脂期间提高蛋白摄入", unit: "克", healthMetric: nil,
+                                                            baseline: 60, target: 80), .trendUp)
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "蛋白不低于 80 克", unit: "克", healthMetric: nil,
+                                                            baseline: 90, target: 80), .trendUp)
+        XCTAssertEqual(GoalResultComparison.inferredTarget(title: "平均睡够 7 小时", unit: "小时", healthMetric: .sleepAverage,
+                                                            baseline: 8, target: 7), .reach)
+    }
+
     func testMetricValidationUnitOptional() {
         // 累积型：数字有效+标题在（canSave 侧）即可保存，单位空不拦
         var draft = GoalEditForm.emptyDraft()
@@ -282,17 +293,6 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertEqual(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true), "数字还没填完")
     }
 
-    func testUnitKeywordMapping() {
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "今年跑满 300 公里"), "km")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "减到 70KG"), "kg")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "减到 70公斤"), "kg")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "存 3 万元应急金"), "¥")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "攒 5000 块"), "¥")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "今年读 30 本书"), "本")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "去 50 次健身房"), "次")
-        XCTAssertEqual(GoalEditForm.unitKeyword(in: "每天读 40 页"), "页")
-        XCTAssertNil(GoalEditForm.unitKeyword(in: "完成一场全马"), "不命中留空")
-    }
 
     // MARK: - 账本范围暴露（2026-11-14 七条 §5/§6：选择/保存/预填/评估）
 
@@ -673,28 +673,6 @@ final class GoalUIRedesignTests: XCTestCase {
 
     // MARK: - 红队一轮修复（2026-11-14，10 用户红队 2P0+6P1+U6）
 
-    /// U5 账本口径说明行条件矩阵
-    func testLedgerScopeExplanationMatrix() {
-        XCTAssertEqual(
-            GoalEditForm.ledgerScopeExplanation(kind: .wholeLedgerDelta, accountName: nil),
-            "按全部账本收入减支出的净增加衡量；还债、转账不改变净资产")
-        XCTAssertEqual(
-            GoalEditForm.ledgerScopeExplanation(kind: .accountDelta, accountName: "旅行"),
-            "从今天起算「旅行」的净增加，已有余额不计入")
-        XCTAssertNil(GoalEditForm.ledgerScopeExplanation(kind: .accountBalance, accountName: "旅行"),
-                     "余额达到档由基线注释行解释，不重复加说明行")
-    }
-
-    /// U5 信用负债账户余额达到 → 基线注释追加还清口径
-    func testAccountBaselineNoteAppendsCreditLiabilitySuffix() {
-        let asOf = Date(timeIntervalSince1970: 0)
-        let plain = GoalEditForm.accountBaselineNote(accountName: "旅行", asOf: asOf, isCreditLiability: false)
-        XCTAssertEqual(plain, "取自「旅行」当前余额（\(GoalEditForm.shortDayText(asOf))）")
-        XCTAssertFalse(plain.contains("还清"), "储蓄账户不追加还清口径")
-        let credit = GoalEditForm.accountBaselineNote(accountName: "招行信用卡", asOf: asOf, isCreditLiability: true)
-        XCTAssertTrue(credit.hasSuffix("；余额还到 0 即还清"), "信用负债追加还清口径：\(credit)")
-    }
-
     /// U10 误触「标记完成」可逆：恢复为进行中（列表 contextMenu 与详情按钮走同一 updateStatus(.active)）
     func testReopenCompletedGoalViaUpdateStatus() throws {
         let goal = try makeGoal(title: "跑满 300 公里", status: .completed)
@@ -757,66 +735,7 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertGreaterThan(deadline, now, "默认期限在未来，创建即逾期不再发生")
     }
 
-    /// U9 类型横跳保留账户选择：账户两档互转换 kind 不换账户
-    func testLedgerScopeNormalizationKeepsAccountAcrossKindSwitch() {
-        let first = UUID(), second = UUID()
-        let accounts = [first, second]
-        // 累积·指定账户 → 达标：保留账户只换 kind
-        XCTAssertEqual(
-            GoalEditForm.normalizedLedgerScope(
-                current: GoalLedgerScopePayload(kind: .accountDelta, accountID: second),
-                goalKind: .target, accountIDs: accounts),
-            GoalLedgerScopePayload(kind: .accountBalance, accountID: second),
-            "不再静默重置到首个账户")
-        // 达标·账户余额 → 累积：同样保留账户换成净增加
-        XCTAssertEqual(
-            GoalEditForm.normalizedLedgerScope(
-                current: GoalLedgerScopePayload(kind: .accountBalance, accountID: second),
-                goalKind: .cumulative, accountIDs: accounts),
-            GoalLedgerScopePayload(kind: .accountDelta, accountID: second))
-        // 全账本 ↔ 账户档才重置：达标型回落首个账户余额
-        XCTAssertEqual(
-            GoalEditForm.normalizedLedgerScope(
-                current: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil),
-                goalKind: .target, accountIDs: accounts),
-            GoalLedgerScopePayload(kind: .accountBalance, accountID: first))
-        // 账户已删/归档：重置默认（累积型=全账本）
-        XCTAssertEqual(
-            GoalEditForm.normalizedLedgerScope(
-                current: GoalLedgerScopePayload(kind: .accountDelta, accountID: UUID()),
-                goalKind: .cumulative, accountIDs: accounts),
-            GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))
-        // 范围与新类型匹配：原样保留
-        XCTAssertEqual(
-            GoalEditForm.normalizedLedgerScope(
-                current: GoalLedgerScopePayload(kind: .accountBalance, accountID: first),
-                goalKind: .target, accountIDs: accounts),
-            GoalLedgerScopePayload(kind: .accountBalance, accountID: first))
-    }
 
-    /// U6 提示行阈值：带单位词 ≥2 触发，裸数字维持 ≥30
-    func testCumulativeHintThresholdWithUnitKeyword() {
-        XCTAssertEqual(GoalEditForm.cumulativeHintThreshold(forTitle: "读完 12 本书"), 2)
-        XCTAssertEqual(GoalEditForm.cumulativeHintThreshold(forTitle: "赚 100 万"), 30)
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "读完 12 本书"), 12,
-                       "命中「本」→ 阈值降 2，「读 12 本书」不再被 ≥30 错杀")
-        XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "每天读 20 分钟书"),
-                     "无单位词、20 < 30：过程型标题不误触发")
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "赚 100 万"), 100,
-                       "裸数字大额目标照常触发")
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "跑 20 次累计 400 分钟"), 20,
-                       "命中「次」后取首个 ≥2 的数字串")
-
-        var draft = GoalEditForm.emptyDraft()
-        draft.title = "读完 12 本书"
-        XCTAssertTrue(GoalEditForm.showsCumulativeHint(in: draft), "带单位词的小数字目标出现提示行")
-    }
-
-    /// U2/U5 表单账本菜单项带口径词
-    func testLedgerMenuTitleCarriesScopeQualifier() {
-        XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .cumulative), "旅行·净增加")
-        XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .target), "旅行·余额达到")
-    }
 
     /// 期限清除：传 .some(nil) 后 deadline 彻底清空，不留旧值
     func testClearGoalDeadlineViaUpdateFields() throws {
@@ -1370,6 +1289,118 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertEqual(g15.metricSourceEnum, .manual)
         XCTAssertNil(g15.sourceHabitId)
         XCTAssertNil(g15.ledgerScopePayload)
+    }
+
+    @MainActor
+    func testSavedWeightGoalTracksHabitRecordsAndKeepsStartingValue() throws {
+        let finance = FinanceRepository(context: context)
+        CoreDataTestSupport.retain(finance)
+        let habit = Habit.create(in: context, name: "体重", icon: "scalemass", color: "#EA580C",
+                                 type: .numeric, unit: "kg", aggregationType: .latest)
+        let first = HabitRecord.createNumeric(in: context, habit: habit, value: 75)
+        first.date = Date().addingTimeInterval(-100)
+        try context.save()
+
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "体重管理"
+        draft.goalKind = .target
+        draft.metricSource = .habit
+        draft.sourceHabitId = habit.id
+        draft.metricUnit = "kg"
+        draft.metricTargetValue = 65
+        draft.metricBaselineValue = 75
+        let goal = try repository.saveDraft(draft, allowAIContext: false, source: "manual").goal
+        let goalID = goal.id
+        let start = goal.baselineDate
+        XCTAssertNil(habit.goal, "引用体重时保留原习惯归属")
+
+        let next = HabitRecord.createNumeric(in: context, habit: habit, value: 72)
+        next.date = Date().addingTimeInterval(-3)
+        try context.save()
+        let progress = try XCTUnwrap(GoalMetricEvaluator.evaluate(goal: goal, finance: finance))
+        XCTAssertEqual(progress.currentValue, 72)
+        XCTAssertEqual(progress.progress, 0.3, accuracy: 0.0001)
+
+        try repository.updateFields(goal, deadline: .some(Date().addingTimeInterval(86400)))
+        XCTAssertEqual(goal.id, goalID)
+        XCTAssertEqual(goal.baselineDate, start)
+        XCTAssertEqual(goal.baselineValueDouble, 75)
+        XCTAssertEqual(goal.metricTargetValueDouble, 65)
+
+        let rebound = HabitRecord.createNumeric(in: context, habit: habit, value: 76)
+        rebound.date = Date().addingTimeInterval(-1)
+        try context.save()
+        let after = try XCTUnwrap(GoalMetricEvaluator.evaluate(goal: goal, finance: finance))
+        XCTAssertEqual(after.currentValue, 76)
+        XCTAssertEqual(after.progress, 0)
+        XCTAssertFalse(after.isAchieved)
+    }
+
+    @MainActor
+    func testOldWeightLossGoalRepairsDefaultDirectionAndRespectsExplicitOverride() throws {
+        let finance = FinanceRepository(context: context)
+        CoreDataTestSupport.retain(finance)
+        let habit = Habit.create(in: context, name: "体重", icon: "scalemass", color: "#EA580C",
+                                 type: .numeric, unit: "KG", aggregationType: .latest)
+        let sample = HabitRecord.createNumeric(in: context, habit: habit, value: 82.5)
+        sample.date = Date().addingTimeInterval(-100)
+        try context.save()
+
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "减肥"
+        draft.goalKind = .target
+        draft.metricSource = .habit
+        draft.sourceHabitId = habit.id
+        draft.metricUnit = "KG"
+        draft.metricTargetValue = 75
+        draft.metricBaselineValue = 82.5
+        draft.metricComparison = .trendUp
+        let goal = try repository.saveDraft(draft, allowAIContext: false, source: "manual").goal
+
+        let effective = try GoalPlanResolver.resolveCurrentPlan(goal: goal, in: context, persist: false)
+        XCTAssertEqual(effective.payload.resultSource?.comparison, .trendDown)
+        let progress = try XCTUnwrap(GoalMetricEvaluator.evaluate(goal: goal, finance: finance))
+        XCTAssertFalse(progress.isAchieved)
+        XCTAssertEqual(progress.progress, 0)
+
+        let reached = HabitRecord.createNumeric(in: context, habit: habit, value: 75)
+        reached.date = Date().addingTimeInterval(-1)
+        try context.save()
+        XCTAssertEqual(GoalMetricEvaluator.evaluate(goal: goal, finance: finance)?.isAchieved, true)
+        XCTAssertEqual(GoalMetricEvaluator.evaluate(goal: goal, finance: finance)?.progress, 1)
+
+        try repository.updateFields(goal, metricComparison: .trendUp, metricComparisonIsExplicit: true)
+        let explicit = GoalPlanResolver.resultConfiguration(goal: goal, in: context).source
+        XCTAssertEqual(explicit?.comparison, .trendUp)
+        XCTAssertEqual(explicit?.comparisonIsExplicit, true)
+    }
+
+    @MainActor
+    func testManualHealthGoalSavesAndEditsRealPlanSource() throws {
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "从苹果健康读取步数"
+        draft.goalKind = .cumulative
+        draft.metricSource = .healthKit
+        draft.healthMetricKind = .stepCount
+        draft.metricUnit = "步"
+        draft.metricTargetValue = 10_000
+        draft.metricComparison = .reach
+        let goal = try repository.saveDraft(draft, allowAIContext: false, source: "manual").goal
+        let initial = try XCTUnwrap(GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context))
+        XCTAssertEqual(goal.healthMetricKindEnum, .stepCount)
+        XCTAssertEqual(initial.planPayloadV2?.resultSource?.sourceType, .healthKit)
+        XCTAssertEqual(initial.planPayloadV2?.resultSource?.healthMetricKind, .stepCount)
+        XCTAssertEqual(GoalEditForm.draft(from: goal).healthMetricKind, .stepCount)
+
+        try repository.updateFields(
+            goal, metricUnit: .some("分钟"), metricTargetValue: .some(150), healthMetricKind: .some(.workoutMinutes),
+            expectedPlanRevisionID: initial.id
+        )
+        let edited = try XCTUnwrap(GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context))
+        XCTAssertEqual(goal.healthMetricKindEnum, .workoutMinutes)
+        XCTAssertEqual(edited.planPayloadV2?.resultSource?.healthMetricKind, .workoutMinutes)
+        XCTAssertEqual(edited.planPayloadV2?.schemaVersion, 4)
+        XCTAssertNil(edited.planPayloadV2?.resultSource?.baselineValue)
     }
 
     @MainActor

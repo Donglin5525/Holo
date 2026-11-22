@@ -626,11 +626,6 @@ struct HomeView: View {
                 navigateToScreen(.finance)
                 return
             }
-            // 模拟器无头走查：启动直达记忆长廊（配合 -HoloOpenMemoryInsight 落在洞察 Tab，年鉴卡验收）
-            if ProcessInfo.processInfo.arguments.contains("-HoloOpenMemoryInsight") {
-                navigateToScreen(.memoryGallery)
-                return
-            }
             #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true
@@ -1553,6 +1548,14 @@ struct HomeView: View {
         case .anniversaries:
             // pendingTarget 由 TasksView.handleDeepLink() 消费：切到纪念日 Tab 后清除
             navigateToScreen(.tasks)
+        case .health:
+            navigateToScreen(.health)
+            deepLinkState.pendingTarget = nil
+        case .dailyKanban:
+            withAnimation(.holoScreenTransition) {
+                residentNavigation.dismissAll()
+            }
+            deepLinkState.pendingTarget = nil
         case .anniversaryDetail:
             // 同上；详情 ID 的展开暂不直开，先落到纪念日列表
             navigateToScreen(.tasks)
@@ -1580,6 +1583,11 @@ struct HomeView: View {
         case .memoryInsight(_):
             // 目标由 ChatView 消费：洞察内容自长廊撤除回放卡后统一在 AI 页展示，
             // ChatView 打开对应回放卡片后清空 pendingTarget 并落已读。
+            if activeScreen != .ai {
+                navigateToScreen(.ai)
+            }
+        case .insightFollowUp:
+            // 小组件「追问 Holo」：切到 AI 页，由 ChatView 反查完整 MemoryInsight 并挂载承接条
             if activeScreen != .ai {
                 navigateToScreen(.ai)
             }

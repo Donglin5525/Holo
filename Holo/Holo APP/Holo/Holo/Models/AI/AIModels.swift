@@ -486,6 +486,8 @@ struct UserContext {
     var anniversaryLines: [String] = []
     /// 当前 Matter 最小快照（scoped Chat 普通回答生成前注入；§8.6，nil = 非 Matter 对话）
     var matterSnapshot: HoloMatterPromptSnapshot? = nil
+    /// 从桌面小组件「追问 Holo」或洞察卡片挂载的完整发现上下文（一次性消费；nil = 非洞察追问）
+    var insightFollowUp: HoloInsightFollowUpContext? = nil
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
@@ -513,6 +515,52 @@ struct RecentLinkedTaskSummary {
     let title: String
     /// 现有条目标题（按 order 排序），供 remove 时精确引用
     let itemTitles: [String]
+}
+
+/// 桌面小组件「追问 Holo」或洞察入口挂载的完整发现上下文
+/// 由主 App 按 insightId 从 CoreData 反查组装，避免只靠小组件截断标题让 AI 盲猜。
+nonisolated struct HoloInsightFollowUpContext: Equatable, Sendable {
+    nonisolated struct CardDigest: Equatable, Sendable {
+        let title: String
+        let body: String
+    }
+
+    let insightID: UUID
+    let periodLabel: String
+    let periodRange: String
+    let title: String
+    let summary: String
+    let cards: [CardDigest]
+
+    /// 输入栏承接条使用的 1 行内容预览（优先取首卡正文，无则回退总摘要）
+    var previewBody: String {
+        if let firstBody = cards.first?.body.trimmingCharacters(in: .whitespacesAndNewlines),
+           !firstBody.isEmpty {
+            return firstBody
+        }
+        return summary.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 供云端深度分析（runCloudOnlyAnalysis.parentReportBrief）复用的背景简报
+    func makeCloudAnalysisBrief() -> String {
+        var lines: [String] = [
+            "【追问来源：记忆洞察（\(periodLabel) · \(periodRange)）】",
+            "· 发现标题：\(title)"
+        ]
+        let trimmedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSummary.isEmpty {
+            lines.append("· 洞察摘要：\(trimmedSummary)")
+        }
+        if !cards.isEmpty {
+            lines.append("· 洞察卡片内容（背景指代用，涉及具体统计时须重新查工具取证）：")
+            for card in cards.prefix(6) {
+                let body = card.body.count > 180 ? String(card.body.prefix(180)) + "…" : card.body
+                lines.append("  - \(card.title)：\(body)")
+            }
+        }
+        let joined = lines.joined(separator: "\n")
+        return joined.count > 1600 ? String(joined.prefix(1600)) + "…" : joined
+    }
 }
 
 /// 交易摘要

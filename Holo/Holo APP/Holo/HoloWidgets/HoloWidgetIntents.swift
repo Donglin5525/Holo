@@ -148,3 +148,183 @@ struct HoloThoughtWalkShuffleIntent: AppIntent {
         return .result()
     }
 }
+
+// MARK: - 每日洞察「换一条」
+
+struct HoloInsightShuffleIntent: AppIntent {
+    static let title: LocalizedStringResource = "换一条发现"
+    static let description = IntentDescription("切换另一条 AI 观察显示在桌面上。")
+
+    init() {}
+
+    func perform() async throws -> some IntentResult {
+        let store = HoloWidgetSnapshotStore()
+        guard let pool = store.readInsightPool(), pool.items.count > 1 else { return .result() }
+
+        let current = store.resolvedInsightItem()
+        let currentIndex = pool.items.firstIndex(where: { $0.id == current?.id }) ?? 0
+        let nextIndex = (currentIndex + 1) % pool.items.count
+        let picked = pool.items[nextIndex]
+
+        try? store.writeInsightSelection(
+            HoloWidgetInsightSelection(insightId: picked.id, date: Date())
+        )
+        WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.dailyInsight.rawValue)
+        return .result()
+    }
+}
+
+// MARK: - 小组件配置意图（长按「编辑小组件」）
+
+struct HoloDailyKanbanConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "今日全览配置"
+    static let description = IntentDescription("自定义今日全览的隐私脱敏选项。")
+
+    @Parameter(title: "隐藏支出金额", default: false)
+    var hideSensitiveAmount: Bool
+}
+
+struct HoloInsightConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "一个发现配置"
+    static let description = IntentDescription("自定义每日洞察的隐私保护选项。")
+
+    @Parameter(title: "隐私脱敏模式", default: false)
+    var hideSensitiveContent: Bool
+}
+
+enum HoloMemoryWidgetStyle: String, AppEnum {
+    case heatmap
+    case onThisDay
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "展示样式")
+    static let caseDisplayRepresentations: [HoloMemoryWidgetStyle: DisplayRepresentation] = [
+        .heatmap: DisplayRepresentation(title: "生活热力图"),
+        .onThisDay: DisplayRepresentation(title: "历史上的今天")
+    ]
+}
+
+struct HoloMemoryConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "记忆长廊配置"
+    static let description = IntentDescription("选择展示生活热力图或历史上的今天。")
+
+    @Parameter(title: "展示样式", default: .heatmap)
+    var style: HoloMemoryWidgetStyle
+
+    @Parameter(title: "隐藏回忆正文", default: false)
+    var hideSensitiveContent: Bool
+}
+
+struct HoloFinanceConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "本月收支配置"
+    static let description = IntentDescription("自定义本月收支小组件的隐私脱敏选项。")
+
+    @Parameter(title: "隐藏具体金额", default: false)
+    var hideSensitiveAmount: Bool
+}
+
+struct HoloGoalEntity: AppEntity {
+    let id: String
+    let title: String
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "目标")
+    static let defaultQuery = HoloGoalEntityQuery()
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+}
+
+struct HoloGoalEntityQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [HoloGoalEntity] {
+        let all = availableEntities()
+        return all.filter { identifiers.contains($0.id) }
+    }
+
+    func suggestedEntities() async throws -> [HoloGoalEntity] {
+        availableEntities()
+    }
+
+    private func availableEntities() -> [HoloGoalEntity] {
+        let snapshot = HoloWidgetSnapshotStore().readGoal() ?? .sample()
+        return snapshot.allGoals.map { HoloGoalEntity(id: $0.goalId.uuidString, title: $0.title) }
+    }
+}
+
+struct HoloGoalConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "目标进度配置"
+    static let description = IntentDescription("选择固定展示某一个目标，留空则自动展示主目标。")
+
+    @Parameter(title: "指定目标")
+    var selectedGoal: HoloGoalEntity?
+}
+
+struct HoloAnniversaryEntity: AppEntity {
+    let id: String
+    let title: String
+
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "纪念日")
+    static let defaultQuery = HoloAnniversaryEntityQuery()
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+}
+
+struct HoloAnniversaryEntityQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [HoloAnniversaryEntity] {
+        let all = availableEntities()
+        return all.filter { identifiers.contains($0.id) }
+    }
+
+    func suggestedEntities() async throws -> [HoloAnniversaryEntity] {
+        availableEntities()
+    }
+
+    private func availableEntities() -> [HoloAnniversaryEntity] {
+        let snapshot = HoloWidgetSnapshotStore().readAnniversary() ?? .sample()
+        return snapshot.items.map { HoloAnniversaryEntity(id: $0.id.uuidString, title: $0.title) }
+    }
+}
+
+struct HoloAnniversaryConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "纪念日配置"
+    static let description = IntentDescription("选择固定展示某一个纪念日，留空则自动展示最近的一个。")
+
+    @Parameter(title: "指定纪念日")
+    var selectedAnniversary: HoloAnniversaryEntity?
+}
+
+// MARK: - iOS 18 控制中心 / 锁屏底栏快捷启动
+
+@available(iOS 18.0, *)
+struct HoloOpenVoiceControlIntent: AppIntent {
+    static let title: LocalizedStringResource = "语音问 Holo"
+    static let description = IntentDescription("打开 HoloAI 并直接拉起语音输入。")
+    static let openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(URL(string: "holo://ai?voiceInput=true")!))
+    }
+}
+
+@available(iOS 18.0, *)
+struct HoloOpenBookkeepingControlIntent: AppIntent {
+    static let title: LocalizedStringResource = "快捷记一笔"
+    static let description = IntentDescription("直接打开 Holo 记账面板。")
+    static let openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(URL(string: "holo://finance/add")!))
+    }
+}
+
+@available(iOS 18.0, *)
+struct HoloOpenThoughtControlIntent: AppIntent {
+    static let title: LocalizedStringResource = "闪念速记"
+    static let description = IntentDescription("直接打开 Holo 新想法编辑器。")
+    static let openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult & OpensIntent {
+        .result(opensIntent: OpenURLIntent(URL(string: "holo://thoughts/new")!))
+    }
+}

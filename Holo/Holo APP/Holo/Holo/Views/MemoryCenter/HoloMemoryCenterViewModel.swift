@@ -450,6 +450,52 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     /// 后台完整核验任务句柄（防并发重复核验）。
     private var backgroundVerifyTask: Task<Void, Never>?
 
+    /// 冷启动预热记忆中心快照缓存（2026-11-20 秒开根治：App 启动后后台预热，首次点进「Holo 记忆」即 0ms 首帧直出）。
+    static func prewarmIfNeeded() async {
+        guard memoryCache == nil else { return }
+        let settings = HoloMemorySettings.shared
+        do {
+            let repository = try await HoloMemoryRuntime.shared.repository()
+            let fastService = HoloMemoryManagementReadService(
+                repository: repository,
+                sourceVerifier: HoloMemoryUnknownSourceVerifier()
+            )
+            async let snapshotTask = fastService.loadSnapshot(
+                answeringEnabled: settings.memoryAssistedAnsweringEnabled
+            )
+            async let resolvedTask = repository.resolvedKnowledgeAll(now: Date())
+            let (snapshot, resolved) = try await (snapshotTask, resolvedTask)
+            let recordsByID = snapshot.recordsByID
+            let nextWorthConfirming = resolved
+                .filter {
+                    $0.decision == .worthConfirming
+                        || Self.isPromotedUnderstandingCandidate($0, recordsByID: recordsByID)
+                }
+                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            let nextConfirmed = resolved
+                .filter { $0.decision == .confirmedValid }
+                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            let nextRowMeta = Dictionary(
+                snapshot.projections.compactMap { projection -> (String, HoloMemoryListRowMeta)? in
+                    guard let record = recordsByID[projection.recordID] else { return nil }
+                    return (projection.recordID, HoloMemoryListRowMeta(
+                        group: HoloMemoryListGroup.group(for: record),
+                        subline: HoloMemorySourceLine.listSubline(origin: projection.originLabel, record: record)
+                    ))
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            memoryCache = CachedPayload(
+                snapshot: snapshot,
+                worthConfirming: nextWorthConfirming,
+                confirmedKnowledge: nextConfirmed,
+                rowMetaByRecordID: nextRowMeta
+            )
+        } catch {
+            NSLog("[HoloMemoryCenter] 冷启动预热忽略异常: \(String(describing: error))")
+        }
+    }
+
     init(settings: HoloMemorySettings = .shared) {
         self.settings = settings
         self.automaticMemoryEnabled = settings.automaticMemoryEnabled
