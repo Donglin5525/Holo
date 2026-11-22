@@ -3092,7 +3092,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/Holo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -3123,7 +3123,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.1.8;
+				MARKETING_VERSION = 1.1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -3147,7 +3147,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/HoloRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -3178,7 +3178,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 1.1.8;
+				MARKETING_VERSION = 1.1.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -3201,7 +3201,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;
@@ -3211,7 +3211,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.8;
+				MARKETING_VERSION = 1.1.9;
 				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
@@ -3234,7 +3234,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;
@@ -3244,7 +3244,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.8;
+				MARKETING_VERSION = 1.1.9;
 				OTHER_SWIFT_FLAGS = "-DHOLO_APP_EXTENSION";
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.Holo.HoloWidgets;
 				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.tangyuxuan.holo-app.widgets";
