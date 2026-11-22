@@ -2,7 +2,7 @@
 //  HoloProductAnalytics.swift
 //  Holo
 //
-//  产品埋点（2026-10-19 自建方案，2026-11-08 字典 v2.2）：匿名使用事件本地队列 + 批量上报。
+//  产品埋点（2026-10-19 自建方案，2026-11-22 字典 v2.4）：匿名使用事件本地队列 + 批量上报。
 //  事件域 = 会话/模块曝光/记账/打卡/建任务/付费墙漏斗（v1）+ AI 交互/想法·习惯·账户创建/
 //  识图记账漏斗/数据导出（v2）+ 通知打开/周回顾查看（v2.1，第二周留存钩子实验漏斗）+
 //  推送权限状态/购买结果（v2.2，留存漏斗第一环与付费转化终点），
@@ -70,6 +70,22 @@ enum HoloProductEventName: String, CaseIterable {
     /// 购买流程终点（paywall_purchase_tapped 的下游）；result=purchased/cancelled/pending/failed。
     /// Xcode 沙盒交易不记（与播种模式同理，测试流量不污染漏斗）
     case paywallPurchaseCompleted = "paywall_purchase_completed"
+    // v2.4（2026-11-22）：管线自观测 + 会话终点 + 漏斗缺口补齐（留存管道健康度用）
+    /// 埋点上报自身失败的自观测；reason=4xx(拒收丢弃)/network(网络与5xx)/rejected(ok=false)，
+    /// dropped=本批丢弃条数，queue=剩余队列长度。同一 reason 进程内只报一次（防失败自身刷屏）
+    case analyticsFlushFailure = "analytics_flush_failure"
+    /// 前台会话终点（与 app_session_start 对称，进后台时补记）；duration=会话秒数整数。
+    /// 进程被系统直接杀死收不到此事件，属已知口径局限
+    case appSessionEnd = "app_session_end"
+    /// 识图记账漏斗的放弃与失败终点（成功侧由 bill_created source=receipt 承接）；
+    /// step=capture/extract/review，result=cancelled/failed
+    case receiptBookingOutcome = "receipt_booking_outcome"
+    /// 推送令牌上报结果；result=success/failed（failed 带 reason 简短错误描述）
+    case pushTokenRegistered = "push_token_registered"
+    /// 通知设置行开关拨动；scope=daily/habit/weeklyReview/insight，enabled=true/false
+    case notificationSettingsChanged = "notification_settings_changed"
+    /// 小组件点击进入 App；widget=组件族标识（todo/goal/habit/…），action=tap
+    case widgetEngaged = "widget_engaged"
 }
 
 /// 待上报事件（字段与后端 normalizeProductEvent 一一对应）
@@ -89,18 +105,29 @@ struct HoloProductPendingEvent: Codable {
 /// 「前后端要对得上、用户 ID 一致」）。设备身份沿用 X-Holo-Device-Id 同一体系。
 /// 后台任务唤醒的进程没有前台会话 → nil → 不带头 → 服务端空值恰好标记非前台行为。
 nonisolated enum HoloAnalyticsSession {
-    private static let lock = OSAllocatedUnfairLock(initialState: String?.none)
+    private static let lock = OSAllocatedUnfairLock(initialState: (id: String?.none, startedAt: Date?.none))
 
     /// 当前会话 ID；nil = 尚无前台会话（冷启动早期/纯后台唤醒）
     static var currentId: String? {
-        lock.withLock { $0 }
+        lock.withLock { $0.id }
     }
 
-    /// 开启新会话并返回其 ID（每次 session_start 时调用）
+    /// 开启新会话并返回其 ID（每次 session_start 时调用）；同时记会话起点供 session_end 计时长
     static func beginNew() -> String {
         let id = UUID().uuidString
-        lock.withLock { $0 = id }
+        lock.withLock {
+            $0.id = id
+            $0.startedAt = Date()
+        }
         return id
+    }
+
+    /// 取走当前会话起点（进后台补记 session_end 时调用一次）；无前台会话返回 nil
+    static func consumeStartedAt() -> Date? {
+        lock.withLock { state in
+            defer { state.startedAt = nil }
+            return state.startedAt
+        }
     }
 }
 
@@ -280,6 +307,31 @@ nonisolated final class HoloProductAnalytics {
         track(.appSessionStart, ["trigger": cold ? "cold" : "foreground"])
     }
 
+    /// 会话终点（v2.4）：scenePhase 进后台时补记本次前台会话时长，与 trackSessionStart 对称。
+    /// 口径局限：进程被系统直接杀死（后台回收/用户强杀）收不到 .background，
+    /// 这类会话没有 end 事件，服务端按 session_id 缺失即视为未正常收尾。
+    func trackSessionEndIfNeeded() {
+        guard let startedAt = HoloAnalyticsSession.consumeStartedAt() else { return }
+        let duration = max(0, Int(Date().timeIntervalSince(startedAt)))
+        track(.appSessionEnd, ["duration": String(duration)])
+    }
+
+    // MARK: - 通知设置行开关（v2.4）
+
+    /// 通知设置行开关的 scope 值（挂点：NotificationSettingsView 四组行开关；
+    /// 枚举固定拼写防手写字面量漂移出后端字典口径）
+    enum NotificationSettingScope: String, CaseIterable {
+        case daily
+        case habit
+        case weeklyReview
+        case insight
+    }
+
+    /// 用户拨动通知设置行开关；enabled 取拨动后的新值
+    func trackNotificationSettingsChanged(scope: NotificationSettingScope, enabled: Bool) {
+        track(.notificationSettingsChanged, ["scope": scope.rawValue, "enabled": enabled ? "true" : "false"])
+    }
+
     // MARK: - 推送权限状态快照（v2.2）
 
     private let lastPermissionStatusKey = "holo.analytics.lastPermissionStatus"
@@ -345,6 +397,7 @@ nonisolated final class HoloProductAnalytics {
                 let response: UploadResponse = try await apiClient.send(request)
                 guard response.ok else {
                     logger.error("埋点上报被拒绝，保留待重试")
+                    await trackFlushFailureOnce(reason: "rejected", dropped: 0)
                     return
                 }
                 await queue.remove(ids: Set(batch.map(\.id)))
@@ -355,16 +408,41 @@ nonisolated final class HoloProductAnalytics {
                 if Self.isPermanentClientError(error) {
                     await queue.remove(ids: Set(batch.map(\.id)))
                     logger.error("埋点上报被 4xx 拒绝，丢弃本批：\(error.errorDescription ?? "", privacy: .public)")
+                    await trackFlushFailureOnce(reason: "4xx", dropped: batch.count)
                 } else {
                     logger.error("埋点上报失败（下次前台化重试）：\(String(describing: error), privacy: .public)")
+                    await trackFlushFailureOnce(reason: "network", dropped: 0)
                 }
                 return
             } catch {
                 logger.error("埋点上报失败（下次前台化重试）：\(String(describing: error), privacy: .public)")
+                await trackFlushFailureOnce(reason: "network", dropped: 0)
                 return
             }
             if batch.count < maxBatchSize { return }
         }
+    }
+
+    // MARK: - 上报失败自观测（v2.4）
+
+    /// 同一 reason 进程内只报一次：失败高发期（后端故障/断网）每次前台化都会失败，
+    /// 不去重会让失败事件自己刷屏占队列。锁保护静态，同 HoloAnalyticsSession 的做法。
+    private static let reportedFlushFailureReasons = OSAllocatedUnfairLock(initialState: Set<String>())
+
+    /// reason 首次出现返回 true（可见性为单测闸口：去重语义直接断言这里）
+    static func shouldReportFlushFailureOnce(reason: String) -> Bool {
+        Self.reportedFlushFailureReasons.withLock { $0.insert(reason).inserted }
+    }
+
+    /// flush 失败自观测入队；dropped=本批丢弃条数（保留重试的批次为 0），
+    /// queue=剩余队列长度（服务端归一时截断至 128 字符，值本身是短数字串）
+    private func trackFlushFailureOnce(reason: String, dropped: Int) async {
+        guard Self.shouldReportFlushFailureOnce(reason: reason) else { return }
+        track(.analyticsFlushFailure, [
+            "reason": reason,
+            "dropped": String(dropped),
+            "queue": String(await queue.count()),
+        ])
     }
 
     private static func isPermanentClientError(_ error: APIError) -> Bool {
