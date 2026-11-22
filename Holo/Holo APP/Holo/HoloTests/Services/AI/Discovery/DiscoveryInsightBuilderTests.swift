@@ -637,4 +637,50 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         archive.append(card: v3, outcome: .confirmed, now: now)
         XCTAssertEqual(archive.entries.count, 1)
     }
+
+    // MARK: - 2026-11-21 Plus 分层 I5
+
+    private func makeBuilt() throws -> DiscoveryInsightCandidateBuilder.Output {
+        try XCTUnwrap(DiscoveryInsightCandidateBuilder.build(
+            portraitStore: makePortraitStore(), featurePacket: makeFeaturePacket(),
+            proposals: [], recentTopics: [], rejectedAngles: []
+        ))
+    }
+
+    @MainActor
+    func testQuotaExhaustedWallsUntilResetAndSavesTeasersWithoutAttemptMark() throws {
+        let store = makeStore()
+        let now = Date()
+        let resetMs = Int64((now.timeIntervalSince1970 + 3 * 86_400) * 1000)
+        let draft = InsightDraft(selected: nil, noneReason: "quota_exhausted",
+                                 quota: .init(used: 1, limit: 1, tier: "free", resetAt: resetMs))
+        XCTAssertFalse(DiscoveryInsightService.applyDraft(draft, built: try makeBuilt(), store: store, now: now, isPlusLocally: false))
+        XCTAssertTrue(store.isInsightQuotaWalled(now: now.addingTimeInterval(2 * 86_400)))
+        XCTAssertFalse(store.isInsightQuotaWalled(now: now.addingTimeInterval(3 * 86_400 + 5)))
+        XCTAssertFalse(store.insightV2AttemptedToday(now: now))
+        XCTAssertFalse(store.teasers(now: now).isEmpty)
+        XCTAssertEqual(store.quotaSnapshot(now: now)?.used, 1)
+    }
+
+    @MainActor
+    func testQuotaExhaustedWhilePlusLocallyOnlyWallsTenMinutes() throws {
+        let store = makeStore()
+        let now = Date()
+        let draft = InsightDraft(selected: nil, noneReason: "quota_exhausted",
+                                 quota: .init(used: 1, limit: 1, tier: "free", resetAt: nil))
+        _ = DiscoveryInsightService.applyDraft(draft, built: try makeBuilt(), store: store, now: now, isPlusLocally: true)
+        XCTAssertTrue(store.isInsightQuotaWalled(now: now.addingTimeInterval(300)))
+        XCTAssertFalse(store.isInsightQuotaWalled(now: now.addingTimeInterval(700)))
+    }
+
+    @MainActor
+    func testNoneWorthwhileClearsTeasers() throws {
+        let store = makeStore()
+        let now = Date()
+        store.saveTeasers([DiscoveryTeaserClue(id: "x", phrases: ["x"], domains: ["health"], text: "x")], now: now)
+        _ = DiscoveryInsightService.applyDraft(InsightDraft(selected: nil, noneReason: "none_worthwhile"),
+                                               built: try makeBuilt(), store: store, now: now, isPlusLocally: false)
+        XCTAssertTrue(store.teasers(now: now).isEmpty)
+        XCTAssertTrue(store.insightV2NoneWorthwhileToday(now: now))
+    }
 }

@@ -62,6 +62,8 @@ enum DiscoveryInsightFeedbackBridge {
         catch { return .persistenceFailed }
 
         topicStore.consumeToday(card, now: now)
+        // 往期存档（2026-11-21 I5）：确认过的卡留档，免费与 Plus 一样可看（01 D5）。
+        DiscoveryInsightArchive.shared.append(card: card, outcome: .confirmed, now: now)
         if let angle = card.angleKey { topicStore.markInsightAngleShown(angle, now: now) }
         NotificationCenter.default.post(name: .holoKnowledgeControlDidApply, object: nil)
 
@@ -97,6 +99,8 @@ enum DiscoveryInsightFeedbackBridge {
     @discardableResult
     static func deferCard(card: DiscoveryTopicStore.QueuedCard, now: Date = Date(), topicStore: DiscoveryTopicStore = .shared) -> Outcome {
         guard topicStore.consumeToday(card, now: now) else { return .unavailable }
+        // 往期存档（2026-11-21 I5）：放一放的卡同样留档（看过的发现免费保留，01 D5）。
+        DiscoveryInsightArchive.shared.append(card: card, outcome: .deferred, now: now)
         topicStore.markDeferred(card.topicKey, now: now)
         return .deferred(angleKey: card.angleKey ?? card.topicKey)
     }

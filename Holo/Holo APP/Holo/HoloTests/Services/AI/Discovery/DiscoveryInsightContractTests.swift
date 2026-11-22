@@ -263,13 +263,17 @@ final class DiscoveryInsightContractTests: XCTestCase {
         let day = Calendar.current.startOfDay(for: now).timeIntervalSince1970
         for key in [
             "holo.discovery.insight.noneDay.v1",
-            "holo.discovery.insight.quotaWallDay.v1",
             "holo.discovery.topic.lastShownDay.v1",
         ] {
             defaults.set(day, forKey: key)
             XCTAssertFalse(store.canRequestInsight(now: now), key)
             defaults.removeObject(forKey: key)
         }
+        // 撞墙改「截止时刻」语义（2026-11-21 Plus 分层 I4a，02 审查 E1）：旧按日 key 弃用，
+        // 不再参与拦截——最坏情况是升级当天多探一次，服务端照样返回撞墙（零成本）；
+        // 新墙语义由 DiscoveryInsightBuilderTests.testQuotaWallLastsUntilResetAt 覆盖。
+        defaults.set(day, forKey: "holo.discovery.insight.quotaWallDay.v1")
+        XCTAssertTrue(store.canRequestInsight(now: now))
     }
 
     @MainActor

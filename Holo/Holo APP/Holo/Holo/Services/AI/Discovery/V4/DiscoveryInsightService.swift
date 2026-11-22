@@ -43,22 +43,10 @@ enum DiscoveryInsightService {
         store: DiscoveryTopicStore,
         now: Date
     ) async -> Bool {
-        // 材料组装：画像仓 + 七域特征包 + 挖掘器提案。
-        let portraitStore = HoloPortraitSynthesisRuntime.loadStore()
-        guard let featurePacket = await HoloLifeFeatureDataSource.buildPacket(now: now) else {
-            return noCardToday(reason: "特征包为空")
+        // 材料组装与请求。
+        guard let built = await buildMaterials(proposals: proposals, store: store, now: now) else {
+            return noCardToday(reason: "材料不足")
         }
-        guard let built = DiscoveryInsightCandidateBuilder.build(
-            portraitStore: portraitStore,
-            featurePacket: featurePacket,
-            proposals: proposals,
-            recentTopics: store.recentAngleKeys(now: now),
-            rejectedAngles: store.rejectedAngleKeys,
-            now: now
-        ) else {
-            return noCardToday(reason: "数据不足(画像+特征<3)")
-        }
-
         do {
             let draft = try await requestInsight(packet: built.packet)
             guard HoloAIDataProcessingConsent.shared.isGranted else { return false }
@@ -72,12 +60,34 @@ enum DiscoveryInsightService {
         }
     }
 
+    /// 材料组装：画像仓 + 七域特征包 + 挖掘器提案 → 候选包（2026-11-21 I5 抽出，自动生成与点名共用）。
+    private static func buildMaterials(
+        proposals: [HoloKnowledgeRevision],
+        store: DiscoveryTopicStore,
+        now: Date
+    ) async -> DiscoveryInsightCandidateBuilder.Output? {
+        let portraitStore = HoloPortraitSynthesisRuntime.loadStore()
+        guard let featurePacket = await HoloLifeFeatureDataSource.buildPacket(now: now) else { return nil }
+        return DiscoveryInsightCandidateBuilder.build(
+            portraitStore: portraitStore,
+            featurePacket: featurePacket,
+            proposals: proposals,
+            recentTopics: store.recentAngleKeys(now: now),
+            rejectedAngles: store.rejectedAngleKeys,
+            now: now
+        )
+    }
+
     static func applyDraft(
         _ draft: InsightDraft,
         built: DiscoveryInsightCandidateBuilder.Output,
         store: DiscoveryTopicStore,
-        now: Date
+        now: Date,
+        isFocusedPick: Bool = false,
+        // 默认参数在非隔离上下文求值拿不到 MainActor 属性，改 nil + 函数体内解析（语义与施工图一致）。
+        isPlusLocally: Bool? = nil
     ) -> Bool {
+        let plusLocal = isPlusLocally ?? HoloEntitlementState.shared.isPlusActive
         if let selected = draft.selected {
             if let failure = DiscoveryInsightTerminalCheck.validate(selected, packet: built.packet) {
                 store.markInvalidInsightResponse(now: now)
@@ -97,8 +107,15 @@ enum DiscoveryInsightService {
                     selected: selected, slots: built.slots, portraitIds: portraitIds,
                     domainByRefId: domainByRefId, now: now
                 )
-                store.enqueue(card)
-                store.markInsightV2Attempted(now: now)
+                var queued = card
+                if isFocusedPick { queued.isFocusedPick = true }
+                store.enqueue(queued)
+                // 预告：成功出卡后保存没用上的特征（已排除本次依据引用，01 §5 第 7 条）。
+                store.saveTeasers(DiscoveryTeaserBuilder.build(
+                    packet: built.packet, phrases: built.teaserPhrases,
+                    excludingFeatureIds: Set(selected.evidence.map(\.refId))), now: now)
+                if let quota = draft.quota { store.saveQuotaSnapshot(quota, now: now) }
+                if !isFocusedPick { store.markInsightV2Attempted(now: now) }
                 logger.info("v4 洞察入队: \(selected.angleKey, privacy: .public)")
                 return true
             } catch {
@@ -108,20 +125,88 @@ enum DiscoveryInsightService {
             }
         }
 
-        store.markInsightV2Attempted(now: now)
         switch draft.noneReason {
-        case "none_worthwhile", "insufficient_data":
-            store.markInsightV2NoneWorthwhile(now: now)
-            return noCardToday(reason: draft.noneReason ?? "none_worthwhile")
         case "quota_exhausted":
-            // I4a 临时接线（until 取 nil 墙到今天结束）；I5 换成后端 resetAt 的正式逻辑。
-            store.markInsightQuotaWalled(until: nil, now: now)
-            return noCardToday(reason: "每周额度已用完")
+            // 撞墙不写当日尝试标记（02 审查 E2）；墙截止到恢复时刻（E1）；会员同步延迟只墙 10 分钟（E6）。
+            if let quota = draft.quota { store.saveQuotaSnapshot(quota, now: now) }
+            store.saveTeasers(DiscoveryTeaserBuilder.build(packet: built.packet, phrases: built.teaserPhrases), now: now)
+            let syncing = draft.quota?.tier == "free" && plusLocal
+            store.markInsightQuotaWalled(until: syncing ? now.addingTimeInterval(600) : draft.quota?.resetDate, now: now)
+            return noCardToday(reason: syncing ? "会员状态同步中" : "每周额度已用完")
+        case "none_worthwhile", "insufficient_data":
+            if !isFocusedPick {
+                store.markInsightV2Attempted(now: now)
+                store.markInsightV2NoneWorthwhile(now: now)
+                // 模型看过、确实没话说：清空预告，不再写「还注意到几件事」（01 §5 第 6 条）。
+                store.clearTeasers()
+            }
+            return noCardToday(reason: draft.noneReason ?? "none_worthwhile")
         case "disabled":
+            store.markInsightV2Attempted(now: now)
             DiscoveryFeatureFlags.markDisabledByServer()
             return noCardToday(reason: "后端开关关")
         default:
+            if !isFocusedPick { store.markInsightV2Attempted(now: now) }
             return noCardToday(reason: "gate_rejected")
+        }
+    }
+
+    // MARK: - Plus 点名看（2026-11-21 I5）
+
+    enum FocusOutcome: Equatable {
+        case delivered
+        case nothingWorthSaying
+        case changed
+        case limitReached
+        case failed
+    }
+
+    private static var focusTask: Task<FocusOutcome, Never>?
+
+    static func requestFocused(
+        clue: DiscoveryTeaserClue,
+        proposals: [HoloKnowledgeRevision],
+        now: Date = Date()
+    ) async -> FocusOutcome {
+        if let focusTask { return await focusTask.value }
+        let task = Task { await performFocused(clue: clue, proposals: proposals, store: .shared, client: RealInsightClient(), now: now) }
+        focusTask = task
+        defer { focusTask = nil }
+        return await task.value
+    }
+
+    static func performFocused(
+        clue: DiscoveryTeaserClue,
+        proposals: [HoloKnowledgeRevision],
+        store: DiscoveryTopicStore,
+        client: InsightClient,
+        now: Date
+    ) async -> FocusOutcome {
+        guard HoloAIDataProcessingConsent.shared.isGranted else { return .failed }
+        guard !store.isInsightQuotaWalled(now: now),
+              store.focusPicksToday(now: now) < DiscoveryTopicStore.focusPicksPerDay else { return .limitReached }
+        guard var built = await buildMaterials(proposals: proposals, store: store, now: now) else { return .changed }
+        // 特征 id 按下标生成，重新组包后可能变化：用短句反查当前 id（02 审查 E5）。
+        let ids = clue.phrases.compactMap { phrase in
+            built.teaserPhrases.first(where: { $0.value == phrase })?.key
+        }
+        guard !ids.isEmpty, ids.count == clue.phrases.count else {
+            store.removeTeaser(id: clue.id, now: now)
+            return .changed
+        }
+        built.packet.focusFeatureIds = ids
+        store.markFocusPick(now: now)
+        do {
+            let draft = try await requestInsight(packet: built.packet, client: client)
+            let delivered = applyDraft(draft, built: built, store: store, now: now, isFocusedPick: true)
+            store.removeTeaser(id: clue.id, now: now)
+            if delivered { return .delivered }
+            return draft.noneReason == "quota_exhausted" ? .limitReached : .nothingWorthSaying
+        } catch APIError.rateLimited(_) {
+            return .limitReached
+        } catch {
+            logger.error("点名看失败: \(String(describing: error), privacy: .public)")
+            return .failed
         }
     }
 
