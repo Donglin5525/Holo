@@ -11,6 +11,7 @@ import Foundation
 import SwiftUI
 import CoreData
 import Combine
+import os
 
 // MARK: - MemoryGalleryViewModel
 
@@ -43,10 +44,13 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 洞察数（预留字段）
     @Published var totalInsights: Int = 0
 
-    /// 最近 13 周每日主动活跃计数
-    @Published var heatmapData: [Date: Int] = [:]
+    /// 年鉴卡当前展示的年份数据（2026-11-21 取代 13 周活跃热力图）
+    @Published var almanac: MemoryAlmanacYear?
 
-    /// 当前选中的热力图日期
+    /// 开始记录日：翻年下限与新用户副行；随快照计算
+    @Published var almanacFirstRecordDate: Date?
+
+    /// 年鉴中选中的日期（驱动「当天轨迹」伴生卡）
     @Published var selectedHeatmapDate: Date?
 
     // MARK: - AI Insight Properties
@@ -264,7 +268,8 @@ class MemoryGalleryViewModel: ObservableObject {
         let milestones: [(date: Date, data: MilestoneData)]
         let totalMemoryCount: Int
         let totalRecordedDays: Int
-        let heatmap: [Date: Int]
+        let almanacCounts: [Date: Int]
+        let firstRecordDate: Date?
     }
 
     private func computeSnapshot() async throws -> GallerySnapshot {
@@ -275,14 +280,16 @@ class MemoryGalleryViewModel: ObservableObject {
             let highlights = HighlightDetector.detect(for: dates, context: context, achievements: achievements)
             let milestones = try MilestoneDetector.detect(context: context, achievements: achievements)
             let stats = Self.computeAggregateStats(context: context)
-            let heatmap = Self.computeHeatmapData(context: context)
+            let almanacCounts = MemoryDayCountQuery.dayCounts(year: Calendar.current.component(.year, from: Date()), context: context)
+            let firstRecordDate = MemoryDayCountQuery.firstRecordDate(context: context)
             return GallerySnapshot(
                 items: items,
                 batchHighlights: highlights,
                 milestones: milestones,
                 totalMemoryCount: stats.memoryCount,
                 totalRecordedDays: stats.recordedDays,
-                heatmap: heatmap
+                almanacCounts: almanacCounts,
+                firstRecordDate: firstRecordDate
             )
         }
     }
@@ -309,7 +316,18 @@ class MemoryGalleryViewModel: ObservableObject {
                 totalMemoryCount = snapshot.totalMemoryCount
                 totalRecordedDays = snapshot.totalRecordedDays
                 totalInsights = 0
-                heatmapData = snapshot.heatmap
+                almanacFirstRecordDate = snapshot.firstRecordDate
+                // 刷新时保持用户正在看的年份；当年数据随快照一起来，往年再按需加载
+                let currentYear = Calendar.current.component(.year, from: Date())
+                let shownYear = almanac?.year ?? currentYear
+                if shownYear == currentYear {
+                    almanac = MemoryAlmanacBuilder.build(
+                        year: currentYear, dayCounts: snapshot.almanacCounts,
+                        today: Date(), firstRecordDate: snapshot.firstRecordDate
+                    )
+                } else {
+                    Task { await loadAlmanacYear(shownYear) }
+                }
             }
 
             // 计算日期范围
@@ -477,7 +495,7 @@ class MemoryGalleryViewModel: ObservableObject {
         transactionRequest.predicate = NSPredicate(format: "deletedAt == nil")
         let txCount = (try? context.count(for: transactionRequest)) ?? 0
 
-        let activeHabitIds = fetchActiveHabitIds(context: context)
+        let activeHabitIds = MemoryDayCountQuery.activeHabitIds(context: context)
         let habitRecordCount = countHabitRecords(for: activeHabitIds, context: context)
 
         let taskRequest = TodoTask.fetchRequest()
@@ -524,64 +542,12 @@ class MemoryGalleryViewModel: ObservableObject {
         )
     }
 
-    private static func computeHeatmapData(context: NSManagedObjectContext) -> [Date: Int] {
-        let today = Date().startOfDay
-        let currentWeekStart = today.startOfWeek
-        let windowStart = currentWeekStart.addingWeeks(-12)
-        let windowEnd = currentWeekStart.addingDays(7)
-        let activeHabitIds = fetchActiveHabitIds(context: context)
-
-        var counts: [Date: Int] = [:]
-        mergeDayCounts(into: &counts, fetchDayCounts(
-            entityName: "Transaction",
-            key: "date",
-            predicate: NSPredicate(format: "deletedAt == nil AND date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate),
-            context: context
-        ))
-        mergeDayCounts(into: &counts, fetchHabitRecordDayCounts(
-            for: activeHabitIds,
-            start: windowStart,
-            end: windowEnd,
-            context: context
-        ))
-        mergeDayCounts(into: &counts, fetchDayCounts(
-            entityName: "TodoTask",
-            key: "completedAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate),
-            context: context
-        ))
-        mergeDayCounts(into: &counts, fetchDayCounts(
-            entityName: "Thought",
-            key: "createdAt",
-            predicate: NSPredicate(format: "deletedAt == nil AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate),
-            context: context
-        ))
-
-        return counts
-    }
-
-    private static func fetchActiveHabitIds(context: NSManagedObjectContext) -> [UUID] {
-        let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
-        let habits = (try? context.fetch(request)) ?? []
-        return habits.map(\.id)
-    }
-
-    /// 排除取消打卡行（isCompleted=NO 仅在取消后出现；数值型行该字段恒 false，不适用），
-    /// 记忆总数/记录天数/热力图三个口径共用，口径变更只动这里
-    private static var excludeCancelledCheckInPredicate: NSPredicate {
-        NSPredicate(
-            format: "(habit.type != %d OR isCompleted == YES)",
-            HabitType.checkIn.rawValue
-        )
-    }
-
     private static func countHabitRecords(for activeHabitIds: [UUID], context: NSManagedObjectContext) -> Int {
         guard !activeHabitIds.isEmpty else { return 0 }
         let request = HabitRecord.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds),
-            excludeCancelledCheckInPredicate
+            MemoryDayCountQuery.excludeCancelledCheckInPredicate
         ])
         return (try? context.count(for: request)) ?? 0
     }
@@ -591,39 +557,13 @@ class MemoryGalleryViewModel: ObservableObject {
         let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "habitId IN %@ AND deletedAt == nil", activeHabitIds),
-            excludeCancelledCheckInPredicate
+            MemoryDayCountQuery.excludeCancelledCheckInPredicate
         ])
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["date"]
         request.returnsDistinctResults = true
         let rows = (try? context.fetch(request)) ?? []
         return Set(rows.compactMap { ($0["date"] as? Date)?.startOfDay })
-    }
-
-    private static func fetchHabitRecordDayCounts(
-        for activeHabitIds: [UUID],
-        start: Date,
-        end: Date,
-        context: NSManagedObjectContext
-    ) -> [Date: Int] {
-        guard !activeHabitIds.isEmpty else { return [:] }
-        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(
-                format: "habitId IN %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
-                activeHabitIds,
-                start as NSDate,
-                end as NSDate
-            ),
-            excludeCancelledCheckInPredicate
-        ])
-        request.resultType = .dictionaryResultType
-        request.propertiesToFetch = ["date"]
-        let rows = (try? context.fetch(request)) ?? []
-        return rows.reduce(into: [Date: Int]()) { result, row in
-            guard let date = row["date"] as? Date else { return }
-            result[date.startOfDay, default: 0] += 1
-        }
     }
 
     private static func fetchUniqueDates(
@@ -639,29 +579,6 @@ class MemoryGalleryViewModel: ObservableObject {
         request.returnsDistinctResults = true
         let rows = (try? context.fetch(request)) ?? []
         return Set(rows.compactMap { ($0[key] as? Date)?.startOfDay })
-    }
-
-    private static func fetchDayCounts(
-        entityName: String,
-        key: String,
-        predicate: NSPredicate?,
-        context: NSManagedObjectContext
-    ) -> [Date: Int] {
-        let request = NSFetchRequest<NSDictionary>(entityName: entityName)
-        request.predicate = predicate
-        request.resultType = .dictionaryResultType
-        request.propertiesToFetch = [key]
-        let rows = (try? context.fetch(request)) ?? []
-        return rows.reduce(into: [Date: Int]()) { result, row in
-            guard let date = row[key] as? Date else { return }
-            result[date.startOfDay, default: 0] += 1
-        }
-    }
-
-    private static func mergeDayCounts(into target: inout [Date: Int], _ source: [Date: Int]) {
-        for (date, count) in source {
-            target[date, default: 0] += count
-        }
     }
 
     // MARK: - Today Summary
@@ -759,36 +676,33 @@ class MemoryGalleryViewModel: ObservableObject {
         return positive.reduce(0, +) / Double(positive.count)
     }
 
-    // MARK: - Heatmap Timeline Linking
+    // MARK: - 年鉴
 
-    func findSectionInWeek(of date: Date) -> Date? {
-        let weekStart = date.startOfWeek
-        let weekEnd = weekStart.addingDays(7)
-        return timelineSections.first { section in
-            section.date >= weekStart && section.date < weekEnd
-        }?.id
-    }
+    private static let almanacLogger = Logger(subsystem: "com.holo.app", category: "MemoryAlmanac")
 
-    func ensureWeekLoaded(_ date: Date) async {
-        let weekStart = date.startOfWeek
-
-        while findSectionInWeek(of: date) == nil && hasMoreData {
-            let previousOffset = currentDayOffset
-            await loadMore()
-
-            if currentDayOffset == previousOffset {
-                break
+    /// 切换 / 刷新年鉴年份：后台查询该年按天件数后在主线程组装
+    func loadAlmanacYear(_ year: Int) async {
+        let firstRecordDate = almanacFirstRecordDate
+        do {
+            let counts = try await CoreDataStack.shared.performBackgroundTask { context in
+                MemoryDayCountQuery.dayCounts(year: year, context: context)
             }
-
-            if let loadedThroughDate, loadedThroughDate < weekStart {
-                break
-            }
+            almanac = MemoryAlmanacBuilder.build(year: year, dayCounts: counts, today: Date(), firstRecordDate: firstRecordDate)
+        } catch {
+            Self.almanacLogger.error("年鉴加载失败 year=\(year, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private var loadedThroughDate: Date? {
-        guard currentDayOffset > 0 else { return nil }
-        return Date().startOfDay.addingDays(-(currentDayOffset - 1))
+    /// 年鉴选中某天的「当天轨迹」：直接从全量缓存组装，不依赖时间线分页（往年同样可用）
+    func daySection(for date: Date) -> TimelineSection? {
+        let dayStart = Calendar.current.startOfDay(for: date)
+        let section = TimelineSectionBuilder.buildSection(
+            date: dayStart,
+            items: items(on: dayStart),
+            highlights: cachedHighlights[dayStart] ?? [],
+            milestones: filteredMilestones(for: dayStart)
+        )
+        return section.nodes.isEmpty ? nil : section
     }
 
     // MARK: - AI Insight Methods

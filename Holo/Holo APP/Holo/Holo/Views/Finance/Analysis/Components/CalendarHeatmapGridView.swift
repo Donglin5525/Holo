@@ -7,11 +7,12 @@ struct CalendarHeatmapGridView: View {
     var weekdayLabels: [String] = []
     var showsMonthAxis = false
     var palette: Color.HoloHeatmapPalette = .mist
+    var style: HoloHeatmap.Style = .squares
     var selectedDate: Date? = nil
     var onTapDay: ((Day) -> Void)? = nil
 
     var body: some View {
         HoloHeatmap(days: days, weekdayLabels: weekdayLabels, showsMonthAxis: showsMonthAxis,
-                    palette: palette, selectedDate: selectedDate, onSelect: onTapDay)
+                    palette: palette, style: style, selectedDate: selectedDate, onSelect: onTapDay)
     }
 }

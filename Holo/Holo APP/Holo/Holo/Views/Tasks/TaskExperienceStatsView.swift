@@ -30,7 +30,6 @@ struct TaskExperienceStatsView: View {
     @State private var selectedListSegmentID: String?
     @State private var selectedHeatDay: CalendarHeatmapGridView.Day? = nil
 
-    @Environment(\.colorScheme) private var colorScheme
 
     enum DrilldownKind: String, Identifiable {
         case created
@@ -491,6 +490,7 @@ struct TaskExperienceStatsView: View {
                 weekdayLabels: [String(localized: "一"), "", String(localized: "三"), "", String(localized: "五"), "", ""],
                 showsMonthAxis: true,
                 palette: .mist,
+                style: .dots,
                 selectedDate: selectedHeatDay?.date
             ) { day in
                 selectedHeatDay = day
@@ -513,10 +513,11 @@ struct TaskExperienceStatsView: View {
             Text("少")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextPlaceholder)
-            ForEach(0...5, id: \.self) { level in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.holoHeatmapColor(level: level, palette: .mist, colorScheme: colorScheme))
-                    .frame(width: 10, height: 10)
+            // 与 HoloHeatmap.dots 同口径：3 档墨点深浅
+            ForEach([0.3, 0.6, 0.9], id: \.self) { opacity in
+                Circle()
+                    .fill(Color.holoAlmanacInk.opacity(opacity))
+                    .frame(width: 7, height: 7)
             }
             Text("多")
                 .font(.holoTinyLabel)

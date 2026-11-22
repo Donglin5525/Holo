@@ -13,7 +13,7 @@ struct HoloChartGalleryView: View {
     private static let initialTab: Int = {
         guard let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("-HoloChartGalleryTab=") }),
               let value = arg.split(separator: "=").last, let n = Int(value) else { return 0 }
-        return min(max(n, 0), 8)
+        return min(max(n, 0), 9)
     }()
     @State private var tab = HoloChartGalleryView.initialTab
     @State private var selection: String?
@@ -102,6 +102,7 @@ struct HoloChartGalleryView: View {
                         Text("构成").tag(6)
                         Text("瀑布").tag(7)
                         Text("增强").tag(8)
+                        Text("年鉴").tag(9)
                     }.pickerStyle(.segmented)
                     Text(tab == 2 ? heatID : (selection ?? "未选中"))
                         .accessibilityIdentifier("chart.gallery.selection")
@@ -183,6 +184,8 @@ struct HoloChartGalleryView: View {
                 HoloBarChart(buckets: buckets, series: series, selection: $selection, legendToggle: true)
                 HoloMiniTrendChart(points: miniPoints, color: .holoChart6, title: "样例测量")
             }
+        case 9:
+            MemoryAlmanacGallerySamples()
         default:
             HoloBarChart(buckets: Array(buckets.prefix(4)), series: Array(series.prefix(1)), orientation: .horizontal, selection: $selection)
         }

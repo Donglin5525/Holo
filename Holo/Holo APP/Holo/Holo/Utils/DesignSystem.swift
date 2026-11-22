@@ -243,6 +243,15 @@ extension Color {
     static let holoChartInk = holoChart1
     /// 其余 / 上期 / 非主角 · 石灰
     static let holoChartStone = v4(0xBDB5A8, 0x7A746C)
+
+    // MARK: - 年鉴（2026-11-21 记忆长廊年鉴卡 / 年鉴分享图）
+    /// 年鉴墨色：月度条、每日刻度（浅底暖墨 / 深底米白）；轨道与没记用它的低透明度
+    static let holoAlmanacInk = v4(0x2F2B26, 0xECE7DD)
+    /// 分享图纸面：固定浅色，不随深色模式（与想法分享图同规则）
+    static let holoAlmanacPaper = v4(0xF4EFE4, 0xF4EFE4)
+    /// 分享图纸面上的墨色与次要文字（固定）
+    static let holoAlmanacPaperInk = v4(0x1F1C17, 0x1F1C17)
+    static let holoAlmanacPaperMuted = v4(0x7A7064, 0x7A7064)
     /// 分类色板（赭橙 / 墨蓝 / 麦金 / 藕紫 / 青瓷 / 砖粉）；「其余」恒用 holoChartStone
     static let holoChartCategoryPalette: [Color] = [
         .holoChart2, .holoChart1, .holoChart8,

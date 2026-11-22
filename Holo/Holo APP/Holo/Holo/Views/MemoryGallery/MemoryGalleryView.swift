@@ -36,6 +36,7 @@ struct MemoryGalleryView: View {
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var hasMountedInsight = false
     @State private var showGrowth = false
+    @State private var showAlmanacShare = false
     @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
     private var insightIsVisible: Bool { presentationIsVisible && selectedTab == .insight }
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -401,9 +402,7 @@ struct MemoryGalleryView: View {
                     .foregroundColor(.holoTextPlaceholder)
             }
 
-            if let section = viewModel.timelineSections.first(where: {
-                Calendar.current.isDate($0.date, inSameDayAs: date)
-            }) {
+            if let section = viewModel.daySection(for: date) {
                 let summary = section.nodes.compactMap { node -> DailySummaryData? in
                     if case .summary(let data) = node.data { return data }
                     return nil
@@ -615,21 +614,32 @@ struct MemoryGalleryView: View {
         }
     }
 
-    // MARK: - 活跃热力图（洞察 Tab）
+    // MARK: - 人生年鉴（洞察 Tab，2026-11-21 取代 13 周活跃热力图）
 
-    /// 13 周活跃热力图 + 点选日的「当天轨迹」伴生卡
+    /// 年鉴卡 + 点选日的「当天轨迹」伴生卡
     private var heatmapSection: some View {
         VStack(spacing: HoloSpacing.md) {
-            MemoryHeatmapView(
-                data: viewModel.heatmapData,
-                selectedDate: viewModel.selectedHeatmapDate
-            ) { date in
-                viewModel.selectedHeatmapDate = date
-                Task { await viewModel.ensureWeekLoaded(date) }
+            if let almanac = viewModel.almanac {
+                MemoryAlmanacCard(
+                    almanac: almanac,
+                    earliestYear: viewModel.almanacFirstRecordDate.map { Calendar.current.component(.year, from: $0) } ?? almanac.year,
+                    selectedDate: viewModel.selectedHeatmapDate,
+                    onSelectDate: { viewModel.selectedHeatmapDate = $0 },
+                    onChangeYear: { year in
+                        viewModel.selectedHeatmapDate = nil
+                        Task { await viewModel.loadAlmanacYear(year) }
+                    },
+                    onShare: { showAlmanacShare = true }
+                )
             }
 
             if let selectedDate = viewModel.selectedHeatmapDate {
                 selectedDatePreview(date: selectedDate)
+            }
+        }
+        .sheet(isPresented: $showAlmanacShare) {
+            if let almanac = viewModel.almanac {
+                MemoryAlmanacShareSheet(almanac: almanac)
             }
         }
     }

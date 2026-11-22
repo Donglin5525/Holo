@@ -13,10 +13,15 @@ struct HoloHeatmapDay: Identifiable, Equatable {
 
 /// 列为周、行为周几。绘制与二维命中共同使用同一个等分槽位。
 struct HoloHeatmap: View {
+    /// 格子样式：`.squares` 雾蓝方格（默认）；`.dots` 年鉴墨点——同样大小、只画记过的日子、3 档深浅、今天橙色
+    /// （2026-11-21 与年鉴分享图同一语言，避免大小不一的圆点带来密集感）
+    enum Style { case squares, dots }
+
     let days: [HoloHeatmapDay]
     var weekdayLabels: [String] = []
     var showsMonthAxis = true
     var palette: Color.HoloHeatmapPalette = .mist
+    var style: Style = .squares
     var selectedDate: Date? = nil
     var onSelect: ((HoloHeatmapDay) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
@@ -88,20 +93,14 @@ struct HoloHeatmap: View {
         return ZStack(alignment: .topLeading) {
             ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
                 let selected = focusedDate.map { Calendar.current.isDate($0, inSameDayAs: day.date) } ?? false
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.holoHeatmapColor(level: HoloChartGeometry.countLevel(day.count), palette: palette, colorScheme: colorScheme))
-                    .overlay {
-                        if selected { RoundedRectangle(cornerRadius: 3).strokeBorder(Color.holoPrimary, lineWidth: 2) }
-                    }
-                    .opacity(day.isFuture ? 0.3 : 1)
-                    .frame(width: max(pitch - 3, 1), height: max(pitch - 3, 1))
+                cell(day, selected: selected, pitch: pitch)
                     .position(x: (CGFloat(index / 7) + 0.5) * pitch, y: (CGFloat(index % 7) + 0.5) * pitch)
                     .accessibilityLabel("\(HoloChartFormat.date(day.date, template: "yMMMd")) · \(day.count) 条")
                     .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
                     .accessibilityAction { select(index) }
                     .accessibilityHidden(day.isFuture)
             }
-            HoloHeatmapGestureOverlay { point in
+            HoloScrubGestureOverlay { point in
                 guard let index = HoloChartGeometry.heatmapIndex(point: point, size: size, weeks: weeks) else { return }
                 select(index)
             }
@@ -113,59 +112,41 @@ struct HoloHeatmap: View {
         .accessibilityIdentifier("holo.heatmap.grid")
     }
 
+    @ViewBuilder
+    private func cell(_ day: HoloHeatmapDay, selected: Bool, pitch: CGFloat) -> some View {
+        switch style {
+        case .squares:
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.holoHeatmapColor(level: HoloChartGeometry.countLevel(day.count), palette: palette, colorScheme: colorScheme))
+                .overlay {
+                    if selected { RoundedRectangle(cornerRadius: 3).strokeBorder(Color.holoPrimary, lineWidth: 2) }
+                }
+                .opacity(day.isFuture ? 0.3 : 1)
+                .frame(width: max(pitch - 3, 1), height: max(pitch - 3, 1))
+        case .dots:
+            let level = MemoryAlmanacDay.level(for: day.count)
+            let isToday = Calendar.current.isDateInToday(day.date)
+            let diameter = max(pitch * 0.42, 4)
+            ZStack {
+                if isToday {
+                    Circle().fill(Color.holoPrimary).frame(width: diameter, height: diameter)
+                } else if !day.isFuture && level > 0 {
+                    Circle().fill(Color.holoAlmanacInk.opacity(Self.dotOpacity[level])).frame(width: diameter, height: diameter)
+                }
+                if selected {
+                    Circle().strokeBorder(Color.holoAlmanacInk, lineWidth: 1.2).frame(width: diameter + 8, height: diameter + 8)
+                }
+            }
+            .frame(width: pitch, height: pitch)
+        }
+    }
+
+    /// 墨点 3 档深浅（与年鉴分享图一致）
+    private static let dotOpacity: [Double] = [0, 0.3, 0.6, 0.9]
+
     private func select(_ index: Int) {
         guard days.indices.contains(index), !days[index].isFuture, focusedDate != days[index].date else { return }
         inspectedDate = days[index].date
         onSelect?(days[index])
     }
 }
-
-#if canImport(UIKit)
-private struct HoloHeatmapGestureOverlay: UIViewRepresentable {
-    let onSelect: (CGPoint) -> Void
-    func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .clear
-        let hold = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.hold(_:)))
-        hold.minimumPressDuration = 0.25
-        hold.allowableMovement = 10
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:)))
-        tap.require(toFail: hold)
-        view.addGestureRecognizer(hold)
-        view.addGestureRecognizer(tap)
-        return view
-    }
-    func updateUIView(_ uiView: UIView, context: Context) { context.coordinator.onSelect = onSelect }
-    final class Coordinator: NSObject {
-        var onSelect: (CGPoint) -> Void
-        init(onSelect: @escaping (CGPoint) -> Void) { self.onSelect = onSelect }
-        @objc func tap(_ gesture: UITapGestureRecognizer) {
-            if gesture.state == .ended { onSelect(gesture.location(in: gesture.view)) }
-        }
-        @objc func hold(_ gesture: UILongPressGestureRecognizer) {
-            if gesture.state == .began || gesture.state == .changed { onSelect(gesture.location(in: gesture.view)) }
-        }
-    }
-}
-
-#else
-/// macOS：无 UILongPress/UITap 体系，用带位置的点按 + 长按拖动等价实现
-private struct HoloHeatmapGestureOverlay: View {
-    let onSelect: (CGPoint) -> Void
-
-    var body: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .onTapGesture { location in
-                onSelect(location)
-            }
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        onSelect(value.location)
-                    }
-            )
-    }
-}
-#endif
