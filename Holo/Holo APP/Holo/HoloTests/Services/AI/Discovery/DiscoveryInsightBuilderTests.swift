@@ -485,4 +485,57 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertTrue(p.values.allSatisfy { !InsightNumberDiscipline.containsNumerals(in: $0) })
         XCTAssertFalse(output.packet.encodeJSON()?.contains("最近你睡得越来越晚") ?? true)
     }
+
+    // MARK: - 2026-11-21 Plus 分层 I3：预告问题
+
+    private func feature(_ id: String, _ domain: String) -> InsightInputPacket.FeatureItem {
+        InsightInputPacket.FeatureItem(id: id, domain: domain, description: "d", direction: "up", slots: [])
+    }
+
+    private func teaserPacket(_ features: [InsightInputPacket.FeatureItem]) -> InsightInputPacket {
+        InsightInputPacket(schemaVersion: 1, kind: "insightInput", requestId: "r", window: .init(days: 28),
+                           portrait: [], features: features, userIntents: [], recentTopics: [], rejectedAngles: [])
+    }
+
+    func testTeaserPairsAcrossDomainsAndDropsSecondRecent() {
+        let packet = teaserPacket([feature("a", "health"), feature("b", "habit")])
+        let clues = DiscoveryTeaserBuilder.build(packet: packet, phrases: [
+            "a": "最近你睡得越来越晚", "b": "「冥想」最近打卡比之前少了",
+        ])
+        XCTAssertEqual(clues.count, 1)
+        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚，同一段时间「冥想」打卡比之前少了。这两件事有关系吗？")
+        XCTAssertEqual(clues[0].phrases, ["最近你睡得越来越晚", "「冥想」最近打卡比之前少了"])
+    }
+
+    func testTeaserSameDomainStaysSingleAndRespectsLimitAndExclusion() {
+        let packet = teaserPacket([
+            feature("a", "health"), feature("b", "health"), feature("c", "health"),
+            feature("d", "health"), feature("e", "health"),
+        ])
+        let phrases = ["a": "最近你睡得比较少", "b": "最近你睡得越来越晚", "c": "最近你走路、运动少了",
+                       "d": "最近你睡得比之前短了", "e": "最近你每天走的路比之前少了"]
+        let clues = DiscoveryTeaserBuilder.build(packet: packet, phrases: phrases, excludingFeatureIds: ["a"])
+        XCTAssertEqual(clues.count, 3)
+        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚，Holo 想帮你看看是为什么。")
+    }
+
+    func testTeaserSkipsFeaturesWithoutPhrase() {
+        let packet = teaserPacket([feature("f_miner_0", "finance"), feature("a", "health")])
+        let clues = DiscoveryTeaserBuilder.build(packet: packet, phrases: ["a": "最近你睡得比较少"])
+        XCTAssertEqual(clues.map(\.text), ["最近你睡得比较少，Holo 想帮你看看是为什么。"])
+    }
+
+    func testTeaserFromRealBuilderOutput() throws {
+        let output = try XCTUnwrap(DiscoveryInsightCandidateBuilder.build(
+            portraitStore: makePortraitStore(), featurePacket: makeFeaturePacket(),
+            proposals: [], recentTopics: [], rejectedAngles: []
+        ))
+        let clues = DiscoveryTeaserBuilder.build(packet: output.packet, phrases: output.teaserPhrases)
+        XCTAssertFalse(clues.isEmpty)
+        XCTAssertLessThanOrEqual(clues.count, 3)
+        // 数字纪律作用于短句（可变部分）：固定句式「两件事」是文案真源原文，不在检查范围。
+        XCTAssertTrue(clues.allSatisfy { clue in
+            !clue.phrases.contains(where: { InsightNumberDiscipline.containsNumerals(in: $0) })
+        })
+    }
 }
