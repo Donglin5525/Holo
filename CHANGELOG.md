@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-11-22] 埋点字典 v2.4——留存分析六补盲（后端白名单已上产 657ba4482，iOS 随 1.1.9 后续包）
+
+针对近两周留存分析实锤卡壳的六个黑洞补事件（口径全部「仅动作不收内容」）：
+
+- **analytics_flush_failure**：埋点上报失败首次服务端可见（4xx 毒丸丢弃/网络失败/拒收，带丢弃条数与剩余队列；同进程同原因去重）——539AF6 类「断线 8 天才发现」从此当天可见。
+- **app_session_end**：会话时长（秒），与 app_session_start 对称挂 background 时机——留存质量从「天数」升级到「投入度」。
+- **receipt_booking_outcome**：识图漏斗中段放弃/失败点（step=extract/review × cancelled/failed；capture 由系统承担无 App 内取消点）——识图入账归零时分得清「没人拍」还是「没走完」。
+- **push_token_registered**：推送 token 注册成败（失败带原因）——周四推送 0 响应时先核送达再谈文案。
+- **notification_settings_changed**：四组通知开关变更（关通知=流失前兆信号；附带修正行开关 onChange 程序化赋值误触发，改 Binding set 路径）。
+- **widget_engaged**：桌面小组件点击进 App（11 种 widget 标识，挂 holo:// 深链统一入口）——最高频回访入口首次可分析。
+
+---
+
 ## [2026-11-22] 1.1.9 收口批——习惯三档记录+主题文件夹、目标进度数据关联（随 1.1.9 发版）
 
 多并行线整批收编（桌面小组件线 7 文件移出留待下版；含两处新文件缺 `import Combine` 修复）：

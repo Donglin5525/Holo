@@ -65,10 +65,16 @@ final class HoloCloudPushTokenService {
                 lastReportedToken = token
                 UserDefaults.standard.set(token, forKey: Self.reportedTokenKey)
                 logger.info("推送令牌已上报")
+                // 产品埋点：令牌上报成功（与上次一致被去重跳过的重复上报不记）
+                HoloProductAnalytics.shared.track(.pushTokenRegistered, ["result": "success"])
             } catch {
                 // 上报失败不重试：下次启动注册回调会再触发（token 相同则跳过的去重
                 // 只在成功后落盘，失败路径下次仍会重试）
                 logger.error("推送令牌上报失败：\(String(describing: error), privacy: .public)")
+                HoloProductAnalytics.shared.track(.pushTokenRegistered, [
+                    "result": "failed",
+                    "reason": String(describing: error),
+                ])
             }
         }
     }
@@ -76,6 +82,11 @@ final class HoloCloudPushTokenService {
     /// AppDelegate 回调：注册失败（模拟器/无 entitlement/网络）——静默，不影响云端分析链路
     func handleRegistrationFailure(_ error: Error) {
         logger.info("远程通知注册失败（模拟器属正常）：\(String(describing: error), privacy: .public)")
+        // 产品埋点：注册即失败（拿不到 token，上报更无从谈起）；模拟器属正常路径
+        HoloProductAnalytics.shared.track(.pushTokenRegistered, [
+            "result": "failed",
+            "reason": String(describing: error),
+        ])
     }
 }
 

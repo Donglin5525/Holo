@@ -127,8 +127,48 @@ final class HoloProductAnalyticsTests: XCTestCase {
             "discovery_today_shown",
             "discovery_today_action",
             "discovery_pending_action",
+            // v2.4（2026-11-22）：管线自观测 + 会话终点 + 漏斗缺口补齐（后端白名单 657ba4482）
+            "analytics_flush_failure",
+            "app_session_end",
+            "receipt_booking_outcome",
+            "push_token_registered",
+            "notification_settings_changed",
+            "widget_engaged",
         ]
         let actual = Set(HoloProductEventName.allCases.map(\.rawValue))
+        XCTAssertEqual(actual, expected)
+    }
+
+    /// analytics_flush_failure 去重闸：同一 reason 进程内只放行一次（失败高发期防自刷屏）
+    func testFlushFailureDedupReportsEachReasonOncePerProcess() {
+        XCTAssertTrue(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "4xx"))
+        XCTAssertFalse(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "4xx"))
+        XCTAssertFalse(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "4xx"))
+        // 不同 reason 互不影响，各放行一次
+        XCTAssertTrue(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "network"))
+        XCTAssertFalse(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "network"))
+        XCTAssertTrue(HoloProductAnalytics.shouldReportFlushFailureOnce(reason: "rejected"))
+    }
+
+    /// app_session_end 时长来源：beginNew 打点会话起点，consume 取走即清空
+    /// （第二次取 nil = 同一会话不重复计时长；重新 begin 再有新起点）
+    func testSessionStartTimestampLifecycle() {
+        let before = Date()
+        HoloAnalyticsSession.beginNew()
+        let startedAt = HoloAnalyticsSession.consumeStartedAt()
+        XCTAssertNotNil(startedAt)
+        XCTAssertGreaterThanOrEqual(startedAt!, before)
+        // 已被取走：无新会话时再取为 nil
+        XCTAssertNil(HoloAnalyticsSession.consumeStartedAt())
+        // 新会话重新打点
+        HoloAnalyticsSession.beginNew()
+        XCTAssertNotNil(HoloAnalyticsSession.consumeStartedAt())
+    }
+
+    /// notification_settings_changed 的 scope 值域（与后端字典口径一致，防手写漂移）
+    func testNotificationSettingScopeRawValues() {
+        let expected: Set<String> = ["daily", "habit", "weeklyReview", "insight"]
+        let actual = Set(HoloProductAnalytics.NotificationSettingScope.allCases.map(\.rawValue))
         XCTAssertEqual(actual, expected)
     }
 

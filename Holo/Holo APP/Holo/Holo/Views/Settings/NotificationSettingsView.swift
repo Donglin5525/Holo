@@ -266,6 +266,7 @@ struct NotificationSettingsView: View {
         ) {
             toggle(isOn: $dailyEnabled) { newValue in
                 DailyBriefScheduler.shared.isEnabled = newValue
+                HoloProductAnalytics.shared.trackNotificationSettingsChanged(scope: .daily, enabled: newValue)
             }
         }
     }
@@ -279,6 +280,7 @@ struct NotificationSettingsView: View {
         ) {
             toggle(isOn: $habitEnabled) { newValue in
                 HabitReminderScheduler.shared.isEnabled = newValue
+                HoloProductAnalytics.shared.trackNotificationSettingsChanged(scope: .habit, enabled: newValue)
             }
         }
     }
@@ -316,6 +318,7 @@ struct NotificationSettingsView: View {
         ) {
             toggle(isOn: $weeklyReviewEnabled) { newValue in
                 WeeklyReviewScheduler.shared.isEnabled = newValue
+                HoloProductAnalytics.shared.trackNotificationSettingsChanged(scope: .weeklyReview, enabled: newValue)
             }
         }
     }
@@ -329,7 +332,9 @@ struct NotificationSettingsView: View {
             action: { path.append(.insight) }
         ) {
             // 写回与排期由 MemoryInsightScheduleSettings.didSet 处理
-            toggle(isOn: $insightSettings.weeklyReminderEnabled) { _ in }
+            toggle(isOn: $insightSettings.weeklyReminderEnabled) { newValue in
+                HoloProductAnalytics.shared.trackNotificationSettingsChanged(scope: .insight, enabled: newValue)
+            }
         }
     }
 
@@ -548,15 +553,20 @@ struct NotificationSettingsView: View {
         .animation(HoloAnimation.standard, value: expandedEntry)
     }
 
-    /// 行内 Toggle（未授权时禁用）
+    /// 行内 Toggle（未授权时禁用）。回调走 Binding set 而非 onChange：
+    /// onChange 对 loadRowStates 的程序化赋值也会触发，进页面/详情页返回时的重读
+    /// 会空跑调度器写回并误报埋点；set 只有用户经 Toggle 拨动才走。
     private func toggle(isOn: Binding<Bool>, onChange: @escaping (Bool) -> Void) -> some View {
-        Toggle("", isOn: isOn)
-            .labelsHidden()
-            .tint(.holoPrimary)
-            .disabled(!notificationService.isAuthorized)
-            .onChange(of: isOn.wrappedValue) { _, newValue in
+        Toggle("", isOn: Binding(
+            get: { isOn.wrappedValue },
+            set: { newValue in
+                isOn.wrappedValue = newValue
                 onChange(newValue)
             }
+        ))
+        .labelsHidden()
+        .tint(.holoPrimary)
+        .disabled(!notificationService.isAuthorized)
     }
 
     // MARK: - 测试

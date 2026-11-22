@@ -146,6 +146,12 @@ class DeepLinkState: ObservableObject {
 
     func handle(url: URL) {
         guard let widgetTarget = HoloWidgetDeepLink.parse(url) else { return }
+        // 产品埋点：小组件点击进入 App（v2.4）。holo:// 深链由小组件 widgetURL/Link
+        // 与控制组件 AppIntent 产生；通知点击走 didReceive 直连 navigate(to:)，不经此处。
+        HoloProductAnalytics.shared.track(.widgetEngaged, [
+            "widget": widgetTarget.analyticsWidget,
+            "action": "tap",
+        ])
         // 权益判断用本地快照（冷启动即从磁盘恢复，弱网不误判），不阻塞在网络刷新上——
         // 否则点小组件拉起 App 后要等最多 30 秒服务端响应才导航；正式权益仍由
         // 冷启动/回前台的既有刷新通道保持准确。

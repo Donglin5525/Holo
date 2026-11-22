@@ -205,6 +205,25 @@ nonisolated enum HoloWidgetDeepLink: Equatable {
             return nil
         }
     }
+
+    /// widget_engaged 埋点的组件族标识（v2.4）：深链目标 → 落点模块归一。
+    /// URL 无法区分同链多源（holo://tasks/new 既来自待办组件加号也来自快捷操作），
+    /// 一律按落点模块记，不硬造来源。
+    var analyticsWidget: String {
+        switch self {
+        case .ai: return "ai"
+        case .chat, .insightFollowUp: return "insight"
+        case .addTransaction, .financeAnalysis: return "finance"
+        case .recordThought, .thoughtDetail: return "thought"
+        case .addTask, .tasks, .taskDetail: return "todo"
+        case .habits: return "habit"
+        case .goalDetail: return "goal"
+        case .anniversaries: return "anniversary"
+        case .health: return "health"
+        case .memoryGallery, .memoryInsight: return "memory"
+        case .dailyKanban: return "dailyKanban"
+        }
+    }
 }
 
 nonisolated enum HoloWidgetBudgetStatus: String, Codable, Equatable {

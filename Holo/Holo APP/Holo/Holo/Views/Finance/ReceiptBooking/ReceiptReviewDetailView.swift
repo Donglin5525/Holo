@@ -793,6 +793,8 @@ struct ReceiptReviewDetailView: View {
 
             guard !committedIDs.isEmpty || duplicateCount > 0 else {
                 errorMessage = String(localized: "保存失败，请稍后重试。")
+                // 产品埋点：复核确认落库失败（漏斗终点；「稍后处理」不算放弃，草案保留）
+                HoloProductAnalytics.shared.track(.receiptBookingOutcome, ["step": "review", "result": "failed"])
                 return
             }
 
@@ -880,6 +882,8 @@ struct ReceiptReviewDetailView: View {
                 }
             } catch {
                 errorMessage = String(localized: "保存失败，请稍后重试。")
+                // 产品埋点：合并确认落库失败（漏斗终点，与逐笔确认失败同口径）
+                HoloProductAnalytics.shared.track(.receiptBookingOutcome, ["step": "review", "result": "failed"])
                 return
             }
 
@@ -944,6 +948,8 @@ struct ReceiptReviewDetailView: View {
     }
 
     private func deleteDraft() {
+        // 产品埋点：复核页放弃草案（漏斗终点；「稍后处理」保留草案不算放弃，不报）
+        HoloProductAnalytics.shared.track(.receiptBookingOutcome, ["step": "review", "result": "cancelled"])
         ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
         Task {
             await ReceiptBookingResultStore.shared.append(result: .init(

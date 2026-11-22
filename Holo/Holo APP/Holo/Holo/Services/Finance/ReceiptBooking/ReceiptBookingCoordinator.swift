@@ -49,11 +49,19 @@ final class ReceiptBookingCoordinator {
         // 上传复用同一产物（聊天路径原来 extract 内部再压一遍，同图压两次全占主线程）
         let jpeg = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData)
         let sourceKey = jpeg.map { ReceiptBookingIdempotency.sourceKey(forNormalizedJPEG: $0) } ?? ""
-        let outcome = try await HoloVisionExtractionService.shared.extract(
-            rawImageData: rawImageData,
-            caption: caption,
-            precompressedJPEG: jpeg
-        )
+        let outcome: HoloVisionExtractionService.ExtractionOutcome
+        do {
+            outcome = try await HoloVisionExtractionService.shared.extract(
+                rawImageData: rawImageData,
+                caption: caption,
+                precompressedJPEG: jpeg
+            )
+        } catch {
+            // 产品埋点：聊天入口识图漏斗终点（成功侧由 bill_created 承接）；
+            // 取消（用户停止/任务被杀）与失败按既有错误分类器区分
+            Self.trackBookingOutcome(step: "extract", error: error)
+            throw error
+        }
 
         let resolution = FinanceTransactionDraftResolver.shared.resolveAccount(
             channel: outcome.understanding.paymentChannel,
@@ -93,8 +101,22 @@ final class ReceiptBookingCoordinator {
         let jpeg = await HoloVisionImagePipeline.compressedJPEGInBackground(from: request.rawImageData)
         let sourceKey = jpeg.map { ReceiptBookingIdempotency.sourceKey(forNormalizedJPEG: $0) } ?? ""
         let outcome = await runBooking(request, jpeg: jpeg, sourceKey: sourceKey)
+        if case .failed(let failure) = outcome {
+            // 产品埋点：快捷指令/分享/锁屏相机入口的漏斗失败终点（成功侧由 bill_created 承接）。
+            // 整链失败都发生在识别阶段（capture 由系统相机/相册承担，无 App 内取消点；
+            // 复核页的放弃与失败在 ReceiptReviewDetailView 单独上报）
+            let result = failure.reason == .failureCancelled ? "cancelled" : "failed"
+            HoloProductAnalytics.shared.track(.receiptBookingOutcome, ["step": "extract", "result": result])
+        }
         await persist(outcome, request: request, sourceKey: sourceKey, evidenceJPEG: jpeg)
         return outcome
+    }
+
+    /// 识图漏斗终点埋点的错误侧入口（聊天抽取阶段抛错时 track 后由调用方 rethrow）；
+    /// 取消与失败按既有 ReceiptBookingFailureClassifier 分类
+    private static func trackBookingOutcome(step: String, error: Error) {
+        let result = ReceiptBookingFailureClassifier.reason(for: error) == .failureCancelled ? "cancelled" : "failed"
+        HoloProductAnalytics.shared.track(.receiptBookingOutcome, ["step": step, "result": result])
     }
 
     /// 结果落盘：booked/duplicate/review/rejected/failed 全记 results；
