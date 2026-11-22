@@ -626,6 +626,11 @@ struct HomeView: View {
                 navigateToScreen(.finance)
                 return
             }
+            // 模拟器无头走查：启动直达记忆长廊（配合 -HoloOpenMemoryInsight 落在洞察 Tab，年鉴卡验收）
+            if ProcessInfo.processInfo.arguments.contains("-HoloOpenMemoryInsight") {
+                navigateToScreen(.memoryGallery)
+                return
+            }
             #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true

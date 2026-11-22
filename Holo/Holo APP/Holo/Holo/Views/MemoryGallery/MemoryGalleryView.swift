@@ -33,7 +33,15 @@ struct MemoryGalleryView: View {
     @StateObject private var viewModel = MemoryGalleryViewModel()
     /// 「找日期」面板（含随机漫步会话）：顶栏按钮与日历页共用同一展示宿主。
     @StateObject private var findDateModel = MemoryGalleryFindDateModel()
-    @State private var selectedTab: MemoryGalleryTab = .calendar
+    @State private var selectedTab: MemoryGalleryTab = MemoryGalleryView.initialTab
+
+    /// 默认落在日历；DEBUG 走查参数 -HoloOpenMemoryInsight 直接落在洞察（年鉴卡验收）
+    private static var initialTab: MemoryGalleryTab {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-HoloOpenMemoryInsight") { return .insight }
+        #endif
+        return .calendar
+    }
     @State private var hasMountedInsight = false
     @State private var showGrowth = false
     @State private var showAlmanacShare = false
@@ -247,6 +255,7 @@ struct MemoryGalleryView: View {
         } else if let errorMessage = viewModel.errorMessage {
             errorView(message: errorMessage)
         } else {
+            ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
                     insightChapterHeader
@@ -273,7 +282,21 @@ struct MemoryGalleryView: View {
                 // 不加 containerRelativeFrame(.horizontal)：它按容器全宽定宽，
                 // 在 iPad 上无视 720 列提议并沿安全区链把整个 tab 层撑回全屏（通铺根因）
             }
+            .task { await scrollToAlmanacForReviewIfRequested(proxy) }
+            }
         }
+    }
+
+    /// 年鉴卡滚动锚点
+    static let almanacAnchor = "memory.almanac"
+
+    /// DEBUG 走查：-HoloScrollToAlmanac 启动后把年鉴卡滚到顶部（模拟器命令行无法滑动）
+    private func scrollToAlmanacForReviewIfRequested(_ proxy: ScrollViewProxy) async {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("-HoloScrollToAlmanac") else { return }
+        try? await Task.sleep(for: .seconds(1.5))
+        proxy.scrollTo(Self.almanacAnchor, anchor: .top)
+        #endif
     }
 
     /// 窄屏洞察页拍平内容：区块间距规则——首区块与章节头之间由章节头自带
@@ -293,12 +316,15 @@ struct MemoryGalleryView: View {
             .padding(.horizontal, HoloSpacing.md)
         }
 
+        // 人生年鉴（2026-11-21 从域记忆之后上移到这里）：域记忆会逐张排出全部记忆卡
+        // （真机 1900+ 张），放在其后等于不可达；年鉴是紧凑的全年概览，放在长列表之前。
+        heatmapSection
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, viewModel.latestReportEntry == nil ? HoloSpacing.md : HoloSpacing.lg)
+            .id(Self.almanacAnchor)
+
         // 域记忆（用户可理解的记忆中心）：flat 形态下组头与每张卡均为懒加载行。
-        // 上方有报告门卡时间距 lg，直接顶在章节头下时间距 md，与原列布局等价。
-        DomainMemorySection(
-            flat: true,
-            headerTopSpacing: viewModel.latestReportEntry == nil ? HoloSpacing.md : HoloSpacing.lg
-        )
+        DomainMemorySection(flat: true, headerTopSpacing: HoloSpacing.lg)
 
         // Daily Sense 状态卡片
         if InsightFeatureFlags.dailySenseEnabled,
@@ -308,11 +334,6 @@ struct MemoryGalleryView: View {
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.top, HoloSpacing.lg)
         }
-
-        // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
-        heatmapSection
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.top, HoloSpacing.lg)
 
         // 一起做的计划（LifePlan 台账）：理解档案第三块
         LifePlanGallerySection()
