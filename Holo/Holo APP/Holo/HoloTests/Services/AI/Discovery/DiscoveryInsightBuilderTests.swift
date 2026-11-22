@@ -594,4 +594,47 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
             !clue.phrases.contains(where: { InsightNumberDiscipline.containsNumerals(in: $0) })
         })
     }
+
+    // MARK: - 2026-11-21 Plus 分层 I4b
+
+    private var shanghai: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
+        return c
+    }
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 12, _ min: Int = 0) -> Date {
+        shanghai.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)) ?? Date()
+    }
+
+    func testResetTextVariants() {
+        let now = date(2026, 11, 21, 9)
+        XCTAssertEqual(DiscoveryPlusCopy.resetText(nil, now: now, calendar: shanghai), "下周")
+        XCTAssertEqual(DiscoveryPlusCopy.resetText(date(2026, 11, 21, 14, 30), now: now, calendar: shanghai), "今天 14:30 之后")
+        XCTAssertEqual(DiscoveryPlusCopy.resetText(date(2026, 11, 22, 8), now: now, calendar: shanghai), "明天")
+        XCTAssertEqual(DiscoveryPlusCopy.resetText(date(2026, 11, 27, 8), now: now, calendar: shanghai), "11 月 27 日（周五）")
+    }
+
+    func testWeekTitle() {
+        let now = date(2026, 11, 21)
+        XCTAssertEqual(DiscoveryPlusCopy.weekTitle(for: date(2026, 11, 19), now: now, calendar: shanghai), "这周")
+        XCTAssertEqual(DiscoveryPlusCopy.weekTitle(for: date(2026, 11, 12), now: now, calendar: shanghai), "11 月 9 日 – 11 月 15 日")
+    }
+
+    func testArchiveAppendDedupAndSkipsNonV4() throws {
+        let suite = "archive-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let archive = DiscoveryInsightArchive(defaults: defaults)
+        let now = Date()
+        let card = try DiscoveryInsightCardBuilder.build(selected: makeDraftSelected(), slots: makeSlots(), portraitIds: [], now: now)
+        archive.append(card: card, outcome: .confirmed, now: now)
+        archive.append(card: card, outcome: .deferred, now: now.addingTimeInterval(10))
+        XCTAssertEqual(archive.entries.count, 1)
+        XCTAssertEqual(archive.latest?.outcome, .deferred)
+        let v3 = DiscoveryTopicStore.QueuedCard(observationId: "o", topicKey: "k3", title: "t", body: "b",
+                                                isModelCopy: false, selectedAt: now, windowEnd: now)
+        archive.append(card: v3, outcome: .confirmed, now: now)
+        XCTAssertEqual(archive.entries.count, 1)
+    }
 }
