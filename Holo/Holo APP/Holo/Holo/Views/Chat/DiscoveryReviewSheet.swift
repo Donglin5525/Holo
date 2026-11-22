@@ -50,7 +50,7 @@ struct DiscoveryReviewSheet: View {
             // 03-I6：ScrollView 隐藏滚动条（设计规范；v4 卡上线时补齐，v3 同页受益）。
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Holo 会定期翻看你记的账、习惯、睡眠和想法，把你可能没注意到的联系告诉你。你觉得说得对，Holo 就会记住它，以后聊天时更懂你。")   // C01（2026-11-21 Plus 分层 I8）
+                    Text("Holo 会定期翻看你的记录，把你没注意到的联系告诉你。说得对，Holo 就会记住。")   // C01（2026-11-22 东林拍板精简）
                         .holoText(.supporting)
                         .foregroundStyle(Color.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -832,7 +832,7 @@ private struct DiscoveryEmptyCard: View {
         case .noneToday: return "Holo 会继续留意你的记录，有值得说的再告诉你。"   // C11
         case .doneToday: return "有新的规律时，Holo 会再来问你。"
         case .notEnabled: return "开启并允许使用记录后，Holo 会从里面找反复出现的事来问你。"
-        case .nothingWorthSaying: return "Holo 看了一遍你最近的记录，还没发现值得说的联系。这次不算次数，过几天 Holo 会再看看。"   // C10
+        case .nothingWorthSaying: return "Holo 看了一遍最近的记录，没有值得说的。这次不算次数。"   // C10（2026-11-22 精简）
         }
     }
 

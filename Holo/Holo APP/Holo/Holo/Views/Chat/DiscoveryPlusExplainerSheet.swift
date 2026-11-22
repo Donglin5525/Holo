@@ -31,7 +31,10 @@ private extension DiscoveryPlusExplainerSheet {
     /// C60 / C61
     var header: some View {
         VStack(alignment: .center, spacing: HoloSpacing.md) {
-            HoloPlusEmblem(size: 56)                                         // C60
+            // C60（2026-11-22 东林拍板：换会员中心同款深黑底样式；darkGradient 与会员卡同材质）
+            HoloPlusEmblem(size: 56, tier: .plus)
+                .background(Circle().fill(HoloPlusTheme.darkGradient))
+                .overlay(Circle().strokeBorder(HoloPlusTheme.strokeColor.opacity(0.6), lineWidth: 1))
             Text("每周 1 件不够看？\n让 Holo 多帮你看看")                       // C61
                 .font(.holoTitle2)
                 .foregroundStyle(Color.holoToolText)
@@ -57,7 +60,7 @@ private extension DiscoveryPlusExplainerSheet {
         .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
     }
 
-    /// C64 / C65：免费版与 Plus 两栏对比（Plus 栏金色描边）。
+    /// C64 / C65：免费版与 Plus 两栏对比（Plus 栏金色描边；两栏等高，2026-11-22 东林拍板对齐）。
     var comparison: some View {
         HStack(alignment: .top, spacing: HoloSpacing.sm) {
             planColumn(
@@ -66,6 +69,7 @@ private extension DiscoveryPlusExplainerSheet {
                 lines: ["Holo 每周挑一件最值得说的事告诉你"],
                 highlighted: false
             )
+            .frame(maxHeight: .infinity, alignment: .top)
             planColumn(
                 title: "Plus",                                               // C65
                 headline: "每周最多 \(DiscoveryPlusCopy.plusWeeklyLimit) 件",
@@ -75,7 +79,9 @@ private extension DiscoveryPlusExplainerSheet {
                 ],
                 highlighted: true
             )
+            .frame(maxHeight: .infinity, alignment: .top)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     func planColumn(title: String, headline: String, lines: [String], highlighted: Bool) -> some View {
@@ -94,9 +100,10 @@ private extension DiscoveryPlusExplainerSheet {
                     .foregroundStyle(Color.holoToolTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer(minLength: 0)   // 等高栏：内容不足的一侧撑满与另一侧同高
         }
         .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .top)
         .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
             .fill(highlighted ? HoloPlusTheme.plusColumnTint : Color.holoToolInset))
         .overlay {
@@ -114,11 +121,11 @@ private extension DiscoveryPlusExplainerSheet {
                 .holoText(.body)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolText)
-            Text("· 没有值得说的，Holo 就不说，不会为了凑数硬编。所以有的周可能不到 \(DiscoveryPlusCopy.plusWeeklyLimit) 件。")   // C67
+            Text("· 没有值得说的 Holo 就不说，有的周可能不到 \(DiscoveryPlusCopy.plusWeeklyLimit) 件。")   // C67（2026-11-22 精简）
                 .holoText(.supporting)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("· Holo 记住的关于你的事、往期发现，免费版和 Plus 一样都能用。")          // C68
+            Text("· 记忆和往期发现，免费版一样能用。")                          // C68（2026-11-22 精简）
                 .holoText(.supporting)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

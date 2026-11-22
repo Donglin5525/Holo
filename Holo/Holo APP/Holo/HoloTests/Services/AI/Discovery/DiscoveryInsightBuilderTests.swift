@@ -587,7 +587,8 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
             "a": "最近你睡得越来越晚", "b": "「冥想」最近打卡比之前少了",
         ])
         XCTAssertEqual(clues.count, 1)
-        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚，同一段时间「冥想」打卡比之前少了。这两件事有关系吗？")
+        // 2026-11-22 东林拍板精简：模板去掉尾部问句，只留两句事实并置。
+        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚，同一段时间「冥想」打卡比之前少了。")
         XCTAssertEqual(clues[0].phrases, ["最近你睡得越来越晚", "「冥想」最近打卡比之前少了"])
     }
 
@@ -600,13 +601,13 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
                        "d": "最近你睡得比之前短了", "e": "最近你每天走的路比之前少了"]
         let clues = DiscoveryTeaserBuilder.build(packet: packet, phrases: phrases, excludingFeatureIds: ["a"])
         XCTAssertEqual(clues.count, 3)
-        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚，Holo 想帮你看看是为什么。")
+        XCTAssertEqual(clues[0].text, "最近你睡得越来越晚。")
     }
 
     func testTeaserSkipsFeaturesWithoutPhrase() {
         let packet = teaserPacket([feature("f_miner_0", "finance"), feature("a", "health")])
         let clues = DiscoveryTeaserBuilder.build(packet: packet, phrases: ["a": "最近你睡得比较少"])
-        XCTAssertEqual(clues.map(\.text), ["最近你睡得比较少，Holo 想帮你看看是为什么。"])
+        XCTAssertEqual(clues.map(\.text), ["最近你睡得比较少。"])
     }
 
     func testTeaserFromRealBuilderOutput() throws {

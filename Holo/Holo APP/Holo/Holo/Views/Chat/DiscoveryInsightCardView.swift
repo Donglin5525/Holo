@@ -206,17 +206,16 @@ private extension DiscoveryQuotaWallCard {
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolTextSecondary)
             Spacer()
-            HoloPlusEmblem(size: 24)
+            plusCoinEmblem(size: 24)   // 2026-11-22 东林拍板：换会员中心同款深黑底样式
         }
         if clues.isEmpty {
             titleText("这周的发现你已经看过了")
-            bodyText("开通 Plus，Holo 每周最多会告诉你 \(DiscoveryPlusCopy.plusWeeklyLimit) 件它看出来的事。")
+            bodyText("开通 Plus，每周最多 \(DiscoveryPlusCopy.plusWeeklyLimit) 件。")
         } else {
-            titleText("Holo 还注意到 \(clues.count) 件事，还没来得及细看")     // C21
+            titleText("Holo 还注意到 \(clues.count) 件事")                    // C21（2026-11-22 精简）
             ForEach(clues) { clue in
                 clueRow(clue, trailing: EmptyView())                        // C22
             }
-            bodyText("开通 Plus，Holo 会把这些事一件件帮你看明白。")            // C23
         }
         Button(action: onLearnPlus) {
             Text("让 Holo 帮我看看")                                        // C24
@@ -228,10 +227,18 @@ private extension DiscoveryQuotaWallCard {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("chat.discovery.insight.quotaWall.plus")
-        Text("不开通也没关系，\(resetText)会有下一件")                        // C25
+        Text("\(resetText)会有下一件")                                       // C25（2026-11-22 精简）
             .holoText(.metadata)
             .foregroundStyle(Color.holoToolTextSecondary)
             .frame(maxWidth: .infinity)
+    }
+
+    /// 会员中心同款深黑底金币徽章（2026-11-22 东林拍板替换透底金徽章）。
+    /// 底用 darkGradient（会员卡同材质深黑渐变）——首版用的半透明灰底被东林判「不够黑」。
+    func plusCoinEmblem(size: CGFloat) -> some View {
+        HoloPlusEmblem(size: size, tier: .plus)
+            .background(Circle().fill(HoloPlusTheme.darkGradient))
+            .overlay(Circle().strokeBorder(HoloPlusTheme.strokeColor.opacity(0.6), lineWidth: 1))
     }
 
     /// 问题行：领域图标 + 文本（+ 尾部操作）。
@@ -258,6 +265,7 @@ private extension DiscoveryQuotaWallCard {
             Text("正在看…")                                                 // C43
                 .holoText(.supporting)
                 .foregroundStyle(Color.holoToolTextSecondary)
+                .padding(.trailing, HoloSpacing.sm)   // 2026-11-22 走查挂账：右缘与按钮留白对齐
         } else {
             Button("帮我看") { onPick(clue) }                               // C42
                 .buttonStyle(HoloActionStyle(role: .secondary))

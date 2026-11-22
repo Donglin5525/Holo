@@ -37,18 +37,19 @@ nonisolated enum DiscoveryTeaserBuilder {
             let clue: DiscoveryTeaserClue
             if let index = pool.firstIndex(where: { $0.domain != first.domain }) {
                 let second = pool.remove(at: index)
+                // 模板（2026-11-22 东林拍板精简）：去掉尾部问句，只留两句事实并置。
                 clue = DiscoveryTeaserClue(
                     id: "\(first.phrase)|\(second.phrase)",
                     phrases: [first.phrase, second.phrase],
                     domains: [first.domain, second.domain],
-                    text: "\(first.phrase)，同一段时间\(dropFirstRecent(second.phrase))。这两件事有关系吗？"
+                    text: "\(first.phrase)，同一段时间\(dropFirstRecent(second.phrase))。"
                 )
             } else {
                 clue = DiscoveryTeaserClue(
                     id: first.phrase,
                     phrases: [first.phrase],
                     domains: [first.domain],
-                    text: "\(first.phrase)，Holo 想帮你看看是为什么。"
+                    text: "\(first.phrase)。"
                 )
             }
             // 数字纪律只作用于可变部分（短句）：固定句式「这两件事有关系吗？」里的「两」
