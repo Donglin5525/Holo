@@ -169,6 +169,30 @@ test("v2.3 字典 6 个「一个发现」事件名全部在白名单内（iOS �
   assert.equal(JSON.parse(byName.get("discovery_pending_action").params).action, "snooze");
 });
 
+test("v2.4 字典 6 个留存补盲事件名全部在白名单内（上报健康/会话时长/识图漏斗中段/推送送达/通知开关/Widget）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createProductEventStore(database.db);
+  const app = createTestApp({ productEventStore: store });
+
+  const events = [
+    makeEvent({ name: "analytics_flush_failure", params: { reason: "4xx", dropped: "12", queue: "3" } }),
+    makeEvent({ name: "app_session_end", params: { duration: "180" } }),
+    makeEvent({ name: "receipt_booking_outcome", params: { step: "review", result: "cancelled" } }),
+    makeEvent({ name: "push_token_registered", params: { result: "success" } }),
+    makeEvent({ name: "notification_settings_changed", params: { scope: "weeklyReview", enabled: "false" } }),
+    makeEvent({ name: "widget_engaged", params: { widget: "todo", action: "tap" } }),
+  ];
+  const response = await sendEvents(app, events);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).accepted, 6);
+  assert.equal(store.count(), 6);
+
+  const byName = new Map(store.listByDevice("device-a").map((row) => [row.name, row]));
+  assert.equal(JSON.parse(byName.get("analytics_flush_failure").params).reason, "4xx");
+  assert.equal(JSON.parse(byName.get("receipt_booking_outcome").params).result, "cancelled");
+  assert.equal(JSON.parse(byName.get("notification_settings_changed").params).scope, "weeklyReview");
+});
+
 test("空数组、超 100 条批次、params 非对象拒绝 400", async () => {
   const app = createTestApp();
   assert.equal((await sendEvents(app, [])).status, 400);

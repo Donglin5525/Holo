@@ -3045,6 +3045,13 @@ const PRODUCT_EVENT_NAMES = new Set([
   "discovery_today_shown",
   "discovery_today_action",
   "discovery_pending_action",
+  // v2.4（2026-11-22）：留存分析补盲——上报健康/会话时长/识图漏斗中段/推送送达/通知开关/Widget
+  "analytics_flush_failure",
+  "app_session_end",
+  "receipt_booking_outcome",
+  "push_token_registered",
+  "notification_settings_changed",
+  "widget_engaged",
 ]);
 
 /** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
