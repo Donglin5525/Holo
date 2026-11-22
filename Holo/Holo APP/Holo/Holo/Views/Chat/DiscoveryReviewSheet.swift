@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import StoreKit
 
 // 「一个发现」评审页（v3 · 2026-11-08 版式重设计，东林选型 iOS 分组调型）。
 // 版式规格真源：设计代理 2026-11-08 交付稿——
@@ -29,6 +30,12 @@ struct DiscoveryReviewSheet: View {
     @State private var todayCard: DiscoveryTopicStore.QueuedCard?
     @State private var showsTodayEvidence = false
     @State private var forceRefresh = false
+    // 2026-11-21 Plus 分层 I8：说明页 / 往期页 / 点名状态 / 会员态。
+    @ObservedObject private var entitlement = HoloEntitlementState.shared
+    @State private var showsPlusExplainer = false
+    @State private var upgradeAfterExplainer = false
+    @State private var showsArchive = false
+    @State private var pickingClueId: String?
 
     private let service = DiscoveryMemoryReviewService()
 
@@ -43,7 +50,7 @@ struct DiscoveryReviewSheet: View {
             // 03-I6：ScrollView 隐藏滚动条（设计规范；v4 卡上线时补齐，v3 同页受益）。
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Holo 每天从你的记录里挑一件反复出现的事来问你，你确认了才会记住。")
+                    Text("Holo 会定期翻看你记的账、习惯、睡眠和想法，把你可能没注意到的联系告诉你。你觉得说得对，Holo 就会记住它，以后聊天时更懂你。")   // C01（2026-11-21 Plus 分层 I8）
                         .holoText(.supporting)
                         .foregroundStyle(Color.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -102,6 +109,23 @@ struct DiscoveryReviewSheet: View {
             if actionTask == nil { requestRefresh() }
         }
         .onDisappear { actionTask?.cancel() }
+        // 2026-11-21 Plus 分层 I8：说明页（先关再弹付费墙，E7）与往期发现页。
+        .sheet(isPresented: $showsPlusExplainer, onDismiss: presentPaywallIfRequested) {
+            DiscoveryPlusExplainerSheet(
+                latestTitle: DiscoveryInsightArchive.shared.latest?.title,
+                monthlyPrice: HoloSubscriptionService.shared.products
+                    .first(where: { $0.id == HoloSubscriptionProduct.plusMonthly.rawValue })?.displayPrice,
+                onUpgrade: {
+                    HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "plus_explainer_upgrade"])
+                    upgradeAfterExplainer = true
+                    showsPlusExplainer = false
+                },
+                onClose: { showsPlusExplainer = false }
+            )
+        }
+        .sheet(isPresented: $showsArchive) {
+            DiscoveryInsightArchiveView(entries: DiscoveryInsightArchive.shared.entries, onClose: { showsArchive = false })
+        }
     }
 
     // MARK: - 加载完成的内容（今日区 → 回执 → 列表区 → 空态）
@@ -113,8 +137,8 @@ struct DiscoveryReviewSheet: View {
         if let card = todayCard {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 DiscoverySectionHeader(
-                    title: "今日一条",
-                    trailing: Date().formatted(.dateTime.month().day().weekday(.wide))
+                    title: "今天的发现",                                     // C02（2026-11-21 Plus 分层 I8）
+                    trailing: quotaTrailing
                 )
                 DiscoveryInsightCardView(
                     card: card,
@@ -131,6 +155,19 @@ struct DiscoveryReviewSheet: View {
         if let receipt {
             DiscoveryReceiptBanner(receipt: receipt)
                 .padding(.top, HoloSpacing.xl)
+        }
+
+        // 撞墙卡 / 还注意到的事（2026-11-21 Plus 分层 I8）：不再依赖「等你确认」是否为空。
+        if todayCard == nil, let wallState {
+            DiscoveryQuotaWallCard(
+                state: wallState,
+                onLearnPlus: openPlusExplainer,
+                onPick: pick
+            )
+            .padding(.top, HoloSpacing.xl)
+            .onAppear {
+                HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "quota_wall_shown", "state": wallStateLabel(wallState)])
+            }
         }
 
         if !listedItems.isEmpty {
@@ -162,24 +199,29 @@ struct DiscoveryReviewSheet: View {
                 }
             }
             .padding(.top, HoloSpacing.xl)
-        } else if todayCard == nil {
-            // 预算墙（2026-11-21）：每周额度用完 → 升级引导卡（优先于普通空态展示）。
-            if DiscoveryTopicStore.shared.isInsightQuotaWalled() {
-                // I6 临时接线（I8 换成 wallState 正式逻辑）。
-                DiscoveryQuotaWallCard(
-                    state: .freeWalled(clues: [], resetText: DiscoveryPlusCopy.resetText(DiscoveryTopicStore.shared.quotaWallUntil)),
-                    onLearnPlus: { HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly) },
-                    onPick: { _ in }
-                )
-                .padding(.top, HoloSpacing.xl)
-            } else {
-                // 空态：刚做完最后一个决定 →「看完了」；本来就没有 →「今天没有」。
-                DiscoveryEmptyCard(
-                    style: receipt != nil ? .doneToday : .noneToday,
-                    onOpenMemory: { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
-                )
-                .padding(.top, HoloSpacing.xl)
+        } else if todayCard == nil && wallState == nil {
+            // 空态：刚做完最后一个决定 →「看完了」；模型明确没话说 →「这次没有」；本来就没有 →「今天没有」。
+            DiscoveryEmptyCard(
+                style: emptyStyle,
+                onOpenMemory: { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
+            )
+            .padding(.top, HoloSpacing.xl)
+        }
+
+        // 往期发现入口（C06，2026-11-21 Plus 分层 I8）：count>0 才显示，免费可看。
+        if archiveCount > 0 {
+            Button { showsArchive = true } label: {
+                HStack {
+                    Text("往期发现").holoText(.body).foregroundStyle(Color.holoToolText)     // C06
+                    Spacer()
+                    Text("\(archiveCount) 件 ›").holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(HoloPressStyle())
+            .padding(.top, HoloSpacing.xl)
+            .accessibilityIdentifier("chat.discovery.archive.entry")
         }
     }
 
@@ -189,6 +231,102 @@ struct DiscoveryReviewSheet: View {
         case .markInaccurate: return "inaccurate"
         case .deferCooldown: return "defer"
         default: return "other"
+        }
+    }
+
+    // MARK: - Plus 分层（2026-11-21 I8）：额度尾注 / 撞墙状态 / 动作
+
+    /// C03a~d：今日卡分组标题右侧的额度文字；没有快照（首次）不显示。
+    private var quotaTrailing: String? {
+        let store = DiscoveryTopicStore.shared
+        guard let snapshot = store.quotaSnapshot() else { return nil }   // C03d
+        if entitlement.isPlusActive || snapshot.isPlus {
+            return "这周已看 \(snapshot.used) 件 · 最多 \(snapshot.limit) 件"   // C03c
+        }
+        if snapshot.used >= snapshot.limit {
+            return "下一件：\(DiscoveryPlusCopy.resetText(snapshot.resetAt))"    // C03b
+        }
+        return "免费版每周 \(DiscoveryPlusCopy.freeWeeklyLimit) 件"                // C03a
+    }
+
+    /// 撞墙卡 / 还注意到的事 应显示哪种状态；nil 表示不显示。
+    private var wallState: DiscoveryWallState? {
+        let store = DiscoveryTopicStore.shared
+        let snapshot = store.quotaSnapshot()
+        let resetText = DiscoveryPlusCopy.resetText(store.quotaWallUntil ?? snapshot?.resetAt)
+        let clues = store.teasers()
+        let isPlus = entitlement.isPlusActive
+        if store.isInsightQuotaWalled() {
+            if isPlus && snapshot?.isPlus != true { return .syncing }
+            if isPlus { return .plusExhausted(limit: snapshot?.limit ?? DiscoveryPlusCopy.plusWeeklyLimit, resetText: resetText) }
+            return .freeWalled(clues: clues, resetText: resetText)
+        }
+        guard isPlus, todayCard == nil, !clues.isEmpty,
+              store.focusPicksToday() < DiscoveryTopicStore.focusPicksPerDay else { return nil }
+        let remaining = snapshot?.remaining ?? DiscoveryPlusCopy.plusWeeklyLimit
+        guard remaining > 0 else { return nil }
+        return .plusPickable(clues: clues, remaining: remaining, pickingId: pickingClueId)
+    }
+
+    private var archiveCount: Int { DiscoveryInsightArchive.shared.entries.count }
+
+    /// 空态样式：有回执 → 看完了；模型明确没话说 → 这次没有；否则今天没有。
+    private var emptyStyle: DiscoveryEmptyCard.Style {
+        receipt != nil ? .doneToday
+            : (DiscoveryTopicStore.shared.insightV2NoneWorthwhileToday() ? .nothingWorthSaying : .noneToday)
+    }
+
+    private func openPlusExplainer() {
+        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "quota_wall_plus_tap"])
+        showsPlusExplainer = true
+    }
+
+    private func pick(_ clue: DiscoveryTeaserClue) {
+        guard pickingClueId == nil, let proposals = result?.insightProposals else { return }
+        pickingClueId = clue.id
+        receipt = nil
+        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "focus_pick_tap"])
+        Task {
+            let outcome = await DiscoveryInsightService.requestFocused(clue: clue, proposals: proposals)
+            pickingClueId = nil
+            HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "focus_pick_result", "outcome": "\(outcome)"])
+            switch outcome {
+            case .delivered:
+                todayCard = DiscoveryTopicStore.shared.todayCard()
+            case .nothingWorthSaying:
+                receipt = Receipt(kind: .success, text: "Holo 看了看，这件事暂时没什么值得说的。这次不算次数。")   // C44
+            case .changed:
+                receipt = Receipt(kind: .warning, text: "这件事的记录刚有变化，换一件试试。")                  // C45
+            case .limitReached:
+                receipt = Receipt(kind: .warning, text: "今天先看到这里，明天再帮你看。")                    // C46
+            case .failed:
+                receipt = Receipt(kind: .warning, text: "这次没看成，稍后再试一次。")                       // C47
+            }
+        }
+    }
+
+    private func wallStateLabel(_ state: DiscoveryWallState) -> String {
+        switch state {
+        case .freeWalled(let clues, _): return clues.isEmpty ? "free_empty" : "free_clues"
+        case .plusExhausted: return "plus_exhausted"
+        case .plusPickable: return "plus_pickable"
+        case .syncing: return "syncing"
+        }
+    }
+
+    /// 说明页完全关闭后再弹系统付费墙（弹层叠弹层不可靠，02 审查 E7）。
+    /// 走查实测（2026-11-22）：onDismiss 时机仍在评审页 sheet 收起动画内，立即发起根部
+    /// fullScreenCover 会被 UIKit 静默丢弃——延后半秒等 presentation 释放后再弹（E7 第二方案）。
+    private func presentPaywallIfRequested() {
+        guard upgradeAfterExplainer else { return }
+        upgradeAfterExplainer = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly, resume: {
+                await MainActor.run {
+                    DiscoveryTopicStore.shared.clearInsightQuotaWall()
+                    NotificationCenter.default.post(name: .holoDiscoverySettingsDidChange, object: nil)
+                }
+            })
         }
     }
 
@@ -665,6 +803,8 @@ private struct DiscoveryReceiptBanner: View {
 private struct DiscoveryEmptyCard: View {
     enum Style {
         case noneToday, doneToday, notEnabled
+        /// 今天模型明确说没有值得说的（2026-11-21 Plus 分层 I8，文案 C10；不算次数）。
+        case nothingWorthSaying
     }
 
     let style: Style
@@ -672,7 +812,7 @@ private struct DiscoveryEmptyCard: View {
 
     private var icon: String {
         switch style {
-        case .noneToday: return "text.magnifyingglass"
+        case .noneToday, .nothingWorthSaying: return "text.magnifyingglass"
         case .doneToday: return "checkmark.circle"
         case .notEnabled: return "pause.circle"
         }
@@ -683,14 +823,16 @@ private struct DiscoveryEmptyCard: View {
         case .noneToday: return "今天没有新发现"
         case .doneToday: return "今天的都看完了"
         case .notEnabled: return "「一个发现」还没开启"
+        case .nothingWorthSaying: return "这次没有值得专门告诉你的事"     // C10
         }
     }
 
     private var subtitle: String {
         switch style {
-        case .noneToday: return "同一件事在不同的日子反复出现，Holo 就会拿来问你一句。"
+        case .noneToday: return "Holo 会继续留意你的记录，有值得说的再告诉你。"   // C11
         case .doneToday: return "有新的规律时，Holo 会再来问你。"
         case .notEnabled: return "开启并允许使用记录后，Holo 会从里面找反复出现的事来问你。"
+        case .nothingWorthSaying: return "Holo 看了一遍你最近的记录，还没发现值得说的联系。这次不算次数，过几天 Holo 会再看看。"   // C10
         }
     }
 
