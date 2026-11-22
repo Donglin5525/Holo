@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>去 AI 味四件套 · 改动前后对比 · 2026-11-21</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC",sans-serif;background:#E7E5E0;color:#1d1d1b;line-height:1.6;padding:36px 24px 120px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:26px}
+.lead{color:#55534d;font-size:14.5px;max-width:880px;margin-top:6px}
+.toolbar{position:sticky;top:0;z-index:10;background:#E7E5E0;padding:12px 0;margin-top:10px;display:flex;gap:10px;align-items:center;font-size:13px}
+.toolbar button{font:inherit;border:1px solid #1d1d1b;background:#fff;border-radius:99px;padding:5px 14px;cursor:pointer}
+.toolbar button.on{background:#1d1d1b;color:#fff}
+h2{font-size:19px;margin:44px 0 4px;padding-top:14px;border-top:2px solid #1d1d1b}
+h2 small{font-size:13px;color:#6b6962;font-weight:400;margin-left:8px}
+.keep{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.keep div{background:#fff;border-radius:10px;padding:12px 16px;font-size:13px}
+.keep b{display:block;font-size:14px;margin-bottom:2px}
+
+/* token 表 */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;margin-top:14px;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid #EEE;text-align:left;vertical-align:middle}
+th{background:#F6F5F2;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.chip i{width:26px;height:26px;border-radius:6px;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15);display:inline-block}
+.arrow{color:#9a978f}
+.up{color:#3D7350;font-weight:600}
+.mono{font-family:"SF Mono",Menlo,monospace;font-size:12px}
+
+/* 场景对比 */
+.scene{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.side-h{font-size:13px;font-weight:600;margin-bottom:6px;display:flex;justify-content:space-between}
+.side-h span{font-weight:400;color:#6b6962}
+.cap{font-size:12.5px;color:#55534d;margin-top:8px}
+
+/* 屏幕片段：明暗两套底 */
+.screen{border-radius:22px;padding:18px;min-height:150px;background:var(--bg);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.light .screen{--bg:#FDFCF8;--card:#FFFFFF;--text:#333333;--text2:#6E6E6E;--line:#F0F0F0}
+.dark .screen{--bg:#0E0E10;--card:#2C2C2E;--text:#F5F5F5;--text2:#A8A8A8;--line:#3A3A3C}
+
+/* 改前：Tailwind 固定值（深色模式也不变） */
+.before{--succ:#22C55E;--succText:#15803D;--err:#EF4444;--info:#60A5FA;--ai:#7C5CFC;--purple:#C084FC}
+.dark .before{--succText:#4ADE80}
+/* 改后：对齐 11-15 已拍板的图表 V4「纸本调性」，明暗双值 */
+.after{--succ:#4E8C64;--succText:#3D7350;--err:#B84A3E;--info:#40546B;--ai:#5B6488;--purple:#93799F}
+.dark .after{--succ:#7DBF92;--succText:#7DBF92;--err:#E57A6E;--info:#8FA8C4;--ai:#9CA4C4;--purple:#B9A0C6}
+
+.card{background:var(--card);border-radius:16px;padding:12px 14px;border:.5px solid var(--line)}
+.before .card{box-shadow:0 3px 8px rgba(0,0,0,.035)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:.5px solid var(--line);font-size:14px}
+.row:last-child{border-bottom:none}
+.sub{font-size:11.5px;color:var(--text2)}
+.amt{font-variant-numeric:tabular-nums;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600}
+.t-succ{color:var(--succText)}.t-err{color:var(--err)}.t-ai{color:var(--ai)}.t-info{color:var(--info)}
+.bg-succ{background:color-mix(in srgb,var(--succ) 14%,transparent);color:var(--succText)}
+.bg-err{background:color-mix(in srgb,var(--err) 13%,transparent);color:var(--err)}
+.bg-ai{background:color-mix(in srgb,var(--ai) 13%,transparent);color:var(--ai)}
+.bg-info{background:color-mix(in srgb,var(--info) 11%,transparent);color:var(--info)}
+.bg-purple{background:color-mix(in srgb,var(--purple) 16%,transparent);color:var(--purple)}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;height:44px;border-radius:12px;font-size:15px;font-weight:600}
+.btn-ai{background:var(--ai);color:#fff}
+/* 深色下实心按钮沿用浅色档填充 + 白字，避免浅色实底像禁用态 */
+.dark .after .btn-ai{background:#5B6488;color:#fff}
+.check{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.check.done{background:var(--succ);color:#fff}
+.dark .after .check.done{color:#1C1C1E}
+.check.todo{box-shadow:inset 0 0 0 1.5px var(--line)}
+.toast{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:var(--card);border:.5px solid var(--line);font-size:13.5px;margin-top:8px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+/* Holo 自有标记：光球缩影（外环 + 实心核），替代 sparkles */
+.holo-mark{width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1.3px currentColor;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.holo-mark::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.spark{font-size:12px}
+
+/* 文案表 */
+.copy td:nth-child(2){color:#9a3412}
+.copy td:nth-child(3){color:#1d1d1b;font-weight:500}
+.decide{background:#fff;border-radius:12px;padding:18px 22px;margin-top:16px;font-size:14px}
+.decide ol{padding-left:18px}.decide li{margin:6px 0}
+</style>
+</head>
+<body class="light">
+<div class="wrap">
+
+<h1>去 AI 味四件套 · 改动前后对比</h1>
+<p class="lead">四件事：① 功能色去掉 Tailwind 原色　② AI 不再用紫色　③ sparkles 星星图标只留中央 AI 按钮一处　④ 去掉庆祝腔文案和 emoji。新色值<b>不是新发明</b>，而是直接对齐 11-15 你已经拍板的图表 V4「纸本调性」色板，App 里就只有一套语义色。</p>
+
+<div class="toolbar">查看模式：<button id="bL" class="on" onclick="mode('light')">浅色</button><button id="bD" onclick="mode('dark')">深色</button><span style="color:#6b6962">深色模式下差别更大：现有功能色是写死的固定值，深色下不会自动变亮或变柔</span></div>
+
+<div class="keep">
+  <div><b>这次会变</b>成功绿、错误红、信息蓝、装饰紫、AI 紫这 5 个功能色（含 V2 Tool 色板里对应的 4 个）；约 40 处 sparkles 图标；约 15 句带 emoji 或感叹号的文案。</div>
+  <div><b>这次不变</b>品牌橙 #F46D38、首页光球、所有页面布局、用户自选的习惯色和分类色、图表配色（V4 已做过）、热力图雾蓝。</div>
+</div>
+
+<!-- ============ 1. 色值表 ============ -->
+<h2>1 · 色值对照<small>对比度均按 WCAG 计算，数字越大越清晰</small></h2>
+<table>
+  <tr><th>Token</th><th>现在</th><th></th><th>改为（浅 / 深）</th><th>对齐 V4 的哪个色</th><th>浅色底对比度</th><th>使用处</th></tr>
+  <tr><td class="mono">holoSuccess</td><td><span class="chip"><i style="background:#22C55E"></i><span class="mono">#22C55E</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#4E8C64"></i><i style="background:#7DBF92"></i><span class="mono">#4E8C64 / #7DBF92</span></span></td><td>苔绿（流入 / 达成）</td><td>2.2 → <span class="up">3.9</span></td><td>169</td></tr>
+  <tr><td class="mono">holoSuccessText</td><td><span class="chip"><i style="background:#15803D"></i><span class="mono">#15803D</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#3D7350"></i><i style="background:#7DBF92"></i><span class="mono">#3D7350 / #7DBF92</span></span></td><td>苔绿加深一档（文字级）</td><td>4.9 → <span class="up">5.4</span></td><td>文字用</td></tr>
+  <tr><td class="mono">holoError</td><td><span class="chip"><i style="background:#EF4444"></i><span class="mono">#EF4444</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#B84A3E"></i><i style="background:#E57A6E"></i><span class="mono">#B84A3E / #E57A6E</span></span></td><td>印泥红</td><td>3.7 → <span class="up">5.0</span></td><td>134</td></tr>
+  <tr><td class="mono">holoInfo</td><td><span class="chip"><i style="background:#60A5FA"></i><span class="mono">#60A5FA</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#40546B"></i><i style="background:#8FA8C4"></i><span class="mono">#40546B / #8FA8C4</span></span></td><td>墨蓝</td><td>2.5 → <span class="up">7.6</span></td><td>44</td></tr>
+  <tr><td class="mono">holoPurple</td><td><span class="chip"><i style="background:#C084FC"></i><span class="mono">#C084FC</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#93799F"></i><i style="background:#B9A0C6"></i><span class="mono">#93799F / #B9A0C6</span></span></td><td>藕紫</td><td>2.6 → <span class="up">3.7</span></td><td>22</td></tr>
+  <tr><td class="mono">holoAI</td><td><span class="chip"><i style="background:#7C5CFC"></i><span class="mono">#7C5CFC</span></span></td><td class="arrow">→</td><td><span class="chip"><i style="background:#5B6488"></i><i style="background:#9CA4C4"></i><span class="mono">#5B6488 / #9CA4C4</span></span></td><td>靛灰</td><td>4.3 → <span class="up">5.7</span></td><td>28</td></tr>
+  <tr><td colspan="7" style="background:#FBFAF7;font-size:12.5px;color:#55534d">V2 Tool 色板同步：holoToolSuccess #166534 → #3D7350（31 处）· holoToolError #B91C1C → #A8432F（156 处，危险按钮白字对比度 5.9）· holoToolInfo #1D4ED8 → #40546B（9 处）· holoToolAI #6D28D9 → #5B6488（33 处）。深色值同上表。<b>不同步的话，App 里会同时存在两种绿和两种红。</b></td></tr>
+</table>
+
+<!-- ============ 2. 场景对比 ============ -->
+<h2>2 · 真实场景前后对比<small>文案均取自现有代码</small></h2>
+
+<!-- 场景 A：记账 -->
+<div class="scene" data-scene>
+  <div class="before"><div class="side-h">现在 <span>记账 · 今日流水</span></div>
+    <div class="screen"><div class="card">
+      <div class="row"><div>工资<div class="sub">收入 · 09:00</div></div><span class="amt t-succ">+¥12,800.00</span></div>
+      <div class="row"><div>午饭<div class="sub">餐饮 · 12:30</div></div><span class="amt">−¥38.00</span></div>
+      <div class="row"><div>本月餐饮预算 <span class="pill bg-err">超支</span></div><span class="amt t-err">−¥216.00</span></div>
+    </div></div></div>
+  <div class="after"><div class="side-h">改后 <span>同一页面</span></div>
+    <div class="screen"><div class="card">
+      <div class="row"><div>工资<div class="sub">收入 · 09:00</div></div><span class="amt t-succ">+¥12,800.00</span></div>
+      <div class="row"><div>午饭<div class="sub">餐饮 · 12:30</div></div><span class="amt">−¥38.00</span></div>
+      <div class="row"><div>本月餐饮预算 <span class="pill bg-err">超支</span></div><span class="amt t-err">−¥216.00</span></div>
+    </div></div></div>
+</div>
+<p class="cap">收入的绿从「荧光」变成「苔藓」，超支的红从「警报灯」变成「印泥」。信息完全一样，但不再像银行 App 的警告。</p>
+
+<!-- 场景 B：习惯 -->
+<div class="scene">
+  <div class="before"><div class="side-h">现在 <span>习惯 · 今日</span></div>
+    <div class="screen"><div class="card">
+      <div class="row"><div>晨跑<div class="sub">🔥 连续 23 天</div></div><div class="check done">✓</div></div>
+      <div class="row"><div>读书 30 分钟<div class="sub">就快完成了，加油！</div></div><div class="check todo"></div></div>
+    </div>
+    <div class="toast"><span>完美的一天 ✨</span></div></div></div>
+  <div class="after"><div class="side-h">改后</div>
+    <div class="screen"><div class="card">
+      <div class="row"><div>晨跑<div class="sub">连续 <b style="color:var(--text)">23</b> 天</div></div><div class="check done">✓</div></div>
+      <div class="row"><div>读书 30 分钟<div class="sub">还差一点</div></div><div class="check todo"></div></div>
+    </div>
+    <div class="toast"><span class="dot" style="background:var(--succ)"></span><span>今天的都做到了。</span></div></div></div>
+</div>
+<p class="cap">火焰和「加油」去掉之后，连续天数改用加粗的数字来强调。数字本身就有分量，不需要 emoji 帮腔。</p>
+
+<!-- 场景 C：AI 入口 -->
+<div class="scene">
+  <div class="before"><div class="side-h">现在 <span>AI 入口 · 想法 / 洞察</span></div>
+    <div class="screen">
+      <div style="display:flex;gap:6px;margin-bottom:10px"><span class="pill bg-ai"><span class="spark">✦</span> AI 建议</span><span class="pill bg-purple">灵感</span></div>
+      <div class="card"><div style="font-size:12px;font-weight:600" class="t-ai"><span class="spark">✦</span> HOLO 深度洞察</div><div style="font-size:14px;margin-top:4px">这周你有三个晚上在 22 点后记账，多半是在复盘一天。</div></div>
+      <div class="btn btn-ai" style="margin-top:10px"><span class="spark">✦</span> 批量 AI 整理</div>
+    </div></div>
+  <div class="after"><div class="side-h">改后</div>
+    <div class="screen">
+      <div style="display:flex;gap:6px;margin-bottom:10px"><span class="pill bg-ai"><span class="holo-mark" style="width:11px;height:11px"></span> AI 建议</span><span class="pill bg-purple">灵感</span></div>
+      <div class="card"><div style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px" class="t-ai"><span class="holo-mark" style="width:12px;height:12px"></span>HOLO 深度洞察</div><div style="font-size:14px;margin-top:4px">这周你有三个晚上在 22 点后记账，多半是在复盘一天。</div></div>
+      <div class="btn btn-ai" style="margin-top:10px"><span class="holo-mark"></span> 批量 AI 整理</div>
+    </div></div>
+</div>
+<p class="cap">「紫色 + 星星」是 2024 年以来几乎所有 AI 产品的共同符号。改后 AI 用靛灰，图标换成 <b>Holo 自己的小光点</b>（光球的缩影：外环加一个实心核），用 SwiftUI 两个圆就能画出来，不用新资产，也不依赖 SF Symbol。</p>
+
+<!-- 场景 D：反馈与提示 -->
+<div class="scene">
+  <div class="before"><div class="side-h">现在 <span>目标达成 · 错误 · 信息提示</span></div>
+    <div class="screen">
+      <div class="toast"><span class="check done" style="width:20px;height:20px;font-size:11px">✓</span><span>太棒了！目标「半马完赛」已标记为达成 🎉</span></div>
+      <div class="toast"><span class="dot" style="background:var(--err)"></span><span class="t-err">网络连接失败，请稍后重试</span></div>
+      <div class="toast bg-info" style="border:none"><span>ⓘ</span><span>健康数据每天同步一次</span></div>
+    </div></div>
+  <div class="after"><div class="side-h">改后</div>
+    <div class="screen">
+      <div class="toast"><span class="check done" style="width:20px;height:20px;font-size:11px">✓</span><span>目标「半马完赛」达成了。</span></div>
+      <div class="toast"><span class="dot" style="background:var(--err)"></span><span class="t-err">网络连接失败，请稍后重试</span></div>
+      <div class="toast bg-info" style="border:none"><span>ⓘ</span><span>健康数据每天同步一次</span></div>
+    </div></div>
+</div>
+<p class="cap">达成提示少了「太棒了」和 🎉，反而更郑重。信息提示从「亮天蓝」变成「墨蓝」，像纸上的批注，而不是系统弹窗。</p>
+
+<!-- 场景 E：纪念日 -->
+<div class="scene">
+  <div class="before"><div class="side-h">现在 <span>纪念日 · 当天</span></div>
+    <div class="screen"><div class="card" style="text-align:center;padding:20px">
+      <div style="font-size:13px;color:var(--text2)">✨ 今天到了</div>
+      <div style="font-size:22px;font-weight:700;margin:4px 0">结婚三周年</div>
+      <span class="pill" style="background:#F46D38;color:#fff">🎉 就是今天</span>
+    </div></div></div>
+  <div class="after"><div class="side-h">改后</div>
+    <div class="screen"><div class="card" style="text-align:center;padding:20px">
+      <div style="font-size:13px;color:var(--text2)">今天到了</div>
+      <div style="font-size:22px;font-weight:700;margin:4px 0">结婚三周年</div>
+      <span class="pill" style="background:#F46D38;color:#fff">就是今天</span>
+    </div></div></div>
+</div>
+<p class="cap">品牌橙保持不变。只去掉 emoji，让「结婚三周年」这几个字自己说话。</p>
+
+<!-- ============ 3. 文案清单 ============ -->
+<h2>3 · 文案改写清单<small>全部来自现有代码，改写原则：去掉感叹号和 emoji，用陈述句，像一位克制的朋友</small></h2>
+<table class="copy">
+  <tr><th style="width:24%">出现场景</th><th>现在</th><th>改为</th></tr>
+  <tr><td>目标达成</td><td>太棒了！目标「X」已标记为达成 🎉</td><td>目标「X」达成了。</td></tr>
+  <tr><td>任务完成</td><td>你完成了这件事 🎉</td><td>这件事，完成了。</td></tr>
+  <tr><td>习惯全勤</td><td>完美的一天 ✨</td><td>今天的都做到了。</td></tr>
+  <tr><td>进度提示</td><td>就快完成了，加油！</td><td>还差一点。</td></tr>
+  <tr><td>连续天数</td><td>🔥 连续 N 天</td><td>连续 N 天（数字加粗）</td></tr>
+  <tr><td>新人首条记录</td><td>第一条记录完成 🎉</td><td>第一条记录，写下了。</td></tr>
+  <tr><td>目标状态</td><td>已达成 🎉</td><td>已达成</td></tr>
+  <tr><td>纪念日</td><td>✨ 今天到了 / 🎉 就是今天 / 就是今天 🎉</td><td>今天到了 / 就是今天</td></tr>
+  <tr><td>纪念日引导</td><td>✨ 点亮这个日子</td><td>点亮这个日子</td></tr>
+  <tr><td>单独的 🎉 / 💪 / 🔥 / ✨</td><td>作为装饰单独出现</td><td>逐处看上下文：能删就删，必须有标记的换成小光点或加粗数字</td></tr>
+</table>
+<p class="cap">用户自己输入的内容、AI 生成的回复不受影响，这里只改 App 写死的界面文案。</p>
+
+<!-- ============ 4. 星星图标 ============ -->
+<h2>4 · sparkles 星星图标<small>现在约 40 处</small></h2>
+<table>
+  <tr><th style="width:30%">位置</th><th>处理</th></tr>
+  <tr><td>首页中央 AI 按钮</td><td><b>保留</b>，它是唯一的 AI 主入口</td></tr>
+  <tr><td>「AI 建议」「HOLO 深度洞察」「目标分析」等 AI 内容标签</td><td>换成 Holo 小光点</td></tr>
+  <tr><td>「批量 AI 整理」「开始整理」等按钮</td><td>换成小光点，或去掉图标只留文字</td></tr>
+  <tr><td>「识别中…」「分析结果加载中…」等加载态</td><td>去掉图标，保留原有的加载动画</td></tr>
+  <tr><td>纪念日、新人引导等装饰用途</td><td>直接去掉</td></tr>
+</table>
+
+<div class="decide">
+  <b>需要你拍板</b>
+  <ol>
+    <li><b>色值</b>：按上表改（含 Tool 色板同步）？还是有某个颜色想换？</li>
+    <li><b>AI 色</b>：靛灰 #5B6488 可以吗？如果想让 AI 更醒目一点，备选是墨蓝 #40546B（更深、更沉稳）。</li>
+    <li><b>小光点</b>代替星星，可以吗？</li>
+    <li><b>文案</b>按清单改？</li>
+  </ol>
+  <p style="margin-top:10px;color:#55534d;font-size:13px">实施方式：色值只改 <span class="mono">DesignSystem.swift</span> 和对应 colorset；改完跑对比度脚本，并在浅色和深色下各截图走查一遍。四项可以分开提交，任何一项不满意都能单独回退。</p>
+</div>
+
+</div>
+<script>
+function mode(m){
+  document.body.className = m;
+  document.getElementById('bL').className = m === 'light' ? 'on' : '';
+  document.getElementById('bD').className = m === 'dark' ? 'on' : '';
+}
+</script>
+</body>
+</html>

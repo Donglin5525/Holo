@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo 审美方向 · 三方向原型 · 2026-11-21</title>
+<style>
+/* 复用 App 已随包的想法模块字体（思源宋体 / 霞鹜文楷子集），方向 A 零新增字体成本 */
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf");font-weight:400}
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf");font-weight:700}
+@font-face{font-family:"HoloHand";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteHand-Regular.ttf");font-weight:400}
+
+:root{--brand:#F46D38}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC",sans-serif;background:#E7E5E0;color:#1d1d1b;line-height:1.6;padding:40px 24px 120px}
+.wrap{max-width:1440px;margin:0 auto}
+h1{font-size:28px;letter-spacing:.5px}
+.lead{color:#5b5953;font-size:15px;max-width:860px;margin-top:8px}
+.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px;max-width:1100px}
+.notes div{background:#fff;border-radius:10px;padding:12px 16px;font-size:13px;color:#4a4842}
+.notes b{display:block;color:#1d1d1b;font-size:14px;margin-bottom:2px}
+h2{font-size:20px;margin:56px 0 4px;padding-top:16px;border-top:2px solid #1d1d1b;display:flex;gap:12px;align-items:baseline}
+h2 small{font-size:13px;color:#6b6962;font-weight:400}
+.row{display:flex;gap:28px;overflow-x:auto;padding:18px 4px 8px}
+.col{flex:0 0 auto;width:320px}
+.col-h{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between}
+.col-h span{font-weight:400;color:#6b6962;font-size:12px}
+.cap{font-size:12px;color:#55534d;margin-top:10px;line-height:1.55}
+.cap i{font-style:normal;color:#b4421a}
+
+/* ===== 通用手机壳 ===== */
+.phone{width:320px;height:680px;border-radius:46px;border:9px solid #141414;position:relative;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.18)}
+.sb{height:40px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:12px;font-weight:600}
+.scr{position:absolute;inset:40px 0 0 0;overflow:hidden}
+.abs{position:absolute}
+.stage{position:relative;width:302px;height:300px;margin:0 auto}
+.stage .m{position:absolute;transform:translate(-50%,-50%);text-align:center}
+.p1{left:151px;top:42px}.p2{left:252px;top:116px}.p3{left:214px;top:234px}.p4{left:88px;top:234px}.p5{left:50px;top:116px}
+
+/* ===== 现状示意（用真实 token 色值） ===== */
+.cur{background:#FDFCF8;color:#333}
+.cur .hd{padding:14px 20px 6px;display:flex;justify-content:space-between;align-items:center}
+.cur .hd b{font-size:22px}
+.cur .chipline{margin:6px 20px;background:#FED7AA;color:#9a3412;border-radius:99px;padding:6px 14px;font-size:12px}
+.cur .card{margin:8px 20px;background:#fff;border-radius:16px;padding:12px 14px;box-shadow:0 3px 8px rgba(0,0,0,.05);border:.5px solid #F1F5F9;font-size:13px}
+.cur .orb{position:absolute;left:151px;top:150px;width:108px;height:108px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 40% 35%,#FFB48A,#F46D38 55%,#EA580C);box-shadow:0 0 40px rgba(244,109,56,.55)}
+.cur .ic{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;margin:0 auto 4px;box-shadow:0 4px 10px rgba(0,0,0,.08)}
+.cur .lb{font-size:11px;color:#939393}
+.cur .nav{position:absolute;left:24px;right:24px;bottom:22px;height:58px;border-radius:24px;background:rgba(255,255,255,.75);box-shadow:0 4px 16px rgba(0,0,0,.08);display:flex;justify-content:space-around;align-items:center;font-size:11px;color:#939393}
+.cur .ai{width:56px;height:56px;border-radius:50%;background:#F46D38;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;margin-top:-34px;box-shadow:0 6px 18px rgba(244,109,56,.5)}
+.cur .pill{display:inline-block;border-radius:99px;padding:2px 9px;font-size:10px;font-weight:600}
+.flag{position:absolute;width:18px;height:18px;border-radius:50%;background:#DC2626;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:5;box-shadow:0 0 0 2px #fff}
+
+/* ===== 方向 A：个人年鉴 ===== */
+.A{background:#F4EFE4;color:#1F1C17;font-family:"HoloSerif","Songti SC",serif}
+.A::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.35;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .45  0 0 0 0 .38  0 0 0 0 .28  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.A .sb{font-family:-apple-system,sans-serif}
+.A .mast{margin:6px 22px 0;padding-bottom:6px;border-bottom:1.5px solid #1F1C17;display:flex;justify-content:space-between;align-items:baseline;font-family:-apple-system,sans-serif;font-size:10px;letter-spacing:2.5px;font-weight:600}
+.A .mast2{margin:0 22px;border-bottom:.5px solid #1F1C17;height:3px}
+.A .num{font-family:"Iowan Old Style","Baskerville","Georgia",serif;font-variant-numeric:oldstyle-nums}
+.A .hand{font-family:"HoloHand","Kaiti SC",serif;color:#6B4A30}
+.A .note{border-left:1.5px solid var(--brand);padding-left:10px}
+.A .rule{border-top:.5px solid rgba(31,28,23,.25)}
+.A .lead-row{display:flex;align-items:baseline;gap:6px;font-size:13px}
+.A .lead-row .dots{flex:1;border-bottom:1px dotted rgba(31,28,23,.45);transform:translateY(-3px)}
+.A .kicker{font-family:-apple-system,sans-serif;font-size:9.5px;letter-spacing:2px;color:#7A7064;font-weight:600}
+.A .m .t{font-size:15px;font-weight:700;letter-spacing:1px}
+.A .m .v{font-size:11px;color:#7A7064;font-family:-apple-system,sans-serif}
+.A .navA{position:absolute;left:22px;right:22px;bottom:20px;border-top:.5px solid #1F1C17;padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:14px;letter-spacing:2px}
+.A .stamp{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border:1.5px solid var(--brand);color:var(--brand);border-radius:50%;font-size:11px;font-weight:700;transform:rotate(-12deg);letter-spacing:1px}
+.A .plate{background:linear-gradient(160deg,#C9B79A,#8D7A60);border:4px solid #FBF8F1;box-shadow:0 1px 3px rgba(60,40,20,.25)}
+
+/* ===== 方向 B：精密器物 ===== */
+.B{background:#E9E7E2;color:#141414;font-family:-apple-system,"PingFang SC",sans-serif}
+.B .mono{font-family:"SF Mono","Menlo",monospace;font-variant-numeric:tabular-nums}
+.B .lbl{font-family:"SF Mono","Menlo",monospace;font-size:9px;letter-spacing:1.5px;color:#76736C;text-transform:uppercase}
+.B .panel{background:#F6F5F2;border-radius:10px;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.12),0 1px 0 rgba(255,255,255,.8)}
+.B .key{width:56px;height:56px;border-radius:12px;background:linear-gradient(#FAF9F6,#ECEAE5);box-shadow:0 1px 0 #fff inset,0 2px 0 rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.15);display:flex;flex-direction:column;justify-content:space-between;padding:6px 7px;text-align:left}
+.B .key b{font-size:12px;font-weight:600}
+.B .lcd{background:#1A1A18;color:#EDEBE4;border-radius:8px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center}
+.B .seg{display:flex;gap:2px}.B .seg i{width:7px;height:16px;border-radius:1.5px;background:#D3D0C9}.B .seg i.on{background:#141414}.B .seg i.or{background:var(--brand)}
+.B .toggle{width:40px;height:24px;border-radius:12px;background:#D3D0C9;position:relative;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+.B .toggle::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.B .toggle.on{background:var(--brand)}.B .toggle.on::after{left:18px}
+
+/* ===== 方向 C：安静的数据艺术 ===== */
+.C{background:#121211;color:#ECEAE3;font-family:"Avenir Next","Helvetica Neue","PingFang SC",sans-serif}
+.C .big{font-family:"Helvetica Neue","Avenir Next",sans-serif;font-weight:700;letter-spacing:-2px;font-variant-numeric:tabular-nums}
+.C .dim{color:#8B887F}
+.C .hair{border-top:.5px solid rgba(236,234,227,.18)}
+.C .tiny{font-size:9.5px;letter-spacing:1.6px;color:#8B887F;font-weight:600}
+
+/* ===== 方向说明表 ===== */
+.spec{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px}
+.spec .box{background:#fff;border-radius:12px;padding:18px 20px;font-size:13px;color:#3f3d38}
+.spec .box h3{font-size:16px;color:#1d1d1b;margin-bottom:6px}
+.spec .box.rec{outline:2px solid var(--brand)}
+.spec .badge{display:inline-block;background:var(--brand);color:#fff;font-size:11px;border-radius:99px;padding:1px 9px;margin-left:6px;vertical-align:2px}
+.sw{display:flex;gap:6px;margin:10px 0}
+.sw i{width:34px;height:34px;border-radius:6px;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15)}
+.spec ul{padding-left:16px;margin-top:6px}
+.spec li{margin:3px 0}
+.decide{background:#fff;border-radius:12px;padding:18px 22px;margin-top:18px;font-size:14px;max-width:1100px}
+.decide ol{padding-left:18px}.decide li{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Holo 审美方向 · 三方向原型</h1>
+<p class="lead">每一行是同一个画面，从左到右依次是「现状示意 → A 个人年鉴 → B 精密器物 → C 安静的数据艺术」。三个方向都保留首页结构（问候 → 日程 → 进行中的事 → 光球 + 五个入口 → 底部三项导航），也都保留品牌橙 #F46D38，只是改成「一页只用一处」。示例数据统一为 2026-11-21 周六，习惯和长廊里刻意放了最稀疏的状态（新建 2 天的习惯、没有记录的一天）。</p>
+<div class="notes">
+  <div><b>怎么看</b>先横向看一整行，凭第一眼选出「最想用的那台手机」，再往下看方向说明。</div>
+  <div><b>现状列的红点</b>标的是「AI 感」来源：①Tailwind 默认色 ②紫色+星星 AI 符号 ③处处胶囊/阴影/光晕 ④字号层级太平。</div>
+  <div><b>字体</b>方向 A 加载的是 App 已随包的思源宋体 / 霞鹜文楷文件，所见即真机字形；B/C 用系统字体近似。</div>
+</div>
+
+<!-- ======================= 第一行：首页 ======================= -->
+<h2>01 首页 <small>结构不变，只换视觉语言</small></h2>
+<div class="row">
+
+  <!-- 现状 -->
+  <div class="col">
+    <div class="col-h">现状示意 <span>真实 token 色值</span></div>
+    <div class="phone cur">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="hd"><div><div style="font-size:12px;color:#939393">周六 11月21日</div><b>上午好，东林 ✨</b></div><div style="width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center">⚙︎</div></div>
+        <div class="chipline">📅 15:00 牙医复诊 · 还有 5 小时</div>
+        <div class="card"><span class="pill" style="background:#EDE9FE;color:#7C5CFC">✦ AI</span>&nbsp; 进行中：搬家 <span style="float:right;color:#22C55E;font-weight:600">剩 9 天</span></div>
+        <div class="flag" style="left:104px;top:112px">②</div>
+        <div class="stage" style="margin-top:26px">
+          <div class="orb"></div>
+          <div class="flag" style="left:200px;top:96px">③</div>
+          <div class="m p1"><div class="ic" style="background:#F46D38">¥</div><div class="lb">记账</div></div>
+          <div class="m p2"><div class="ic" style="background:#22C55E">✓</div><div class="lb">习惯</div></div>
+          <div class="m p3"><div class="ic" style="background:#60A5FA">☰</div><div class="lb">任务</div></div>
+          <div class="m p4"><div class="ic" style="background:#EF4444">♥</div><div class="lb">健康</div></div>
+          <div class="m p5"><div class="ic" style="background:#C084FC">✎</div><div class="lb">想法</div></div>
+          <div class="flag" style="left:20px;top:150px">①</div>
+        </div>
+        <div class="nav"><span>◎ 个人</span><div class="ai">✦</div><span>▦ 记忆长廊</span></div>
+      </div>
+    </div>
+    <p class="cap">每个元素都「差不多圆、差不多软、差不多亮」，没有一处是 Holo 独有的。五个入口用了五种 Tailwind 色，问候语和标签的字号差很小。</p>
+  </div>
+
+  <!-- A 年鉴 -->
+  <div class="col">
+    <div class="col-h">A · 个人年鉴 <span>推荐</span></div>
+    <div class="phone A">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="mast"><span>HOLO · 人生年鉴</span><span>No. 325</span></div>
+        <div class="mast2"></div>
+        <div style="margin:14px 22px 0;display:flex;align-items:flex-end;gap:12px">
+          <div class="num" style="font-size:58px;line-height:.9;letter-spacing:-1px">11.21</div>
+          <div style="font-size:12px;line-height:1.5;padding-bottom:4px">周六<br><span style="color:#7A7064">小雪将至</span></div>
+        </div>
+        <div class="hand note" style="margin:14px 22px 0;font-size:14px;line-height:1.6">早，东林。今天只有一件事要记得——下午三点的复诊。</div>
+        <div style="margin:16px 22px 0">
+          <div class="lead-row"><span class="kicker">今日</span><span>牙医复诊</span><span class="dots"></span><span class="num">15:00</span></div>
+          <div class="lead-row" style="margin-top:6px"><span class="kicker">进行</span><span>搬家</span><span class="dots"></span><span>剩 <span class="num" style="font-size:15px">9</span> 天</span></div>
+        </div>
+        <div class="stage" style="margin-top:4px">
+          <!-- 光球：线描同心圆 + 橙色核心，保留「三环」意象 -->
+          <svg class="abs" style="left:96px;top:95px" width="110" height="110" viewBox="0 0 110 110">
+            <circle cx="55" cy="55" r="52" fill="none" stroke="#1F1C17" stroke-width=".6" stroke-dasharray="1 3"/>
+            <circle cx="55" cy="55" r="38" fill="none" stroke="#1F1C17" stroke-width=".7"/>
+            <circle cx="55" cy="55" r="24" fill="none" stroke="#1F1C17" stroke-width=".5" opacity=".6"/>
+            <circle cx="55" cy="55" r="9" fill="#F46D38"/>
+          </svg>
+          <div class="m p1"><div class="t">记账</div><div class="v num">¥ 128</div></div>
+          <div class="m p2"><div class="t">习惯</div><div class="v">3 / 5</div></div>
+          <div class="m p3"><div class="t">任务</div><div class="v">余 2 项</div></div>
+          <div class="m p4"><div class="t">健康</div><div class="v">6,420 步</div></div>
+          <div class="m p5"><div class="t">想法</div><div class="v">新 1 则</div></div>
+        </div>
+        <div class="navA"><span>个人</span>
+          <span style="width:44px;height:44px;border-radius:50%;border:1px solid #1F1C17;display:flex;align-items:center;justify-content:center"><i style="width:10px;height:10px;border-radius:50%;background:#F46D38;display:block"></i></span>
+          <span>长廊</span></div>
+      </div>
+    </div>
+    <p class="cap">像每天翻开一页刊物：<i>刊头 + 期号</i>、衬线大日期、Holo 的话用手写批注体、目录式虚线引导；五个入口不用图标，直接用今天的数字。光球改成线描的三环，只有核心那一点用橙色。</p>
+  </div>
+
+  <!-- B 器物 -->
+  <div class="col">
+    <div class="col-h">B · 精密器物</div>
+    <div class="phone B">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:8px 20px 0;display:flex;justify-content:space-between" class="lbl"><span>HOLO / LIFE-DB</span><span>SAT 21 NOV 2026</span></div>
+        <div style="margin:12px 20px 0;font-size:24px;font-weight:600;letter-spacing:-.3px">早，东林。</div>
+        <div class="panel" style="margin:12px 20px 0;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div><div class="lbl">NEXT · 日程</div><div style="font-size:13px;font-weight:600;margin-top:2px">牙医复诊</div></div>
+          <div class="mono" style="font-size:20px">15:00</div>
+        </div>
+        <div class="lcd" style="margin:8px 20px 0"><span style="font-size:12px">进行中 · 搬家</span><span class="mono" style="font-size:13px;color:var(--brand)">T−09 D</span></div>
+        <div class="stage" style="margin-top:6px">
+          <!-- 光球 → 旋钮：60 刻度 + 橙色指针 -->
+          <svg class="abs" style="left:91px;top:90px" width="120" height="120" viewBox="0 0 120 120" id="dialB"></svg>
+          <div class="m p1"><div class="key"><span class="lbl">01</span><b>记账</b></div></div>
+          <div class="m p2"><div class="key"><span class="lbl">02</span><b>习惯</b></div></div>
+          <div class="m p3"><div class="key"><span class="lbl">03</span><b>任务</b></div></div>
+          <div class="m p4"><div class="key"><span class="lbl">04</span><b>健康</b></div></div>
+          <div class="m p5"><div class="key"><span class="lbl">05</span><b>想法</b></div></div>
+        </div>
+        <div class="abs" style="left:20px;right:20px;bottom:20px;height:56px;display:flex;justify-content:space-between;align-items:center">
+          <div class="panel" style="width:92px;height:44px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">个人</div>
+          <div style="width:56px;height:56px;border-radius:50%;background:#141414;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 #000"><i style="width:12px;height:12px;border-radius:50%;background:var(--brand);display:block"></i></div>
+          <div class="panel" style="width:92px;height:44px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">长廊</div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">像一台做工考究的机器：<i>等宽数字、刻度、编号按键</i>、像液晶屏的倒计时条。光球变成带刻度的旋钮。理性、可靠，但温度偏低。</p>
+  </div>
+
+  <!-- C 数据艺术 -->
+  <div class="col">
+    <div class="col-h">C · 安静的数据艺术</div>
+    <div class="phone C">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:10px 22px 0" class="tiny">2026 · 第 325 天</div>
+        <div style="margin:4px 22px 0;display:flex;align-items:baseline;gap:6px"><span class="big" style="font-size:64px;line-height:1">89</span><span class="dim" style="font-size:14px">% of 2026</span></div>
+        <div style="margin:6px 22px 0;font-size:14px">早，东林。<span class="dim">15:00 复诊 · 搬家剩 9 天</span></div>
+        <div class="stage" style="margin-top:14px">
+          <!-- 光球 → 年环：365 根刻线，长度 = 当天记录密度 -->
+          <svg class="abs" style="left:66px;top:65px" width="170" height="170" viewBox="0 0 170 170" id="ringC"></svg>
+          <div class="m p1"><div style="font-size:12px">记账</div><div class="dim" style="font-size:10px">¥128</div></div>
+          <div class="m p2"><div style="font-size:12px">习惯</div><div class="dim" style="font-size:10px">3/5</div></div>
+          <div class="m p3"><div style="font-size:12px">任务</div><div class="dim" style="font-size:10px">2</div></div>
+          <div class="m p4"><div style="font-size:12px">健康</div><div class="dim" style="font-size:10px">6.4k</div></div>
+          <div class="m p5"><div style="font-size:12px">想法</div><div class="dim" style="font-size:10px">1</div></div>
+        </div>
+        <div class="abs hair" style="left:22px;right:22px;bottom:20px;padding-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:13px">
+          <span class="dim">个人</span><span style="width:46px;height:46px;border-radius:50%;background:#ECEAE3;display:flex;align-items:center;justify-content:center"><i style="width:10px;height:10px;border-radius:50%;background:var(--brand);display:block"></i></span><span class="dim">长廊</span></div>
+      </div>
+    </div>
+    <p class="cap">数据本身就是画面：光球变成<i>「今年的年环」</i>，365 根刻线，记得越多线越长，今天那根是橙色。最有分享欲，但把深色当默认会改变 App 的整体气质。</p>
+  </div>
+</div>
+
+<!-- ======================= 第二行：记忆长廊 ======================= -->
+<h2>02 记忆长廊 <small>含最稀疏状态：11.19 没有任何记录</small></h2>
+<div class="row">
+
+  <div class="col">
+    <div class="col-h">现状示意</div>
+    <div class="phone cur">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="hd"><b>记忆长廊</b><span class="pill" style="background:#FED7AA;color:#9a3412;font-size:11px">找日期</span></div>
+        <div class="card" style="background:linear-gradient(135deg,#F5F3FF,#FFF7ED)"><span class="pill" style="background:#EDE9FE;color:#7C5CFC">✦ 理解</span><div style="margin-top:6px">从生活记录里，慢慢认识自己</div></div>
+        <div class="flag" style="left:268px;top:84px">②</div>
+        <div style="margin:12px 20px 4px;font-size:13px;font-weight:600">11月21日 周六</div>
+        <div class="card"><span class="pill" style="background:#D1FAE5;color:#16A34A">健康</span> 晨跑 5.2 km<div style="color:#939393;font-size:11px">07:10</div></div>
+        <div class="card"><span class="pill" style="background:#FEE2E2;color:#DC2626">支出</span> 午饭 ¥38.00<div style="color:#939393;font-size:11px">12:30</div></div>
+        <div class="card"><span class="pill" style="background:#F3E8FF;color:#9333EA">想法</span> 秋天的光线很适合拍照</div>
+        <div class="flag" style="left:10px;top:240px">①</div>
+        <div style="margin:12px 20px 4px;font-size:13px;font-weight:600">11月19日 周四</div>
+        <div class="card" style="text-align:center;color:#939393;padding:18px">🗓<br>当天暂无记录</div>
+      </div>
+    </div>
+    <p class="cap">每条记录都是一张卡加一个彩色标签，信息全靠颜色分类。空的那天是一个通用空态。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">A · 个人年鉴</div>
+    <div class="phone A">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="mast"><span>记忆长廊</span><span>卷十一 · 2026</span></div>
+        <div class="mast2"></div>
+        <div style="margin:16px 22px 0;display:flex;gap:14px">
+          <div style="width:46px;flex:none"><div class="num" style="font-size:34px;line-height:1">21</div><div class="kicker" style="margin-top:2px">周六</div></div>
+          <div style="flex:1">
+            <div class="plate" style="height:104px"></div>
+            <div style="font-size:10.5px;color:#7A7064;margin-top:4px;font-family:-apple-system,sans-serif">图 03 · 宝石山，早上七点的光</div>
+            <div style="margin-top:10px;font-size:13.5px;line-height:1.75">
+              <div class="lead-row"><span>晨跑</span><span class="dots"></span><span class="num">5.2 km</span></div>
+              <div class="lead-row"><span>午饭</span><span class="dots"></span><span class="num">¥ 38</span></div>
+              <div style="margin-top:4px">「秋天的光线很适合拍照。」</div>
+            </div>
+            <div class="hand note" style="margin-top:10px;font-size:13px;line-height:1.6">这是你这个月第三次在跑步后拍照，都在同一座山。</div>
+          </div>
+        </div>
+        <div class="rule" style="margin:16px 22px 0"></div>
+        <div style="margin:12px 22px 0;display:flex;gap:14px;align-items:baseline">
+          <div style="width:46px;flex:none"><div class="num" style="font-size:34px;line-height:1;color:#A89C8B">20</div></div>
+          <div style="flex:1;font-size:13.5px">读完《置身事内》第四章<div style="font-size:11px;color:#7A7064;font-family:-apple-system,sans-serif">读书 · 42 分钟</div></div>
+        </div>
+        <div class="rule" style="margin:14px 22px 0"></div>
+        <div style="margin:12px 22px 0;display:flex;gap:14px;align-items:baseline">
+          <div style="width:46px;flex:none"><div class="num" style="font-size:34px;line-height:1;color:#A89C8B">19</div></div>
+          <div class="hand" style="flex:1;font-size:13.5px;color:#9A8E7E">这一页还空着。</div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">长廊就是一本图录：页边是<i>大号日期</i>，照片像印刷图版并配图注，记录用目录式排列，AI 的观察是页边批注。空的那天只写一句「这一页还空着」，不放图标。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">B · 精密器物</div>
+    <div class="phone B">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:8px 20px 0;display:flex;justify-content:space-between" class="lbl"><span>ARCHIVE / 记忆长廊</span><span>NOV 2026</span></div>
+        <div style="margin:10px 20px 0;font-size:24px;font-weight:600">11月21日 <span style="font-size:13px;color:#76736C">SAT</span></div>
+        <div style="margin:12px 20px 0;position:relative;padding-left:52px">
+          <div class="abs" style="left:42px;top:0;bottom:0;border-left:1px solid #141414"></div>
+          <div class="panel" style="padding:9px 11px;margin-bottom:8px;position:relative"><span class="mono abs" style="left:-52px;top:9px;font-size:10px">07:10</span><div class="lbl">HEALTH · 跑步</div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-top:2px">晨跑<span class="mono">5.20 km</span></div></div>
+          <div class="panel" style="height:92px;margin-bottom:8px;position:relative;overflow:hidden;background:linear-gradient(160deg,#C2B9AA,#7F786C)"><span class="mono abs" style="left:-52px;top:9px;font-size:10px;color:#141414">07:42</span><span class="lbl abs" style="left:9px;bottom:7px;color:#fff">IMG · 宝石山</span></div>
+          <div class="panel" style="padding:9px 11px;margin-bottom:8px;position:relative"><span class="mono abs" style="left:-52px;top:9px;font-size:10px">12:30</span><div class="lbl">EXPENSE · 餐饮</div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-top:2px">午饭<span class="mono">−38.00</span></div></div>
+          <div class="lcd" style="font-size:12px;position:relative"><span>同一座山，本月第 3 次</span><span class="mono" style="color:var(--brand)">03</span></div>
+        </div>
+        <div style="margin:16px 20px 0;font-size:16px;font-weight:600">11月19日 <span style="font-size:12px;color:#76736C">THU</span></div>
+        <div style="margin:8px 20px 0;border:1px dashed #A7A39A;border-radius:10px;padding:12px;display:flex;justify-content:space-between" class="lbl"><span>NO SIGNAL · 无记录</span><span>— — —</span></div>
+      </div>
+    </div>
+    <p class="cap">时间轴像一把<i>标尺</i>，每条记录像一张样本标签，AI 的观察显示在液晶条上。空的那天显示为「无信号」，很有记录仪的感觉。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">C · 安静的数据艺术</div>
+    <div class="phone C">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:10px 22px 0" class="tiny">记忆长廊 · 十一月</div>
+        <!-- 月度点阵：每天一个点，大小 = 记录量 -->
+        <svg style="margin:10px 22px 0;display:block" width="276" height="58" id="monthC"></svg>
+        <div class="hair" style="margin:10px 22px 0"></div>
+        <div style="margin:12px 22px 0;display:flex;justify-content:space-between;align-items:baseline"><span class="big" style="font-size:38px">21</span><span class="dim" style="font-size:12px">周六 · 4 条</span></div>
+        <div style="margin:8px 22px 0;height:118px;border-radius:4px;background:linear-gradient(160deg,#6E665A,#2E2B26)"></div>
+        <div style="margin:10px 22px 0;font-size:13px;line-height:1.9">
+          <div style="display:flex;justify-content:space-between"><span>晨跑</span><span class="dim">5.2 km</span></div>
+          <div style="display:flex;justify-content:space-between"><span>午饭</span><span class="dim">¥38</span></div>
+          <div>秋天的光线很适合拍照。</div>
+        </div>
+        <div style="margin:8px 22px 0;font-size:12px;color:var(--brand)">— 本月第 3 次在同一座山拍照</div>
+        <div class="hair" style="margin:14px 22px 0"></div>
+        <div style="margin:10px 22px 0;display:flex;justify-content:space-between;align-items:baseline"><span class="big dim" style="font-size:38px;opacity:.4">19</span><span class="dim" style="font-size:12px">空白</span></div>
+      </div>
+    </div>
+    <p class="cap">顶部是<i>整月的点阵</i>，每天一个点，记录越多点越大，空的日子就是一个缺口，本身就很好看。单日内容极简，AI 的话只用一行橙字。</p>
+  </div>
+</div>
+
+<!-- ======================= 第三行：习惯 ======================= -->
+<h2>03 习惯 <small>含最稀疏状态：冥想刚建 2 天；坏习惯不庆祝</small></h2>
+<div class="row">
+
+  <div class="col">
+    <div class="col-h">现状示意</div>
+    <div class="phone cur">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="hd"><b>习惯</b><span style="color:#F46D38;font-size:22px">＋</span></div>
+        <div style="display:flex;gap:6px;margin:4px 20px 8px"><span class="pill" style="background:#F46D38;color:#fff">今天</span><span class="pill" style="background:#fff;color:#939393;border:1px solid #F0F0F0">统计</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 20px">
+          <div style="background:#22C55E;color:#fff;border-radius:16px;padding:12px;height:96px"><div>🏃</div><b style="font-size:13px">晨跑</b><div style="font-size:10px;opacity:.85">🔥 连续 23 天</div></div>
+          <div style="background:#DBEAFE;border-radius:16px;padding:12px;height:96px"><div>📖</div><b style="font-size:13px">读书</b><div style="font-size:10px;color:#939393">14/21</div><div style="height:5px;background:#fff;border-radius:3px;margin-top:6px"><i style="display:block;width:66%;height:100%;background:#60A5FA;border-radius:3px"></i></div></div>
+          <div style="background:#60A5FA;color:#fff;border-radius:16px;padding:12px;height:96px"><div>💧</div><b style="font-size:13px">喝水</b><div style="font-size:10px">1.2 L</div></div>
+          <div style="background:#F3E8FF;border-radius:16px;padding:12px;height:96px"><div>🧘</div><b style="font-size:13px">冥想</b><div style="font-size:10px;color:#939393">2 天</div></div>
+          <div style="background:#FEE2E2;border-radius:16px;padding:12px;height:96px"><div>🧋</div><b style="font-size:13px">少喝奶茶</b><div style="font-size:10px;color:#DC2626">本周 1 次</div></div>
+        </div>
+        <div class="flag" style="left:134px;top:126px">①</div><div class="flag" style="left:84px;top:22px">④</div>
+        <div class="card" style="margin-top:12px"><span class="pill" style="background:#EDE9FE;color:#7C5CFC">✦ AI 洞察</span> 你的坚持很棒！继续加油 🎉</div>
+        <div class="flag" style="left:268px;top:470px">②</div>
+      </div>
+    </div>
+    <p class="cap">彩色磁贴、emoji、火焰连胜、「继续加油 🎉」——这些都是习惯类 App 的共同套路，用户一眼会觉得「又是这种」。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">A · 个人年鉴</div>
+    <div class="phone A">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div class="mast"><span>习惯 · 每日功课</span><span>第 47 周</span></div>
+        <div class="mast2"></div>
+        <div id="habitsA" style="margin:6px 22px 0"></div>
+        <div class="hand note" style="margin:14px 22px 0;font-size:13.5px;line-height:1.6">晨跑过了二十天之后，你几乎都在七点前出门。冥想才第二天，先别看图，看感觉。</div>
+      </div>
+    </div>
+    <p class="cap">每个习惯是一行「织线」：坚持的日子是实心墨点，<i>今天打卡用橙色印章</i>，代替纸屑。新习惯只画已经发生的 2 天，不画一排空格，稀疏也体面。坏习惯用克制的刻度记数，不庆祝。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">B · 精密器物</div>
+    <div class="phone B">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:8px 20px 0;display:flex;justify-content:space-between" class="lbl"><span>HABITS / 05 CH</span><span>WK 47</span></div>
+        <div style="margin:10px 20px 0;font-size:24px;font-weight:600">习惯</div>
+        <div id="habitsB" style="margin:10px 20px 0"></div>
+        <div class="lcd" style="margin:10px 20px 0;font-size:12px"><span>晨跑 · 平均出门时间</span><span class="mono" style="color:var(--brand)">06:52</span></div>
+      </div>
+    </div>
+    <p class="cap">每个习惯是一个「通道」：<i>电平条</i>表示最近 7 天，右侧是实体拨动开关，打卡就像扳一下开关。数值型习惯直接显示读数。</p>
+  </div>
+
+  <div class="col">
+    <div class="col-h">C · 安静的数据艺术</div>
+    <div class="phone C">
+      <div class="sb"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="scr">
+        <div style="margin:10px 22px 0" class="tiny">习惯 · 近 30 天</div>
+        <div style="margin:4px 22px 0;display:flex;align-items:baseline;gap:8px"><span class="big" style="font-size:56px;line-height:1">3</span><span class="dim" style="font-size:14px">/ 5 今天已记</span></div>
+        <!-- 织物：每行一个习惯，每列一天 -->
+        <svg style="margin:16px 22px 0;display:block" width="276" height="170" id="weaveC"></svg>
+        <div id="habitsC" style="margin:6px 22px 0;font-size:13px"></div>
+      </div>
+    </div>
+    <p class="cap">五个习惯织成<i>一块布</i>：横线是习惯，竖列是天，纵向的空隙就是生活里断掉的那几天。下面是极简的列表。</p>
+  </div>
+</div>
+
+<!-- ======================= 第四行：分享图 ======================= -->
+<h2>04 分享图 <small>高审美用户最常接触 Holo 的地方往往不是 App，而是朋友发的图</small></h2>
+<div class="row">
+  <div class="col">
+    <div class="col-h">现状示意</div>
+    <div class="phone cur" style="background:linear-gradient(160deg,#FFEDD5,#F46D38)">
+      <div class="scr" style="inset:0;display:flex;flex-direction:column;justify-content:center;padding:28px">
+        <div style="background:#fff;border-radius:24px;padding:22px;box-shadow:0 10px 30px rgba(0,0,0,.12)">
+          <div style="font-size:12px;color:#939393">✨ Holo 年度回顾</div>
+          <div style="font-size:30px;font-weight:800;color:#F46D38;margin-top:6px">1,284 条</div>
+          <div style="font-size:13px">今年你记录了好多生活！</div>
+          <div style="display:flex;gap:6px;margin-top:12px"><span class="pill" style="background:#D1FAE5;color:#16A34A">习惯 92%</span><span class="pill" style="background:#DBEAFE;color:#1D4ED8">任务 340</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">渐变底 + 白卡 + 大号橙字 + 彩色标签，是常见的「年度报告」模板。</p>
+  </div>
+  <div class="col">
+    <div class="col-h">A · 个人年鉴</div>
+    <div class="phone A" style="border-radius:6px;border-width:0;height:680px;box-shadow:0 18px 40px rgba(60,40,20,.25)">
+      <div class="scr" style="inset:0;padding:30px 26px">
+        <div class="mast" style="margin:0"><span>HOLO · 人生年鉴</span><span>2026</span></div><div class="mast2" style="margin:0"></div>
+        <div class="num" style="font-size:92px;line-height:1;margin-top:26px;letter-spacing:-2px">325</div>
+        <div style="font-size:15px;margin-top:2px">页，写下 <span class="num" style="font-size:18px">1,284</span> 件事。</div>
+        <svg id="yearA" width="268" height="150" style="margin-top:22px;display:block"></svg>
+        <div class="hand" style="font-size:15px;line-height:1.7;margin-top:18px">「秋天的光线很适合拍照。」</div>
+        <div style="font-size:11px;color:#7A7064;margin-top:2px;font-family:-apple-system,sans-serif">— 东林，11月21日</div>
+        <div class="abs" style="left:26px;right:26px;bottom:26px;display:flex;justify-content:space-between;align-items:center;font-size:10px;letter-spacing:2px;font-family:-apple-system,sans-serif;color:#7A7064"><span>记录我的人生</span><span class="stamp" style="width:34px;height:34px;font-size:8px;letter-spacing:0">HOLO</span></div>
+      </div>
+    </div>
+    <p class="cap">像从书里撕下的一页：<i>365 点阵</i>的年历加一句用户自己写的话。每个人的点阵都不一样，天然有收藏和晒的欲望。</p>
+  </div>
+  <div class="col">
+    <div class="col-h">B · 精密器物</div>
+    <div class="phone B" style="border-radius:6px;border-width:0;box-shadow:0 18px 40px rgba(0,0,0,.2)">
+      <div class="scr" style="inset:0;padding:28px 24px">
+        <div class="lbl" style="display:flex;justify-content:space-between"><span>SPEC SHEET</span><span>HOLO · 2026</span></div>
+        <div style="border-top:1.5px solid #141414;margin-top:8px"></div>
+        <div style="font-size:26px;font-weight:700;margin-top:18px;line-height:1.2">东林的一年<br><span style="color:#76736C;font-weight:500;font-size:16px">运行参数</span></div>
+        <div id="specB" style="margin-top:18px"></div>
+        <div class="abs" style="left:24px;right:24px;bottom:24px;display:flex;justify-content:space-between;align-items:center"><span class="lbl">S/N 2026-325</span><span style="width:14px;height:14px;border-radius:50%;background:var(--brand);display:block"></span></div>
+      </div>
+    </div>
+    <p class="cap">一份「产品规格表」，把一年写成机器的运行参数。很酷，偏理工男审美。</p>
+  </div>
+  <div class="col">
+    <div class="col-h">C · 安静的数据艺术</div>
+    <div class="phone C" style="border-radius:6px;border-width:0">
+      <div class="scr" style="inset:0;padding:28px 24px">
+        <div class="tiny">HOLO · 2026</div>
+        <svg width="272" height="272" style="margin-top:30px;display:block" id="posterC"></svg>
+        <div class="big" style="font-size:44px;margin-top:22px">1,284</div>
+        <div class="dim" style="font-size:13px">件事，组成了我的 2026。</div>
+        <div class="abs tiny" style="left:24px;bottom:24px">每一根线是一天 · 越长记得越多</div>
+      </div>
+    </div>
+    <p class="cap">一张<i>海报</i>：年环本身就是作品，没有任何多余元素。最适合发朋友圈，也最接近「数据艺术」。</p>
+  </div>
+</div>
+
+<!-- ======================= 方向说明 ======================= -->
+<h2>05 三个方向的底层规则 <small>选定后会把这些写进《Holo 审美宣言》和 DesignSystem token</small></h2>
+<div class="spec">
+  <div class="box rec">
+    <h3>A · 个人年鉴 <span class="badge">推荐</span></h3>
+    <div class="sw"><i style="background:#F4EFE4"></i><i style="background:#FBF8F1"></i><i style="background:#1F1C17"></i><i style="background:#7A7064"></i><i style="background:#A89C8B"></i><i style="background:#F46D38"></i></div>
+    <ul>
+      <li><b>一句话</b>：你的人生，被郑重地印成一本书。</li>
+      <li><b>色</b>：纸色 + 墨色 + 一处橙。功能色降到最少，支出不染红。</li>
+      <li><b>字</b>：思源宋体做标题，老式数字做大数字，霞鹜文楷专门给 Holo 的话。<b>全部是现成字体。</b></li>
+      <li><b>形</b>：细线、虚线引导、刊头、页边日期；几乎不用卡片和阴影。</li>
+      <li><b>AI</b>：页边批注，不用紫色，不用星星。</li>
+      <li><b>代价</b>：中等。和想法纸、长廊的气质一致，迁移阻力最小；需要注意宋体小字号在深色模式下的可读性。</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3>B · 精密器物</h3>
+    <div class="sw"><i style="background:#E9E7E2"></i><i style="background:#F6F5F2"></i><i style="background:#141414"></i><i style="background:#76736C"></i><i style="background:#1A1A18"></i><i style="background:#F46D38"></i></div>
+    <ul>
+      <li><b>一句话</b>：一台为人生做的精密记录仪。</li>
+      <li><b>色</b>：暖灰金属 + 黑 + 一处橙（像机器上唯一的橙色开关）。</li>
+      <li><b>字</b>：系统字体 + 等宽数字，大写英文小标签。</li>
+      <li><b>形</b>：刻度、编号、按键、液晶条、拨动开关。</li>
+      <li><b>代价</b>：中等偏高。按键、旋钮、开关都要重做；和想法纸、长廊温暖的方向有冲突。</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h3>C · 安静的数据艺术</h3>
+    <div class="sw"><i style="background:#121211"></i><i style="background:#2A2926"></i><i style="background:#ECEAE3"></i><i style="background:#8B887F"></i><i style="background:#F46D38"></i></div>
+    <ul>
+      <li><b>一句话</b>：你的生活本身就是一件作品。</li>
+      <li><b>色</b>：近黑底 + 米白 + 一处橙，用明度做全部层级。</li>
+      <li><b>字</b>：粗体无衬线大数字，配极小的标签。</li>
+      <li><b>形</b>：年环、点阵、织物——每个模块一张标志性的图。</li>
+      <li><b>代价</b>：高。每张标志图都要单独设计并实现；默认深色会改变整个 App 的气质，录入型页面也不适合。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="decide">
+  <b>需要你拍板</b>
+  <ol>
+    <li><b>选哪个方向？</b>我推荐 <b>A 做主调，把 C 的「标志性数据图」嫁接进来</b>（年鉴里的 365 点阵、习惯织线、长廊月度点阵），日常温暖、可读，分享时又足够惊艳。</li>
+    <li><b>首页光球能不能改？</b>三个方向都改了光球的画法（A 线描三环、B 旋钮、C 年环），结构和位置没动。它是首页门面，规范里目前受保护，需要你明确放行。</li>
+    <li><b>先从哪里落地？</b>建议顺序：① 色板与字体 token（全局一起见效）→ ② AI 表达（去掉紫色和星星，改为批注）→ ③ 首页 + 长廊 → ④ 各模块与分享图。</li>
+  </ol>
+</div>
+
+</div>
+
+<script>
+// ---------- 伪随机：保证每次打开图形一致 ----------
+let seed = 7;
+const rand = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.appendChild(n); return n; };
+
+// B：旋钮刻度
+(() => {
+  const svg = document.getElementById("dialB");
+  el("circle", {cx:60, cy:60, r:40, fill:"#F6F5F2", stroke:"rgba(0,0,0,.15)", "stroke-width":".5"}, svg);
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2, long = i % 5 === 0;
+    const r1 = 50, r2 = long ? 58 : 55;
+    el("line", {x1:60+r1*Math.sin(a), y1:60-r1*Math.cos(a), x2:60+r2*Math.sin(a), y2:60-r2*Math.cos(a), stroke:"#141414", "stroke-width": long ? 1 : .5}, svg);
+  }
+  const a = 0.62 * Math.PI * 2;
+  el("line", {x1:60+14*Math.sin(a), y1:60-14*Math.cos(a), x2:60+36*Math.sin(a), y2:60-36*Math.cos(a), stroke:"#F46D38", "stroke-width":3, "stroke-linecap":"round"}, svg);
+})();
+
+// C：年环（365 天，今天 = 第 325 天）
+function yearRing(svg, size, inner, maxLen, opts = {}) {
+  const c = size / 2;
+  for (let d = 0; d < 365; d++) {
+    const a = (d / 365) * Math.PI * 2;
+    const past = d < 325;
+    const v = past ? 0.15 + rand() * 0.85 : 0;
+    const len = past ? 3 + v * maxLen : 2;
+    const today = d === 324;
+    el("line", {x1:c+inner*Math.sin(a), y1:c-inner*Math.cos(a), x2:c+(inner+len)*Math.sin(a), y2:c-(inner+len)*Math.cos(a),
+      stroke: today ? "#F46D38" : (past ? "#ECEAE3" : "#3A3935"), "stroke-width": today ? 2 : .7, opacity: past && !today ? 0.35 + v * 0.6 : 1}, svg);
+  }
+  if (opts.label) {
+    const t = el("text", {x:c, y:c+5, "text-anchor":"middle", fill:"#8B887F", "font-size":11, "letter-spacing":2}, svg); t.textContent = opts.label;
+  }
+}
+yearRing(document.getElementById("ringC"), 170, 42, 38);
+seed = 11; yearRing(document.getElementById("posterC"), 272, 62, 70, {label:"2026"});
+
+// C：月度点阵（11 月 30 天，19 号为空）
+(() => {
+  const svg = document.getElementById("monthC"); seed = 3;
+  for (let d = 0; d < 30; d++) {
+    const x = 6 + (d % 15) * 18.6, y = 14 + Math.floor(d / 15) * 30;
+    const future = d > 20, empty = d === 18, today = d === 20;
+    const r = future ? 1.2 : empty ? 0 : 2 + rand() * 5;
+    if (empty) el("circle", {cx:x, cy:y, r:5, fill:"none", stroke:"#3A3935", "stroke-dasharray":"1.5 2"}, svg);
+    else el("circle", {cx:x, cy:y, r, fill: today ? "#F46D38" : (future ? "#3A3935" : "#ECEAE3"), opacity: future ? 1 : 0.85}, svg);
+  }
+})();
+
+// 习惯数据（最稀疏态：冥想 2 天；少喝奶茶为坏习惯）
+seed = 5;
+const habits = [
+  {name:"晨跑", meta:"连续 23 天", days:30, rate:.92, today:true},
+  {name:"读书", meta:"本月 14 / 21", days:30, rate:.66, today:true},
+  {name:"喝水", meta:"今天 1.2 L", days:30, rate:.8, today:true, numeric:true},
+  {name:"冥想", meta:"第 2 天 · 刚开始", days:2, rate:1, today:false},
+  {name:"少喝奶茶", meta:"本周 1 次", days:30, rate:.12, today:false, bad:true},
+];
+const pattern = habits.map(h => Array.from({length: h.days}, () => rand() < h.rate));
+habits.forEach((h, i) => { if (h.today) pattern[i][pattern[i].length - 1] = true; });
+
+// A：织线行
+(() => {
+  const box = document.getElementById("habitsA");
+  habits.forEach((h, i) => {
+    const row = document.createElement("div");
+    row.style.cssText = "padding:11px 0;border-bottom:.5px solid rgba(31,28,23,.22);display:flex;align-items:center;gap:10px";
+    const dots = pattern[i].map((on, d) => {
+      const isToday = d === pattern[i].length - 1 && h.today;
+      if (isToday) return "";
+      if (h.bad) return on ? `<i style="display:inline-block;width:1.5px;height:9px;background:#1F1C17;margin-right:4.6px"></i>` : `<i style="display:inline-block;width:1.5px;height:3px;background:rgba(31,28,23,.25);margin-right:4.6px;vertical-align:-0px"></i>`;
+      return `<i style="display:inline-block;width:4.5px;height:4.5px;border-radius:50%;margin-right:1.7px;background:${on ? "#1F1C17" : "transparent"};box-shadow:${on ? "none" : "inset 0 0 0 .6px rgba(31,28,23,.35)"}"></i>`;
+    }).join("");
+    row.innerHTML = `<div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:700;letter-spacing:.5px">${h.name}</span><span style="font-size:11px;color:#7A7064;font-family:-apple-system,sans-serif">${h.meta}</span></div>
+        <div style="margin-top:6px;line-height:6px;white-space:nowrap">${dots}${h.days < 30 ? `<span style="font-size:10px;color:#A89C8B;margin-left:4px;font-family:-apple-system,sans-serif">始于 11.20</span>` : ""}</div>
+      </div>
+      <div style="width:40px;flex:none;display:flex;justify-content:center">${h.today ? '<span class="stamp">已记</span>' : '<span style="width:30px;height:30px;border-radius:50%;border:1px dashed rgba(31,28,23,.45);display:block"></span>'}</div>`;
+    box.appendChild(row);
+  });
+})();
+
+// B：通道行
+(() => {
+  const box = document.getElementById("habitsB");
+  habits.forEach((h, i) => {
+    const last7 = pattern[i].slice(-7);
+    const segs = Array.from({length:7}, (_, k) => {
+      const v = last7[k - (7 - last7.length)];
+      if (v === undefined) return `<i style="background:transparent;box-shadow:inset 0 0 0 .5px #B9B5AC"></i>`;
+      const isToday = k === 6 && h.today;
+      return `<i class="${isToday ? "or" : v ? "on" : ""}"></i>`;
+    }).join("");
+    const row = document.createElement("div");
+    row.className = "panel";
+    row.style.cssText = "padding:10px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px";
+    row.innerHTML = `<span class="lbl" style="width:18px">${String(i + 1).padStart(2, "0")}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600">${h.name}</div><div class="mono" style="font-size:10px;color:#76736C">${h.meta}</div></div>
+      <div class="seg">${segs}</div>
+      ${h.bad ? '<span class="mono" style="font-size:13px;width:40px;text-align:center">×1</span>' : `<div class="toggle ${h.today ? "on" : ""}"></div>`}`;
+    box.appendChild(row);
+  });
+})();
+
+// C：织物 + 列表
+(() => {
+  const svg = document.getElementById("weaveC");
+  habits.forEach((h, i) => {
+    const y = 16 + i * 34;
+    el("line", {x1:0, y1:y, x2:276, y2:y, stroke:"#2A2926", "stroke-width":1}, svg);
+    const offset = 30 - pattern[i].length;
+    pattern[i].forEach((on, d) => {
+      if (!on) return;
+      const x = (offset + d) * 9.2 + 2, today = d === pattern[i].length - 1 && h.today;
+      el("rect", {x, y:y - (h.bad ? 3 : 7), width:6, height: h.bad ? 6 : 14, rx:1.5, fill: today ? "#F46D38" : (h.bad ? "#8B887F" : "#ECEAE3"), opacity: today ? 1 : 0.85}, svg);
+    });
+  });
+  const list = document.getElementById("habitsC");
+  list.innerHTML = habits.map(h => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-top:.5px solid rgba(236,234,227,.14)"><span>${h.name}</span><span style="color:${h.today ? "#ECEAE3" : "#8B887F"}">${h.today ? "● " : ""}${h.meta}</span></div>`).join("");
+})();
+
+// A：分享图 365 点阵
+(() => {
+  const svg = document.getElementById("yearA"); seed = 19;
+  for (let d = 0; d < 365; d++) {
+    if (d >= 364) break; // 52 周 × 7 天，避免末行孤点
+    const col = d % 28, row = Math.floor(d / 28);
+    const x = 4 + col * 9.6, y = 4 + row * 10.6;
+    const past = d < 325, today = d === 324;
+    const v = rand();
+    if (today) el("circle", {cx:x, cy:y, r:3.4, fill:"#F46D38"}, svg);
+    else if (past) el("circle", {cx:x, cy:y, r: 1.2 + v * 2.2, fill:"#1F1C17", opacity: .3 + v * .7}, svg);
+    else el("circle", {cx:x, cy:y, r:2.2, fill:"none", stroke:"rgba(31,28,23,.3)", "stroke-width":.6}, svg);
+  }
+})();
+
+// B：规格表
+(() => {
+  const rows = [["记录总数","1,284"],["运行天数","325 / 365"],["最长连续","晨跑 · 41 D"],["平均出门","06:52"],["想法","187 则"],["最常去","宝石山 ×27"]];
+  document.getElementById("specB").innerHTML = rows.map(([k, v]) =>
+    `<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:.5px solid rgba(0,0,0,.18);font-size:13px"><span class="lbl" style="font-size:10px;align-self:center">${k}</span><span class="mono" style="font-weight:600">${v}</span></div>`).join("");
+})();
+</script>
+</body>
+</html>
