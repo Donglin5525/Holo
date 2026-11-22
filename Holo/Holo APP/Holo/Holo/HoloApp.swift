@@ -131,6 +131,16 @@ struct HoloApp: App {
                 }
         }
     }
+    #else
+    // Release：影子轮验收工具整体不编译（UnderstandingShadowLaunchRunner.swift 包在
+    // #if DEBUG 里），此处给同名空壳让 body 的分支引用可编译——isRequested 恒 false，
+    // 分支永不进入，线上行为零影响
+    private enum UnderstandingShadowLaunchRunner {
+        static var isRequested: Bool { false }
+    }
+
+    @ViewBuilder
+    private var understandingShadowRunView: some View { EmptyView() }
     #endif
 
     var body: some Scene {
@@ -403,7 +413,9 @@ struct HoloApp: App {
                 #endif
                 switch phase {
                 case .background:
-                    // 产品埋点：停前台定时上报 + 退后台兜底冲刷一次
+                    // 产品埋点：会话终点（与 .active 的 trackSessionStart 对称）+
+                    // 停前台定时上报 + 退后台兜底冲刷一次
+                    HoloProductAnalytics.shared.trackSessionEndIfNeeded()
                     HoloProductAnalytics.shared.endForegroundFlushLoop()
                     Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
                     Task {
