@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>年鉴点阵 · 替换热力图原型 · 2026-11-21</title>
+<style>
+/* 分享图手写体：复用 App 已随包的霞鹜文楷子集 */
+@font-face{font-family:"HoloHand";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteHand-Regular.ttf")}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC",sans-serif;background:#E7E5E0;color:#1d1d1b;line-height:1.55;padding:36px 24px 120px}
+.wrap{max-width:1320px;margin:0 auto}
+h1{font-size:26px}
+.lead{color:#55534d;font-size:14.5px;max-width:900px;margin-top:6px}
+h2{font-size:19px;margin:48px 0 4px;padding-top:14px;border-top:2px solid #1d1d1b;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2 small{font-size:13px;color:#6b6962;font-weight:400}
+h2 .tag{font-size:12px;background:#F46D38;color:#fff;border-radius:99px;padding:1px 10px;font-weight:600}
+h2 .tag.gray{background:#1d1d1b}
+.row{display:flex;gap:28px;flex-wrap:wrap;margin-top:16px;align-items:flex-start}
+.col{width:390px}
+.col-h{font-size:14px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+.col-h span{font-weight:400;color:#6b6962;font-size:12px}
+.col-h .rec{color:#F46D38;font-weight:600}
+.cap{font-size:12.5px;color:#55534d;margin-top:8px}
+.cap b{color:#1d1d1b}
+.ask{background:#fff;border-left:3px solid #F46D38;border-radius:8px;padding:10px 14px;font-size:13.5px;margin-top:12px;max-width:808px}
+
+/* ===== 页面环境（真实 token） ===== */
+.page{width:390px;border-radius:28px;overflow:hidden;padding:14px 16px 20px;background:var(--bg);color:var(--text);box-shadow:0 10px 30px rgba(0,0,0,.10)}
+.light{--bg:#FDFCF8;--surface:#FFFFFF;--border:#E9E4DA;--text:#333333;--text2:#6E6E6E;--ink:#2F2B26;--ring:#CFC8BB;--inset:#F7F1EA}
+.dark{--bg:#0E0E10;--surface:#2C2C2E;--border:#48484A;--text:#F5F5F5;--text2:#A8A8A8;--ink:#ECE7DD;--ring:#5C5C61;--inset:#3A3A3C}
+.nav{height:44px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.nav .back{width:36px;height:36px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:15px}
+.nav b{font-size:17px}
+.nav .tog{width:54px;height:28px;border-radius:14px;background:var(--inset);position:relative}
+.nav .tog i{position:absolute;right:2px;top:2px;width:24px;height:24px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.ghost{background:var(--surface);border:.5px solid var(--border);border-radius:16px;padding:14px 16px;color:var(--text2);font-size:13px;margin-bottom:16px}
+.ghost b{display:block;color:var(--text);font-size:15px;margin-bottom:2px}
+
+/* ===== 独立卡（holoSurface .independent：16 圆角 / 0.5 描边 / 无阴影 / 内边距 16） ===== */
+.card{background:var(--surface);border:.5px solid var(--border);border-radius:16px;padding:16px}
+.kicker{font-size:11px;letter-spacing:1.5px;color:var(--text2);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.share{width:28px;height:28px;margin:-6px -6px -6px 0;display:flex;align-items:center;justify-content:center;color:var(--text2)}
+.hero{display:flex;align-items:baseline;gap:6px;margin-top:6px}
+.hero .n{font-family:ui-serif,"New York",Georgia,serif;font-weight:600;font-size:44px;line-height:1;letter-spacing:-.5px;font-variant-numeric:lining-nums;color:var(--text)}
+.hero .u{font-size:15px;color:var(--text)}
+.sub{font-size:13px;color:var(--text2);margin-top:4px;font-variant-numeric:tabular-nums}
+.grid{display:block;margin-top:14px}
+.legend{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text2);margin-top:10px;flex-wrap:wrap}
+.legend svg{vertical-align:middle}
+.hint{font-size:12px;color:var(--text2);margin-top:8px;min-height:18px;font-variant-numeric:tabular-nums}
+.hint b{color:var(--text);font-weight:600}
+.link{color:#EA580C;font-size:13px;font-weight:500}
+
+/* 当天轨迹（现有伴生卡的简化示意） */
+.trail{margin-top:12px;background:var(--surface);border:.5px solid var(--border);border-radius:16px;padding:12px 16px}
+.trail h4{font-size:15px;margin-bottom:6px}
+.trail div{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-top:.5px solid var(--border)}
+.trail div span{color:var(--text2);font-size:12px}
+
+/* 现状：雾蓝方格热力图 */
+.cur-title{font-size:17px;font-weight:600}
+.cur-sub{font-size:12px;color:var(--text2)}
+
+/* ===== 分享图（固定浅色纸面） ===== */
+.paper{width:300px;height:533px;background:#F4EFE4;color:#1F1C17;border-radius:4px;box-shadow:0 14px 36px rgba(60,40,20,.25);padding:28px 24px;position:relative;overflow:hidden}
+.paper::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.35;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .45  0 0 0 0 .38  0 0 0 0 .28  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.mast{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:2.5px;font-weight:600;padding-bottom:5px;border-bottom:1.5px solid #1F1C17}
+.mast2{border-bottom:.5px solid #1F1C17;height:3px}
+.p-n{font-family:ui-serif,"New York",Georgia,serif;font-weight:600;font-size:76px;line-height:1;margin-top:26px;letter-spacing:-1.5px}
+.p-u{font-size:14px;margin-top:4px}
+.p-sub{font-size:11.5px;color:#7A7064;margin-top:2px}
+.quote{font-family:"HoloHand","Kaiti SC",serif;font-size:14px;line-height:1.7;color:#4A3F33;margin-top:16px;border-left:1.5px solid #F46D38;padding-left:10px}
+.quote small{display:block;font-family:-apple-system,"PingFang SC",sans-serif;font-size:10px;color:#7A7064;margin-top:2px}
+.foot{position:absolute;left:24px;right:24px;bottom:22px;display:flex;justify-content:space-between;align-items:center;font-size:9.5px;letter-spacing:2px;color:#7A7064}
+.stamp{width:38px;height:38px;border-radius:50%;border:1.5px solid #F46D38;color:#F46D38;font-size:7.5px;letter-spacing:.5px;font-weight:700;display:flex;align-items:center;justify-content:center;transform:rotate(-12deg)}
+
+.decide{background:#fff;border-radius:12px;padding:18px 22px;margin-top:18px;font-size:14px;max-width:1100px}
+.decide ol{padding-left:18px}.decide li{margin:7px 0}
+.spec{background:#fff;border-radius:12px;padding:16px 20px;margin-top:16px;font-size:13px;color:#3f3d38;max-width:1100px}
+.spec table{border-collapse:collapse;width:100%;margin-top:6px}
+.spec td{padding:6px 8px;border-bottom:1px solid #EEE;vertical-align:top}
+.spec td:first-child{width:150px;color:#1d1d1b;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>年鉴点阵 · 替换热力图原型</h1>
+<p class="lead">把分享图 A「个人年鉴」的点阵语言放进现有 Holo：先替换<b>记忆长廊 · 活跃热力图</b>，再统一<b>任务 · 完成节奏</b>，并新增<b>年鉴分享图</b>。卡片外框、页边距、颜色、字号都用现有 token，和页面原有卡片同一套语言；只有数字用衬线（iOS 的 New York 没有中文字形，中文仍是苹方，原型照此还原）。示例日期 2026-11-21 周六。</p>
+<div class="ask">标了 <b style="color:#F46D38">需要你拍板</b> 的三处，每处左边是我推荐的做法。其余（新用户、选中某天、深色、任务页）是按规范必须验的状态，你扫一眼观感即可。</div>
+
+<!-- ===== 0. 现状 vs 新卡 ===== -->
+<h2>0 · 记忆长廊 · 洞察 Tab：现在 vs 年鉴卡<small>同一页面位置、同样的数据</small></h2>
+<div class="row">
+  <div class="col"><div class="col-h">现在 <span>活跃热力图 · 最近 13 周</span></div>
+    <div class="page light">
+      <div class="nav"><span class="back">‹</span><b>记忆长廊</b><span class="tog"><i></i></span></div>
+      <div class="ghost"><b>理解</b>从生活记录里，慢慢认识自己</div>
+      <div class="card" id="cur-card"></div>
+      <div class="ghost" style="margin-top:16px;margin-bottom:0"><b>一起做的计划</b>…</div>
+    </div>
+    <p class="cap">只看得到最近 3 个月；雾蓝方格是「数据看板」的语言，和 Holo 的其他部分没有关系。</p>
+  </div>
+  <div class="col"><div class="col-h">改后 <span>年鉴卡 · 全年</span></div>
+    <div class="page light">
+      <div class="nav"><span class="back">‹</span><b>记忆长廊</b><span class="tog"><i></i></span></div>
+      <div class="ghost"><b>理解</b>从生活记录里，慢慢认识自己</div>
+      <div id="main-card"></div>
+      <div class="ghost" style="margin-top:16px;margin-bottom:0"><b>一起做的计划</b>…</div>
+    </div>
+    <p class="cap">一眼看到整年：哪个月记得勤、哪段时间断过（2 月春节、8 月出行）。<b>大数字是「有记录的天数」</b>，比「今年第几天」更有个人意义；今天是唯一的橙点；未到的日子是空心圈。</p>
+  </div>
+</div>
+
+<!-- ===== 1. 决策：排法 ===== -->
+<h2><span class="tag">需要你拍板</span>1 · 点阵怎么排<small>同一份数据</small></h2>
+<div class="row">
+  <div class="col"><div class="col-h">按月排 · 12 行 × 31 列 <span class="rec">推荐</span></div>
+    <div class="page light" style="padding:16px"><div id="d1-month"></div></div>
+    <p class="cap">一行一个月、一列一天。<b>找「11 月 21 日」= 第 11 行第 21 个点</b>，外行也能看懂；月份天数不同，右边参差不齐，像书页的行尾。</p>
+  </div>
+  <div class="col"><div class="col-h">连续排 · 28 列 <span>原型原样</span></div>
+    <div class="page light" style="padding:16px"><div id="d1-flow"></div></div>
+    <p class="cap">更像「一页文字」，更抽象。但<b>看不出哪个点是哪天</b>，365 天也排不整齐，最后一行只剩 1 个孤点（见右下角）。</p>
+  </div>
+</div>
+
+<!-- ===== 2. 决策：时间范围 ===== -->
+<h2><span class="tag">需要你拍板</span>2 · 时间范围<small>差别只在年初明显，下面模拟 2027-01-05</small></h2>
+<div class="row">
+  <div class="col"><div class="col-h">自然年 · 「2027 年鉴」 <span class="rec">推荐</span></div>
+    <div class="page light" style="padding:16px"><div id="d2-year"></div></div>
+    <p class="cap">年初几乎是一张空白的新本子，有「新一年开始了」的仪式感。底部可以「翻看 2026」，去年那本完整保留。分享图也是按年来的，口径一致。</p>
+  </div>
+  <div class="col"><div class="col-h">最近 365 天 <span>滚动</span></div>
+    <div class="page light" style="padding:16px"><div id="d2-roll"></div></div>
+    <p class="cap">任何时候都是满的，但没有「一年」的概念：要排成 13 行（跨了两个 1 月），「年鉴」这个名字也说不通了。</p>
+  </div>
+</div>
+
+<!-- ===== 3. 必验状态 ===== -->
+<h2><span class="tag gray">必验状态</span>3 · 最惨稀疏态、选中某天、深色<small>设计规范：方案稿必须画出最惨状态</small></h2>
+<div class="row">
+  <div class="col"><div class="col-h">新用户 · 11 月 19 日才开始用</div>
+    <div class="page light" style="padding:16px"><div id="s-new"></div></div>
+    <p class="cap">开始记录之前的日子画成<b>极淡的小点</b>，不当成「没记」，也不显得冷清；副行写明从哪天开始。三个点虽少，但每个点都很郑重。</p>
+  </div>
+  <div class="col"><div class="col-h">按住滑动 · 选中 11 月 18 日</div>
+    <div class="page light" style="padding:16px"><div id="s-sel"></div>
+      <div class="trail"><h4>11月18日 周三</h4>
+        <div>晨跑 5.2 km<span>07:10</span></div><div>午饭 ¥38.00<span>12:30</span></div><div>秋天的光线很适合拍照<span>18:05</span></div></div>
+    </div>
+    <p class="cap">交互沿用现有热力图：按住滑动选日，选中的点加一圈墨线，提示行显示日期和件数，下方仍是现有的「当天轨迹」卡。</p>
+  </div>
+  <div class="col"><div class="col-h">深色模式</div>
+    <div class="page dark" style="padding:16px"><div id="s-dark"></div></div>
+    <p class="cap">墨点在深色下变成米白，今天仍是品牌橙。卡片外框走现有深色 token，不另起一套。</p>
+  </div>
+</div>
+
+<!-- ===== 4. 任务完成节奏 ===== -->
+<h2><span class="tag gray">第三步</span>4 · 任务 · 完成节奏（近 12 周）<small>窗口与交互不变，只换成同一套点阵语言</small></h2>
+<div class="row">
+  <div class="col"><div class="col-h">现在</div><div class="page light" style="padding:16px"><div class="card" id="task-cur"></div></div></div>
+  <div class="col"><div class="col-h">改后</div><div class="page light" style="padding:16px"><div class="card" id="task-new"></div></div>
+    <p class="cap">格子大了，点也按比例放大；App 里所有「每天有多少」的图，从此都是同一种墨点。</p></div>
+</div>
+
+<!-- ===== 5. 决策：分享图 ===== -->
+<h2><span class="tag">需要你拍板</span>5 · 年鉴分享图<small>从年鉴卡右上角的分享按钮生成 · 固定浅色纸面（与想法分享图同规则）· 9:16</small></h2>
+<div class="row">
+  <div class="col" style="width:330px"><div class="col-h">默认：不附文字 <span class="rec">推荐默认</span></div><div class="paper" id="share-plain"></div>
+    <p class="cap">只有数字和点阵，不会意外带出任何个人内容，可以放心一键分享。</p></div>
+  <div class="col" style="width:330px"><div class="col-h">可选：附一句自己的话</div><div class="paper" id="share-quote"></div>
+    <p class="cap">分享前的预览页里有「附一句话」，从自己的想法里挑一条，用手写体排在点阵下面。用户主动选了才出现。</p></div>
+</div>
+
+<div class="spec">
+  <b>点阵规则（落地时写进 DesignSystem 与图表规范）</b>
+  <table>
+    <tr><td>点的大小与深浅</td><td>沿用现有热力图的 6 档：0 · 1 · 2–3 · 4–5 · 6–9 · 10+ 件。档位同时体现在<b>大小和深浅</b>上，不只靠颜色区分（无障碍）。</td></tr>
+    <tr><td>四种特殊点</td><td>今天＝品牌橙实心点；未到＝空心圈；没记的日子＝最小的淡墨点；开始使用之前＝更淡更小的点。</td></tr>
+    <tr><td>数据口径</td><td>与现有热力图、长廊「记忆总数 / 记录天数」完全一致：记账 + 习惯打卡（排除取消）+ 完成的任务 + 想法；只把窗口从 13 周放宽到全年。</td></tr>
+    <tr><td>字体</td><td>大数字用已上线的 <code>holoHeroNumber</code>（New York 衬线）；其余全部是现有字号档。分享图引言用 App 已随包的霞鹜文楷。</td></tr>
+    <tr><td>无障碍</td><td>VoiceOver 整卡读「2026 年，244 天有记录，共 1,235 件事」；滑动选日时播报日期和件数。</td></tr>
+  </table>
+</div>
+
+<div class="decide">
+  <b>需要你拍板（回复编号即可，例如「都按推荐」）</b>
+  <ol>
+    <li><b>点阵排法</b>：按月排 12 × 31（推荐），还是连续排 28 列？</li>
+    <li><b>时间范围</b>：自然年「2026 年鉴」，可以翻看往年（推荐），还是最近 365 天？</li>
+    <li><b>分享图</b>：默认不附文字，用户可以主动附一句自己的想法（推荐），还是默认就附上？</li>
+  </ol>
+  <p style="margin-top:10px;color:#55534d;font-size:13px">你拍板后我写实施计划：三步分开交付（长廊年鉴卡 → 分享图 → 任务完成节奏），核心的日期与档位计算先写测试。</p>
+</div>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const el = (t, a, p) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); p && p.appendChild(n); return n; };
+const D = (y, m, d) => new Date(y, m - 1, d);
+const key = d => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+const dim = (y, m) => new Date(y, m, 0).getDate();
+const fmt = n => n.toLocaleString("en-US");
+
+// ---------- 示例数据：确定性伪随机，带春节、八月出行两段空档 ----------
+function hash(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return ((h >>> 0) % 100000) / 100000; }
+function sampleCount(d) {
+  const k = key(d), m = d.getMonth() + 1, day = d.getDate(), wd = d.getDay();
+  let p = wd === 0 || wd === 6 ? 0.72 : 0.86;
+  if (m === 2 && day >= 13 && day <= 22) p = 0.12;
+  if (m === 8 && day >= 3 && day <= 12) p = 0.08;
+  if (m === 1) p *= 0.8;
+  if (hash(k + "a") > p) return 0;
+  return 1 + Math.floor(Math.pow(hash(k + "b"), 1.7) * 11);
+}
+function buildData(start, end, overrides = {}) {
+  const map = new Map();
+  for (let d = start; d <= end; d = addDays(d, 1)) map.set(key(d), sampleCount(d));
+  for (const k in overrides) map.set(k, overrides[k]);
+  return map;
+}
+const TODAY = D(2026, 11, 21);
+const DATA = buildData(D(2026, 1, 1), TODAY, {"2026-11-21": 4, "2026-11-18": 3});
+
+// 与现有热力图同口径的 6 档：0 · 1 · 2–3 · 4–5 · 6–9 · 10+
+const level = c => c <= 0 ? 0 : c === 1 ? 1 : c <= 3 ? 2 : c <= 5 ? 3 : c <= 9 ? 4 : 5;
+const R = [1.1, 1.7, 2.3, 2.85, 3.35, 3.9];
+const OP = [.2, .4, .55, .68, .78, .86];
+
+function dot(svg, x, y, st, scale = 1) {
+  if (st.kind === "future") return el("circle", {cx:x, cy:y, r:2.1*scale, fill:"none", stroke:"var(--ring)", "stroke-width":.8}, svg);
+  if (st.kind === "pre") return el("circle", {cx:x, cy:y, r:.85*scale, fill:"var(--ink)", opacity:.12}, svg);
+  if (st.kind === "today") return el("circle", {cx:x, cy:y, r:Math.max(3.4, R[st.lv])*scale, fill:"#F46D38"}, svg);
+  el("circle", {cx:x, cy:y, r:R[st.lv]*scale, fill:"var(--ink)", opacity:OP[st.lv]}, svg);
+  if (st.sel) el("circle", {cx:x, cy:y, r:5.6*scale, fill:"none", stroke:"var(--ink)", "stroke-width":1}, svg);
+}
+function stateOf(d, o) {
+  if (d > o.today) return {kind:"future"};
+  if (o.first && d < o.first) return {kind:"pre"};
+  const c = o.data.get(key(d)) || 0;
+  if (key(d) === key(o.today)) return {kind:"today", lv:level(c)};
+  return {kind:"past", lv:level(c), sel: o.selected && key(d) === key(o.selected)};
+}
+
+// ---------- 年鉴点阵：按月（可滚动 13 行）/ 连续 28 列 ----------
+const PITCH = 9.4, LABEL_W = 27, AXIS_H = 12;
+function monthGrid(svg, o) {
+  const rows = [];
+  if (o.rolling) { for (let i = 12; i >= 0; i--) { const t = new Date(o.today.getFullYear(), o.today.getMonth() - i, 1); rows.push([t.getFullYear(), t.getMonth() + 1]); } }
+  else for (let m = 1; m <= 12; m++) rows.push([o.year, m]);
+  const w = LABEL_W + 31 * PITCH, h = AXIS_H + rows.length * PITCH * 1.32;
+  svg.setAttribute("width", w); svg.setAttribute("height", h);
+  [1, 10, 20, 31].forEach(n => { const t = el("text", {x: LABEL_W + (n - .5) * PITCH, y: 8, "text-anchor":"middle", "font-size":8.5, fill:"var(--text2)"}, svg); t.textContent = n; });
+  const rollStart = addDays(o.today, -364);
+  rows.forEach(([y, m], r) => {
+    const cy = AXIS_H + r * PITCH * 1.32 + PITCH * .66;
+    const lb = el("text", {x: 0, y: cy + 3, "font-size":9.5, fill:"var(--text2)"}, svg);
+    lb.textContent = (o.rolling && (r === 0 || m === 1) ? `${String(y).slice(2)}·` : "") + `${m}月`;
+    for (let d = 1; d <= dim(y, m); d++) {
+      const date = D(y, m, d);
+      if (o.rolling && (date < rollStart || date > o.today)) continue;
+      dot(svg, LABEL_W + (d - .5) * PITCH, cy, stateOf(date, o));
+    }
+  });
+}
+function flowGrid(svg, o) {
+  const COLS = 28, P = (LABEL_W + 31 * PITCH) / COLS, total = 365, rows = Math.ceil(total / COLS);
+  svg.setAttribute("width", COLS * P); svg.setAttribute("height", rows * P * 1.15 + 4);
+  for (let i = 0; i < total; i++) {
+    const date = addDays(D(o.year, 1, 1), i);
+    dot(svg, (i % COLS + .5) * P, Math.floor(i / COLS) * P * 1.15 + P * .6, stateOf(date, o));
+  }
+  if (o.markOrphan) {
+    const i = 364, x = (i % COLS + .5) * P, y = Math.floor(i / COLS) * P * 1.15 + P * .6;
+    el("circle", {cx:x, cy:y, r:7, fill:"none", stroke:"#DC2626", "stroke-width":1, "stroke-dasharray":"2 2"}, svg);
+  }
+}
+
+// ---------- 年鉴卡 ----------
+function stats(o) {
+  let days = 0, total = 0;
+  for (const [k, c] of o.data) { const [y, m, d] = k.split("-").map(Number); const dt = D(y, m, d); if (dt <= o.today && (!o.first || dt >= o.first) && (o.rolling ? dt >= addDays(o.today, -364) : y === o.year) && c > 0) { days++; total += c; } }
+  return {days, total};
+}
+function legendHTML(scale = 1) {
+  const s = (st, r) => { const svg = `<svg width="${r}" height="12" viewBox="0 0 ${r} 12">`; return svg; };
+  const mk = (inner, w = 12) => `<svg width="${w}" height="12">${inner}</svg>`;
+  const dots = [0, 1, 2, 3, 4, 5].map(l => `<circle cx="${6 + l * 9}" cy="6" r="${R[l]}" fill="var(--ink)" opacity="${OP[l]}"/>`).join("");
+  return `<span>少 ${mk(dots, 56)} 多</span><span>${mk('<circle cx="6" cy="6" r="3.4" fill="#F46D38"/>')} 今天</span><span>${mk('<circle cx="6" cy="6" r="2.1" fill="none" stroke="var(--ring)" stroke-width=".8"/>')} 未到</span>`;
+}
+const SHARE_ICON = '<svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V1.5M4.5 5 8 1.5 11.5 5"/><path d="M5 8H3a1 1 0 0 0-1 1v6.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-2"/></svg>';
+function card(host, o) {
+  const st = stats(o);
+  const dayOfYear = Math.round((o.today - D(o.today.getFullYear(), 1, 1)) / 864e5) + 1;
+  const title = o.rolling ? "人生年鉴 · 最近 365 天" : `人生年鉴 · ${o.year}`;
+  let sub = o.sub || `共 ${fmt(st.total)} 件事 · 今年第 ${dayOfYear} 天`;
+  if (o.rolling) sub = `共 ${fmt(st.total)} 件事`;
+  const hint = o.selected
+    ? `<b>${o.selected.getMonth() + 1}月${o.selected.getDate()}日 周${WEEK[o.selected.getDay()]}</b> · ${o.data.get(key(o.selected))} 件事`
+    : "按住滑动，查看某一天";
+  host.innerHTML = `<div class="card">
+    <div class="kicker"><span>${title}</span><span class="share">${SHARE_ICON}</span></div>
+    <div class="hero"><span class="n">${st.days}</span><span class="u">天有记录</span></div>
+    <div class="sub">${sub}</div>
+    <svg class="grid"></svg>
+    <div class="legend">${legendHTML()}</div>
+    <div class="hint">${hint}</div>
+    ${o.extra || ""}
+  </div>`;
+  const svg = host.querySelector("svg.grid");
+  (o.layout === "flow" ? flowGrid : monthGrid)(svg, o);
+}
+
+// ---------- 现状：13 周雾蓝方格 ----------
+const MIST = ["#F0F0ED", "#D5E3F1", "#A4C2DC", "#75A0C5", "#4980AC", "#335F83"];
+function weekGrid(svg, {weeks, today, data, squares, width, labels = true}) {
+  const labelW = labels ? 18 : 0, P = (width - labelW) / weeks, axisH = 14;
+  svg.setAttribute("width", width); svg.setAttribute("height", axisH + 7 * P);
+  const end = addDays(today, (7 - ((today.getDay() + 6) % 7)) - 1); // 本周日
+  const start = addDays(end, -(weeks * 7) + 1);
+  let lastMonth = -1;
+  for (let w = 0; w < weeks; w++) {
+    const wkStart = addDays(start, w * 7);
+    if (wkStart.getMonth() !== lastMonth && (w === 0 ? addDays(wkStart, 6).getMonth() === wkStart.getMonth() : true)) { const t = el("text", {x: labelW + w * P, y: 9, "font-size":9, fill:"var(--text2)"}, svg); t.textContent = `${wkStart.getMonth() + 1}月`; } lastMonth = wkStart.getMonth();
+    for (let r = 0; r < 7; r++) {
+      const d = addDays(wkStart, r), x = labelW + w * P, y = axisH + r * P;
+      if (squares) {
+        const c = d > today ? -1 : (data.get(key(d)) || 0);
+        el("rect", {x: x + 1.2, y: y + 1.2, width: P - 2.4, height: P - 2.4, rx: 2, fill: c < 0 ? "transparent" : MIST[level(c)], stroke: c < 0 ? "#E5E2DA" : "none", "stroke-width": .6}, svg);
+      } else {
+        dot(svg, x + P / 2, y + P / 2, stateOf(d, {today, data}), Math.min(P / PITCH, 1.75));
+      }
+    }
+  }
+  if (labels) ["一", "", "三", "", "五", "", ""].forEach((t, r) => { if (!t) return; const n = el("text", {x: 0, y: axisH + r * P + P / 2 + 3, "font-size":9, fill:"var(--text2)"}, svg); n.textContent = t; });
+}
+(() => {
+  const host = document.getElementById("cur-card");
+  host.innerHTML = `<div class="cur-title">活跃热力图</div><div class="cur-sub" id="cur-sub"></div>
+    <div class="hint" style="margin-top:8px">点按查看 · 按住滑选日期</div><svg style="display:block;margin-top:4px"></svg>
+    <div style="font-size:11px;color:var(--text2);margin-top:6px">记录数：0 · 1 · 2–3 · 4–5 · 6–9 · 10+</div>`;
+  weekGrid(host.querySelector("svg"), {weeks: 13, today: TODAY, data: DATA, squares: true, width: 324});
+  let n = 0; for (let i = 0; i < 91; i++) if ((DATA.get(key(addDays(TODAY, -i))) || 0) > 0) n++;
+  host.querySelector("#cur-sub").textContent = `最近 13 周 · ${n} 天有记录`;
+})();
+
+// ---------- 渲染各状态 ----------
+const base = {year: 2026, today: TODAY, data: DATA};
+card(document.getElementById("main-card"), base);
+card(document.getElementById("d1-month"), base);
+card(document.getElementById("d1-flow"), {...base, layout: "flow", markOrphan: true});
+
+const JAN = D(2027, 1, 5);
+const DATA27 = new Map([...buildData(D(2026, 1, 1), D(2026, 12, 31)), ...buildData(D(2027, 1, 1), JAN, {"2027-1-5": 3})]);
+card(document.getElementById("d2-year"), {year: 2027, today: JAN, data: DATA27,
+  extra: '<div style="margin-top:6px"><span class="link">‹ 翻看 2026 年鉴</span></div>'});
+card(document.getElementById("d2-roll"), {year: 2027, today: JAN, data: DATA27, rolling: true});
+
+const NEW_DATA = new Map([["2026-11-19", 2], ["2026-11-20", 1], ["2026-11-21", 3]]);
+card(document.getElementById("s-new"), {year: 2026, today: TODAY, data: NEW_DATA, first: D(2026, 11, 19), sub: "共 6 件事 · 从 11月19日 开始记录"});
+card(document.getElementById("s-sel"), {...base, selected: D(2026, 11, 18)});
+card(document.getElementById("s-dark"), base);
+
+// 任务完成节奏
+const TASK = buildData(addDays(TODAY, -100), TODAY);
+for (const [k, v] of TASK) TASK.set(k, Math.max(0, Math.round(v * .6)));
+const taskHead = legend => `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font-size:17px">完成节奏 · 近 12 周</b>${legend}</div>`;
+(() => {
+  const cur = document.getElementById("task-cur");
+  cur.innerHTML = taskHead(`<span style="font-size:11px;color:var(--text2);display:flex;gap:3px;align-items:center">少${MIST.map(c => `<i style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></i>`).join("")}多</span>`) + '<svg class="wg"></svg>';
+  weekGrid(cur.querySelector("svg.wg"), {weeks: 12, today: TODAY, data: TASK, squares: true, width: 290});
+  const nw = document.getElementById("task-new");
+  const dots = [1, 3, 5].map((l, i) => `<circle cx="${6 + i * 11}" cy="6" r="${R[l]}" fill="var(--ink)" opacity="${OP[l]}"/>`).join("");
+  nw.innerHTML = taskHead(`<span style="font-size:11px;color:var(--text2);display:flex;gap:4px;align-items:center">少<svg width="34" height="12">${dots}</svg>多</span>`) + '<svg class="wg"></svg>';
+  weekGrid(nw.querySelector("svg.wg"), {weeks: 12, today: TODAY, data: TASK, squares: false, width: 290});
+})();
+
+// ---------- 分享图 ----------
+function share(id, withQuote) {
+  const host = document.getElementById(id), st = stats(base);
+  host.classList.add("light");
+  host.innerHTML = `<div class="mast"><span>HOLO · 人生年鉴</span><span>2026</span></div><div class="mast2"></div>
+    <div class="p-n">${st.days}</div><div class="p-u">天，留下了记录。</div><div class="p-sub">共 ${fmt(st.total)} 件事</div>
+    <svg style="display:block;margin-top:${withQuote ? 18 : 40}px"></svg>
+    <div style="font-size:10px;color:#7A7064;margin-top:8px;letter-spacing:.5px">每一个点是一天，记得越多，点越大。</div>
+    ${withQuote ? '<div class="quote">秋天的光线很适合拍照。<small>11月21日 · 写在想法里</small></div>' : ""}
+    <div class="foot"><span>记录我的人生</span><span class="stamp">HOLO</span></div>`;
+  const svg = host.querySelector("svg");
+  monthGrid(svg, {...base});
+  // 分享图按纸面宽度等比缩放
+  const w = +svg.getAttribute("width"), h = +svg.getAttribute("height"), target = 252;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`); svg.setAttribute("width", target); svg.setAttribute("height", h * target / w);
+  host.style.setProperty("--ink", "#1F1C17"); host.style.setProperty("--ring", "#C9BFAE"); host.style.setProperty("--text2", "#7A7064");
+}
+share("share-plain", false);
+share("share-quote", true);
+</script>
+</body>
+</html>
