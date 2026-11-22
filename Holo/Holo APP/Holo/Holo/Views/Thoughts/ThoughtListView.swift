@@ -612,7 +612,7 @@ struct ThoughtListView: View {
                     showConfirmationQueue = true
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "smallcircle.filled.circle")
                             .font(.system(size: 11))
                             .foregroundColor(.holoToolAction)
 
@@ -672,7 +672,7 @@ struct ThoughtListView: View {
 
     private var aiEducationBanner: some View {
         HStack(spacing: 9) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 12))
                 .foregroundColor(.holoToolAction)
 
@@ -1001,7 +1001,7 @@ struct ThoughtListView: View {
         VStack(spacing: HoloSpacing.lg) {
             // 标题
             HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .foregroundColor(.holoToolAction)
                 Text("批量 AI 整理")
                     .font(ThoughtLayout.title)
@@ -1727,7 +1727,7 @@ struct ThoughtListView: View {
                                 Button {
                                     askHoloAboutThought(thought)
                                 } label: {
-                                    Label("问问 Holo", systemImage: "sparkles")
+                                    Label("问问 Holo", systemImage: "smallcircle.filled.circle")
                                 }
 
                                 Button {

@@ -475,7 +475,7 @@ struct MessageBubbleView: View {
             .fill(Color.holoToolAI.opacity(0.15))
             .frame(width: 32, height: 32)
             .overlay {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 14))
                     .foregroundColor(.holoToolAI)
             }
@@ -720,7 +720,7 @@ struct MessageBubbleView: View {
         case .queryHabits: return "chart.bar.xaxis"
         case .recordWeight: return "scalemass"
         case .unknown: return "questionmark.circle"
-        default: return "sparkles"
+        default: return "smallcircle.filled.circle"
         }
     }
 

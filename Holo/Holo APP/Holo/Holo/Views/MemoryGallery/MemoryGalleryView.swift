@@ -156,7 +156,7 @@ struct MemoryGalleryView: View {
                         Button {
                             findDateModel.openWalkDirectly()
                         } label: {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "smallcircle.filled.circle")
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(Color.galleryAccent)
                                 .frame(width: 40, height: 44)
@@ -283,7 +283,7 @@ struct MemoryGalleryView: View {
         // 无报告时不展示，长廊对无报告用户保持零噪音。
         if let reportEntry = viewModel.latestReportEntry {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
+                sectionHeading(title: String(localized: "它看懂了你"), icon: "smallcircle.filled.circle")
                 ReportDoorCard(entry: reportEntry) {
                     DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
                     ChatReportTabRouter.shared.openReportTab()
@@ -347,7 +347,7 @@ struct MemoryGalleryView: View {
 
             Spacer(minLength: 0)
 
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.holoPrimary)
                 .frame(width: 34, height: 34)
@@ -582,7 +582,7 @@ struct MemoryGalleryView: View {
             // 无报告时不展示，长廊对无报告用户保持零噪音。
             if let reportEntry = viewModel.latestReportEntry {
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
+                    sectionHeading(title: String(localized: "它看懂了你"), icon: "smallcircle.filled.circle")
                     ReportDoorCard(entry: reportEntry) {
                         DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
                         ChatReportTabRouter.shared.openReportTab()

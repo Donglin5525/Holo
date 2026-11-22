@@ -104,7 +104,7 @@ struct GoalListView: View {
                     Button {
                         onPlanGoal()
                     } label: {
-                        Label("去 AI 对话里规划", systemImage: "sparkles")
+                        Label("去 AI 对话里规划", systemImage: "smallcircle.filled.circle")
                     }
                     Divider()
                     Button {

@@ -386,7 +386,7 @@ struct StickerConfirmEditorView: View {
                     model.showOriginal.toggle()
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: model.showOriginal ? "sparkles" : "eye")
+                        Image(systemName: model.showOriginal ? "smallcircle.filled.circle" : "eye")
                             .font(.system(size: 11, weight: .medium))
                         Text(model.showOriginal ? String(localized: "看贴纸") : String(localized: "看原图"))
                             .font(.system(size: 11.5, weight: .semibold))

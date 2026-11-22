@@ -138,7 +138,7 @@ struct ReportShareCard: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(holo)
                 Text("HOLO")

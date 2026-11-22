@@ -26,7 +26,7 @@ struct ReportEmptyStateView: View {
                     .lineSpacing(3)
 
                 capabilityCard(
-                    icon: "sparkles",
+                    icon: "smallcircle.filled.circle",
                     tint: .holoPrimary,
                     title: String(localized: "深度分析"),
                     subtitle: String(localized: "把你的财务、习惯、任务、想法放在一起看，找出单看一处发现不了的规律。")

@@ -78,7 +78,7 @@ struct HoloPortraitInsightsSection: View {
                 if !crossDomainInsights.isEmpty {
                     insightGroupCard(
                         title: "跨模块洞察",
-                        icon: "sparkles",
+                        icon: "smallcircle.filled.circle",
                         entries: crossDomainInsights,
                         highlighted: true
                     )
@@ -347,7 +347,7 @@ struct HoloPortraitInsightsSection: View {
         case .longTermPattern: return "repeat"
         case .preference: return "slider.horizontal.3"
         case .recentState: return "waveform.path.ecg"
-        case .crossDomainInsight: return "sparkles"
+        case .crossDomainInsight: return "smallcircle.filled.circle"
         }
     }
 

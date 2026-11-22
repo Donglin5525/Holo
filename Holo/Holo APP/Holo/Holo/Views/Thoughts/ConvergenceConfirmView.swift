@@ -126,7 +126,7 @@ struct ConvergenceConfirmView: View {
     private var idleView: some View {
         statusPage {
             VStack(spacing: HoloSpacing.md) {
-                statusIcon("sparkles")
+                statusIcon("smallcircle.filled.circle")
                 Text("想法还不足够形成主题")
                     .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
@@ -237,7 +237,7 @@ struct ConvergenceConfirmView: View {
     private var noSuggestionView: some View {
         statusPage {
             VStack(spacing: HoloSpacing.md) {
-                statusIcon("sparkles")
+                statusIcon("smallcircle.filled.circle")
                 Text("暂未发现可归并的主题")
                     .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)

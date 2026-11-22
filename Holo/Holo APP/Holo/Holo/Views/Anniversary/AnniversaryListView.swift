@@ -317,10 +317,7 @@ struct AnniversaryListView: View {
 
             // 右下 FAB 是本屏唯一橙主行动；空态引导退为灰描边次级（2026-10-12 橙纪律）
             Button(action: { sheetTarget = .add }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                    Text("点亮一个日子")
-                }
+                Text("点亮一个日子")
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, HoloSpacing.lg)

@@ -41,7 +41,7 @@ struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .aiMemory: return "sparkles"
+            case .aiMemory: return "smallcircle.filled.circle"
             case .dataSync: return "internaldrive.fill"
             case .privacySecurity: return "lock.shield.fill"
             case .general: return "slider.horizontal.3"
@@ -423,7 +423,7 @@ struct SettingsView: View {
     /// AI 行为统一进入 HoloAI 设置；授权与排除范围归入隐私组。
     private var aiMemorySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(icon: "sparkles", title: "HoloAI 与想法")
+            sectionHeader(icon: "smallcircle.filled.circle", title: "HoloAI 与想法")
 
             VStack(spacing: 0) {
                 // HoloAI 统一用户设置（2026-10-23「一个发现」随附）：一个发现/长期记忆/自动处理/数据与隐私
@@ -861,7 +861,7 @@ struct SettingsView: View {
                     // AI 设置：仅 Debug 构建可见（服务商/API Key/温度/Token 是开发者参数；
                     // 2026-10-21 拍板退役入口，代码保留，预留未来 Pro 版自接 API）
                     settingsRow(
-                        icon: "sparkles",
+                        icon: "smallcircle.filled.circle",
                         iconColor: .purple,
                         title: String(localized: "AI 助手"),
                         subtitle: String(localized: "模型与提示词配置")

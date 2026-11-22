@@ -104,7 +104,7 @@ struct GoalAnalysisSection: View {
                 withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
             } label: {
                 HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "smallcircle.filled.circle")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.holoAI)
                     Text("目标分析")
@@ -351,7 +351,7 @@ struct GoalAnalysisSection: View {
                     Task { await analyze(forceNew: state.latestCompleted != nil && !state.isAdjustmentStale && !state.isDue) }
                 } label: {
                     Label(state.latestCompleted == nil ? String(localized: "分析目标") : String(localized: "重新分析"),
-                          systemImage: "sparkles")
+                          systemImage: "smallcircle.filled.circle")
                         .holoText(.supporting)
                         .fontWeight(.semibold)
                 }

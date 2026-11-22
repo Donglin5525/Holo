@@ -71,7 +71,7 @@ struct CheckItemWaitSheet: View {
                     if !item.waitHints.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 4) {
-                                Image(systemName: "sparkles")
+                                Image(systemName: "smallcircle.filled.circle")
                                     .font(.holoTinyLabel)
                                     .foregroundStyle(Color.holoToolAI)
                                 Text("AI 拆解时猜你在等：")

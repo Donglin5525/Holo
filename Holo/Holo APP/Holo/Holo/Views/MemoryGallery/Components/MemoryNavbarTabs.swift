@@ -27,7 +27,7 @@ enum MemoryGalleryTab: String, CaseIterable {
     var iconName: String {
         switch self {
         case .calendar: return "calendar"
-        case .insight: return "sparkles"
+        case .insight: return "smallcircle.filled.circle"
         }
     }
 }

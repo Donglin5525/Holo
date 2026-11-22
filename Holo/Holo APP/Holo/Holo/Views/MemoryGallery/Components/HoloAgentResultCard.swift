@@ -14,7 +14,7 @@ struct HoloAgentResultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .foregroundStyle(Color.holoPrimary)
                 Text(result.title)
                     .font(.headline)

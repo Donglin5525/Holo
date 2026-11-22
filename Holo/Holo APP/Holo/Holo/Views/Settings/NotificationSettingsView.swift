@@ -322,7 +322,7 @@ struct NotificationSettingsView: View {
 
     private var insightRow: some View {
         settingRow(
-            icon: "sparkles",
+            icon: "smallcircle.filled.circle",
             iconColor: .holoAI,
             title: String(localized: "AI 回放"),
             summary: insightSummary,
@@ -796,7 +796,7 @@ private struct InsightNotificationDetailView: View {
 
                 VStack(spacing: 0) {
                     DetailToggleRow(
-                        icon: "sparkles",
+                        icon: "smallcircle.filled.circle",
                         iconColor: .holoAI,
                         title: String(localized: "每周提醒我生成周回放"),
                         isOn: $insightSettings.weeklyReminderEnabled,

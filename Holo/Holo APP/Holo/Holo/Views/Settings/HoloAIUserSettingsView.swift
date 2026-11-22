@@ -122,7 +122,7 @@ struct HoloAIUserSettingsContent: View {
         HoloSettingsSection {
             NavigationLink(value: Destination.discovery) {
                 HoloSettingsRow(
-                    icon: "sparkles",
+                    icon: "smallcircle.filled.circle",
                     title: "一个发现",
                     subtitle: DiscoverySettingsCopy.summaryText(for: discoveryState),
                     trailing: { HoloSettingsChevron() }

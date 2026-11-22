@@ -236,7 +236,7 @@ struct EditorFormatToolbar: View {
             } label: {
                 Label(
                     smartSummaryEnabled ? String(localized: "关闭口述整理") : String(localized: "开启口述整理"),
-                    systemImage: smartSummaryEnabled ? "sparkles" : "sparkle"
+                    systemImage: smartSummaryEnabled ? "smallcircle.filled.circle" : "sparkle"
                 )
             }
         }

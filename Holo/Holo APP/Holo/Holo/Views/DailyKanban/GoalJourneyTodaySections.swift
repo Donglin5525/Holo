@@ -81,7 +81,7 @@ struct GoalJourneyTodayLinks: View {
             HStack(spacing: 4) {
                 Button(action: onOpenFinance) { Label("记账", systemImage: "wallet.bifold") }
                     .frame(maxWidth: .infinity, minHeight: 52).foregroundStyle(Color.holoToolText)
-                Button(action: onOpenAI) { Label("对 Holo 说", systemImage: "sparkles") }
+                Button(action: onOpenAI) { Label("对 Holo 说", systemImage: "smallcircle.filled.circle") }
                     .frame(maxWidth: .infinity, minHeight: 52).foregroundStyle(GoalJourneyStyle.action)
             }.goalJourneyText(.metadata).padding(.top, 18)
         }

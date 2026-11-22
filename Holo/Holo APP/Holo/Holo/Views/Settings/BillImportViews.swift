@@ -115,7 +115,7 @@ struct BillImportSection: View {
             gateAndRun(action)
         } label: {
             HStack {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                 Text(title)
             }
             .font(.system(size: 14, weight: .semibold))

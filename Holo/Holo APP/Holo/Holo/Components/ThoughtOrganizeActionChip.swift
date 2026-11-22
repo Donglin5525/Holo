@@ -36,7 +36,7 @@ struct ThoughtOrganizeActionChip: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 // sparkles 图标（项目 AI 统一图标）
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoAI)
 

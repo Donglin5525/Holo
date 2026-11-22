@@ -410,7 +410,7 @@ struct ThoughtKnowledgeTreeView: View {
     private var aiStatusBar: some View {
         if orgQueue.isBatchOrganizing, let total = orgQueue.batchTotal {
             aiStatusRow(
-                icon: "sparkles",
+                icon: "smallcircle.filled.circle",
                 text: String(localized: "AI 自动整理中（\(orgQueue.batchCompleted)/\(total)）"),
                 badge: nil,
                 action: nil
@@ -425,7 +425,7 @@ struct ThoughtKnowledgeTreeView: View {
         } else if pendingConfirmationCount > 0 {
             // V1 历史待确认池（V2 不再自动产生主题归属，存量消化完自然消失）
             aiStatusRow(
-                icon: "sparkles",
+                icon: "smallcircle.filled.circle",
                 text: String(localized: "AI 已整理好你的想法，\(pendingConfirmationCount) 条主题归属想跟你确认"),
                 badge: String(localized: "\(pendingConfirmationCount) 待确认"),
                 action: { showConfirmationQueue = true }
@@ -674,7 +674,7 @@ struct ThoughtKnowledgeTreeView: View {
     /// 右侧「隐藏」仅收起浏览入口，不影响打标与筛选
     private func collectionCard(_ collection: ThoughtTagIndexProjection.AutoCollection) -> some View {
         HStack(spacing: HoloSpacing.md) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 15))
                 .foregroundColor(.holoToolAI)
                 .frame(width: 34, height: 34)

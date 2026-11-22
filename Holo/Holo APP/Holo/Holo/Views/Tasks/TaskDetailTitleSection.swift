@@ -150,7 +150,7 @@ struct TaskDetailTitleSection: View {
             Button {
                 smartSummaryEnabled.toggle()
             } label: {
-                Image(systemName: smartSummaryEnabled ? "sparkles" : "sparkle")
+                Image(systemName: smartSummaryEnabled ? "smallcircle.filled.circle" : "sparkle")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(smartSummaryEnabled ? .holoToolAI : .holoTextSecondary)
                     .frame(width: 28, height: 28)

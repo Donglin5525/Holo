@@ -114,7 +114,7 @@ struct ContextPlanRunStatusView: View {
         case .draftReady: return "checkmark.seal.fill"
         case .failed: return "exclamationmark.triangle.fill"
         case .cancelled: return "stop.circle.fill"
-        default: return "sparkles"
+        default: return "smallcircle.filled.circle"
         }
     }
 

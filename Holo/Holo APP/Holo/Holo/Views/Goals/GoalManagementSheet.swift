@@ -58,7 +58,7 @@ struct GoalManagementSheet: View {
                         }
 
                         HoloSettingsRow(
-                            icon: "sparkles",
+                            icon: "smallcircle.filled.circle",
                             iconColor: .holoAI,
                             title: String(localized: "允许 HoloAI 参考")
                         ) {

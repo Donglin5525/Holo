@@ -975,7 +975,7 @@ struct TaskListView: View {
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             if selectedFilter == .today {
-                Image(systemName: "sparkles")
+                Image(systemName: "sun.max")
                     .font(.system(size: 52, weight: .light))
                     .foregroundColor(.holoPrimary.opacity(0.6))
 

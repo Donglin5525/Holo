@@ -605,7 +605,7 @@ struct DomainMemorySection: View {
                     } else if record.state == .candidate {
                         compactStatusBadge(String(localized: "观察中"), icon: "eye", color: .holoTextSecondary)
                     } else if newMemoryIDs.contains(record.id) {
-                        compactStatusBadge(String(localized: "新"), icon: "sparkles", color: .holoPrimary)
+                        compactStatusBadge(String(localized: "新"), icon: "smallcircle.filled.circle", color: .holoPrimary)
                     } else if record.state == .archived {
                         compactStatusBadge(String(localized: "过去"), icon: "archivebox", color: .holoTextSecondary)
                     }
@@ -729,7 +729,7 @@ struct DomainMemorySection: View {
 
     private var inboxLabelContent: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .foregroundColor(.holoPrimary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(inboxSnapshot.summaryText)

@@ -178,7 +178,7 @@ struct TodayReliefSheet: View {
                     viewModel.submit(context: context)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "smallcircle.filled.circle")
                         Text(String(localized: "开始整理"))
                     }
                     .font(.headline)

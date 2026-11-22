@@ -135,7 +135,7 @@ struct TaskSplitSheet: View {
                 .frame(maxWidth: .infinity)
 
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.caption)
                     .foregroundStyle(.white)
                     .frame(width: 26, height: 26)
@@ -342,7 +342,7 @@ struct TaskSplitSheet: View {
 
     private func cannotHelpContent(_ reason: String) -> some View {
         VStack(spacing: 14) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.title2)
                 .foregroundStyle(Color.holoToolAI)
             Text(reason)
@@ -387,7 +387,7 @@ struct TaskSplitSheet: View {
 
     private func quotaExhaustedContent(_ message: String, _ upgradeAvailable: Bool) -> some View {
         VStack(spacing: 14) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.title2)
                 .foregroundStyle(Color.holoToolAI)
             Text(message)

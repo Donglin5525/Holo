@@ -221,7 +221,7 @@ struct HighlightDetector {
                     category: .habitPerfect,
                     title: "习惯全勤日",
                     subtitle: "\(habits.count) 个习惯全部完成",
-                    icon: "sparkles",
+                    icon: "checkmark.seal",
                     sourceModule: .habitRecord
                 )
                 results.append((date: dayStart, data: highlight))

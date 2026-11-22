@@ -300,7 +300,7 @@ struct GoalDraftReviewView: View {
 
     private var outcomeCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader(icon: "sparkles", title: String(localized: "期望结果"))
+            sectionHeader(icon: "smallcircle.filled.circle", title: String(localized: "期望结果"))
 
             CardDivider()
 
@@ -570,7 +570,7 @@ struct GoalDraftReviewView: View {
 
     private var aiContextCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            sectionHeader(icon: "sparkles", title: String(localized: "AI 上下文"))
+            sectionHeader(icon: "smallcircle.filled.circle", title: String(localized: "AI 上下文"))
 
             CardDivider()
 

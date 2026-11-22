@@ -1392,7 +1392,7 @@ struct ThoughtEditorView: View {
                 Text("AI 归类")
                     .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 10))
                     .foregroundColor(.holoToolTextSecondary)
             }

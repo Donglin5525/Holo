@@ -17,7 +17,7 @@ struct QuotaExhaustedChatCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.holoPrimary)
                 .frame(width: 24, height: 24)

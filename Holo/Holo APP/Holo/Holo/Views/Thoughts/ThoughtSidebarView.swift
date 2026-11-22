@@ -304,7 +304,7 @@ struct ThoughtSidebarView: View {
     /// 主题候选建议行（方案 §5.3：轻量建议 + 建立/忽略，不建待审核任务箱）
     private func suggestedClusterRow(_ cluster: ThoughtSemanticStore.ClusterRecord) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 12))
                 .foregroundColor(.holoToolAction)
             VStack(alignment: .leading, spacing: 2) {

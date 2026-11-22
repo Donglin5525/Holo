@@ -455,7 +455,7 @@ struct VoiceInputSheet: View {
         case .failed:
             return "exclamationmark.circle.fill"
         case .transcriptReady:
-            return "sparkles"
+            return "smallcircle.filled.circle"
         case .transcribing:
             return "waveform"
         case .summarizing:

@@ -427,7 +427,7 @@ struct ThoughtInsightSheet: View {
                                 }
                             }
                             if let perspectives = result.perspectives, !perspectives.isEmpty {
-                                insightSection(title: "AI 的思考（推测，请自行判断）", icon: "sparkles") {
+                                insightSection(title: "AI 的思考（推测，请自行判断）", icon: "smallcircle.filled.circle") {
                                     ForEach(Array(perspectives.enumerated()), id: \.offset) { _, p in
                                         Text(p)
                                             .font(ThoughtLayout.secondary)

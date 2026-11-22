@@ -76,7 +76,7 @@ struct AboutView: View {
 
     private var appHeader: some View {
         VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 48, weight: .light))
                 .foregroundColor(.holoPrimary)
                 .frame(width: 96, height: 96)
@@ -207,7 +207,7 @@ struct AboutView: View {
                 }
             } label: {
                 settingsRowContent(
-                    icon: "sparkles",
+                    icon: "smallcircle.filled.circle",
                     iconColor: .holoPurple,
                     title: String(localized: "重看新手引导"),
                     subtitle: String(localized: "三步回顾首页的功能入口")

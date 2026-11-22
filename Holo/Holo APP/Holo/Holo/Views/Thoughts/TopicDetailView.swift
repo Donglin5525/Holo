@@ -462,7 +462,7 @@ struct TopicDetailView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 5) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "smallcircle.filled.circle")
                             .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoToolAI)
                         Text("这个主题收什么")

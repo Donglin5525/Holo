@@ -131,7 +131,7 @@ struct ThoughtTaskExtractionSheet: View {
                             Task { await runAIExtraction() }
                         } label: {
                             HStack(spacing: 4) {
-                                Image(systemName: "sparkles")
+                                Image(systemName: "smallcircle.filled.circle")
                                     .font(.system(size: 13))
                                 if isExtracting {
                                     Text("识别中…")

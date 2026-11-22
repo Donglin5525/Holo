@@ -1092,7 +1092,7 @@ private struct ChatContentColumn: View {
 
             // 流式超时未完成的工作中提示（watchdog 第一段触发）：让用户知道 AI 没有卡死
             if let hint = viewModel.streamingStatusHint, viewModel.isStreaming {
-                Label(hint, systemImage: "sparkles")
+                Label(hint, systemImage: "smallcircle.filled.circle")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoToolText)
                     .padding(.horizontal, 12)
@@ -1109,7 +1109,7 @@ private struct ChatContentColumn: View {
             // 清空输入框或发送后自动消失（见 VM 计算属性）
             if let scenarioTitle = viewModel.activeScenarioPrefillTitle {
                 HStack(spacing: 5) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "smallcircle.filled.circle")
                         .font(.system(size: 10, weight: .semibold))
                     Text("将按「\(scenarioTitle)」场景分析 · 可改写问句，确认后发送")
                         .font(.system(size: 11, weight: .medium))

@@ -96,7 +96,7 @@ struct ReportOnePageShareCard: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(holo)
                 Text("HOLO 深度洞察")

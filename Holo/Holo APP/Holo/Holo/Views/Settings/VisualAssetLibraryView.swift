@@ -441,7 +441,7 @@ struct VisualAssetLibraryView: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: searchText.isEmpty ? "sparkles" : "magnifyingglass")
+            Image(systemName: searchText.isEmpty ? "smallcircle.filled.circle" : "magnifyingglass")
                 .font(.system(size: 28))
                 .foregroundColor(.holoToolTextSecondary)
             if !searchText.isEmpty {

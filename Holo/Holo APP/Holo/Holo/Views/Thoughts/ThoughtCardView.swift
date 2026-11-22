@@ -749,14 +749,14 @@ private struct ThoughtCardStatusBadge: View {
     /// 徽章三态：整理中（含等网络）/ 待确认 / 整理失败（可点重试）；正常态返回 nil 不渲染
     private var organizationDisplayStatus: (title: String, icon: String, color: Color, action: StatusBadgeAction?)? {
         if thought.organizedStatus == "processing" {
-            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
+            return (String(localized: "整理中"), "smallcircle.filled.circle", .holoPrimary, nil)
         }
         if thought.organizedStatus == "pending" {
             // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
             if orgQueue.isOffline {
                 return (String(localized: "整理中"), "wifi.slash", .holoToolTextSecondary, nil)
             }
-            return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
+            return (String(localized: "整理中"), "smallcircle.filled.circle", .holoPrimary, nil)
         }
         // failed 优先于待确认：用户需要先知道失败并可一键重试
         if thought.organizedStatus == "failed" {

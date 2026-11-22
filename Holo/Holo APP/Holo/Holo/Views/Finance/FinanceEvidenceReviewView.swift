@@ -106,7 +106,7 @@ struct FinanceEvidenceReviewView: View {
 
             Button(action: onBackToAI) {
                 HStack(spacing: 4) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "smallcircle.filled.circle")
                         .font(.system(size: 13, weight: .semibold))
                     Text("回到AI")
                         .font(.holoTinyLabel)

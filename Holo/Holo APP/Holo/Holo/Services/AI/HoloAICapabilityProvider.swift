@@ -36,7 +36,7 @@ enum HoloAICapabilityProvider {
             capabilities.append(HoloAICapability(
                 id: .onboarding,
                 title: "使用指南",
-                systemImage: "sparkles",
+                systemImage: "smallcircle.filled.circle",
                 isEmphasized: true,
                 isEnabled: true
             ))

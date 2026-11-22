@@ -199,7 +199,7 @@ struct ChatLogView: View {
                 .font(.system(size: 10))
                 .foregroundColor(.blue)
         default:
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 10))
                 .foregroundColor(.holoPrimary)
         }

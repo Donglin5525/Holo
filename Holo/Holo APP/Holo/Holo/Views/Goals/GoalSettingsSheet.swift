@@ -169,7 +169,7 @@ struct GoalSettingsSheet: View {
     private var aiContextCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 16))
                     .foregroundStyle(GoalJourneyStyle.action)
                     .frame(width: 24, height: 24)

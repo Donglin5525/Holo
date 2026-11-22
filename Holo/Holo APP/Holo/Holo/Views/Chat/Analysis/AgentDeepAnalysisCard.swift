@@ -182,7 +182,7 @@ struct AgentDeepAnalysisCard: View {
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .top, spacing: 9) {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "smallcircle.filled.circle")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.holoPrimary)
                                 .frame(width: 30, height: 30)
@@ -364,7 +364,7 @@ struct AgentDeepAnalysisCard: View {
     private var placeholderCard: some View {
         ChatCardView {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 16))
                     .foregroundColor(.holoTextSecondary)
                 Text("分析结果加载中…")

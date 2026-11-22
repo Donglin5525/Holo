@@ -58,7 +58,7 @@ struct CalendarSourcePickerView: View {
 
     private var explainCard: some View {
         HStack(alignment: .top, spacing: HoloSpacing.sm) {
-            Image(systemName: "sparkles")
+            Image(systemName: "smallcircle.filled.circle")
                 .font(.system(size: 12))
                 .foregroundColor(.holoPrimary)
                 .padding(.top, 3)

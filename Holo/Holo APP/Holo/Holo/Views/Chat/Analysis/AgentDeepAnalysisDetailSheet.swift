@@ -638,7 +638,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                 Image(systemName: "chart.line.uptrend.xyaxis")
                     .font(.system(size: 42, weight: .medium))
                     .foregroundColor(.holoPrimary.opacity(0.62))
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 19, weight: .bold))
                     .foregroundColor(.holoPrimary)
                     .offset(x: 45, y: -43)
@@ -678,7 +678,7 @@ struct AgentDeepAnalysisDetailSheet: View {
     private var header: some View {
         HStack(alignment: .center) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles")
+                Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoPrimary)
                     .frame(width: 34, height: 34)

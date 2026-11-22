@@ -170,7 +170,7 @@ struct TodayPrimaryFocusCard: View {
             if let onCalmQuickRecord {
                 Button(action: onCalmQuickRecord) {
                     HStack(spacing: 7) {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "smallcircle.filled.circle")
                         Text(String(localized: "试试对 Holo 说一句话"))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))

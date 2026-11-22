@@ -41,7 +41,7 @@ struct ReceiptBookingSettingsView: View {
                     Button {
                         showAIConsent = true
                     } label: {
-                        Label("开启 AI 图片识别", systemImage: "sparkles")
+                        Label("开启 AI 图片识别", systemImage: "smallcircle.filled.circle")
                     }
                 } footer: {
                     Text("图片识别需要 AI 数据处理授权；授权前快捷指令不会上传图片，也不会记账。")

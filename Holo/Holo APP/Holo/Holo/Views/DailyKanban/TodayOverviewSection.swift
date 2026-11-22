@@ -55,7 +55,7 @@ struct TodayOverviewSection: View {
                 Button {
                     onAddRecord?()
                 } label: {
-                    Label(String(localized: "对 Holo 说"), systemImage: "sparkles")
+                    Label(String(localized: "对 Holo 说"), systemImage: "smallcircle.filled.circle")
                         .font(.subheadline)
                         .foregroundStyle(Color.holoPrimary)
                         .frame(maxWidth: .infinity)
