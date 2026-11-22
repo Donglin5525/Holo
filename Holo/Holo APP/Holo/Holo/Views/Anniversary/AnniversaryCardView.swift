@@ -168,7 +168,7 @@ struct AnniversaryHeroCard: View {
     @ViewBuilder
     private var todayBadge: some View {
         if anniversary.isToday {
-            Text(String(localized: "🎉 就是今天"))
+            Text(String(localized: "就是今天"))
                 .font(.system(size: 10.5, weight: .heavy))
                 .foregroundColor(Color(hex: "#C2410C"))
                 .padding(.horizontal, 11)
@@ -313,7 +313,7 @@ struct AnniversaryHeroCard: View {
             }
             .padding(.top, 14)
 
-            Text(String(localized: "就是今天 🎉"))
+            Text(String(localized: "就是今天"))
                 .font(.system(size: 36, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
                 .padding(.top, 12)
@@ -338,7 +338,7 @@ struct AnniversaryHeroCard: View {
         switch anniversary.anniversaryType {
         case .birthday: return String(localized: "🎂 今天到了 · 生日快乐")
         case .anniversary: return String(localized: "❤️ 今天到了 · 周年快乐")
-        default: return String(localized: "✨ 今天到了")
+        default: return String(localized: "今天到了")
         }
     }
 

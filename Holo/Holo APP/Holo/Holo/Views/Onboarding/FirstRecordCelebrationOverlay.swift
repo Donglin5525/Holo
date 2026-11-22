@@ -45,7 +45,7 @@ struct FirstRecordCelebrationOverlay: View {
                 }
                 .padding(.bottom, 14)
 
-                Text(String(localized: "第一条记录完成 🎉"))
+                Text(String(localized: "第一条记录，写下了"))
                     .font(.title3.weight(.bold))
                     .foregroundColor(.holoTextPrimary)
 

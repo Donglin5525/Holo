@@ -239,8 +239,6 @@ struct TaskListHeroSection: View {
                     Text("今天全部完成")
                         .font(.system(size: 19, weight: .heavy))
                         .foregroundColor(.white)
-                    Text("✨")
-                        .font(.system(size: 16))
                 }
 
                 Text(celebrateSubtitle(total: total))

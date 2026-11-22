@@ -195,7 +195,7 @@ struct HabitReminderDetailView: View {
                     .lineLimit(1)
 
                 if let streakText = row.streakText {
-                    Text("🔥\(streakText)")
+                    Text("连续 \(streakText)")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                 }

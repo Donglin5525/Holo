@@ -659,7 +659,7 @@ struct AddAnniversarySheet: View {
                         } else if isEditMode {
                             Text(String(localized: "保存"))
                         } else {
-                            Text(String(localized: "✨ 点亮这个日子"))
+                            Text(String(localized: "点亮这个日子"))
                         }
                     } else {
                         Text(String(localized: "下一步"))

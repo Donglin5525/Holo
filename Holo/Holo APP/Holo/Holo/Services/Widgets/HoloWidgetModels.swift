@@ -444,7 +444,7 @@ nonisolated struct HoloWidgetGoalItem: Codable, Equatable {
     let currentText: String?
     let targetText: String?
     let remainingText: String?
-    /// 如 "按当前节奏 · 预计 10.24 达成" / "已达成 🎉"
+    /// 如 "按当前节奏 · 预计 10.24 达成" / "已达成"
     let forecastText: String?
     /// 过程型目标的说明行
     let kindText: String?

@@ -147,11 +147,12 @@ struct KanbanProgressHero: View {
 
     private var progressMessage: String {
         let pct = Int(overallPercent * 100)
-        if pct == 100 { return "全部完成！" }
-        if pct >= 75 { return "就快完成了，加油！" }
-        if pct >= 50 { return "已过半，继续保持" }
+        // 2026-11-21 去 AI 味：陈述句、不喊口号、不用感叹号
+        if pct == 100 { return "今天的都做完了" }
+        if pct >= 75 { return "还差一点" }
+        if pct >= 50 { return "过半了" }
         if pct > 0 { return "迈出了第一步" }
-        return "开始美好的一天"
+        return "今天还没开始"
     }
 
     /// 目标贡献文案：今天做的事有多少关联着目标

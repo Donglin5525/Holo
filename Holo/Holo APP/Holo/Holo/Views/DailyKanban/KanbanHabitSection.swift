@@ -155,7 +155,7 @@ struct KanbanHabitSection: View {
     @ViewBuilder
     private func streakText(habit: Habit) -> some View {
         if habit.isCheckInType {
-            Text("🔥 连续 \(habitRepo.calculateStreakInfo(for: habit).displayText)")
+            Text("连续 \(habitRepo.calculateStreakInfo(for: habit).displayText)")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         } else if habit.isCountType {

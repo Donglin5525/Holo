@@ -416,8 +416,9 @@ struct AnniversaryDetailView: View {
                 icon: anniversary.icon,
                 title: anniversary.title,
                 dateText: formatter.string(from: anniversary.date),
-                bigText: celebrationBigText.isEmpty ? "🎉" : celebrationBigText,
-                unitLine: String(localized: "就是今天 🎉"),
+                // 无周年数的一次性纪念日用「今天」做大字，副行改为「就是这一天」避免与大字重复
+                bigText: celebrationBigText.isEmpty ? String(localized: "今天") : celebrationBigText,
+                unitLine: celebrationBigText.isEmpty ? String(localized: "就是这一天") : String(localized: "就是今天"),
                 wishText: wishText,
                 tint: themeColor)
         }

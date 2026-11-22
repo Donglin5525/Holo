@@ -1087,7 +1087,7 @@ struct HabitProgressHeader: View {
 
     private var subtitle: String {
         if total == 0 { return "" }
-        return isAllDone ? String(localized: "完美的一天 ✨") : String(localized: "还有 \(total - completed) 项待点亮")
+        return isAllDone ? String(localized: "今天的都做到了") : String(localized: "还有 \(total - completed) 项待点亮")
     }
 }
 

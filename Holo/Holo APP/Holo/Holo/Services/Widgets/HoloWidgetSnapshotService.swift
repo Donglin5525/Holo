@@ -402,7 +402,7 @@ final class HoloWidgetSnapshotService {
     }
 
     private func goalForecastText(_ metric: GoalMetricProgress) -> String? {
-        if metric.isAchieved { return "已达成 🎉" }
+        if metric.isAchieved { return "已达成" }
         guard let forecast = metric.forecast else { return nil }
         var text = "按当前节奏 · 预计 \(Self.monthDayText(forecast.predictedDate)) 达成"
         if forecast.meetsDeadline == false {

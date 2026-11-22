@@ -942,7 +942,7 @@ final class IntentRouter {
                 try GoalRepository.shared.updateStatus(goal, status: status)
                 return RouteResult(
                     text: status == .completed
-                        ? "太棒了！目标「\(goal.title)」已标记为达成 🎉"
+                        ? "目标「\(goal.title)」达成了。"
                         : "已暂停目标「\(goal.title)」，随时可以说「继续」重新开始",
                     linkedEntity: LinkedEntity(type: .goal, id: goal.id)
                 )

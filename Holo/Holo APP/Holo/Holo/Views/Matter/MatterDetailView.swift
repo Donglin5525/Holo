@@ -799,7 +799,7 @@ struct MatterDetailView: View {
         case .linkAdded:
             return String(localized: "关联了新内容")
         case .completed:
-            return String(localized: "你完成了这件事 🎉")
+            return String(localized: "这件事，完成了。")
         case .archived:
             return String(localized: "这件事已归档")
         case .reopened:
