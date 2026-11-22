@@ -165,8 +165,13 @@ struct DiscoveryReviewSheet: View {
         } else if todayCard == nil {
             // 预算墙（2026-11-21）：每周额度用完 → 升级引导卡（优先于普通空态展示）。
             if DiscoveryTopicStore.shared.isInsightQuotaWalled() {
-                DiscoveryQuotaWallCard()
-                    .padding(.top, HoloSpacing.xl)
+                // I6 临时接线（I8 换成 wallState 正式逻辑）。
+                DiscoveryQuotaWallCard(
+                    state: .freeWalled(clues: [], resetText: DiscoveryPlusCopy.resetText(DiscoveryTopicStore.shared.quotaWallUntil)),
+                    onLearnPlus: { HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly) },
+                    onPick: { _ in }
+                )
+                .padding(.top, HoloSpacing.xl)
             } else {
                 // 空态：刚做完最后一个决定 →「看完了」；本来就没有 →「今天没有」。
                 DiscoveryEmptyCard(

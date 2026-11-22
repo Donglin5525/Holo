@@ -13,13 +13,14 @@ struct DiscoveryInsightCardView: View {
     let onInaccurate: () -> Void
     let onDefer: () -> Void
 
-    private static let domainTitles: [String: String] = [
+    // 2026-11-21 Plus 分层 I6：去掉 private，撞墙卡 / 往期页复用领域图标与名称。
+    static let domainTitles: [String: String] = [
         "finance": "财务", "health": "健康", "habit": "习惯",
         "thought": "想法", "task": "任务", "goal": "目标", "profile": "画像",
         "conversation": "对话",
     ]
 
-    private static let domainSymbols: [String: String] = [
+    static let domainSymbols: [String: String] = [
         // SF Symbol 存在性已核对（notebook 教训：不存在的符号渲染空白）。
         "finance": "creditcard.circle",
         "health": "heart.text.square",
@@ -37,7 +38,7 @@ struct DiscoveryInsightCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            CardBadge(text: "AI 洞察", color: .holoToolTextSecondary)
+            CardBadge(text: "Holo 看出来的一件事", color: .holoToolTextSecondary)   // C04（2026-11-21 Plus 分层 I6）
             if !domains.isEmpty {
                 HStack(spacing: HoloSpacing.xs) {
                     ForEach(domains, id: \.self) { domain in
@@ -104,7 +105,7 @@ struct DiscoveryInsightCardView: View {
                 withAnimation(HoloAnimation.replayReveal) { showsEvidence.toggle() }
             } label: {
                 HStack(spacing: 4) {
-                    Text(showsEvidence ? "收起依据" : "查看依据")
+                    Text(showsEvidence ? "收起" : "Holo 是怎么看出来的")   // C05b / C05a（2026-11-21 Plus 分层 I6）
                         .font(.subheadline.weight(.medium))
                     Image(systemName: showsEvidence ? "chevron.up" : "chevron.down")
                         .font(.footnote.weight(.semibold))
@@ -144,42 +145,139 @@ private extension Array {
     }
 }
 
-// MARK: - 预算墙卡（2026-11-21 东林拍板：免费 1 条/周、Plus 5 条/周）
+// MARK: - 撞墙卡 / Holo 还注意到的事（2026-11-21 Plus 分层 I6，文案 C20~C50）
 
-/// 「今日一条」空位上的升级引导卡：只替换空态，不打断「等你确认」列表。
+/// 撞墙卡应显示哪种状态；由评审页 wallState 计算（I8 接入）。
+enum DiscoveryWallState: Equatable {
+    /// A / A0：免费撞墙（clues 为空即 A0）
+    case freeWalled(clues: [DiscoveryTeaserClue], resetText: String)
+    /// B：Plus 本周用完
+    case plusExhausted(limit: Int, resetText: String)
+    /// C：Plus 可点名
+    case plusPickable(clues: [DiscoveryTeaserClue], remaining: Int, pickingId: String?)
+    /// D：本机 Plus、后端仍按免费判（会员状态同步延迟）
+    case syncing
+}
+
 struct DiscoveryQuotaWallCard: View {
+    let state: DiscoveryWallState
+    let onLearnPlus: () -> Void
+    let onPick: (DiscoveryTeaserClue) -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.footnote)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                Text("本周的一条发现已看完")
-                    .holoText(.metadata)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-            }
-            Text("Holo Plus 每周可以看更多条你自己的记录里长出来的洞察。")
-                .holoText(.body)
-                .foregroundStyle(Color.holoToolText)
-                .fixedSize(horizontal: false, vertical: true)
-            Button(action: openPlus) {
-                Text("了解 Holo Plus")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(HoloActionStyle(role: .secondary))
-            .accessibilityIdentifier("chat.discovery.insight.quotaWall.plus")
+            content
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, HoloSpacing.md)
+        .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .holoSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat.discovery.insight.quotaWall")
     }
 
-    private func openPlus() {
-        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": "quota_wall_plus_tap"])
-        HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly)
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .freeWalled(let clues, let resetText):
+            freeWalled(clues: clues, resetText: resetText)
+        case .plusExhausted(let limit, let resetText):
+            titleText("这周的 \(limit) 件都看完了")                       // C30
+            bodyText("\(resetText)之后，Holo 会接着帮你看。")               // C31
+        case .plusPickable(let clues, let remaining, let pickingId):
+            titleText("Holo 还注意到的事")                                 // C40
+            bodyText("这周还能看 \(remaining) 件，点一件让 Holo 先帮你看")     // C41
+            ForEach(clues) { clue in
+                clueRow(clue, trailing: pickButton(clue, pickingId: pickingId))
+            }
+        case .syncing:
+            bodyText("会员状态还在同步，过几分钟再打开看看。")                 // C50
+        }
+    }
+}
+
+private extension DiscoveryQuotaWallCard {
+
+    /// 状态 A / A0：免费撞墙（有预告问题走 A，没有走 A0）。
+    @ViewBuilder
+    func freeWalled(clues: [DiscoveryTeaserClue], resetText: String) -> some View {
+        HStack {
+            Text("这周的发现你已经看过了")                                   // C20
+                .holoText(.metadata)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.holoToolTextSecondary)
+            Spacer()
+            HoloPlusEmblem(size: 24)
+        }
+        if clues.isEmpty {
+            titleText("这周的发现你已经看过了")
+            bodyText("开通 Plus，Holo 每周最多会告诉你 \(DiscoveryPlusCopy.plusWeeklyLimit) 件它看出来的事。")
+        } else {
+            titleText("Holo 还注意到 \(clues.count) 件事，还没来得及细看")     // C21
+            ForEach(clues) { clue in
+                clueRow(clue, trailing: EmptyView())                        // C22
+            }
+            bodyText("开通 Plus，Holo 会把这些事一件件帮你看明白。")            // C23
+        }
+        Button(action: onLearnPlus) {
+            Text("让 Holo 帮我看看")                                        // C24
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(HoloPlusTheme.ctaGradient)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("chat.discovery.insight.quotaWall.plus")
+        Text("不开通也没关系，\(resetText)会有下一件")                        // C25
+            .holoText(.metadata)
+            .foregroundStyle(Color.holoToolTextSecondary)
+            .frame(maxWidth: .infinity)
+    }
+
+    /// 问题行：领域图标 + 文本（+ 尾部操作）。
+    func clueRow<Trailing: View>(_ clue: DiscoveryTeaserClue, trailing: Trailing) -> some View {
+        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            Image(systemName: DiscoveryInsightCardView.domainSymbols[clue.domains.first ?? ""] ?? "lightbulb")
+                .font(.footnote)
+                .foregroundStyle(Color.holoToolTextSecondary)
+            Text(clue.text)
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            trailing
+        }
+        .padding(.vertical, HoloSpacing.xs)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 点名按钮：进行中显示「正在看…」，其余可点。
+    @ViewBuilder
+    func pickButton(_ clue: DiscoveryTeaserClue, pickingId: String?) -> some View {
+        if pickingId == clue.id {
+            Text("正在看…")                                                 // C43
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+        } else {
+            Button("帮我看") { onPick(clue) }                               // C42
+                .buttonStyle(HoloActionStyle(role: .secondary))
+                .disabled(pickingId != nil)
+                .accessibilityIdentifier("chat.discovery.insight.pick")
+        }
+    }
+
+    func titleText(_ text: String) -> some View {
+        Text(text)
+            .holoText(.body)
+            .fontWeight(.semibold)
+            .foregroundStyle(Color.holoToolText)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    func bodyText(_ text: String) -> some View {
+        Text(text)
+            .holoText(.supporting)
+            .foregroundStyle(Color.holoToolTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
