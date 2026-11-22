@@ -164,7 +164,7 @@ struct DiscoveryReviewSheet: View {
             .padding(.top, HoloSpacing.xl)
         } else if todayCard == nil {
             // 预算墙（2026-11-21）：每周额度用完 → 升级引导卡（优先于普通空态展示）。
-            if DiscoveryTopicStore.shared.isInsightQuotaWalledToday() {
+            if DiscoveryTopicStore.shared.isInsightQuotaWalled() {
                 DiscoveryQuotaWallCard()
                     .padding(.top, HoloSpacing.xl)
             } else {

@@ -327,14 +327,70 @@ final class DiscoveryInsightBuilderTests: XCTestCase {
         XCTAssertEqual(store.queue.count, 1)
     }
 
-    func testTopicStoreQuotaWallMarker() {
+    func testQuotaWallLastsUntilResetAt() {
+        let store = makeStore()
+        let now = Date(timeIntervalSince1970: 1_764_000_000)
+        XCTAssertFalse(store.isInsightQuotaWalled(now: now))
+        let reset = now.addingTimeInterval(3 * 3600)
+        store.markInsightQuotaWalled(until: reset, now: now)
+        XCTAssertTrue(store.isInsightQuotaWalled(now: now.addingTimeInterval(3600)))
+        XCTAssertFalse(store.isInsightQuotaWalled(now: reset.addingTimeInterval(1)))
+        XCTAssertTrue(store.canRequestInsight(now: reset.addingTimeInterval(1)))
+    }
+
+    // MARK: - 2026-11-21 Plus 分层 I4a
+
+    func testClearQuotaWallAlsoClearsAttemptMark() {
         let store = makeStore()
         let now = Date()
-        XCTAssertFalse(store.isInsightQuotaWalledToday(now: now))
-        store.markInsightQuotaWalled(now: now)
-        XCTAssertTrue(store.isInsightQuotaWalledToday(now: now))
-        // 次日重新探（服务端权威，客户端只做当日展示标记）
-        XCTAssertFalse(store.isInsightQuotaWalledToday(now: now.addingTimeInterval(2 * 86_400)))
+        store.markInsightV2Attempted(now: now)
+        store.markInsightQuotaWalled(until: now.addingTimeInterval(86_400), now: now)
+        XCTAssertFalse(store.canRequestInsight(now: now))
+        store.clearInsightQuotaWall()
+        XCTAssertTrue(store.canRequestInsight(now: now))
+    }
+
+    func testQuotaSnapshotRoundTripAndExpiry() {
+        let store = makeStore()
+        let now = Date()
+        store.saveQuotaSnapshot(.init(used: 2, limit: 5, tier: "plus", resetAt: nil), now: now)
+        XCTAssertEqual(store.quotaSnapshot(now: now)?.remaining, 3)
+        XCTAssertNil(store.quotaSnapshot(now: now.addingTimeInterval(8 * 86_400)))
+    }
+
+    func testTeasersSaveRemoveAndExpire() {
+        let store = makeStore()
+        let now = Date()
+        let clue = DiscoveryTeaserClue(id: "x", phrases: ["x"], domains: ["health"], text: "x，Holo 想帮你看看是为什么。")
+        store.saveTeasers([clue], now: now)
+        XCTAssertEqual(store.teasers(now: now).count, 1)
+        XCTAssertTrue(store.teasers(now: now.addingTimeInterval(4 * 86_400)).isEmpty)
+        store.removeTeaser(id: "x", now: now)
+        XCTAssertTrue(store.teasers(now: now).isEmpty)
+    }
+
+    func testFocusPicksCountPerDay() {
+        let store = makeStore()
+        let now = Date()
+        XCTAssertEqual(store.focusPicksToday(now: now), 0)
+        store.markFocusPick(now: now)
+        store.markFocusPick(now: now)
+        XCTAssertEqual(store.focusPicksToday(now: now), 2)
+        XCTAssertEqual(store.focusPicksToday(now: now.addingTimeInterval(2 * 86_400)), 0)
+    }
+
+    func testFocusedPickCardShowsEvenAfterTodayConsumed() throws {
+        let store = makeStore()
+        let now = Date()
+        var first = try DiscoveryInsightCardBuilder.build(selected: makeDraftSelected(), slots: makeSlots(), portraitIds: [], now: now)
+        first.topicKey = "auto"
+        store.enqueue(first)
+        XCTAssertTrue(store.consumeToday(first, now: now))
+        var picked = first
+        picked.topicKey = "picked"
+        picked.isFocusedPick = true
+        store.enqueue(picked)
+        XCTAssertEqual(store.todayCard(now: now)?.topicKey, "picked")
     }
 
     func testTopicStoreAngleMemoryAndDayMarkers() {

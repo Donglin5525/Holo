@@ -49,6 +49,8 @@ nonisolated final class DiscoveryTopicStore {
         var portraitRefs: [String]?
         var angleKey: String?
         var sourceDomains: [String]?
+        /// Plus 点名看出来的卡（2026-11-21 I4a）：不受「今天已消费一张」限制（02 审查 E4）。
+        var isFocusedPick: Bool?
 
         var isV4: Bool { version == 4 }
     }
@@ -73,12 +75,14 @@ nonisolated final class DiscoveryTopicStore {
         writeQueue(cards)
     }
 
-    /// 今天最多消费一张。旧版、已否定和已过期的卡片不进入今日一条。
+    /// 今天最多自动消费一张；Plus 点名卡不受此限（2026-11-21 I4a，02 审查 E4）。
+    /// 旧版、已否定和已过期的卡片不进入今日一条。
     func todayCard(now: Date = Date(), calendar: Calendar = .current) -> QueuedCard? {
-        if consumedToday(now: now, calendar: calendar) { return nil }
+        let consumed = consumedToday(now: now, calendar: calendar)
         let rejected = rejectedTopics
         return readQueue().first { card in
             card.isV4 && !rejected.contains(card.topicKey) && card.windowEnd >= now
+                && (!consumed || card.isFocusedPick == true)
         }
     }
 
@@ -181,7 +185,6 @@ nonisolated final class DiscoveryTopicStore {
     private let insightAttemptDayKey = "holo.discovery.insight.attemptDay.v4"
     private let insightInvalidResponseDayKey = "holo.discovery.insight.invalidResponseDay.v1"
     private let insightNoneDayKey = "holo.discovery.insight.noneDay.v1"
-    private let insightQuotaWallDayKey = "holo.discovery.insight.quotaWallDay.v1"
     /// recentAngleKeys 的回看窗口：30 天（总纲 §5.1 recentTopics 语义）。
     static let angleRecentDays = 30
 
@@ -203,7 +206,7 @@ nonisolated final class DiscoveryTopicStore {
         !consumedToday(now: now, calendar: calendar)
             && !insightV2AttemptedToday(now: now, calendar: calendar)
             && !insightV2NoneWorthwhileToday(now: now, calendar: calendar)
-            && !isInsightQuotaWalledToday(now: now, calendar: calendar)
+            && !isInsightQuotaWalled(now: now)
             && todayCard(now: now, calendar: calendar) == nil
     }
 
@@ -215,17 +218,6 @@ nonisolated final class DiscoveryTopicStore {
         } else {
             defaults.set(stamp, forKey: insightInvalidResponseDayKey)
         }
-    }
-
-    /// v4 预算墙（2026-11-21）：今天服务端判定每周额度用完（免费 1 条/周、Plus 5 条/周）。
-    /// 评审页据此在「今日一条」空位展示升级引导卡；次日首次打开会重新探一次（服务端权威）。
-    func isInsightQuotaWalledToday(now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        let day = defaults.double(forKey: insightQuotaWallDayKey)
-        return day > 0 && day == dayStamp(now, calendar: calendar)
-    }
-
-    func markInsightQuotaWalled(now: Date = Date(), calendar: Calendar = .current) {
-        defaults.set(dayStamp(now, calendar: calendar), forKey: insightQuotaWallDayKey)
     }
 
     /// v4 今天是否已判「无值得说的」（宁缺毋滥：当天 v3 也不补卡）。
@@ -278,5 +270,114 @@ nonisolated final class DiscoveryTopicStore {
 
     private func writeAngleList(_ key: String, _ values: [(key: String, shownAt: Int)], limit: Int = 60) {
         defaults.set(values.suffix(limit).map { "\($0.key)|\($0.shownAt)" }, forKey: key)
+    }
+
+    // MARK: - Plus 分层（2026-11-21 I4a）：撞墙截止时刻 / 额度快照 / 预告 / 点名
+
+    private let insightQuotaWallUntilKey = "holo.discovery.insight.quotaWallUntil.v1"
+    private let insightQuotaSnapshotKey = "holo.discovery.insight.quotaSnapshot.v1"
+    private let insightTeasersKey = "holo.discovery.insight.teasers.v1"
+    private let insightFocusPicksKey = "holo.discovery.insight.focusPicks.v1"
+    /// Plus 每天最多点名次数（自动 1 + 点名 2 = 后端 perDay 3）
+    static let focusPicksPerDay = 2
+    /// 预告有效天数
+    static let teaserValidDays = 3
+
+    /// 撞墙截止时刻：后端 7 天滚动窗口释放名额的时刻；按日标记会导致恢复日当天被锁死（02 审查 E1）。
+    var quotaWallUntil: Date? {
+        let value = defaults.double(forKey: insightQuotaWallUntilKey)
+        return value > 0 ? Date(timeIntervalSince1970: value) : nil
+    }
+
+    func isInsightQuotaWalled(now: Date = Date()) -> Bool {
+        guard let until = quotaWallUntil else { return false }
+        return until > now
+    }
+
+    /// until 为 nil（后端没给恢复时刻）时墙到今天结束。
+    func markInsightQuotaWalled(until: Date?, now: Date = Date(), calendar: Calendar = .current) {
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            ?? now.addingTimeInterval(86_400)
+        defaults.set((until ?? endOfToday).timeIntervalSince1970, forKey: insightQuotaWallUntilKey)
+    }
+
+    /// 开通 Plus 后调用：清撞墙标记与当日尝试标记，让评审页立刻重新请求（02 审查 E2）。
+    func clearInsightQuotaWall() {
+        defaults.removeObject(forKey: insightQuotaWallUntilKey)
+        defaults.removeObject(forKey: insightAttemptDayKey)
+    }
+
+    // 额度快照
+
+    struct QuotaSnapshot: Codable, Equatable, Sendable {
+        var used: Int
+        var limit: Int
+        var tier: String
+        var resetAt: Date?
+        var savedAt: Date
+
+        /// limit 为 0（不限）时返回 nil
+        var remaining: Int? { limit > 0 ? max(limit - used, 0) : nil }
+        var isPlus: Bool { tier == "plus" }
+    }
+
+    func saveQuotaSnapshot(_ info: InsightDraft.QuotaInfo, now: Date = Date()) {
+        let snapshot = QuotaSnapshot(used: info.used, limit: info.limit, tier: info.tier,
+                                     resetAt: info.resetDate, savedAt: now)
+        defaults.set((try? JSONEncoder().encode(snapshot)) ?? Data(), forKey: insightQuotaSnapshotKey)
+    }
+
+    /// 7 天内的快照才有效。
+    func quotaSnapshot(now: Date = Date()) -> QuotaSnapshot? {
+        guard let data = defaults.data(forKey: insightQuotaSnapshotKey),
+              let snapshot = try? JSONDecoder().decode(QuotaSnapshot.self, from: data),
+              now.timeIntervalSince(snapshot.savedAt) < 7 * 86_400 else { return nil }
+        return snapshot
+    }
+
+    // 预告
+
+    private struct TeaserBox: Codable {
+        var savedAt: Date
+        var clues: [DiscoveryTeaserClue]
+    }
+
+    func saveTeasers(_ clues: [DiscoveryTeaserClue], now: Date = Date()) {
+        let box = TeaserBox(savedAt: now, clues: clues)
+        defaults.set((try? JSONEncoder().encode(box)) ?? Data(), forKey: insightTeasersKey)
+    }
+
+    func clearTeasers() {
+        defaults.removeObject(forKey: insightTeasersKey)
+    }
+
+    func teasers(now: Date = Date()) -> [DiscoveryTeaserClue] {
+        guard let data = defaults.data(forKey: insightTeasersKey),
+              let box = try? JSONDecoder().decode(TeaserBox.self, from: data),
+              now.timeIntervalSince(box.savedAt) < TimeInterval(Self.teaserValidDays) * 86_400 else { return [] }
+        return box.clues
+    }
+
+    func removeTeaser(id: String, now: Date = Date()) {
+        guard let data = defaults.data(forKey: insightTeasersKey),
+              var box = try? JSONDecoder().decode(TeaserBox.self, from: data) else { return }
+        box.clues.removeAll { $0.id == id }
+        defaults.set((try? JSONEncoder().encode(box)) ?? Data(), forKey: insightTeasersKey)
+    }
+
+    // 点名次数（"dayStamp|count"）
+
+    func focusPicksToday(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        guard let raw = defaults.string(forKey: insightFocusPicksKey),
+              let bar = raw.firstIndex(of: "|"),
+              let day = Double(raw[raw.startIndex..<bar]),
+              let count = Int(raw[raw.index(after: bar)...]),
+              day == dayStamp(now, calendar: calendar) else { return 0 }
+        return count
+    }
+
+    func markFocusPick(now: Date = Date(), calendar: Calendar = .current) {
+        let next = focusPicksToday(now: now, calendar: calendar) + 1
+        defaults.set("\(dayStamp(now, calendar: calendar))|\(next)", forKey: insightFocusPicksKey)
     }
 }

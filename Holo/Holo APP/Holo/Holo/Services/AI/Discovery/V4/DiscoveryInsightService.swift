@@ -114,7 +114,8 @@ enum DiscoveryInsightService {
             store.markInsightV2NoneWorthwhile(now: now)
             return noCardToday(reason: draft.noneReason ?? "none_worthwhile")
         case "quota_exhausted":
-            store.markInsightQuotaWalled(now: now)
+            // I4a 临时接线（until 取 nil 墙到今天结束）；I5 换成后端 resetAt 的正式逻辑。
+            store.markInsightQuotaWalled(until: nil, now: now)
             return noCardToday(reason: "每周额度已用完")
         case "disabled":
             DiscoveryFeatureFlags.markDisabledByServer()
