@@ -54,6 +54,24 @@ Holo 1.1.9 is here. This release takes "discovery" and "understanding" up a whol
 [More Stable] Deleting topics no longer crashes; periodic replay reports arrive in chat the moment they're written; tapping anywhere in a list row selects it.
 Thank you to everyone who shared feedback — Holo knows you better because of you.
 
+### 推广文本（Promotional Text，170 字符限内；en/zh-Hant 留空回落简中）
+
+**简体中文：**
+
+> 深度报告全面升级，更有深度也更好读。记忆长廊新增「人生年鉴」：十二个月，哪个月记了多少天一目了然。习惯想怎么记就怎么记——打卡、累计、测量，都行。
+
+**繁體中文：**
+
+> 深度報告全面升級，更有深度也更好讀。記憶長廊新增「人生年鑑」：十二個月，哪個月記了多少天一目瞭然。習慣想怎麼記就怎麼記——打卡、累計、測量，都行。
+
+**English：**
+
+> Deep reports, fully upgraded — deeper and easier to read. Meet the Life Almanac in Memory Gallery: twelve months, at a glance. And habits now record your way — check-ins, totals, or measurements.
+
+### 审核备注（App Review Information → Notes）
+
+> Holo is a life-recording app (habits, finance, health, thoughts) with optional AI features. This update adds no new in-app purchases — the existing "Holo Plus" auto-renewable subscription is unchanged. AI features call our own backend with the user's explicit action. Test account and demo media are not required; all features work offline or with iCloud sign-in.
+
 ---
 
 ## 1.1.8 提审材料包（2026-11-13 起草，历史存档）
