@@ -1,0 +1,110 @@
+[
+  {
+    "id": "G3_goal_stale",
+    "round": 1,
+    "status": "completed",
+    "seconds": 40,
+    "calls": 4,
+    "failedCalls": 0,
+    "callLog": [
+      {
+        "ms": 18384,
+        "usage": {
+          "prompt_tokens": 3494,
+          "completion_tokens": 2841,
+          "total_tokens": 6335,
+          "prompt_tokens_details": {
+            "cached_tokens": 3328
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 2249
+          },
+          "prompt_cache_hit_tokens": 3328,
+          "prompt_cache_miss_tokens": 166
+        },
+        "ok": true,
+        "json": false,
+        "maxTokens": 8192,
+        "finish": "stop",
+        "contentLen": 891,
+        "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+      },
+      {
+        "ms": 10242,
+        "usage": {
+          "prompt_tokens": 2736,
+          "completion_tokens": 1906,
+          "total_tokens": 4642,
+          "prompt_tokens_details": {
+            "cached_tokens": 1920
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1792
+          },
+          "prompt_cache_hit_tokens": 1920,
+          "prompt_cache_miss_tokens": 816
+        },
+        "ok": true,
+        "json": true,
+        "maxTokens": 16384,
+        "finish": "stop",
+        "contentLen": 211,
+        "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+      },
+      {
+        "ms": 4652,
+        "usage": {
+          "prompt_tokens": 4254,
+          "completion_tokens": 929,
+          "total_tokens": 5183,
+          "prompt_tokens_details": {
+            "cached_tokens": 3456
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 328
+          },
+          "prompt_cache_hit_tokens": 3456,
+          "prompt_cache_miss_tokens": 798
+        },
+        "ok": true,
+        "json": false,
+        "maxTokens": 8192,
+        "finish": "stop",
+        "contentLen": 910,
+        "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+      },
+      {
+        "ms": 6490,
+        "usage": {
+          "prompt_tokens": 2745,
+          "completion_tokens": 1089,
+          "total_tokens": 3834,
+          "prompt_tokens_details": {
+            "cached_tokens": 2176
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1083
+          },
+          "prompt_cache_hit_tokens": 2176,
+          "prompt_cache_miss_tokens": 569
+        },
+        "ok": true,
+        "json": true,
+        "maxTokens": 16384,
+        "finish": "stop",
+        "contentLen": 15,
+        "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+      }
+    ],
+    "usage": {
+      "prompt": 13229,
+      "cached": 10880,
+      "completion": 6765
+    },
+    "costCNY": 0.069,
+    "failureReason": null,
+    "engineLog": [
+      "深度报告完成 flaggedNumbers=0 semantic=1 second=0 deleted=0 checkerSkipped=0 whitelist=51"
+    ]
+  }
+]

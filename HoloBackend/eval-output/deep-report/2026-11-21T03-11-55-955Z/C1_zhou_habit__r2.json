@@ -1,0 +1,468 @@
+{
+  "id": "C1_zhou_habit",
+  "round": 2,
+  "status": "completed",
+  "seconds": 87,
+  "calls": 6,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 2063,
+      "usage": {
+        "prompt_tokens": 240,
+        "completion_tokens": 256,
+        "total_tokens": 496,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 232
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 240
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 49,
+      "head": "你把用户亲手写的个人档案转写成逐条执行指令，供一位 AI 助手照办。规则：\n1."
+    },
+    {
+      "ms": 20230,
+      "usage": {
+        "prompt_tokens": 4193,
+        "completion_tokens": 2950,
+        "total_tokens": 7143,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1994
+        },
+        "prompt_cache_hit_tokens": 1536,
+        "prompt_cache_miss_tokens": 2657
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1372,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 6889,
+      "usage": {
+        "prompt_tokens": 5356,
+        "completion_tokens": 1680,
+        "total_tokens": 7036,
+        "prompt_tokens_details": {
+          "cached_tokens": 4096
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 741
+        },
+        "prompt_cache_hit_tokens": 4096,
+        "prompt_cache_miss_tokens": 1260
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1356,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 24663,
+      "usage": {
+        "prompt_tokens": 4163,
+        "completion_tokens": 4676,
+        "total_tokens": 8839,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 4467
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 3523
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 369,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 9480,
+      "usage": {
+        "prompt_tokens": 5391,
+        "completion_tokens": 2132,
+        "total_tokens": 7523,
+        "prompt_tokens_details": {
+          "cached_tokens": 4224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1253
+        },
+        "prompt_cache_hit_tokens": 4224,
+        "prompt_cache_miss_tokens": 1167
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1259,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 23248,
+      "usage": {
+        "prompt_tokens": 4053,
+        "completion_tokens": 4349,
+        "total_tokens": 8402,
+        "prompt_tokens_details": {
+          "cached_tokens": 2944
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 4116
+        },
+        "prompt_cache_hit_tokens": 2944,
+        "prompt_cache_miss_tokens": 1109
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 465,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 23396,
+    "cached": 13440,
+    "completion": 16043
+  },
+  "costCNY": 0.1756,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=3 semantic=2 second=4 deleted=0 checkerSkipped=0 whitelist=138"
+  ],
+  "result": {
+    "title": "老周，烟压下来了，跑步起了个头，却停在第四天",
+    "narrativeSummary": "先回答你问的：戒烟这块你这 30 天做得比之前任何时候都稳，日均 2.4 支，一天 5 支的上限只在两天里越过；跑步是从零起步，一个月完成 7 天，但最近一次是 11 月 15 日，之后到昨天已经 4 天没动了。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "戒烟：不是这个月突然掉的，是一条往下的线",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1",
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "跑步：能跑的日子很集中，但没连起来",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3",
+            "p4"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "钱和睡眠上同时发生的变化",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p5",
+            "p6"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本次统计范围是 2026 年 10 月 22 日到 11 月 20 日共约 30 天，对比的是紧挨着的前 30 天。跑步本期只有 7 次完成记录，按星期拆分后样本很小，参考意义有限。香烟的消费记录只记了金额，每笔买多少支没有记，所以那两天具体抽了多少只能以打卡数量为准。快照里没有目标进度和预算数据，因此无法判断是否达成某个既定目标。睡眠只有设备记录到的 30 晚，结构与效率仅作时长层面的描述，不涉及质量判断。老周，这一个月真正变了的，是烟和跑步这两件事同时在动。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "本期累计 71 支，日均 2.4 支；上一段 30 天是 247 支、日均 8.3 支。上限 5 支，本期只有 2 天越线，上期是 29 天。按月看更清楚：7 月日均 7.8 支、8 月 8.3 支、9 月 8.8 支，那时还在往上走；10 月降到 6.6 支，11 月更低，日均 2.1 支。所以这是 10 月开始转向、11 月继续往下走的一条线，不是某天心血来潮。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "越线的那两天是 10 月 30 日和 11 月 13 日，分别 13 支和 11 支，都是周五，当天各有一笔同事聚餐，282.37 元和 292.59 元——这里只并列，不说明谁引起的谁。不过从全部记录按星期看，周五日均 7.8 支，是七天里最高的，超上限的天数里周五也最多。清单只到按星期这一层，没有再按当天有没有饭局拆开，所以越线和聚餐之间是什么关系，这里看不出来。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "本期完成 7 天，大约每周 1.6 次；上期是 0 天，从 7 月到 9 月也一直是 0，10 月才有 1 天，11 月的记录里完成 6 天。所以真正的起点是 11 月。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "分布上，周日完成 3 次、周四 3 次、周二 1 次，周一、周三、周五、周六都是 0。完成的次数集中在周日和周四这两个位置。11 月 15 日之后到昨天，已经连着 4 天没有完成，今天不算在内。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "烟酒这一类本期 50 元、2 笔，上期 475 元、19 笔，少了 425 元，降幅 89.5%；同期餐饮多了 578.5 元，其中两次同事聚餐合计将近 575 元，上期这类支出是 0 笔。总支出比上期多了 389.5 元，涨了 16.2%，大头在这两次聚餐上。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "睡眠这边，本期日均 7.4 小时，上期 6.8 小时，多了 0.7 小时；平均入睡 23:41，提前了 6 分钟；不足 6 小时的晚上是 0 晚。这些和戒烟、跑步是同一段时间里一起发生的，按天对齐没有发现达到标准的同步变化，所以只能说同时发生，看不出谁带谁。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F001",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期支出合计 2799.79 元，共 91 笔。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F002",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "上期支出合计 2410.25 元，共 98 笔；总支出比上期多了 389.54 元（+16.2%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F003",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 1941.93 元（54 笔，占本期支出 69.4%）；上期 1363.41 元（50 笔）；多了 578.52 元（+42.4%）；差额约合 18.2 笔该类的平均消费（两期平均每笔 31.78 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F005",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "交通：本期 189.70 元（25 笔，占本期支出 6.8%）；上期 173.55 元（24 笔）；多了 16.15 元（+9.3%）；差额约合 2.2 笔该类的平均消费（两期平均每笔 7.41 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F006",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "烟酒：本期 50.00 元（2 笔，占本期支出 1.8%）；上期 475.00 元（19 笔）；少了 425.00 元（-89.5%）；差额约合 17.0 笔该类的平均消费（两期平均每笔 25.00 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：82 笔，合计 1729.16 元，占本期支出 61.8%；上期 93 笔，合计 2011.96 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F008",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：7 笔，合计 495.67 元，占本期支出 17.7%；上期 5 笔，合计 398.29 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔200–1000 元：2 笔，合计 574.96 元，占本期支出 20.5%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F011",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-13 292.59 元，分类 餐饮，备注「同事聚餐」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-10-30 282.37 元，分类 餐饮，备注「同事聚餐」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F021",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「午饭」：26 次，合计 919.03 元，平均每次 35.35 元；上期 29 次。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F025",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「同事聚餐」：2 次，合计 574.96 元，平均每次 287.48 元；上期 0 次。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F033",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期（约 30 天）日常支出 2799.79 元，比这 3 个月的中位数多了 313.54 元（+12.6%）；和这 3 个月放在一起从低到高排第 4。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F034",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "戒烟（计数型，每日上限 5 支）：本期累计 71 支，日均 2.4 支，超过上限 2 天；上期累计 247 支，日均 8.3 支，超过上限 29 天。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F035",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "戒烟与相关消费并列（分类或备注含「烟」，只并列不推算）：本期记录累计 71 支；同期相关消费 2 笔，合计 50.00 元（10-30 25.00 元（烟酒，「香烟」）、11-13 25.00 元（烟酒，「香烟」））。每笔买了多少，账单里没有记。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F036",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "戒烟本期超过上限的日子：10-30（周五，13 支，当天较大支出：同事聚餐 282.37 元）、11-13（周五，11 支，当天较大支出：同事聚餐 292.59 元）。同一天的支出只并列，不推算原因。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F037",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "跑步（打卡型，目标 3）：本期完成 7 天，约每周 1.6 次；上期完成 0 天，约每周 0.0 次；完成天数多了 7 天（上期为 0，无法算幅度）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F038",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "戒烟按月：7月（23日起） 日均 7.8 支；8月 日均 8.3 支；9月 日均 8.8 支；10月 日均 6.6 支；11月（1-20日） 日均 2.1 支。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F040",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "戒烟：按星期的日均数量 周日 7.0、周一 6.8、周二 6.7、周三 6.9、周四 6.9、周五 7.8、周六 6.4；超过每日上限 5 的天数按星期 周日 13、周一 13、周二 13、周三 13、周四 12、周五 15、周六 13。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F045",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期睡眠日均 7.4 小时，共 30 晚；最短 7.2 小时、最长 7.8 小时，不足 6 小时 0 晚。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 380,
+        "providedRows": 380,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "habit.daily": {
+        "totalRows": 240,
+        "providedRows": 240,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "health.sleep": {
+        "totalRows": 120,
+        "providedRows": 120,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-21T03:17:37.183Z",
+    "engine": "deep-report-v1"
+  }
+}

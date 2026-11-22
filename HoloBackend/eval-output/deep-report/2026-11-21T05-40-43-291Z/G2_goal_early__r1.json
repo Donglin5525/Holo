@@ -1,0 +1,397 @@
+{
+  "id": "G2_goal_early",
+  "round": 1,
+  "status": "completed",
+  "seconds": 85,
+  "calls": 4,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 24568,
+      "usage": {
+        "prompt_tokens": 3244,
+        "completion_tokens": 3691,
+        "total_tokens": 6935,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3090
+        },
+        "prompt_cache_hit_tokens": 1536,
+        "prompt_cache_miss_tokens": 1708
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 930,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 18804,
+      "usage": {
+        "prompt_tokens": 2507,
+        "completion_tokens": 3187,
+        "total_tokens": 5694,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3091
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 1867
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 175,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 6312,
+      "usage": {
+        "prompt_tokens": 3995,
+        "completion_tokens": 1156,
+        "total_tokens": 5151,
+        "prompt_tokens_details": {
+          "cached_tokens": 3200
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 544
+        },
+        "prompt_cache_hit_tokens": 3200,
+        "prompt_cache_miss_tokens": 795
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 945,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 35388,
+      "usage": {
+        "prompt_tokens": 2518,
+        "completion_tokens": 5905,
+        "total_tokens": 8423,
+        "prompt_tokens_details": {
+          "cached_tokens": 2048
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 5654
+        },
+        "prompt_cache_hit_tokens": 2048,
+        "prompt_cache_miss_tokens": 470
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 431,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 12264,
+    "cached": 7424,
+    "completion": 13939
+  },
+  "costCNY": 0.1407,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=0 semantic=1 second=3 deleted=0 checkerSkipped=0 whitelist=21"
+  ],
+  "result": {
+    "title": "减到 72kg 的头 5 天按计划在走，体重已经离开起点，现在更像先把动作做起来的阶段",
+    "narrativeSummary": "这个目标开头是按计划的。5 天下来，体重从起点的 78kg 来到 11 月 19 日的 77.8kg，按程序计算的结果进度约 3%，时间过了 7%，判定为按计划。现在数字还说明不了太多，重点在动作有没有立住。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "结果：开局稳，最新一次 77.8kg，相对 72kg 的目标走了约 3%",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "关联事项：俯卧撑先有了样子，健身还只是零星的一次",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2",
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "还缺什么：饮食是现在最影响判断的一块",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p4"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [
+        {
+          "claimID": "p5",
+          "sub": ""
+        },
+        {
+          "claimID": "p6",
+          "sub": ""
+        },
+        {
+          "claimID": "p7",
+          "sub": ""
+        }
+      ],
+      "disclosureNotes": [
+        "这次复盘只围绕「减到 72kg」这一个目标，不涉及其他生活数据；睡眠、步数在本次快照里没有记录，无法判断；体重本期只有 2 次测量，均值 77.80kg；目标才进行 5 天、数据不足 2 周，所以不做趋势判断，也不预测完成时间。"
+      ]
+    },
+    "reportComponents": [
+      {
+        "id": "c1",
+        "kind": "progress",
+        "anchor": -1,
+        "payload": {
+          "title": "目标进度 · 体重",
+          "unit": "kg",
+          "current": 77.8,
+          "start": 78,
+          "target": 72,
+          "fraction": 0.03,
+          "timeFraction": 0.06568144499178982,
+          "statusLabel": "按计划",
+          "tone": "good",
+          "isStale": false,
+          "caption": "起点 78kg（11/15） · 目标 72kg（1/31）",
+          "projections": []
+        }
+      },
+      {
+        "id": "c2",
+        "kind": "habitStrip",
+        "anchor": 1,
+        "payload": {
+          "title": "关联习惯 · 每格 1 天，每组 1 周",
+          "rows": [
+            {
+              "name": "健身",
+              "sub": "约每周 1 次",
+              "rateText": "1 天",
+              "statusLabel": null,
+              "tone": null,
+              "days": [
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "name": "俯卧撑",
+              "sub": "约每周 4 次",
+              "rateText": "4 天",
+              "statusLabel": null,
+              "tone": null,
+              "days": [
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "foldedNote": null,
+          "startLabel": "11/13",
+          "endLabel": "今天"
+        }
+      },
+      {
+        "id": "c3",
+        "kind": "gapCards",
+        "anchor": 2,
+        "payload": {
+          "cards": [
+            {
+              "icon": "🍱",
+              "title": "没有饮食记录",
+              "body": "减重有一大半取决于吃，这部分没有数据，体重变化的原因只能从运动和作息看。",
+              "action": "＋ 关联一个记录饮食的习惯"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c4",
+        "kind": "milestones",
+        "anchor": -1,
+        "payload": {
+          "title": "再记录多久能看出什么",
+          "items": [
+            {
+              "label": "今天",
+              "body": "能看到每个习惯有没有开始做",
+              "done": true
+            },
+            {
+              "label": "第 14 天 · 11/29",
+              "body": "结果每周记录 2 次以上，就能判断方向"
+            },
+            {
+              "label": "第 21 天 · 12/6",
+              "body": "能判断哪个习惯稳、哪个在掉，并给出完成预测"
+            }
+          ]
+        }
+      }
+    ],
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "77.8kg 是 11 月 19 日留下的最新一次记录，起点是 78kg。时间刚过 7%、结果刚起头，这是起步期正常的样子，还不到能看出快慢的时候。按程序判定，它仍在计划内，不必因为数字变化小而调整目标。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "俯卧撑是这一周出现最多的动作，近 1 周完成 4 天、约每周 4 次，最近一次在 11 月 19 日，目前没有中断。健身完成 1 天、约每周 1 次，比俯卧撑稀疏不少，还谈不上稳定。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "不过本期各领域按天记录不足 10 天，做不了逐日对齐的对照，这些动作和体重之间怎样相互牵动，现在还说不上。它们目前的作用更像给这个目标打底，先把频率稳住，比急着加量更要紧。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "这个减重目标没有关联任何饮食记录，体重为什么动，从饮食角度说不清，也没法把吃的变化和体重放在一起对照。只靠体重一个数，判断依据不够，还是少了一半。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "先把每天的一顿饭记下来，主食和蛋白质各记一句就够。因为现在能对照的只有体重一个数，记下吃了什么，体重才有第二个参照。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "俯卧撑按现在的节奏继续，每周 4 天左右，照周一到周四的样子排。依据是它已经是这段时间里出现最多的动作，先别往上加量。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p7",
+        "type": "observation",
+        "displayText": "体重固定在同一时间称、一周 2 次左右，比如都放在早起之后。依据是这两周只留下 2 次记录，称的时点不一致时，变化容易被称重时点本身混淆。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重（测量型，单位 kg）：本期测量 2 次，均值 77.80，最近一次 77.8；上期测量 0 次（无测量记录）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重按月：11月（1-20日） 均值 77.80 kg。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F016",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "检查范围：本期各领域按天记录不足 10 天，做不了按天对齐的同步变化检查。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F022",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "目标结果（体重）：最新 77.8kg（11/19），起点 78kg，目标 72kg；结果进度约 3%（程序判定：按计划）。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": {
+      "schemaVersion": 1,
+      "goalID": "10000000-0000-0000-0000-000000000002",
+      "planRevisionID": "20000000-0000-0000-0000-000000000002",
+      "reviewID": "30000000-0000-0000-0000-000000000002",
+      "windowStart": "2026-11-06T13:00:00.000Z",
+      "windowEndExclusive": "2026-11-20T16:00:00.000Z",
+      "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+      "timeZoneID": "Asia/Shanghai",
+      "sourceDigest": "digest-2"
+    },
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "habit.daily": {
+        "totalRows": 12,
+        "providedRows": 12,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "近14天",
+      "start": 1793970000,
+      "end": 1795190400
+    },
+    "completedAt": "2026-11-21T05:42:08.465Z",
+    "engine": "deep-report-v1"
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "id": "D1_new_checkup",
+  "round": 2,
+  "status": "completed",
+  "seconds": 57,
+  "calls": 5,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 20287,
+      "usage": {
+        "prompt_tokens": 2665,
+        "completion_tokens": 3258,
+        "total_tokens": 5923,
+        "prompt_tokens_details": {
+          "cached_tokens": 2432
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2557
+        },
+        "prompt_cache_hit_tokens": 2432,
+        "prompt_cache_miss_tokens": 233
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1104,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 4188,
+      "usage": {
+        "prompt_tokens": 3488,
+        "completion_tokens": 831,
+        "total_tokens": 4319,
+        "prompt_tokens_details": {
+          "cached_tokens": 2560
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 133
+        },
+        "prompt_cache_hit_tokens": 2560,
+        "prompt_cache_miss_tokens": 928
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1104,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 9076,
+      "usage": {
+        "prompt_tokens": 2389,
+        "completion_tokens": 1603,
+        "total_tokens": 3992,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1481
+        },
+        "prompt_cache_hit_tokens": 1536,
+        "prompt_cache_miss_tokens": 853
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 209,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 5187,
+      "usage": {
+        "prompt_tokens": 3539,
+        "completion_tokens": 1065,
+        "total_tokens": 4604,
+        "prompt_tokens_details": {
+          "cached_tokens": 2560
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 375
+        },
+        "prompt_cache_hit_tokens": 2560,
+        "prompt_cache_miss_tokens": 979
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1094,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 18436,
+      "usage": {
+        "prompt_tokens": 2381,
+        "completion_tokens": 3358,
+        "total_tokens": 5739,
+        "prompt_tokens_details": {
+          "cached_tokens": 1920
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3222
+        },
+        "prompt_cache_hit_tokens": 1920,
+        "prompt_cache_miss_tokens": 461
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 245,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 14462,
+    "cached": 11008,
+    "completion": 10115
+  },
+  "costCNY": 0.1025,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=1 semantic=1 second=2 deleted=0 checkerSkipped=0 whitelist=34"
+  ],
+  "result": {
+    "title": "账本在 11 月 11 日才有了记录，而记下的几乎全是三餐",
+    "narrativeSummary": "我先给出这次生活体检的判断：它能提供的内容比你可能期待的要少。记账是从 11 月 11 日才开始的，这段时间里，真正有记录的只有最后这一小段，上期完全是空白，因此「最近花得比过去多还是少」这个问题现在没有答案：没记账不等于没花钱。不过，只看已经记下的部分，情况很清楚：20 笔、463 元，餐饮 446 元，占了 96.3%，交通只有 2 笔地铁、17 元。20 笔里没有任何一笔超过 50 元，全部是小额，所以这是一段几乎没有大额支出、主要花在吃饭上的日子。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "三餐构成了这段日子的主要内容",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "还有一半没有记录",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "可以只做一件事",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本次分析范围为 2026 年 10 月 22 日至 11 月 20 日，但记账记录从 11 月 11 日才开始，上期没有任何记录，因此全文未做与过去时段的增减对比；睡眠、步数、目标进度、预算在本次快照中均无数据，相关判断一概未做出；支出之间未发现达到标准的同步变化。文中金额为全部支出，因当期没有 50 元以上的单笔，未做一次性项目剔除。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "备注栏里反复出现的只有两个词，就是「早餐」和「午饭」。早餐 10 次、一共 176 元，平均一次不到 18 元；午饭 8 次、一共 270 元，平均一次将近 34 元，单笔最大的几笔全部落在午饭上，11 月 14 日的 43 元、11 月 20 日的 40 元、11 月 17 日的 38 元，备注都写着「午饭」。这两项合起来就是账本的绝大部分。除此之外，备注里再没有别的场景：没有深夜的外卖，没有聚餐，没有购物，只有一顿一顿的饭和两次地铁。这份账本干净得几乎像只记录了白天。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "这次体检只能算半份。睡眠和步数在快照里没有记录，身体那一半做不了；目标进度没有，预算也没有，所以既不能说超支，也不能说控制得好。我也检查了各项支出之间是否存在同步变化，但没有一项达到标准；也就是说，从现有数据看不出哪类花销在和另一类一起涨落。账本这一半还算清楚，生活那一半是空的。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "现在不用急着改花法，连一周的完整记录都还没有。最有用的一步是把记录补全：目前记下的只有早餐、午饭和两次地铁，晚饭一次都没有出现在备注里。接下来两周，每天睡前补记一笔当天的晚饭，不用分得太细，能写下「吃了什么」就够。等账本连续记满两个月，它就能和你自己的过去比较，那时候再谈「花多花少」才有意义。如果想让体检更完整，睡眠或步数随便记上一两周，就会有内容可看。能把每天的一顿午饭一笔一笔记下来，这件事本身就让这份账本有了可信的基础，接下来的部分慢慢补上就行。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F003",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 446.04 元（18 笔，占本期支出 96.3%）；平均每笔 24.78 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-14 42.81 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-20 40.04 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F011",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-17 38.10 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-19 34.65 元，分类 餐饮，备注「午饭」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F019",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「早餐」：10 次，合计 175.90 元，平均每次 17.59 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F020",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「午饭」：8 次，合计 270.14 元，平均每次 33.77 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F022",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "检查范围：本期内每日支出两两之间按天对齐的同步变化（至少对齐 10 天、相关系数绝对值达到 0.35 才算）。睡眠、步数本次没有数据，没参与。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 20,
+        "providedRows": 20,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-21T03:17:29.283Z",
+    "engine": "deep-report-v1"
+  }
+}

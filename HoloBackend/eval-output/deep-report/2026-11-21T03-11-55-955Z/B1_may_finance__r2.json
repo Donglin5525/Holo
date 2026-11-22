@@ -1,0 +1,421 @@
+{
+  "id": "B1_may_finance",
+  "round": 2,
+  "status": "completed",
+  "seconds": 114,
+  "calls": 5,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 1619,
+      "usage": {
+        "prompt_tokens": 239,
+        "completion_tokens": 225,
+        "total_tokens": 464,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 205
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 239
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 42,
+      "head": "你把用户亲手写的个人档案转写成逐条执行指令，供一位 AI 助手照办。规则：\n1."
+    },
+    {
+      "ms": 13502,
+      "usage": {
+        "prompt_tokens": 4295,
+        "completion_tokens": 2123,
+        "total_tokens": 6418,
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1338
+        },
+        "prompt_cache_hit_tokens": 1536,
+        "prompt_cache_miss_tokens": 2759
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1187,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 50916,
+      "usage": {
+        "prompt_tokens": 4111,
+        "completion_tokens": 8859,
+        "total_tokens": 12970,
+        "prompt_tokens_details": {
+          "cached_tokens": 640
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 8472
+        },
+        "prompt_cache_hit_tokens": 640,
+        "prompt_cache_miss_tokens": 3471
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 685,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 8218,
+      "usage": {
+        "prompt_tokens": 5505,
+        "completion_tokens": 1729,
+        "total_tokens": 7234,
+        "prompt_tokens_details": {
+          "cached_tokens": 4224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 939
+        },
+        "prompt_cache_hit_tokens": 4224,
+        "prompt_cache_miss_tokens": 1281
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 1193,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 39945,
+      "usage": {
+        "prompt_tokens": 4072,
+        "completion_tokens": 7250,
+        "total_tokens": 11322,
+        "prompt_tokens_details": {
+          "cached_tokens": 3072
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 7023
+        },
+        "prompt_cache_hit_tokens": 3072,
+        "prompt_cache_miss_tokens": 1000
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 400,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 18222,
+    "cached": 9472,
+    "completion": 20186
+  },
+  "costCNY": 0.2089,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=0 semantic=5 second=3 deleted=0 checkerSkipped=0 whitelist=122"
+  ],
+  "result": {
+    "title": "这个月总花销比上期多了 174.0%，主要是东京旅行推上去的，日常开支反而是近四个月里最低的",
+    "narrativeSummary": "阿May，先给你一个结论：这个月不是花太多了，是花得不太一样。总额看着确实吓人，比上期多了 1 万左右；但拆开看是两件方向相反的事，一边是东京旅行的 10730 元，一边是日常支出少了 656 元左右，两者不能合并归因。把这趟旅行剔除后，你这 30 天的日常支出是 5134 元，比上期少了 656 元左右，下降了 11.3%。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "钱主要花在哪",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "日常开销没有超支，还在往下走",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2",
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "可以顺手做的一件小事",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p4",
+            "p5"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [],
+      "disclosureNotes": [
+        "本次快照没有睡眠、步数等健康记录，也没有目标进度和预算数据，所以无法判断是否超预算或达成目标；本期内也没有发现支出之间达到标准的同步变化；一次性项目和日常支出方向相反，不能合并归因，只能分开看。以上结论基于 2026 年 10 月 22 日至 11 月 20 日约 30 天的记录，以及此前同样长度的对照期和过去 3 个完整自然月。"
+      ]
+    },
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "东京旅行一共 6 笔，从 11 月 8 日到 14 日，住宿占大头，新宿酒店 5 晚 4180 元，占这趟旅行的 39.0%；交通 3680 元，包括往返机票和地铁周游券，占 34.3%；餐饮 1550 元，寿司拉面加一顿居酒屋，占 14.4%；药妆 1320 元，占 12.3%。这一趟的金额，差不多等于你 1.8 个月的日常开销。所以这不是“这个月变能花了”，而是一笔集中发生的大额。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "剔掉旅行之后，日常支出 5134 元、93 笔，比上期少了 656 元左右；跟你过去 3 个完整自然月的水平比，月均大概 5900 元的样子，中位数是 5858 元，而这个月比中位数还低了 723 元，下降 12.4%，是这几个月里最低的一个月。房租 2800 元还是一笔老样子，备注照旧是房租。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "具体看结构：餐饮少了 266 元，下降 19.5%，午饭还是 28 次没变，早餐从 26 次降到 22 次，少的是吃的次数；娱乐降得最狠，少了 591 元，下降 59.7%。稍微抬头的是两项：购物多了 149 元，13 笔，上期是 7 笔，基本全是日用品；交通多了 51 元，其中地铁坐了 24 次，上期是 15 次。另外，奶茶这个月出现了 5 次、399 元，上期一次都没有。这个变化看起来有点显眼，但不用当成什么大问题，只是值得你自己看一眼。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "如果下个月想让日常支出稳一点，最容易下手的是日用品：13 次、669 元，平均每次 51 元左右，次数比上期明显多了。买之前可以先看看家里还够不够，凑成一次买齐，能省的不只是钱，还有反复跑一趟的力气。奶茶那 5 次也一样，不一定要戒，只是知道自己花在这里多少就好。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "旅行这种钱花得值不值，账本看不出来，但从数据上看，这一个月即使没有旅行加持，日常支出也还是这几个月里最低的。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F002",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "上期支出合计 5790.78 元，共 84 笔；总支出比上期多了 10073.36 元（+174.0%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F004",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "剔除项目后的日常支出：本期 5134.14 元（93 笔），上期 5790.78 元（84 笔）；日常支出比上期少了 656.64 元（-11.3%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F005",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "拆开看：项目支出多了 10730.00 元（上期为 0，无法算幅度），日常支出少了 656.64 元（-11.3%），两者方向相反，不能合并归因。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F008",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "住房：本期 2800.00 元（1 笔，占日常支出 54.5%）；上期 2800.00 元（1 笔）；持平。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F009",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "餐饮：本期 1103.38 元（50 笔，占日常支出 21.5%）；上期 1369.84 元（54 笔）；少了 266.46 元（-19.5%）；差额约合 11.2 笔该类的平均消费（两期平均每笔 23.78 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "购物：本期 669.57 元（13 笔，占日常支出 13.0%）；上期 520.06 元（7 笔）；多了 149.51 元（+28.7%）；差额约合 2.5 笔该类的平均消费（两期平均每笔 59.48 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F011",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "娱乐：本期 399.19 元（5 笔，占日常支出 7.8%）；上期 990.67 元（7 笔）；少了 591.48 元（-59.7%）；差额约合 5.1 笔该类的平均消费（两期平均每笔 115.82 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "交通：本期 162.00 元（24 笔，占日常支出 3.2%）；上期 110.21 元（15 笔）；多了 51.79 元（+47.0%）；差额约合 7.4 笔该类的平均消费（两期平均每笔 6.98 元）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F013",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：81 笔，合计 1502.31 元，占日常支出 29.3%；上期 71 笔，合计 1561.37 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F014",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：11 笔，合计 831.83 元，占日常支出 16.2%；上期 12 笔，合计 1429.41 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F016",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔1000 元及以上：1 笔，合计 2800.00 元，占日常支出 54.5%；上期 1 笔，合计 2800.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F017",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-10 4180.00 元，分类 住宿，备注「新宿酒店 5 晚」，项目 东京旅行。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F019",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-19 2800.00 元，分类 住房，备注「房租」。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F020",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "2026-11-12 1320.00 元，分类 购物，备注「药妆」，项目 东京旅行。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F027",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「午饭」：28 次，合计 793.83 元，平均每次 28.35 元；上期 28 次。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F028",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「地铁」：24 次，合计 162.00 元，平均每次 6.75 元；上期 15 次。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F030",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "「日用品」：13 次，合计 669.57 元，平均每次 51.51 元；上期 7 次。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F033",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "项目「东京旅行」分类 住宿：4180.00 元（1 笔，占该项目 39.0%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F034",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "项目「东京旅行」分类 交通：3680.00 元（2 笔，占该项目 34.3%）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F035",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "项目「东京旅行」分类 餐饮：1550.00 元（2 笔，占该项目 14.4%）。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": null,
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "finance.transactions": {
+        "totalRows": 368,
+        "providedRows": 368,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "最近30天",
+      "start": 1792598400,
+      "end": 1795179600
+    },
+    "completedAt": "2026-11-21T03:17:08.562Z",
+    "engine": "deep-report-v1"
+  }
+}

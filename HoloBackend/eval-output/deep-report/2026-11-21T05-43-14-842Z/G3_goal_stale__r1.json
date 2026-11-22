@@ -1,0 +1,607 @@
+{
+  "id": "G3_goal_stale",
+  "round": 1,
+  "status": "completed",
+  "seconds": 40,
+  "calls": 4,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 18384,
+      "usage": {
+        "prompt_tokens": 3494,
+        "completion_tokens": 2841,
+        "total_tokens": 6335,
+        "prompt_tokens_details": {
+          "cached_tokens": 3328
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2249
+        },
+        "prompt_cache_hit_tokens": 3328,
+        "prompt_cache_miss_tokens": 166
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 891,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 10242,
+      "usage": {
+        "prompt_tokens": 2736,
+        "completion_tokens": 1906,
+        "total_tokens": 4642,
+        "prompt_tokens_details": {
+          "cached_tokens": 1920
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1792
+        },
+        "prompt_cache_hit_tokens": 1920,
+        "prompt_cache_miss_tokens": 816
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 211,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 4652,
+      "usage": {
+        "prompt_tokens": 4254,
+        "completion_tokens": 929,
+        "total_tokens": 5183,
+        "prompt_tokens_details": {
+          "cached_tokens": 3456
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 328
+        },
+        "prompt_cache_hit_tokens": 3456,
+        "prompt_cache_miss_tokens": 798
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 910,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 6490,
+      "usage": {
+        "prompt_tokens": 2745,
+        "completion_tokens": 1089,
+        "total_tokens": 3834,
+        "prompt_tokens_details": {
+          "cached_tokens": 2176
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1083
+        },
+        "prompt_cache_hit_tokens": 2176,
+        "prompt_cache_miss_tokens": 569
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 15,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 13229,
+    "cached": 10880,
+    "completion": 6765
+  },
+  "costCNY": 0.069,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=0 semantic=1 second=0 deleted=0 checkerSkipped=0 whitelist=51"
+  ],
+  "result": {
+    "title": "减重目标时间过半，但近三周体重断档，现在还不能判断快慢",
+    "narrativeSummary": "这个目标已经进行了 80 天，时间走过了 53%。真正卡住进度的原因是体重数据断了 21 天，并非练得多或少：最后一次记录停在 75.6kg，之后没有新数字，所以进度和完成时间都没法算。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "结果：断档前体重在稳步下降，最后三周成了空白",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "关联事项：俯卧撑稳住了，健身掉了档",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "还缺什么：体重和饮食两条线都是空的",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [
+        {
+          "claimID": "p4",
+          "sub": ""
+        },
+        {
+          "claimID": "p5",
+          "sub": ""
+        },
+        {
+          "claimID": "p6",
+          "sub": ""
+        }
+      ],
+      "disclosureNotes": [
+        "本次快照里睡眠、步数没有记录，目标进度和预算也没有数据，所以正文不对这些下结论。体重这一项中断了 21 天，结果部分的描述只到断档之前。习惯之间按天对齐的同步变化没有达到判断标准，正文不据此推断它们之间有关联或相互带动。"
+      ]
+    },
+    "reportComponents": [
+      {
+        "id": "c1",
+        "kind": "progress",
+        "anchor": -1,
+        "payload": {
+          "title": "目标进度 · 体重",
+          "unit": "kg",
+          "current": 75.6,
+          "start": 78,
+          "target": 72,
+          "fraction": 0.4,
+          "timeFraction": 0.531043956043956,
+          "statusLabel": "数据中断",
+          "tone": "warn",
+          "isStale": true,
+          "caption": "最后一次记录 10/30，之后没有新数据",
+          "projections": []
+        }
+      },
+      {
+        "id": "c2",
+        "kind": "trendLine",
+        "anchor": 0,
+        "payload": {
+          "title": "每周平均体重",
+          "unit": "kg",
+          "points": [
+            {
+              "label": "9/26",
+              "value": 77.3
+            },
+            {
+              "label": "10/3",
+              "value": 77
+            },
+            {
+              "label": "10/10",
+              "value": 76.6
+            },
+            {
+              "label": "10/17",
+              "value": 76.2
+            },
+            {
+              "label": "10/24",
+              "value": 75.9
+            }
+          ],
+          "planStart": 75.9,
+          "planEnd": 74.8,
+          "highlightFrom": null,
+          "caption": null
+        }
+      },
+      {
+        "id": "c3",
+        "kind": "habitStrip",
+        "anchor": 1,
+        "payload": {
+          "title": "关联习惯 · 每格 1 天，每组 1 周",
+          "rows": [
+            {
+              "name": "健身",
+              "sub": "约每周 2 次",
+              "rateText": "16 天",
+              "statusLabel": "掉档",
+              "tone": "bad",
+              "days": [
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "name": "俯卧撑",
+              "sub": "约每周 5.3 次",
+              "rateText": "42 天",
+              "statusLabel": "稳",
+              "tone": "good",
+              "days": [
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "foldedNote": null,
+          "startLabel": "9/25",
+          "endLabel": "今天"
+        }
+      },
+      {
+        "id": "c4",
+        "kind": "kpiTiles",
+        "anchor": -1,
+        "payload": {
+          "tiles": [
+            {
+              "label": "健身",
+              "value": "16",
+              "unit": "天",
+              "delta": "近 3 周 ↓44%",
+              "tone": "bad"
+            },
+            {
+              "label": "俯卧撑",
+              "value": "42",
+              "unit": "天",
+              "delta": "近 3 周 ↓7%",
+              "tone": "warn"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c5",
+        "kind": "periodCompare",
+        "anchor": 1,
+        "payload": {
+          "left": {
+            "label": "前 5 周",
+            "rows": [
+              {
+                "label": "健身",
+                "value": "2.4 次/周"
+              }
+            ]
+          },
+          "right": {
+            "label": "近 3 周",
+            "rows": [
+              {
+                "label": "健身",
+                "value": "1.3 次/周"
+              }
+            ]
+          },
+          "caption": "同一个人、两种节奏下的对比"
+        }
+      },
+      {
+        "id": "c6",
+        "kind": "gapCards",
+        "anchor": 2,
+        "payload": {
+          "cards": [
+            {
+              "icon": "⏸️",
+              "title": "结果数据中断 21 天",
+              "body": "最后一次是 10/30，现在没法判断进度，也不做完成预测。",
+              "action": "补记一次"
+            },
+            {
+              "icon": "🍱",
+              "title": "没有饮食记录",
+              "body": "减重有一大半取决于吃，这部分没有数据，体重变化的原因只能从运动和作息看。",
+              "action": "＋ 关联一个记录饮食的习惯"
+            }
+          ]
+        }
+      }
+    ],
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "从 9 月底到 10 月底，每周平均体重从 77.3kg 降到 75.9kg，一路往下，没有反复。最后一次记录停在 75.6kg，离 72kg 还有一段距离，但方向是清楚的。最近这 21 天，体重往哪走，还没有被记下来。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "俯卧撑是这次最稳的一环，近 8 周有 42 天完成，约每周 5 次，近 3 周只比之前少了 7%，几乎没受影响。健身则明显掉了档：前 5 周约每周 2.4 次，近 3 周降到约 1.3 次，少了 44%。至于这几项之间有没有联动，清单没有发现达到标准的同步变化；体重这条线本身也中断了 21 天。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "最大的一处空白是体重本身：21 天没有新记录，目标进度卡上的后半段只能空着。另一处是饮食：这个目标没有关联任何饮食记录，这几周体重为什么这样走，缺一条能对照的线。把这两样补上，进度才有得算。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "先定一个最容易坚持的节奏，比如每天早上起床后称一次，数值当场记下来。依据是断档前每周均值连续五周往下走，说明只要数据在，趋势本身是看得见的，缺的只是连续性。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "把健身从约每周 1.3 次拉回 2 次左右，先加一次就够。依据是 10 月你做到过每周 2.4 次的水平，频率回到那个量级，比追求更多次更现实。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "补一条最轻的饮食记录，比如每天只记晚饭吃了什么。依据是这个目标至今没有关联任何饮食记录，体重这几个月的变化缺一条能对照的线。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重（测量型，单位 kg）：本期测量 0 次（无测量记录）；上期测量 2 次，均值 75.90。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重按月：9月 均值 77.30 kg；10月 均值 76.42 kg。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F015",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "俯卧撑：快照内完成 42 次；完成次数按星期 周日 6、周一 6、周二 6、周三 6、周四 6、周五 6、周六 6，最多的是周日、周一、周二、周三、周四、周五、周六。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F022",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本次复盘的目标是「减到 72kg」。下面的组件与本节数字统一按近 8 周（不早于目标起点）计算；目标已进行 80 天，时间已过 53%。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F023",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "目标结果（体重）已经 21 天没有新记录，最后一次是 75.6kg；进度和完成时间都不能判断（程序判定：数据中断）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F024",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重每周平均：9/26 那周 77.3、10/3 那周 77、10/10 那周 76.6、10/17 那周 76.2、10/24 那周 75.9。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F025",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：近 8 周有 16 天完成，约每周 2 次；前 5 周约每周 2.4 次，近 3 周约每周 1.3 次（程序判定：掉档）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F026",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "俯卧撑：近 8 周有 42 天完成，约每周 5.3 次；前 5 周约每周 5.4 次，近 3 周约每周 5 次（程序判定：稳）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F027",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身近 3 周的频率比之前少 44%。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F030",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "数据缺口：结果数据中断 21 天；没有饮食记录。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": {
+      "schemaVersion": 1,
+      "goalID": "10000000-0000-0000-0000-000000000003",
+      "planRevisionID": "20000000-0000-0000-0000-000000000003",
+      "reviewID": "30000000-0000-0000-0000-000000000003",
+      "windowStart": "2026-11-06T13:00:00.000Z",
+      "windowEndExclusive": "2026-11-20T16:00:00.000Z",
+      "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+      "timeZoneID": "Asia/Shanghai",
+      "sourceDigest": "digest-3"
+    },
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "habit.daily": {
+        "totalRows": 122,
+        "providedRows": 122,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "近14天",
+      "start": 1793970000,
+      "end": 1795190400
+    },
+    "completedAt": "2026-11-21T05:43:54.687Z",
+    "engine": "deep-report-v1"
+  }
+}

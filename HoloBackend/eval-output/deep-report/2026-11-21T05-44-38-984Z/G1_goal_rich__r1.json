@@ -1,0 +1,826 @@
+{
+  "id": "G1_goal_rich",
+  "round": 1,
+  "status": "completed",
+  "seconds": 95,
+  "calls": 5,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 15567,
+      "usage": {
+        "prompt_tokens": 4285,
+        "completion_tokens": 2278,
+        "total_tokens": 6563,
+        "prompt_tokens_details": {
+          "cached_tokens": 3712
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 1712
+        },
+        "prompt_cache_hit_tokens": 3712,
+        "prompt_cache_miss_tokens": 573
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 844,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 3851,
+      "usage": {
+        "prompt_tokens": 4955,
+        "completion_tokens": 736,
+        "total_tokens": 5691,
+        "prompt_tokens_details": {
+          "cached_tokens": 4224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 176
+        },
+        "prompt_cache_hit_tokens": 4224,
+        "prompt_cache_miss_tokens": 731
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 840,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 38102,
+      "usage": {
+        "prompt_tokens": 3409,
+        "completion_tokens": 6432,
+        "total_tokens": 9841,
+        "prompt_tokens_details": {
+          "cached_tokens": 2688
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 6124
+        },
+        "prompt_cache_hit_tokens": 2688,
+        "prompt_cache_miss_tokens": 721
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 534,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 5537,
+      "usage": {
+        "prompt_tokens": 5195,
+        "completion_tokens": 980,
+        "total_tokens": 6175,
+        "prompt_tokens_details": {
+          "cached_tokens": 4224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 445
+        },
+        "prompt_cache_hit_tokens": 4224,
+        "prompt_cache_miss_tokens": 971
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 803,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 31743,
+      "usage": {
+        "prompt_tokens": 3384,
+        "completion_tokens": 5640,
+        "total_tokens": 9024,
+        "prompt_tokens_details": {
+          "cached_tokens": 2688
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 5450
+        },
+        "prompt_cache_hit_tokens": 2688,
+        "prompt_cache_miss_tokens": 696
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 336,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 21228,
+    "cached": 17536,
+    "completion": 16066
+  },
+  "costCNY": 0.1574,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=1 semantic=4 second=2 deleted=0 checkerSkipped=0 whitelist=68"
+  ],
+  "result": {
+    "title": "目标还在往前走，但最近三周的步子明显慢了",
+    "narrativeSummary": "这个减到 72kg 的目标目前略落后于计划：时间已经走了 53%，结果只完成约 43%。从 78kg 到最新的 75.4kg，方向一直没偏，只是按现在的速度会晚于截止日。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "一",
+          "title": "结果：体重继续下降，只是速度放缓了",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "关联事项：俯卧撑稳住了，早睡和力量训练在掉档",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "三",
+          "title": "还缺什么：没有饮食记录，降速的原因看不出来",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [
+        {
+          "claimID": "p4",
+          "sub": ""
+        },
+        {
+          "claimID": "p5",
+          "sub": ""
+        },
+        {
+          "claimID": "p6",
+          "sub": ""
+        }
+      ],
+      "disclosureNotes": [
+        "本次睡眠、步数等健康数据没有记录，饮食记录同样为空；也没有目标进度和预算方面的记录，因此这份复盘只围绕体重与同期的打卡习惯展开，其他方面暂不纳入。"
+      ]
+    },
+    "reportComponents": [
+      {
+        "id": "c1",
+        "kind": "progress",
+        "anchor": -1,
+        "payload": {
+          "title": "目标进度 · 体重",
+          "unit": "kg",
+          "current": 75.4,
+          "start": 78,
+          "target": 72,
+          "fraction": 0.43,
+          "timeFraction": 0.531043956043956,
+          "statusLabel": "略落后",
+          "tone": "warn",
+          "isStale": false,
+          "caption": "起点 78kg（9/1） · 目标 72kg（1/31）",
+          "projections": [
+            {
+              "label": "按整体节奏",
+              "value": "约 2/16 达成",
+              "tone": "warn"
+            },
+            {
+              "label": "按最近 3 周节奏",
+              "value": "约 4/12 达成",
+              "tone": "warn"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c2",
+        "kind": "trendLine",
+        "anchor": 0,
+        "payload": {
+          "title": "每周平均体重",
+          "unit": "kg",
+          "points": [
+            {
+              "label": "9/26",
+              "value": 77.3
+            },
+            {
+              "label": "10/3",
+              "value": 77
+            },
+            {
+              "label": "10/10",
+              "value": 76.6
+            },
+            {
+              "label": "10/17",
+              "value": 76.2
+            },
+            {
+              "label": "10/24",
+              "value": 75.9
+            },
+            {
+              "label": "10/31",
+              "value": 75.6
+            },
+            {
+              "label": "11/7",
+              "value": 75.5
+            },
+            {
+              "label": "11/14",
+              "value": 75.4
+            }
+          ],
+          "planStart": 76.8,
+          "planEnd": 74.8,
+          "highlightFrom": 5,
+          "caption": "近 3 周明显变慢"
+        }
+      },
+      {
+        "id": "c3",
+        "kind": "habitStrip",
+        "anchor": 1,
+        "payload": {
+          "title": "关联习惯 · 每格 1 天，每组 1 周",
+          "rows": [
+            {
+              "name": "早睡",
+              "sub": "约每周 3.3 次",
+              "rateText": "26 天",
+              "statusLabel": "掉档",
+              "tone": "bad",
+              "days": [
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "name": "健身",
+              "sub": "约每周 2 次",
+              "rateText": "16 天",
+              "statusLabel": "掉档",
+              "tone": "bad",
+              "days": [
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "name": "深蹲",
+              "sub": "约每周 2 次",
+              "rateText": "16 天",
+              "statusLabel": "跟随健身",
+              "tone": "neutral",
+              "days": [
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0
+              ]
+            },
+            {
+              "name": "俯卧撑",
+              "sub": "约每周 5.3 次",
+              "rateText": "42 天",
+              "statusLabel": "稳",
+              "tone": "good",
+              "days": [
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0,
+                1,
+                1,
+                1,
+                0
+              ]
+            }
+          ],
+          "foldedNote": null,
+          "startLabel": "9/25",
+          "endLabel": "今天"
+        }
+      },
+      {
+        "id": "c4",
+        "kind": "kpiTiles",
+        "anchor": -1,
+        "payload": {
+          "tiles": [
+            {
+              "label": "早睡",
+              "value": "26",
+              "unit": "天",
+              "delta": "近 3 周 ↓50%",
+              "tone": "bad"
+            },
+            {
+              "label": "健身",
+              "value": "16",
+              "unit": "天",
+              "delta": "近 3 周 ↓44%",
+              "tone": "bad"
+            },
+            {
+              "label": "深蹲",
+              "value": "16",
+              "unit": "天",
+              "delta": "近 3 周 ↓44%",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c5",
+        "kind": "periodCompare",
+        "anchor": 1,
+        "payload": {
+          "left": {
+            "label": "前 5 周",
+            "rows": [
+              {
+                "label": "早睡",
+                "value": "4 次/周"
+              },
+              {
+                "label": "健身",
+                "value": "2.4 次/周"
+              },
+              {
+                "label": "体重",
+                "value": "-0.3 kg/周"
+              }
+            ]
+          },
+          "right": {
+            "label": "近 3 周",
+            "rows": [
+              {
+                "label": "早睡",
+                "value": "2 次/周"
+              },
+              {
+                "label": "健身",
+                "value": "1.3 次/周"
+              },
+              {
+                "label": "体重",
+                "value": "-0.2 kg/周"
+              }
+            ]
+          },
+          "caption": "同一个人、两种节奏下的对比"
+        }
+      },
+      {
+        "id": "c6",
+        "kind": "gapCards",
+        "anchor": 2,
+        "payload": {
+          "cards": [
+            {
+              "icon": "🍱",
+              "title": "没有饮食记录",
+              "body": "减重有一大半取决于吃，这部分没有数据，体重变化的原因只能从运动和作息看。",
+              "action": "＋ 关联一个记录饮食的习惯"
+            }
+          ]
+        }
+      }
+    ],
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "9 月底那周体重均值还在 77.3kg，到 11 月 14 日那周已经降到 75.4kg，八个星期一直在往下走，没有反弹。变化出现在速度上：前 5 周每周的降幅比最近 3 周更大，最近这段仍在下降，只是慢了。按现在这个节奏，72kg 会晚于原定截止日达成。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "俯卧撑是这几项里唯一稳的，近 8 周每周约 5.3 次，最近三周也保持在 5 次。早睡、健身和深蹲则同时在减少：早睡从前 5 周每周 4 次降到最近 3 周 2 次，少了 50%；健身和深蹲各从每周 2.4 次降到 1.3 次，少了 44%，而且深蹲的打卡日和健身几乎完全重合。这些变化和体重的降速是同时发生的，不能说谁导致了谁。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "这个目标没有关联任何饮食记录，所以最近三周为什么慢下来，从吃什么、吃多少这个角度是看不到的。补上饮食记录，这个角度才谈得上判断。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "先把早睡定成每周 4 天。依据是你前 5 周本来就能做到每周 4 次，这不是新要求，只是回到你已有的节奏。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "健身和深蹲每周各补回一次，从最近的每周 1 次多回到 2 次左右，深蹲继续跟健身同一天做，不用单独再安排一次。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "俯卧撑的节奏别动，每周 5 次左右是你这段时间最稳的一项，守住它就守住了底线。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F003",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50 元以下：0 笔，合计 0.00 元，占本期支出 0.0%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F004",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本期单笔50–200 元：0 笔，合计 0.00 元，占本期支出 0.0%；上期 0 笔，合计 0.00 元。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F007",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重（测量型，单位 kg）：本期测量 4 次，均值 75.45，最近一次 75.4；上期测量 4 次，均值 75.75。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F012",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重按月：9月 均值 77.30 kg；10月 均值 76.42 kg；11月（1-20日） 均值 75.50 kg。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F030",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "本次复盘的目标是「减到 72kg」。下面的组件与本节数字统一按近 8 周（不早于目标起点）计算；目标已进行 80 天，时间已过 53%。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F033",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "目标结果（体重）：最新 75.4kg（11/19），起点 78kg，目标 72kg；结果进度约 43%（程序判定：略落后）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F034",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "体重每周平均：9/26 那周 77.3、10/3 那周 77、10/10 那周 76.6、10/17 那周 76.2、10/24 那周 75.9、10/31 那周 75.6、11/7 那周 75.5、11/14 那周 75.4。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F036",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身：近 8 周有 16 天完成，约每周 2 次；前 5 周约每周 2.4 次，近 3 周约每周 1.3 次（程序判定：掉档）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F037",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "深蹲：近 8 周有 16 天完成，约每周 2 次；前 5 周约每周 2.4 次，近 3 周约每周 1.3 次；打卡日和健身几乎完全重合（程序判定：跟随健身）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F038",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "俯卧撑：近 8 周有 42 天完成，约每周 5.3 次；前 5 周约每周 5.4 次，近 3 周约每周 5 次（程序判定：稳）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F039",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "早睡近 3 周的频率比之前少 50%。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F040",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "健身近 3 周的频率比之前少 44%。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F041",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "深蹲近 3 周的频率比之前少 44%。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": {
+      "schemaVersion": 1,
+      "goalID": "10000000-0000-0000-0000-000000000001",
+      "planRevisionID": "20000000-0000-0000-0000-000000000001",
+      "reviewID": "30000000-0000-0000-0000-000000000001",
+      "windowStart": "2026-11-06T13:00:00.000Z",
+      "windowEndExclusive": "2026-11-20T16:00:00.000Z",
+      "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+      "timeZoneID": "Asia/Shanghai",
+      "sourceDigest": "digest-1"
+    },
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "habit.daily": {
+        "totalRows": 296,
+        "providedRows": 296,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "近14天",
+      "start": 1793970000,
+      "end": 1795190400
+    },
+    "completedAt": "2026-11-21T05:46:13.854Z",
+    "engine": "deep-report-v1"
+  }
+}

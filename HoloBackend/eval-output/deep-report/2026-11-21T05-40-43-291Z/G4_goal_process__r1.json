@@ -1,0 +1,427 @@
+{
+  "id": "G4_goal_process",
+  "round": 1,
+  "status": "completed",
+  "seconds": 70,
+  "calls": 4,
+  "failedCalls": 0,
+  "callLog": [
+    {
+      "ms": 17045,
+      "usage": {
+        "prompt_tokens": 3158,
+        "completion_tokens": 2853,
+        "total_tokens": 6011,
+        "prompt_tokens_details": {
+          "cached_tokens": 1920
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2296
+        },
+        "prompt_cache_hit_tokens": 1920,
+        "prompt_cache_miss_tokens": 1238
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 885,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 31625,
+      "usage": {
+        "prompt_tokens": 2383,
+        "completion_tokens": 5375,
+        "total_tokens": 7758,
+        "prompt_tokens_details": {
+          "cached_tokens": 1024
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 5107
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 1359
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 514,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    },
+    {
+      "ms": 5083,
+      "usage": {
+        "prompt_tokens": 4027,
+        "completion_tokens": 939,
+        "total_tokens": 4966,
+        "prompt_tokens_details": {
+          "cached_tokens": 3072
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 391
+        },
+        "prompt_cache_hit_tokens": 3072,
+        "prompt_cache_miss_tokens": 955
+      },
+      "ok": true,
+      "json": false,
+      "maxTokens": 8192,
+      "finish": "stop",
+      "contentLen": 875,
+      "head": "你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。\n\n# 你和用户的关"
+    },
+    {
+      "ms": 16141,
+      "usage": {
+        "prompt_tokens": 2374,
+        "completion_tokens": 2658,
+        "total_tokens": 5032,
+        "prompt_tokens_details": {
+          "cached_tokens": 1664
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2652
+        },
+        "prompt_cache_hit_tokens": 1664,
+        "prompt_cache_miss_tokens": 710
+      },
+      "ok": true,
+      "json": true,
+      "maxTokens": 16384,
+      "finish": "stop",
+      "contentLen": 15,
+      "head": "你是一份分析报告的核对员。你会拿到程序算好的事实清单（唯一的事实来源）、用户的个"
+    }
+  ],
+  "usage": {
+    "prompt": 11942,
+    "cached": 7680,
+    "completion": 11825
+  },
+  "costCNY": 0.12,
+  "failureReason": null,
+  "engineLog": [
+    "深度报告完成 flaggedNumbers=0 semantic=4 second=0 deleted=0 checkerSkipped=0 whitelist=18"
+  ],
+  "result": {
+    "title": "雅思备考已经停下：英语打卡最近 14 天没有记录",
+    "narrativeSummary": "这个目标不是慢了一点，而是已经停下来了。它属于过程型目标，没有结果指标，只能看行动完成情况；近 8 周英语完成 14 天、约每周 1.8 次，但最近 14 天没有记录，程序判定为已停，眼下的推进不在轨道上。",
+    "keyInsight": null,
+    "reportStructure": {
+      "sections": [
+        {
+          "no": "",
+          "title": "开篇",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p1"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "一",
+          "title": "关联事项：3 个关联任务只完成 1 个，剩下 2 个还没有动静",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p2"
+          ],
+          "chartHint": null,
+          "notice": null
+        },
+        {
+          "no": "二",
+          "title": "还缺什么：缺一个能体现结果的数据，现在只能凭打卡天数判断进展",
+          "kicker": null,
+          "paragraphClaimIDs": [
+            "p3"
+          ],
+          "chartHint": null,
+          "notice": null
+        }
+      ],
+      "conclusionItems": [
+        {
+          "claimID": "p4",
+          "sub": ""
+        },
+        {
+          "claimID": "p5",
+          "sub": ""
+        },
+        {
+          "claimID": "p6",
+          "sub": ""
+        }
+      ],
+      "disclosureNotes": [
+        "本次快照没有睡眠、步数等健康数据，也没有目标进度记录和预算数据，这几方面的情况无法判断；任务的具体内容不在数据里，中断的原因不能确认；本报告只围绕备考雅思这一个目标及其关联事项，其他生活数据未纳入。"
+      ]
+    },
+    "reportComponents": [
+      {
+        "id": "c1",
+        "kind": "habitStrip",
+        "anchor": 1,
+        "payload": {
+          "title": "关联习惯 · 每格 1 天，每组 1 周",
+          "rows": [
+            {
+              "name": "英语",
+              "sub": "约每周 1.8 次",
+              "rateText": "14 天",
+              "statusLabel": "已停",
+              "tone": "bad",
+              "days": [
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "foldedNote": null,
+          "startLabel": "9/25",
+          "endLabel": "今天"
+        }
+      },
+      {
+        "id": "c2",
+        "kind": "kpiTiles",
+        "anchor": -1,
+        "payload": {
+          "tiles": [
+            {
+              "label": "关联任务",
+              "value": "1",
+              "unit": "/3",
+              "delta": null,
+              "tone": "neutral"
+            },
+            {
+              "label": "英语",
+              "value": "14",
+              "unit": "天",
+              "delta": "近 3 周 ↓100%",
+              "tone": "bad"
+            }
+          ]
+        }
+      },
+      {
+        "id": "c3",
+        "kind": "periodCompare",
+        "anchor": 1,
+        "payload": {
+          "left": {
+            "label": "前 5 周",
+            "rows": [
+              {
+                "label": "英语",
+                "value": "1.8 次/周"
+              }
+            ]
+          },
+          "right": {
+            "label": "近 3 周",
+            "rows": [
+              {
+                "label": "英语",
+                "value": "0 次/周"
+              }
+            ]
+          },
+          "caption": "同一个人、两种节奏下的对比"
+        }
+      },
+      {
+        "id": "c4",
+        "kind": "gapCards",
+        "anchor": 2,
+        "payload": {
+          "cards": [
+            {
+              "icon": "🎯",
+              "title": "这个目标没有可衡量的结果",
+              "body": "现在只能看到做没做，看不出结果有没有变化。",
+              "action": "＋ 给目标加一个结果指标"
+            }
+          ]
+        }
+      }
+    ],
+    "claims": [
+      {
+        "id": "p1",
+        "type": "observation",
+        "displayText": "从更长时间看，中断很集中。英语 10 月完成了 11 天，11 月到 20 日一天也没有；最近一次完成是 10 月 22 日，到昨天已有 28 天没有记录，近 3 周频率比之前少了 100.0%。所以这个目标眼下不在推进状态，中断的原因数据里没有，不能归到某一件事上。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p2",
+        "type": "observation",
+        "displayText": "这个目标有 3 个关联任务，目前完成 1 个，另外 2 个还没有动静。同一段时间里英语打卡也停着，但清单没有发现达到标准的一起变化，这里只把两件事并列呈现，不能说成互相带动。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p3",
+        "type": "observation",
+        "displayText": "这个目标没有可衡量的结果指标，所以不存在「备考到哪一步」这种判断，只能退回来看行动有没有发生。缺了这一层，打卡天数就只是天数，看不出离目标还有多远。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p4",
+        "type": "observation",
+        "displayText": "明天先做一次英语打卡，哪怕只完成最小的那份练习。依据是已经中断 28 天，此刻把节奏接上比追求次数更要紧，而 10 月能完成 11 天，说明这件事本身是做得到的。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p5",
+        "type": "observation",
+        "displayText": "从剩下的 2 个关联任务里挑最小的一个，定在这周内做完。依据是 3 个关联任务里只完成了 1 个，先做完一件能收尾的，比同时铺开两件更容易看见进展。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      },
+      {
+        "id": "p6",
+        "type": "observation",
+        "displayText": "给这个目标补一个能体现结果的数据，比如一次模考的成绩或一个分数目标。依据是这个目标目前只有过程记录、没有结果指标，补上之后才有办法判断备考真正推进到了哪里。",
+        "evidenceIDs": [],
+        "metricAssertions": [],
+        "confidence": 0.9
+      }
+    ],
+    "reasoning": "",
+    "evidence": [
+      {
+        "kind": "rows",
+        "metricKey": "F008",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "英语按月：9月 完成 3 天；10月 完成 11 天；11月（1-20日） 完成 0 天。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F010",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "英语：最近一次完成是 10-22（周四），之后到昨天已有 28 天没有完成（今天不算）。"
+        ]
+      },
+      {
+        "kind": "rows",
+        "metricKey": "F022",
+        "dataset": "facts",
+        "count": 1,
+        "excerpts": [
+          "英语近 3 周的频率比之前少 100%。"
+        ]
+      }
+    ],
+    "warnings": [],
+    "goalScope": {
+      "schemaVersion": 1,
+      "goalID": "10000000-0000-0000-0000-000000000004",
+      "planRevisionID": "20000000-0000-0000-0000-000000000004",
+      "reviewID": "30000000-0000-0000-0000-000000000004",
+      "windowStart": "2026-11-06T13:00:00.000Z",
+      "windowEndExclusive": "2026-11-20T16:00:00.000Z",
+      "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+      "timeZoneID": "Asia/Shanghai",
+      "sourceDigest": "digest-4"
+    },
+    "goalAdjustmentDraft": null,
+    "snapshotCoverage": {
+      "habit.daily": {
+        "totalRows": 56,
+        "providedRows": 56,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      },
+      "task.daily": {
+        "totalRows": 56,
+        "providedRows": 56,
+        "truncated": false,
+        "coveredFrom": null,
+        "questionStart": null,
+        "windowShortfallDays": null
+      }
+    },
+    "snapshotCutoffAt": "2026-11-20T13:00:00.000Z",
+    "taskRange": {
+      "label": "近14天",
+      "start": 1793970000,
+      "end": 1795190400
+    },
+    "completedAt": "2026-11-21T05:43:10.140Z",
+    "engine": "deep-report-v1"
+  }
+}
