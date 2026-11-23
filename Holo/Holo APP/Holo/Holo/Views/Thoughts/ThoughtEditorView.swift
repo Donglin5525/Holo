@@ -1524,7 +1524,8 @@ struct ThoughtEditorView: View {
                 ensureThoughtPersistedForHero()
                 showHeroMaker = true
             } label: {
-                ThoughtHeroView(placement: thought.resolveHeroVisual(in: viewContext))
+                ThoughtHeroView(placement: thought.resolveHeroVisual(in: viewContext),
+                                style: selectedStyle)
             }
             .buttonStyle(.plain)
             .id(heroRevisionBump)

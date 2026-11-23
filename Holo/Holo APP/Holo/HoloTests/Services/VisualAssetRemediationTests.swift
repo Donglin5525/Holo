@@ -15,6 +15,7 @@
 
 import XCTest
 import SwiftUI
+import UIKit
 import CoreGraphics
 import CoreVideo
 import UniformTypeIdentifiers
@@ -513,5 +514,190 @@ final class VisualAssetUpdateAndOffsetTests: XCTestCase {
         let k2 = VisualRenderCache.key(assetID: id, role: .icon, appearance: .light,
                                        increasedContrast: false, displayScale: 3, presentation: p)
         XCTAssertNotEqual(k1, k2)
+    }
+}
+
+// MARK: - 想法头图通栏排版（2026-11-23 东林拍板方案 B）
+
+final class ThoughtHeroLayoutTests: XCTestCase {
+
+    /// iPhone 上想法卡的实际宽度（屏宽 402 − 列表左右边距 21×2）
+    private let cardWidth: CGFloat = 360
+
+    private func photo(_ width: Int, _ height: Int) -> ResolvedPlacement {
+        .assetReady(VisualDescriptor(assetID: UUID(), winningRevisionID: UUID(), kind: .photo,
+                                     presentation: nil, pixelWidth: width, pixelHeight: height))
+    }
+
+    private var sticker: ResolvedPlacement {
+        .assetReady(VisualDescriptor(assetID: UUID(), winningRevisionID: UUID(), kind: .sticker,
+                                     presentation: nil))
+    }
+
+    /// 把头图通栏按卡片宽度真实排版一遍，量它实际占的高度（打开界面量，不靠推算）
+    @MainActor
+    private func height(of placement: ResolvedPlacement, largeText: Bool = false) -> CGFloat {
+        let band = ThoughtHeroListPreview(placement: placement, style: .plain)
+            .frame(width: cardWidth)
+            .environment(\.dynamicTypeSize, largeText ? .accessibility3 : .large)
+        return UIHostingController(rootView: band)
+            .sizeThatFits(in: CGSize(width: cardWidth, height: 10_000)).height
+    }
+
+    @MainActor
+    func testPhotoInsideRangeKeepsItsOwnRatio() {
+        XCTAssertEqual(height(of: photo(1920, 1080)), 202.5, accuracy: 0.5, "16:9 宽图")
+        XCTAssertEqual(height(of: photo(4032, 3024)), 270, accuracy: 0.5, "iPhone 默认 4:3")
+    }
+
+    @MainActor
+    func testTallerThanFourThreeIsClamped() {
+        XCTAssertEqual(height(of: photo(3024, 4032)), 270, accuracy: 0.5, "3:4 竖图")
+        XCTAssertEqual(height(of: photo(1170, 2532)), 270, accuracy: 0.5, "9:16 截图")
+    }
+
+    @MainActor
+    func testWiderThanSixteenNineIsClamped() {
+        XCTAssertEqual(height(of: photo(4000, 1200)), 202.5, accuracy: 0.5, "全景")
+    }
+
+    @MainActor
+    func testUnknownPixelSizeFallsBackToFourThree() {
+        XCTAssertEqual(height(of: photo(0, 0)), 270, accuracy: 0.5, "尺寸未同步到")
+    }
+
+    @MainActor
+    func testStickerSitsOnStageOfFixedHeight() {
+        XCTAssertEqual(height(of: sticker), 148, accuracy: 0.5)
+    }
+
+    @MainActor
+    func testLargeTextShrinksPhotoToShortestBand() {
+        XCTAssertEqual(height(of: photo(4032, 3024), largeText: true), 202.5, accuracy: 0.5)
+        XCTAssertEqual(height(of: photo(3024, 4032), largeText: true), 202.5, accuracy: 0.5)
+    }
+
+    @MainActor
+    func testNotReadyHeroTakesNoSpace() {
+        XCTAssertEqual(height(of: .none), 0, accuracy: 0.01)
+        XCTAssertEqual(height(of: .pending), 0, accuracy: 0.01)
+        XCTAssertEqual(height(of: .deleted), 0, accuracy: 0.01)
+    }
+
+    @MainActor
+    func testBandRatioMath() {
+        XCTAssertEqual(ThoughtHeroPhotoLayout.bandRatio(pixelWidth: 3, pixelHeight: 4, shrinksForLargeText: false),
+                       4.0 / 3.0, accuracy: 1e-9)
+        XCTAssertEqual(ThoughtHeroPhotoLayout.bandRatio(pixelWidth: 7, pixelHeight: 3, shrinksForLargeText: false),
+                       16.0 / 9.0, accuracy: 1e-9)
+        XCTAssertEqual(ThoughtHeroPhotoLayout.bandRatio(pixelWidth: 3, pixelHeight: 2, shrinksForLargeText: false),
+                       1.5, accuracy: 1e-9)
+        XCTAssertEqual(ThoughtHeroPhotoLayout.bandRatio(pixelWidth: 3, pixelHeight: 2, shrinksForLargeText: true),
+                       16.0 / 9.0, accuracy: 1e-9)
+    }
+
+    @MainActor
+    func testBandClassification() {
+        XCTAssertTrue(ThoughtHeroListPreview.occupiesSpace(photo(1920, 1080)))
+        XCTAssertTrue(ThoughtHeroListPreview.isPhotoBand(photo(1920, 1080)), "照片通栏：纸张装饰要避开")
+        XCTAssertTrue(ThoughtHeroListPreview.occupiesSpace(sticker))
+        XCTAssertFalse(ThoughtHeroListPreview.isPhotoBand(sticker), "贴纸站在纸面舞台上，装饰照画")
+        XCTAssertFalse(ThoughtHeroListPreview.occupiesSpace(.pending), "未就绪的头图不占位")
+    }
+}
+
+// MARK: - 头图与附件「同一张照片」判定
+
+final class ThoughtHeroPhotoFingerprintTests: XCTestCase {
+
+    private struct SeededGenerator: RandomNumberGenerator {
+        private var state: UInt64
+        init(_ seed: UInt64) { state = seed }
+        mutating func next() -> UInt64 {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return state
+        }
+    }
+
+    /// 画面里的一处明暗：位置与半径按画面比例记，seed 相同则画面相同
+    private struct Blob {
+        let u: Double, v: Double, r: Double, tone: Double
+    }
+
+    private func blobs(seed: UInt64) -> [Blob] {
+        var generator = SeededGenerator(seed)
+        return (0..<14).map { _ in
+            Blob(u: Double.random(in: 0.08...0.92, using: &generator),
+                 v: Double.random(in: 0.08...0.92, using: &generator),
+                 r: Double.random(in: 0.12...0.34, using: &generator),
+                 tone: Double.random(in: 0.05...0.95, using: &generator))
+        }
+    }
+
+    /// 生成一张明暗错落的「照片」：zoom 调构图、brightness 调明暗、jpegQuality 换存法
+    @MainActor
+    private func photoData(_ blobs: [Blob], width: CGFloat, height: CGFloat, zoom: CGFloat = 1,
+                           brightness: CGFloat = 0, jpegQuality: Double? = nil) throws -> Data {
+        let size = CGSize(width: width, height: height)
+        let gradients = try blobs.map { blob -> CGGradient in
+            let tone = min(max(blob.tone + brightness, 0), 1)
+            return try XCTUnwrap(CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceGray(),
+                colors: [UIColor(white: tone, alpha: 1).cgColor, UIColor(white: tone, alpha: 0).cgColor] as CFArray,
+                locations: [0, 1]))
+        }
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor(white: 0.4 + brightness, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            for (blob, gradient) in zip(blobs, gradients) {
+                // 以画面中心为基准缩放构图：zoom < 1 相当于镜头拉近了一截
+                let center = CGPoint(x: ((blob.u - 0.5) * zoom + 0.5) * width,
+                                     y: ((blob.v - 0.5) * zoom + 0.5) * height)
+                context.cgContext.drawRadialGradient(
+                    gradient, startCenter: center, startRadius: 0, endCenter: center,
+                    endRadius: blob.r * min(width, height) * zoom, options: [])
+            }
+        }
+        if let jpegQuality { return try XCTUnwrap(image.jpegData(compressionQuality: jpegQuality)) }
+        return try XCTUnwrap(image.pngData())
+    }
+
+    @MainActor
+    private func samePhoto(_ a: Data, _ b: Data) throws -> Bool {
+        let printA = try XCTUnwrap(ThoughtHeroPhotoFingerprint.fingerprint(from: a))
+        let printB = try XCTUnwrap(ThoughtHeroPhotoFingerprint.fingerprint(from: b))
+        return ThoughtHeroPhotoFingerprint.isSamePhoto(printA, printB)
+    }
+
+    /// 两次落库的编码、尺寸、明暗都不同，只要是同一张画面就得认出来
+    @MainActor
+    func testSamePhotoStoredDifferentlyIsRecognized() throws {
+        let subject = blobs(seed: 7)
+        let hero = try photoData(subject, width: 640, height: 480)
+        let attachment = try photoData(subject, width: 1440, height: 1080, brightness: 0.12, jpegQuality: 0.5)
+        XCTAssertTrue(try samePhoto(hero, attachment))
+    }
+
+    @MainActor
+    func testReframedShotIsNotTheSamePhoto() throws {
+        let subject = blobs(seed: 7)
+        let hero = try photoData(subject, width: 640, height: 480)
+        let reframed = try photoData(subject, width: 640, height: 480, zoom: 0.9, jpegQuality: 0.6)
+        XCTAssertFalse(try samePhoto(hero, reframed), "镜头拉近一截的另一张不能被当成同一张藏起来")
+    }
+
+    @MainActor
+    func testDifferentPhotosAreNotMerged() throws {
+        let hero = try photoData(blobs(seed: 7), width: 640, height: 480)
+        let other = try photoData(blobs(seed: 8), width: 640, height: 480, jpegQuality: 0.6)
+        XCTAssertFalse(try samePhoto(hero, other))
+    }
+
+    @MainActor
+    func testFlatFramesNeverMatch() throws {
+        let sky = try photoData([], width: 320, height: 240)
+        let brighterSky = try photoData([], width: 480, height: 360, brightness: 0.2, jpegQuality: 0.6)
+        XCTAssertFalse(try samePhoto(sky, brighterSky), "几乎没有明暗差的画面之间不做判定")
     }
 }

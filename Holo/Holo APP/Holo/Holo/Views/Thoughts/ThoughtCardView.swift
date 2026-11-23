@@ -69,6 +69,8 @@ struct ThoughtCardView: View {
     @State private var reasonEvidence: (relation: String, verifierQuote: String?, engineVersion: String?)? = nil
     /// 「…」菜单删除的二次确认（软删进回收站，提示可恢复）
     @State private var showDeleteConfirm = false
+    /// 与头图是同一张照片的附件：列表里不再重复显示（判定见 ThoughtHeroDuplicateResolver）
+    @State private var heroDuplicateAttachmentIDs: Set<UUID> = []
     /// 分享卡面板
     @State private var showShareCard = false
     /// 菜单项的连环弹层意图：菜单自身收起动画结束前请求新弹层会被系统静默丢弃
@@ -88,19 +90,15 @@ struct ThoughtCardView: View {
         // AI 标签名单次取用：状态徽章与底部标签行原本各查一遍，
         // 每次访问都要重新遍历 Core Data 的标签分配关系
         let aiTagNames = thought.visibleAITagNames
-        return VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
-            // 头图预览（有显式头图才出现；无头图保持原密度，01 §6.4）
-            ThoughtHeroListPreview(placement: thought.resolveHeroVisual(in: CoreDataStack.shared.viewContext))
-            // 顶部：日期 + 状态
-            headerView(aiTagNames: aiTagNames)
-
-            // 中间：内容预览
-            contentView
-
-            // 底部：标签 + 引用信息
-            footerView(aiTagNames: aiTagNames)
+        let hero = thought.resolveHeroVisual(in: CoreDataStack.shared.viewContext)
+        let duplicatesKey = ThoughtHeroDuplicateResolver.key(hero: hero, attachments: thought.sortedAttachments)
+        return VStack(alignment: .leading, spacing: 0) {
+            // 头图通栏（有显式头图才出现；贴卡片顶边，不进卡片内边距）
+            ThoughtHeroListPreview(placement: hero, style: thought.appearanceStyle) {
+                onNavigate?()
+            }
+            cardPaper(aiTagNames: aiTagNames, hero: hero)
         }
-        .padding(Metrics.padding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -112,7 +110,17 @@ struct ThoughtCardView: View {
                         .stroke(thought.appearanceStyle.listBorder, lineWidth: 0.5)
                 )
         )
-        .overlay { ThoughtStyleCardDecoration(style: thought.appearanceStyle).allowsHitTesting(false) }
+        // 照片头图通栏自己占住卡片顶边，纸张装饰改画在它下方的纸面里（见 cardPaper）
+        .overlay {
+            if !ThoughtHeroListPreview.isPhotoBand(hero) {
+                ThoughtStyleCardDecoration(style: thought.appearanceStyle).allowsHitTesting(false)
+            }
+        }
+        .task(id: duplicatesKey) {
+            heroDuplicateAttachmentIDs = await ThoughtHeroDuplicateResolver.duplicateIDs(
+                hero: hero, attachments: thought.sortedAttachments,
+                in: CoreDataStack.shared.viewContext)
+        }
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
         .holoRecordArrival(thought.id, domain: .thought)
@@ -179,6 +187,35 @@ struct ThoughtCardView: View {
                 case .deleteConfirm: showDeleteConfirm = true
                 }
             }
+        }
+    }
+
+    // MARK: - 纸面（日期行 + 正文 + 标签）
+
+    /// 卡片纸面。有头图通栏时紧贴通栏下沿：日期行自身 44 高，日期文字落在行中线，
+    /// 与照片之间的留白就是这 12；无头图时与原排版逐项相同（顶部内边距 + 区块间距）。
+    /// 照片通栏卡片的纸张装饰只画在这一段（01 §6.5：装饰不能覆盖头图主体）。
+    @ViewBuilder
+    private func cardPaper(aiTagNames: [String], hero: ResolvedPlacement) -> some View {
+        let hasBand = ThoughtHeroListPreview.occupiesSpace(hero)
+        let paper = VStack(alignment: .leading, spacing: 0) {
+            // 顶部：日期 + 状态
+            headerView(aiTagNames: aiTagNames)
+            // 中间：内容预览
+            contentView
+                .padding(.top, hasBand ? 0 : Metrics.sectionSpacing)
+            // 底部：标签 + 引用信息
+            footerView(aiTagNames: aiTagNames)
+                .padding(.top, Metrics.sectionSpacing)
+        }
+        .padding(.horizontal, Metrics.padding)
+        .padding(.top, hasBand ? 0 : Metrics.padding)
+        .padding(.bottom, Metrics.padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        if ThoughtHeroListPreview.isPhotoBand(hero) {
+            paper.overlay { ThoughtStyleCardDecoration(style: thought.appearanceStyle).allowsHitTesting(false) }
+        } else {
+            paper
         }
     }
 
@@ -279,7 +316,7 @@ struct ThoughtCardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            if thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty { inlineAttachmentsView }
+            if thought.appearanceStyle.photosLead, !visibleAttachments.isEmpty { inlineAttachmentsView }
             HStack(alignment: .top, spacing: HoloSpacing.md) {
                 if thought.appearanceStyle == .calendar { ThoughtCardDateMark(date: thought.createdAt) }
             // 内容渲染整体下沉到 ThoughtContentBody：它只依赖内容字符串本身，
@@ -311,7 +348,7 @@ struct ThoughtCardView: View {
             .accessibilityHint(String(localized: "轻点编辑这条想法"))
             }
 
-            if !thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty {
+            if !thought.appearanceStyle.photosLead, !visibleAttachments.isEmpty {
                 inlineAttachmentsView
             }
         }
@@ -507,14 +544,19 @@ struct ThoughtCardView: View {
         }
     }
 
+    /// 列表里实际展示的附件：与头图是同一张照片的不再重复
+    private var visibleAttachments: [ThoughtAttachment] {
+        thought.sortedAttachments.filter { !heroDuplicateAttachmentIDs.contains($0.id) }
+    }
+
     private var inlineAttachmentsView: some View {
-        let sources = thought.sortedAttachments.map {
+        let sources = visibleAttachments.map {
             ThoughtPaperPhotoSource(id: $0.id, thumbnailData: $0.thumbnailData, fileName: $0.thumbnailFileName, thoughtId: thought.id)
         }
         return ThoughtCardPaperPhotos(sources: sources, style: thought.appearanceStyle) { id in
-            guard let index = thought.sortedAttachments.firstIndex(where: { $0.id == id }) else { return }
+            guard let index = visibleAttachments.firstIndex(where: { $0.id == id }) else { return }
             HapticManager.light()
-            galleryStartIndex = index
+            galleryStartIndex = thought.sortedAttachments.firstIndex(where: { $0.id == id }) ?? index
             showAttachmentGallery = true
         }
     }

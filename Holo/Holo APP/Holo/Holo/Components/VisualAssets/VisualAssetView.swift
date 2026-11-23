@@ -16,6 +16,8 @@ import CoreData
 struct VisualAssetView: View {
     let descriptor: VisualDescriptor
     var role: VisualRenderRole = .icon
+    /// .fit 完整显示（图标与贴纸的默认）；.fill 铺满宿主并裁掉溢出（照片通栏）
+    var contentMode: ContentMode = .fit
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var displayImage: CGImage?
@@ -27,13 +29,16 @@ struct VisualAssetView: View {
             Group {
                 if let image {
                     let p = descriptor.presentation
-                    let scale = min(max(p?.scale ?? 1.0, 0.6), 1.2)
-                    let ox = min(max(p?.offsetX ?? 0, -0.5), 0.5)
-                    let oy = min(max(p?.offsetY ?? 0, -0.5), 0.5)
+                    let baseScale = min(max(p?.scale ?? 1.0, 0.6), 1.2)
+                    // 铺满态只放大不缩小（缩小会露出底色），平移夹在不露底的范围内
+                    let scale = contentMode == .fill ? max(baseScale, 1) : baseScale
+                    let panLimit = contentMode == .fill ? (scale - 1) / 2 : 0.5
+                    let ox = min(max(p?.offsetX ?? 0, -panLimit), panLimit)
+                    let oy = min(max(p?.offsetY ?? 0, -panLimit), panLimit)
                     Image(uiImage: UIImage(cgImage: image))
                         .resizable()
                         .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
+                        .aspectRatio(contentMode: contentMode)
                         .scaleEffect(scale)
                         .offset(x: ox * geo.size.width, y: oy * geo.size.height)
                         .frame(width: geo.size.width, height: geo.size.height)

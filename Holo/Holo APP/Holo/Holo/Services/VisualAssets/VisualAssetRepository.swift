@@ -41,6 +41,11 @@ struct VisualDescriptor: Equatable {
     let winningRevisionID: UUID
     let kind: VisualAssetKind
     let presentation: VisualPlacementPayload.Presentation?
+    /// 像素尺寸（照片通栏的高度由它决定；同步未到全时为 0）
+    var pixelWidth: Int = 0
+    var pixelHeight: Int = 0
+    /// 头图取自哪条正文附件（01 §6.3-6；列表不与它重复显示）
+    var sourceAttachmentID: UUID? = nil
 }
 
 // MARK: - 仓库
@@ -187,7 +192,10 @@ final class VisualAssetRepository {
                     assetID: assetID,
                     winningRevisionID: revisionID,
                     kind: kind,
-                    presentation: payload.presentation))
+                    presentation: payload.presentation,
+                    pixelWidth: asset.value(forKey: "sourceWidth") as? Int ?? 0,
+                    pixelHeight: asset.value(forKey: "sourceHeight") as? Int ?? 0,
+                    sourceAttachmentID: selection.sourceAttachmentID))
             }
         }
     }
