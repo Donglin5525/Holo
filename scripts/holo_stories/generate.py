@@ -902,6 +902,7 @@ def gen_oneoff_tasks():
 def gen_sequences_and_blocks():
     for title, c, f in SEQUENCES:
         add_task(title, datetime.fromisoformat(c), datetime.fromisoformat(f))
+    seq_titles_all = {s[0] for s in SEQUENCES}
     for ds, a, b, title, st in C.PLANNED_BLOCKS:
         s, e = datetime.fromisoformat(f"{ds}T{a}"), datetime.fromisoformat(f"{ds}T{b}")
         if st == "auto":        # 今天的安排：过了就已完成，进行中就是进行中
@@ -909,6 +910,12 @@ def gen_sequences_and_blocks():
         created = min(s - timedelta(days=R.randint(1, 4), hours=R.randint(0, 3)), NOW - timedelta(hours=1))
         add_task(title, created, e + timedelta(minutes=R.randint(3, 12)) if st == "completed" else None,
                  due=e, block=(s, e), importance="p1" if "复盘" in title else "p2", status=st)
+    # 眼下摊着没做的生活琐事
+    for title, created_ago, due_in, imp in C.TASKS_OPEN_NOW:
+        if title in seq_titles_all:
+            continue
+        add_task(title, at(TODAY - timedelta(days=created_ago), R.randint(10, 20), R.randint(0, 59)),
+                 due=at(TODAY + timedelta(days=due_in), 20, 0), importance=imp, status="todo")
     # 长距离当天顺手记一条
     for d, km, h, m, note in RUNS:
         if km >= 10 and d != RACE:
@@ -1318,6 +1325,7 @@ def gen_thoughts():
     free.sort(key=lambda x: (0, 0) if OVERTIME.search(x[0]) and not NOT_OVERTIME.search(x[0])
                     else ((2, 0) if "周末两天" in x[0] else ((1, 1) if not STAY_WORDS.search(x[0]) else (2, 1))))
     per_day = Counter()
+    per_day.update(t["createdAt"][:10] for t in THOUGHTS)      # 剧情锚点也占当天的名额：一天想法太多像在补作业
     run_by_day = {d: (km, h, m) for d, km, h, m, _ in RUNS}
     run_days = set(run_by_day)
     tx_count = Counter(t["date"][:10] for t in TX if "date" in t)

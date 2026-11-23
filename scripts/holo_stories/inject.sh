@@ -11,6 +11,9 @@
 # 每次默认重新生成：剧本钉在真实日历上，「今天」的几笔记录按当前时刻决定写不写。
 # 注入要启动一次 App；首启引导页在数据写完前就弹出来了，所以注入后自动再启动一次，
 # 第二次启动直接是主页（注入口会标记引导与首页导览为已看过）。
+#
+# 默认灌进专用模拟器「Holo-Seed」（没有就退回共用的 iPhone 17）。新建专用模拟器：
+#   xcrun simctl create "Holo-Seed" "com.apple.CoreSimulator.SimDeviceType.iPhone-17" "com.apple.CoreSimulator.SimRuntime.iOS-26-3"
 set -euo pipefail
 
 # 默认灌进专用模拟器「Holo-Seed」（和别的会话共用的那台分开，免得被并行跑的测试顶掉）；
@@ -83,6 +86,14 @@ echo "${result#*HoloStory] }"
 # 状态栏设成真实的当前时间：今天的账是按此刻之前补齐的，时钟必须对得上
 xcrun simctl status_bar "$UDID" override --time "$(date +%H:%M)" --batteryLevel 100 --batteryState charged \
   --wifiBars 3 --cellularBars 4 >/dev/null 2>&1 || true
+# 等人名确实写进 App 沙盒里的偏好文件再重启：刚注入完就杀进程，偏好有时还没来得及存（2026-11-24 实发，
+# 第二次启动又看到首启引导）。注意不能 defaults read 那个域——沙盒 App 的偏好不在模拟器的全局域里
+PREFS="$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)/Library/Preferences/$BUNDLE.plist"
+for _ in $(seq 1 20); do
+  [[ "$(plutil -extract userName raw "$PREFS" 2>/dev/null)" == *小满* ]] && break
+  sleep 1
+done
+sleep 1
 echo "▶ 第二次启动：直达主页"
 xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 sleep 1

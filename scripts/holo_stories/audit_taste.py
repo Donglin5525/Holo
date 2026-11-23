@@ -593,6 +593,8 @@ for t in TH:
         item = c.split("新买的")[1][:3]
         if not any(item in x.get("note", "") and d - timedelta(days=45) <= day_of(x["date"]) < d for x in TX if "date" in x):
             add(FAIL, "I 有据", f"「{c[:16]}」，前 45 天账上没有买「{item}」")
+    if re.search(r"便宜[一二两三四五六七八九十\d]+(毛|块|元)", c):
+        add(WARN, "I 有据", f"「{c[:18]}」提到了具体优惠金额，去账上核一眼对不对得上")
     if "九点半" in c and dt(t["createdAt"]).hour < 22:
         add(FAIL, "I 有据", f"「{c[:16]}」记在 {t['createdAt'][11:]}，加班到九点半的话得九点半以后说")
     if "饭都不想吃" in c and any(x.get("category") in ("晚餐", "外卖") and day_of(x["date"]) == d and dt(x["date"]).hour >= 16 for x in TX):
