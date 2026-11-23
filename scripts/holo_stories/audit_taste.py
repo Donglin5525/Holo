@@ -349,6 +349,9 @@ for kw, lo in (("快递", 10), ("房租", 9), ("电话", 8), ("电费|水费|燃
         add(FAIL, "E 待办", f"「{kw}」类待办全年只有 {n} 条")
 overdue = [t for t in TK if t["status"] == "todo" and t.get("dueDate") and dt(t["dueDate"]) < NOW - timedelta(days=3)
            and not t.get("archived")]
+ancient = [t["title"] for t in overdue if dt(t["dueDate"]) < NOW - timedelta(days=150)]
+if ancient:
+    add(FAIL, "E 待办", f"逾期超过五个月还挂着的待办（像随手写的旧日期）：{ancient[:3]}")
 if not 3 <= len(overdue) <= 14:
     add(WARN, "E 待办", f"逾期没做的待办 {len(overdue)} 条（真人会有几条一直挂着）")
 today_blocks = [t for t in TK if t.get("plannedStart", "")[:10] == fmt(NOW.date())]
@@ -473,8 +476,10 @@ for t in TH:
         expect = base + 12 if m.group(1) in ("下午", "晚上") else base % 12
         if w.hour != expect:
             add(FAIL, "G 当天事实", f"「{c[:16]}」写着{m.group(0)}，记在 {w.strftime('%H:%M')}")
-    if re.search("没下楼|躺了一天|在家躺", c) and (tx_by_day[d] or d in run_by_day):
-        add(FAIL, "G 当天事实", f"「{c[:16]}」记在 {fmt(d)}，那天有 {len(tx_by_day[d])} 笔消费、{'跑了步' if d in run_by_day else '没跑步'}")
+    if G.STAY_WORDS.search(c):        # 声称「没出门/没花钱」：说的是哪几天（上周末 / 周末两天 / 当天），那几天必须真没有消费和跑步
+        wrong = [fmt(x) for x in G.days_claimed_home(c, d) if tx_by_day[x] or x in run_by_day]
+        if wrong:
+            add(FAIL, "G 当天事实", f"「{c[:16]}」记在 {fmt(d)}，但它声称没出门的日子里有消费/跑步：{wrong}")
     if c == "起床" and not 5 <= w.hour <= 9:
         add(FAIL, "G 当天事实", f"「起床」记在 {w.strftime('%H:%M')}")
     if c == "下班" and not (G.is_workday(d) and 17 <= w.hour <= 20):
