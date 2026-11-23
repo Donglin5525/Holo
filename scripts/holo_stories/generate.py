@@ -75,13 +75,15 @@ AWAY = [(D("2026-02-15"), D("2026-02-22")),   # 回南通过年
         (D("2026-04-23"), D("2026-04-28")),   # 日本关西
         (D("2026-08-26"), D("2026-08-28")),   # 深圳出差
         (D("2026-10-02"), D("2026-10-04")),   # 莫干山
-        (D("2026-03-19"), D("2026-03-19"))]   # 上海出差
+        (D("2026-03-19"), D("2026-03-19")),   # 上海出差
+        (RACE, RACE)]                 # 比赛日：只有比赛的事
 # 完全没记录的日子：真人不会 365 天一天不落
 GAPS = set(span(D("2025-11-28"), D("2025-11-30")) + span(D("2026-04-04"), D("2026-04-05"))
            + span(D("2026-06-26"), D("2026-06-28")) + span(D("2026-08-14"), D("2026-08-16")))
 ILLNESS = span(D("2026-07-08"), D("2026-07-10"))   # 急性肠胃炎，躺着
 # 一年中哪儿都没去的周末：有想法、有读书，但一分钱没花（「周末两天没下楼」得有真实落点）
-STAY_HOME = {D("2025-12-13"), D("2025-12-14")}
+# 选周末时避开固定扣款日（每月 3/6/12/18 号）和已有事件
+STAY_HOME = {D("2025-12-13"), D("2025-12-14"), D("2026-08-01"), D("2026-08-02")}     # 入冬最冷的周末、盛夏最热的周末
 # 这些天晚饭有安排（生日局、年会、同学聚会、婚宴、平安夜、跑团聚餐），日常不再点外卖
 NO_DINNER = {D("2025-12-24"), D("2026-01-23"), D("2026-02-18"), D("2026-03-13"), D("2026-07-25"), RACE}
 
@@ -197,6 +199,7 @@ def lunch_note(merchant):
 
 
 REMARK_USE = Counter()
+REMARK_DAY = {}
 
 
 def dinner(day, work):
@@ -209,15 +212,17 @@ def dinner(day, work):
         if cat == "外卖" and R.random() < 0.25:
             note = R.choice(["外卖", "外卖", "", "晚饭外卖"])
         elif R.random() < 0.22:
-            remark = R.choice(C.DINNER_REMARK)
-            if REMARK_USE[remark] >= 2:                # 同一句俏皮话一年最多说两次
-                remark = next((x for x in ("懒得做", "下雨不想出门", "一个人吃") if REMARK_USE[x] < 2), "懒得做")
+            fresh = [x for x in C.DINNER_REMARK if REMARK_USE[x] < 2          # 同一句俏皮话一年最多两次
+                     and not (REMARK_DAY.get(x) and (day - REMARK_DAY[x]).days < 30)]   # 而且 30 天内不重复
+            remark = R.choice(fresh) if fresh else "懒得做"
+            REMARK_DAY[remark] = day
             REMARK_USE[remark] += 1
             note = f"{note}，{remark}"
     expense(day, hm(1070 + R.randint(0, 170)), cat, R.choice([WX, ZFB]), price(lo, hi), note)
 
 
 DAY_NOTES = defaultdict(set)
+DAY_KINDS = defaultdict(Counter)
 
 
 def fresh_note(day, pool):
@@ -234,8 +239,13 @@ def fresh_note(day, pool):
 def leisure(day):
     """休息日的一笔生活消费"""
     summer = day.month in (6, 7, 8)
-    kind = R.choices(["超市", "水果", "饮品", "购物", "买菜", "电影", "门票", "咖啡"],
-                     weights=[26, 20, 22 if summer else 13, 17, 12, 5, 5, 4])[0]
+    kinds, weights = ["超市", "水果", "饮品", "购物", "买菜", "电影", "门票", "咖啡"], [26, 20, 22 if summer else 13, 17, 12, 5, 5, 4]
+    cap = {"超市": 1, "水果": 1, "饮品": 2, "购物": 2, "买菜": 1, "电影": 1, "门票": 1, "咖啡": 1}
+    ok = [i for i, k in enumerate(kinds) if DAY_KINDS[day][k] < cap[k]]     # 一下午买三次水果不是真人
+    if not ok:
+        return
+    kind = R.choices([kinds[i] for i in ok], weights=[weights[i] for i in ok])[0]
+    DAY_KINDS[day][kind] += 1
     daytime = hm(600 + R.randint(0, 540))   # 10:00–19:00
     if kind == "超市":
         note, lo, hi = R.choice(C.SUPERMARKET)
@@ -320,6 +330,7 @@ def routine(day):
             expense(day, hm(540 + R.randint(0, 100)), "外卖", WX, price(lo, hi), note)
         if not first_day and R.random() < 0.22:
             amt, note = coffee(month, day)
+            DAY_KINDS[day]["咖啡"] += 1
             expense(day, hm(600 + R.randint(0, 360)), "咖啡", WX, amt, note)
         if R.random() < 0.35:
             expense(day, hm(690 + R.randint(0, 60)), "午餐", WX, price(28, 86),
@@ -343,6 +354,10 @@ def routine(day):
 # 上班日一早先跑了长距离（九点前跑不完）：那天早上没有通勤和咖啡
 MORNING_BUSY = {D("2026-09-20")}
 NOT_BEFORE = {START: "T09:30", RACE: "T24:00", D("2026-10-01"): "T11:30"}      # 这天此刻之前的日常流水不算
+
+
+# 不跑腿办事的日子：宅家周末 + 比赛日（待办不会创建或完成在这些天，也就不会带出上街的消费）
+NO_ERRANDS = STAY_HOME | {RACE}
 
 
 def skip_routine_tx(t):
@@ -429,7 +444,8 @@ def gen_events():
     E(D("2026-01-23"), (21, 5), "交通/打车", WX, 38.5, "年会结束打车回")
     E(D("2026-01-27"), (19, 12), "药品", ZFB, 26.8, "感冒药，嗓子疼")
     # 回南通过年：票是提前抢的
-    E(D("2026-01-31"), (14, 3), "交通/火车", ZFB, 236.5, "回家高铁，候补到的")
+    E(D("2026-01-18"), (16, 20), "家具", CARD, 299, "宜家代购 四件套")            # 「新买的四件套」得真有这一单
+    E(D("2026-01-31"), (14, 3), "交通/火车", ZFB, 236.5, "回家高铁，开售三分钟抢到的")
     E(D("2026-01-31"), (14, 5), "交通/火车", ZFB, 236.5, "返程高铁")
     E(D("2026-02-08"), (15, 22), "礼物", CARD, 568, "给我妈买的羽绒服，她肯定说贵")
     E(D("2026-02-12"), (20, 41), "礼物", WX, 288, "我爸的茶叶")
@@ -514,12 +530,12 @@ def gen_events():
     # 调薪、深圳出差
     E(D("2026-08-10"), (15, 20), "咖啡", WX, 19.9, "调薪快乐水")
     E(D("2026-08-26"), (8, 12), "早餐", WX, 24, "机场 早饭")
-    E(D("2026-08-26"), (8, 20), "交通/机票", BANK, 1080, "去深圳，出差")
+    E(D("2026-08-22"), (15, 28), "交通/机票", BANK, 1080, "去深圳的机票")       # 出差的机票是出发前订票时付的
     E(D("2026-08-26"), (19, 40), "晚餐", WX, 68, "和供应商晚饭，自己先垫")
     E(D("2026-08-26"), (21, 30), "住宿", CARD, 856, "酒店两晚，协议价")
     E(D("2026-08-27"), (12, 30), "午餐", WX, 45, "客户园区 食堂")
     E(D("2026-08-27"), (21, 10), "交通/打车", WX, 32.5, "深圳打车")
-    E(D("2026-08-28"), (18, 40), "交通/机票", BANK, 990, "回杭州")
+    E(D("2026-08-22"), (15, 31), "交通/机票", BANK, 990, "深圳回杭州的机票")
     E(D("2026-08-28"), (17, 50), "晚餐", WX, 56, "机场晚饭")
     income(D("2026-09-11"), (15, 22), "报销", BANK, 3071.5, "八月深圳出差报销")
     # 备赛：报名、装备、比赛日
@@ -549,7 +565,7 @@ def gen_events():
     # 双十一
     E(D("2026-10-21"), (20, 15), "美妆", ZFB, 50, "面膜 预售定金")
     E(D("2026-10-24"), (0, 12), "美妆", ZFB, 100, "面膜 尾款")
-    E(D("2026-10-24"), (0, 6), "服饰", CARD, 689, "羽绒服尾款", id="down-jacket")
+    E(D("2026-10-24"), (0, 6), "服饰", CARD, 689, "羽绒服", id="down-jacket")
     E(D("2026-10-24"), (0, 9), "日用", ZFB, 59.9, "抽纸12包，囤一年的")
     E(D("2026-10-26"), (21, 30), "礼物", CARD, 359, "给我妈买的按摩仪")
     E(D("2026-11-02"), (20, 40), "服饰", CARD, 129, "摇粒绒，顺便凑的")
@@ -581,7 +597,7 @@ def gen_runs():
     # 第一阶段：新年立志后到三月初，每周两三次，三四公里（配速七分半到八分半，新手）
     run_day(D("2026-01-05"), 3.1, 19 * 60 + 30, 418, "第一次，跑走结合")
     for d in span(D("2026-01-06"), D("2026-03-05")):
-        if d.weekday() in (1, 3, 5, 6) and recordable(d) and at_home(d):
+        if d.weekday() in (1, 3, 5, 6) and recordable(d) and at_home(d) and d not in STAY_HOME:
             p = 0.72 if d < D("2026-02-15") else (0.6 if d.month == 2 else 0.5)
             if R.random() < p:
                 weekend = d.weekday() >= 5
@@ -592,7 +608,7 @@ def gen_runs():
     resume = D("2026-05-18")
     run_day(resume, 3.2, 19 * 60 + 30, 432, "重新开始，别再断了")
     for d in span(D("2026-05-19"), D("2026-08-23")):
-        if not (recordable(d) and at_home(d)) or D("2026-07-08") <= d <= D("2026-07-20"):
+        if not (recordable(d) and at_home(d)) or d in STAY_HOME or D("2026-07-08") <= d <= D("2026-07-20"):
             continue
         hot = d >= D("2026-07-01")
         wd = d.weekday()
@@ -626,7 +642,7 @@ def gen_runs():
         run_day(d, km, start, R.uniform(482, 528), note)
     for d in span(D("2026-08-31"), D("2026-10-25")):
         wd = d.weekday()
-        if not (recordable(d) and at_home(d)) or d in long_days:
+        if not (recordable(d) and at_home(d)) or d in long_days or d in STAY_HOME:
             continue
         if wd == 1 and R.random() < 0.85:
             run_day(d, R.uniform(6.0, 8.0), 19 * 60 + R.randint(10, 40), R.uniform(455, 495))
@@ -724,7 +740,7 @@ def finish_time(cdt, horizon=4):
         return same
     for _ in range(8):
         d = cdt.date() + timedelta(days=R.randint(1, horizon))
-        if recordable(d) and at_home(d) and d not in STAY_HOME:
+        if recordable(d) and at_home(d) and d not in NO_ERRANDS:
             return at(d, R.randint(9, 21), R.randint(0, 59))
     return same
 
@@ -760,13 +776,13 @@ def gen_family_tasks():
             d0 = d_align
             while d0 < TODAY and not (recordable(d0) and at_home(d0)) and (d0 - d_align).days < 12:
                 d0 += timedelta(days=1)
-            if not (recordable(d0) and at_home(d0)) or d0 in STAY_HOME:
+            if not (recordable(d0) and at_home(d0)) or d0 in NO_ERRANDS:
                 return
             title = R.choices(fam["variants"], weights=weights)[0]
             lo, hi = fam["hours"]
             cdt = at(d0, R.randint(lo, hi - 1), R.randint(0, 59))
             comp = finish_time(cdt) if R.random() < fam["done"] else None
-            if comp and (comp >= NOW or comp.date() in STAY_HOME):     # 宅家周末不上街：这次不做了
+            if comp and (comp >= NOW or comp.date() in NO_ERRANDS):    # 宅家周末、比赛日不跑腿：这次不做了
                 comp = None
             stale = None
             if comp is None and d0 < TODAY - timedelta(days=60):
@@ -837,7 +853,7 @@ SEQUENCES = [  # (标题, 创建, 完成)：一件件事有先后
 
 
 def task_allowed(title, d):
-    if d in STAY_HOME:
+    if d in NO_ERRANDS:
         return False
     season = C.TASK_SEASON.get(title)
     if season:
@@ -910,7 +926,7 @@ MOODS = {
 }
 TAGS = {"work": ["工作", "工作/吐槽"], "money": ["消费"], "life": ["生活"], "run": ["跑步"], "read": ["读书"], "self": []}
 WINDOW = {   # 内容带时间语义的自由想法：只能落在窗口内
-    "实习生小徐": ("2026-11-02", "2026-11-21"),
+    "实习生小徐": ("2026-11-02", "2026-11-21"), "露露下周出差": ("2026-05-20", "2026-06-15"),      # 那几周她自己没出差
     "连跑三周了": ("2026-01-19", "2026-02-15"), "冬天跑步的第一口冷空气": ("2026-01-06", "2026-03-05"),
     "杭州的夏天跑步": ("2026-06-15", "2026-08-23"), "能量胶": ("2026-09-10", "2026-10-25"),
     "下次报全马": ("2026-10-01", "2026-10-25"), "秋雨": ("2026-09-20", "2026-10-25"),
@@ -971,19 +987,23 @@ def add_thought(text, when, kind):
 
 PLACES = ("良渚", "湘湖", "滨江天街", "西湖", "莫干山")
 OVERTIME = re.compile("加班|开到七点半|九点半|回来的地铁上")
+TEMPLATED = []
 NOT_OVERTIME = re.compile("借口|不想加班|明天|以前|上次|去年|报销不了")     # 「借口加班溜了」不算真加班
 
 
 def ensure_late_commute(d, when):
     """她写了今晚加班到几点：账上回家那趟通勤就得在那之后"""
-    evening = [t for t in TX if t.get("date", "")[:10] == d.isoformat() and t.get("category") == "交通/地铁"
-               and dt_of(t["date"]).hour >= 17]
+    rides = [t for t in TX if t.get("date", "")[:10] == d.isoformat() and t.get("category") in ("交通/地铁", "交通/打车")
+             and dt_of(t["date"]).hour >= 17]
     target = when - timedelta(minutes=R.randint(15, 40))
     if target.date() != d or target.hour < 20:
         target = at(d, 23, R.randint(0, 30))
-    if evening:
-        if dt_of(evening[0]["date"]) < target:
-            evening[0]["date"], evening[0]["note"] = iso(target), "加班回来"
+    if any(dt_of(t["date"]) >= target - timedelta(minutes=30) for t in rides):
+        return                       # 已经有一趟够晚的车了
+    if rides:
+        rides[-1]["date"], rides[-1]["note"] = iso(target), "加班回来"
+        for extra in rides[:-1]:     # 同一晚不留两趟晚归的车
+            TX.remove(extra)
     else:
         expense(d, (target.hour, target.minute), "交通/打车", ZFB, price(28, 52), "加班打车")
 
@@ -1006,7 +1026,7 @@ def bindings(text, d, when):
                         at(nxt, 20, R.randint(0, 59)), "life")
         return
     if text.startswith("今天加班到九点半"):
-        expense(d, (when.hour, when.minute - 12 if when.minute >= 12 else 59), "超市", WX, price(12, 24), "全家 关东煮")
+        expense(d, hm(when.hour * 60 + when.minute - R.randint(50, 70)), "超市", WX, price(12, 24), "全家 关东煮")
         return
     if text.startswith("给自己买了花"):
         expense(d, (when.hour, when.minute - 10 if when.minute >= 10 else 59), "植物花卉", CASH if d >= CASH_FROM else WX, price(19.9, 39.9), "花摊 一小束")
@@ -1186,6 +1206,39 @@ def days_claimed_home(text, d):
     return [d]
 
 
+CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def cn_num(s):
+    """「三」→3、「十」→10、「十二」→12、「二十」→20"""
+    if s.isdigit():
+        return int(s)
+    if len(s) == 1:
+        return CN_NUM[s]
+    if s[0] == "十":
+        return 10 + CN_NUM[s[1]]
+    if len(s) == 3 and s[1] == "十":
+        return CN_NUM[s[0]] * 10 + CN_NUM[s[2]]
+    return CN_NUM[s[0]] * 10 + (CN_NUM[s[1]] if s[1] != "十" else 0)
+
+
+def claim_backed(text, d):
+    """想法里提到的具体东西，记录里得真有：扣了多少钱、跑了多少公里、新买的什么"""
+    m = re.search("扣了([一二三四五六七八九十两]+|\d+)块", text)
+    if m and not any(t.get("amountCents") == cn_num(m.group(1)) * 100 and d - timedelta(days=3) <= dt_of(t["date"]).date() <= d
+                     for t in TX if "date" in t):
+        return False
+    m = re.search("(?<![多才再])跑了([一二三四五六七八九十两]+|\d+)公里", text)     # 「多跑了两公里」说的不是总距离
+    if m and not any(r["habit"] == "跑步" and dt_of(r["date"]).date() == d and abs(r["value"] - cn_num(m.group(1))) <= 0.6
+                     for r in HABIT_RECORDS):
+        return False
+    if "新买的" in text:
+        item = text.split("新买的")[1][:3]
+        if not any(item in t.get("note", "") and d - timedelta(days=45) <= dt_of(t["date"]).date() < d for t in TX if "date" in t):
+            return False
+    return True
+
+
 def fact_ok(text, d, when):
     """这条想法放在这一天这个钟点，和当天的事实对不对得上。对不上就换一天。"""
     h = when.hour
@@ -1225,7 +1278,13 @@ def fact_ok(text, d, when):
     if text == "下班" and not any(t.get("category") == "交通/地铁" and abs((dt_of(t["date"]) - when).total_seconds()) <= 45 * 60
                                  for t in todays):
         return False                 # 「下班」要和回家那趟地铁对得上
-    if d in STAY_HOME and re.search("买了|打车|出门|通勤|上班|开会|外卖|超市|便利店|跑了|跑完|花摊|面包店|菜市场|加班", text):
+    if "九点半" in text and when.hour < 22:
+        return False                 # 加班到九点半的话，得九点半以后才说
+    if "饭都不想吃" in text and any(t.get("category") in ("晚餐", "外卖") and dt_of(t["date"]).hour >= 16 for t in todays):
+        return False                 # 说气得不想吃饭，当晚就别点外卖
+    if not claim_backed(text, d):
+        return False                 # 提到的金额、公里数、新买的东西，记录里得有
+    if d in STAY_HOME and not STAY_WORDS.search(text) and re.search("买了|打车|出门|通勤|上班|开会|外卖|超市|便利店|跑了|跑完|花摊|面包店|菜市场|加班|卖了|下楼|取快递|逛街|看电影", text):
         return False                     # 那个周末她没出门
     return True
 
@@ -1239,6 +1298,8 @@ def gen_thoughts():
         when = datetime.fromisoformat(f"{ds}T{lo:02d}:{row[5] if len(row) > 5 else R.randint(0, 59):02d}")
         if when >= NOW:                 # 锚点在今天的，还没到点就还没发生（凌晨/早晨生成时）
             continue
+        if "{" in text:
+            TEMPLATED.append((len(THOUGHTS), text))
         add_thought(text.format(fund_w=fund_balance_on(when.date()) // 1_000_000, **packets), when, kind)
         if OVERTIME.search(text) and not NOT_OVERTIME.search(text):
             ensure_late_commute(when.date(), when)        # 她写了今晚加班：回家那趟通勤得在那之后
@@ -1253,13 +1314,14 @@ def gen_thoughts():
             for text, slot in [(it if isinstance(it, tuple) else (it, "any")) for it in items]]
     R.shuffle(free)
     # 「没出门」类的想法最后落：等别的想法带来的消费都进了账，再看哪天真的没出门
-    free.sort(key=lambda x: bool(re.search("没下楼|躺了一天|在家躺|一分钱没花", x[0])))
+    # 先落会改账的（写了加班的），最后落声称「没出门」的：都要对着最终的账说话
+    free.sort(key=lambda x: (0, 0) if OVERTIME.search(x[0]) and not NOT_OVERTIME.search(x[0])
+                    else ((2, 0) if "周末两天" in x[0] else ((1, 1) if not STAY_WORDS.search(x[0]) else (2, 1))))
     per_day = Counter()
     run_by_day = {d: (km, h, m) for d, km, h, m, _ in RUNS}
     run_days = set(run_by_day)
     tx_count = Counter(t["date"][:10] for t in TX if "date" in t)
     long_after = [d + timedelta(days=1) for d, km, h, m, _ in RUNS if km >= 10] + [D("2026-01-06"), D("2026-05-19")]
-    num = facts()
     for text, slot, kind in free:
         window = next(((D(a), D(z)) for key, (a, z) in WINDOW.items() if key in text), (START, TODAY))
         lo_d, hi_d = window[0], min(window[1], TODAY - timedelta(days=1))
@@ -1275,7 +1337,9 @@ def gen_thoughts():
             cands = [d for d, (km, h, m) in run_by_day.items() if h >= 17 and in_window(d)]
         elif slot == "run_long":       # 「十五公里以后」只能落在真跑了十五公里以上的那天
             cands = [d for d, (km, h, m) in run_by_day.items() if km >= 15 and in_window(d)]
-        elif slot == "run_short":      # 「五公里就回家了」只能落在没跑满五公里的那天
+        elif slot == "run_more":       # 「越跑越起劲，多跑了两公里」只能落在真跑远了的那天
+            cands = [d for d, (km, h, m) in run_by_day.items() if km >= 5.5 and in_window(d)]
+        elif slot == "run_short":      # 「没跑完就回家了」只能落在没跑满五公里的那天
             cands = [d for d, (km, h, m) in run_by_day.items() if km < 5 and in_window(d)]
         elif slot == "after_run":         # 「第二天腿酸」这类：长距离之后的休息日
             cands = [d for d in long_after if in_window(d) and d not in run_by_day and per_day[d] < 2]
@@ -1286,7 +1350,9 @@ def gen_thoughts():
         elif slot == "rest_day":       # 「改力量训练」只能落在没跑步的那天
             cands = [d for d in slot_days("rest_day") if in_window(d) and d not in run_by_day and per_day[d] < 2]
         else:
-            cands = [d for d in slot_days(slot) if in_window(d) and per_day[d] < 2]
+            # 宅家日优先留给「没出门」类的想法：别的想法一天最多一条，没出门类的最多两条
+            limit = lambda d: ((2 if STAY_WORDS.search(text) else 1) if d in STAY_HOME else 2)
+            cands = [d for d in slot_days(slot) if in_window(d) and per_day[d] < limit(d)]
             if kind == "work":
                 cands = [d for d in cands if is_workday(d)]      # 上班的事只发生在上班的日子
             if text == "今天一分钱没花":
@@ -1296,7 +1362,7 @@ def gen_thoughts():
             if not cands:
                 break
             d_ = R.choice(cands)
-            if slot in ("run", "run_am", "run_pm", "run_long", "run_short"):
+            if slot in ("run", "run_am", "run_pm", "run_long", "run_short", "run_more"):
                 km_, h_, m_ = run_by_day[d_]
                 w_ = at(d_, h_, m_) + timedelta(minutes=R.randint(5, 110))
             else:
@@ -1312,13 +1378,22 @@ def gen_thoughts():
         assert when < NOW
         per_day[d] += 1
         if "{" in text:
-            prev = (d.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-            text = text.format(wm=cn_amount(spend_of(("外卖",), lo=prev + "-01", hi=prev + "-31"), floor=True), **num)
+            TEMPLATED.append((len(THOUGHTS), text))
         add_thought(text, when, kind)
         bindings(text, d, when)
         if OVERTIME.search(text) and not NOT_OVERTIME.search(text):
             ensure_late_commute(d, when)
+    num = facts()                        # 带数字的想法等所有账都记完再取数（后面落的想法还会带来消费）
+    for idx, tpl in TEMPLATED:
+        d_ = dt_of(THOUGHTS[idx]["createdAt"]).date()
+        prev = (d_.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        vals = {**packets, **num, "fund_w": fund_balance_on(d_) // 1_000_000,
+                "wm": cn_amount(spend_of(("外卖",), lo=prev + "-01", hi=prev + "-31"), floor=True)}
+        THOUGHTS[idx]["content"] = tpl.format(**vals)
     tx_count = Counter(t["date"][:10] for t in TX if "date" in t)
+    for th_ in THOUGHTS:                 # 终检：每条想法对着最终的账再校验一遍（后落的想法会改账）
+        if not fact_ok(th_["content"], dt_of(th_["createdAt"]).date(), dt_of(th_["createdAt"])):
+            sys.exit(f"想法「{th_['content'][:16]}」和最终的账对不上（{th_['createdAt'][:10]}）")
     for th_ in THOUGHTS:                 # 兜底：后落的想法可能带来新的消费，把「那天没出门」的结论推翻
         if STAY_WORDS.search(th_["content"]):
             spent = [fmt_(x) for x in days_claimed_home(th_["content"], dt_of(th_["createdAt"]).date()) if tx_on(x)]

@@ -578,10 +578,50 @@ for n_, k_ in remark_c.items():
     if k_ >= 3 and len(n_) >= 8 and "，" in n_ and n_ not in ("全家关东煮，落地第一顿",):
         add(WARN, "A 文本", f"备注「{n_}」出现了 {k_} 次，同一句俏皮话说太多遍")
 
+# ═══════════════ I. 想法里的具体数字和东西，记录里得真有（2026-11-24 第六轮）═══════════════
+CN = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+run_km = {day_of(r["date"]): r["value"] for r in HR}
+for t in TH:
+    c, d = t["content"], day_of(t["createdAt"])
+    m = re.search(r"扣了([一二三四五六七八九十两]+|\d+)块", c)
+    if m and not any(x.get("amountCents") == G.cn_num(m.group(1)) * 100 and d - timedelta(days=3) <= day_of(x["date"]) <= d for x in TX if "date" in x):
+        add(FAIL, "I 有据", f"「{c[:16]}」说扣了{m.group(1)}块，前后三天账上没有这笔")
+    m = re.search(r"(?<![多才再])跑了([一二三四五六七八九十两]+|\d+)公里", c)
+    if m and (d not in run_km or abs(run_km[d] - G.cn_num(m.group(1))) > 0.6):
+        add(FAIL, "I 有据", f"「{c[:16]}」说跑了{m.group(1)}公里，当天记录是 {run_km.get(d)}")
+    if "新买的" in c:
+        item = c.split("新买的")[1][:3]
+        if not any(item in x.get("note", "") and d - timedelta(days=45) <= day_of(x["date"]) < d for x in TX if "date" in x):
+            add(FAIL, "I 有据", f"「{c[:16]}」，前 45 天账上没有买「{item}」")
+    if "九点半" in c and dt(t["createdAt"]).hour < 22:
+        add(FAIL, "I 有据", f"「{c[:16]}」记在 {t['createdAt'][11:]}，加班到九点半的话得九点半以后说")
+    if "饭都不想吃" in c and any(x.get("category") in ("晚餐", "外卖") and day_of(x["date"]) == d and dt(x["date"]).hour >= 16 for x in TX):
+        add(FAIL, "I 有据", f"「{c[:16]}」，当晚却点了外卖")
+# 休息日一下午买三次水果 / 连逛两家超市 / 两杯咖啡隔半小时
+for day, items in tx_of_day.items():
+    if any(a <= day <= b for a, b in G.AWAY):
+        continue                        # 出差、旅行的日子是逐笔写好的，不算日常扎堆
+    for cat in ("水果", "超市", "买菜"):
+        if sum(1 for x in items if x.get("category") == cat) >= 2:
+            add(FAIL, "I 有据", f"{fmt(day)} 有 {sum(1 for x in items if x.get('category') == cat)} 笔「{cat}」")
+    coffees = sorted(dt(x["date"]) for x in items if x.get("category") == "咖啡")
+    if any((b - a).total_seconds() < 3 * 3600 for a, b in zip(coffees, coffees[1:])):
+        add(FAIL, "I 有据", f"{fmt(day)} 两杯咖啡间隔不到三小时")
+    rides = sorted(dt(x["date"]) for x in items if x.get("category") in ("交通/地铁", "交通/打车") and dt(x["date"]).hour >= 17)
+    if any((b - a).total_seconds() < 45 * 60 for a, b in zip(rides, rides[1:])):
+        add(FAIL, "I 有据", f"{fmt(day)} 晚上四十分钟内坐了两趟车：{[x.strftime('%H:%M') for x in rides]}")
+# 带数字的想法要和最终的账一致
+daily_total = G.cn_amount(sum(x["amountCents"] for x in TX if x.get("category") == "日用" and x.get("type") == "expense"
+                             and x["date"] >= "2025-11-24") / 100)
+for t in TH:
+    m = re.search(r"一年花了(.+)$", t["content"])
+    if m and t["content"].startswith("日用品") and m.group(1) != daily_total:
+        add(FAIL, "I 有据", f"「{t['content']}」与最终账上的 {daily_total} 不一致")
+
 # ═══════════════ 输出 ═══════════════
 groups = ["A 文本", "A 情绪", "B 日历", "B 先后", "B 季节", "B 节假日", "B 行程", "B 断档", "C 时间戳", "C 时段", "C 想法时段",
           "C 咬合", "C 比赛", "C 跑步", "D 金额", "D 对账", "D 训练", "D 生活", "D 节奏", "D 工资", "D 预算", "D 退款",
-          "D 目标", "E 待办", "E 节律", "F 互证", "F 待办", "F 生活", "G 当天事实", "H 当天事实", "H 开号", "H 比赛", "H 生活", "H 待办"]
+          "D 目标", "E 待办", "E 节律", "F 互证", "F 待办", "F 生活", "G 当天事实", "H 当天事实", "H 开号", "H 比赛", "H 生活", "H 待办", "I 有据"]
 fails = [i for i in issues if i[0] == FAIL]
 warns = [i for i in issues if i[0] == WARN]
 print(f"文本 {len(texts)} 条｜中文间空格 {space_rate:.1%}｜带标点想法 {punct:.0%}｜句长 ≤6字 {tiny:.0%} / 7~15字 {mid:.0%} / ≥31字 {long_:.0%}")
