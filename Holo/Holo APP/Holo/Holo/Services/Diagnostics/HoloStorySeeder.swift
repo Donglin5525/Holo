@@ -96,6 +96,10 @@ enum HoloStorySeeder {
         let persona = (story.meta.persona ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !persona.isEmpty {
             UserDisplayNameSettings(userDefaults: defaults).saveDisplayName(persona)
+            // 演示直达首页：首页三步导览与长廊欢迎条不再弹（与截图通道同一做法）。
+            // 引导页在数据写完前就已经弹出，所以 inject 流程是「注入启动 → 再启动一次」
+            OnboardingProgressStore.markSeen(OnboardingProgressStore.homeCoachTourKey)
+            OnboardingProgressStore.markSeen(OnboardingProgressStore.memoryGalleryWelcomeKey)
         }
         notifyDataChanged()
         logger.notice("剧本 \(storyId, privacy: .public) 注入完成：\(summary.text, privacy: .public)")
@@ -220,7 +224,9 @@ private final class StoryWriter {
     private var transactionIDs = Set<String>()
     private var transactions: [String: Transaction] = [:]
     private var habits: [String: Habit] = [:]
+    /// 任务标题允许重复（真人会一周写一次「写周报」）；这里只存每个标题的第一条，供 goals[].tasks 按标题挂靠
     private var tasks: [String: TodoTask] = [:]
+    private var taskTitleCounts: [String: Int] = [:]
     private var summary = StorySummary()
     /// 分期 / 退款走仓库的既有写入，字段口径不另抄一份
     private lazy var finance = FinanceRepository(context: context)
@@ -724,9 +730,6 @@ private extension StoryWriter {
         for (index, row) in rows.enumerated() {
             let field = "tasks[\(index)]"
             let title = try requiredName(row.title, "\(field).title")
-            guard tasks[title] == nil else {
-                throw StoryError.invalid("\(field)：任务「\(title)」在剧本里重复（目标靠标题引用任务）")
-            }
             let status = try named(row.status, fallback: TaskStatus.todo.rawValue, as: TaskStatus.self, field: "\(field).status")
             let plannedStart = try clock.optionalDate(row.plannedStart)
             let plannedEnd = try clock.optionalDate(row.plannedEnd)
@@ -760,7 +763,10 @@ private extension StoryWriter {
             task.createdAt = try clock.optionalDate(row.createdAt) ?? now
             task.updatedAt = task.completedAt ?? task.createdAt
             task.archived = row.archived ?? false
-            tasks[title] = task
+            taskTitleCounts[title, default: 0] += 1
+            if tasks[title] == nil {
+                tasks[title] = task
+            }
             summary.tasks += 1
         }
     }
@@ -959,6 +965,10 @@ private extension StoryWriter {
             let name = try requiredName(taskTitle, "\(field).tasks")
             guard let task = tasks[name] else {
                 throw StoryError.invalid("\(field).tasks 找不到任务「\(name)」：请先在 tasks 里写")
+            }
+            // 标题可以重复，但目标挂靠必须指向唯一一条：重名时拒绝猜测
+            if (taskTitleCounts[name] ?? 0) > 1 {
+                throw StoryError.invalid("\(field).tasks：任务「\(name)」在剧本里有 \(taskTitleCounts[name] ?? 0) 条同名，无法确定挂哪一条。请只挑一条挂到目标下，并给它换一个不重复的标题")
             }
             guard task.goal == nil else {
                 throw StoryError.invalid("\(field).tasks：任务「\(name)」已经挂在目标「\(task.goal?.title ?? "")」下，一个任务只能属于一个目标")

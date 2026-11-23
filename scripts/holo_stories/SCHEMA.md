@@ -1,7 +1,8 @@
 # Holo 剧本文件规范（SCHEMA）
 
 > 真源说明：字段以 App 代码为准——`Holo/Services/Diagnostics/HoloStorySchema.swift`（数据形状）与 `HoloStorySeeder.swift`（写入逻辑）。改任何一边都要同步改这份文档和另一边。
-> 版本：2026-11-23 首版（第一批五个模块：记账 / 想法 / 待办 / 习惯 / 目标）。
+> 版本：2026-11-23 第二版（第一批五个模块：记账 / 想法 / 待办 / 习惯 / 目标）。
+> 第二版变化：待办标题允许重复；推荐直接写真实日期；填了 persona 会连同首页导览一起标记为已看过。
 
 ## 0. 这是什么
 
@@ -9,7 +10,7 @@
 
 - **只在 DEBUG 构建的模拟器上生效**，真机和正式包里这段代码根本不编译。
 - 模拟器没有 iCloud 同步，数据天然隔离，不会碰任何真实数据。
-- 金额一律写「整数分」，日期一律写「相对天数」，所以同一份剧本隔几个月再注入，画面上的「最近 7 天」「这个月」依然成立。
+- 金额一律写「整数分」。日期**推荐直接写真实日期时间**（`2026-04-23T09:30`）——带节日、调休、行程的剧本只有钉在真实日历上才自洽；`D-3` 这种相对天数仍然支持，但「几天前/几天后」的正负方向极易写反，只在没有任何日历依赖的极简剧本里用。
 
 ## 1. 三步上手
 
@@ -27,6 +28,7 @@ xcrun simctl launch "$UDID" com.holo.Holo -AppleLanguages '(zh-Hans)' -AppleLoca
 - 环境变量 `HOLO_STORY_FILE` 的值是 **Documents 目录下的文件名**（如 `story.json`），不能带路径。
 - launch 命令末尾的语言参数建议带上（与宣传图通道同一套做法）：App 首次启动会按当前语言把预设分类和账户种进库（之后固化），带上它保证是简体；否则英文系统的模拟器会种成英文名，剧本里按中文名引用会找不到。
 - 没设这个环境变量时启动，这个通道完全不工作，和现有截图开关（`HOLO_APP_STORE_SCREENSHOT_MODE`、`HOLO_ASO_V10`）互不影响。
+- 一条命令走完：`./inject.sh`（重新生成 → 过审查 → 注入 → 自动再启动一次停在主页）。`--no-gen` 跳过生成，`--verify` 额外核对行数，`--build` 重新构建。
 - 想看注入日志：`xcrun simctl spawn "$UDID" log stream --predicate 'subsystem == "com.holo.app" AND category == "HoloStory"' --style compact`
   成功会打一行「剧本 xxx 注入完成：账户 n／分类 n／…」，失败会打「剧本注入失败」并带上是第几条的哪个字段出了问题。
 
@@ -68,7 +70,7 @@ xcrun simctl launch "$UDID" com.holo.Holo -AppleLanguages '(zh-Hans)' -AppleLoca
 引用规则：
 
 - **accounts / categories / financeProjects / habits**：库里已经有同名（且未删）的，直接复用、不重建——所以预设的「微信」「午餐」不必再声明就能用。同名对象的类型必须和剧本写的一致，否则报错。
-- **tasks 的 title 在剧本内必须唯一**（目标靠它找任务）。`transactions[].id`、`accounts[].name` 等在剧本内也不能重复声明。
+- **tasks 的 title 可以重复**（真人会一周写一次「写周报」）。只有被 `goals[].tasks` 按标题挂靠的那几条必须唯一：剧本里有同名任务时，挂靠会被拒绝并提示给其中一条换个标题。`transactions[].id`、`accounts[].name` 等在剧本内不能重复声明。
 - **一台模拟器只跑一个剧本。** 换剧本请卸载重装或换一台新模拟器，否则旧剧本的数据还留在库里。
 
 ### 2.4 幂等、失败与重试
@@ -98,7 +100,7 @@ xcrun simctl launch "$UDID" com.holo.Holo -AppleLanguages '(zh-Hans)' -AppleLoca
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `storyId` | string | 是 | 幂等键，非空即可。改剧本内容后想重新注入，换一个 storyId 或卸载重装 |
-| `persona` | string | 否 | 剧本主角名，写入 App 的显示名（首页问候语「下午好，小满」）。**写入后新人引导页不再出现**；不填则引导照常 |
+| `persona` | string | 否 | 剧本主角名，写入 App 的显示名（首页问候语「下午好，小满」）。**写入后新人引导页、首页三步导览、长廊欢迎条都不再出现**（数据写完前引导页可能已经弹出，所以注入后再启动一次就是干净的主页）；不填则引导照常 |
 | `lockedClaims` | 任意 JSON | 否 | 内容侧的口径锁定表。App 只在日志里原样回显，**不做校验**；对账在生成器侧完成 |
 
 ## 4. 各模块字段
@@ -256,7 +258,7 @@ xcrun simctl launch "$UDID" com.holo.Holo -AppleLanguages '(zh-Hans)' -AppleLoca
 
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `title` | string | ✅ | | 剧本内必须唯一 |
+| `title` | string | ✅ | | 可以重复（周报、取快递这类本来就会反复出现）；被目标按标题挂靠的除外 |
 | `note` | string | — | | 备注 |
 | `status` | string | — | `todo` | `todo` 待办 / `inProgress` 进行中 / `completed` 已完成 |
 | `completedAt` | 日期 | — | 注入当刻 | 仅 `completed` 可写；完成时刻 |
