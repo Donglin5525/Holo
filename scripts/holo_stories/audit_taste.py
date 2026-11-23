@@ -134,7 +134,9 @@ if RACE.weekday() != 6:
     add(FAIL, "B 日历", "比赛不在周日")
 # 放假日不该通勤（病根 v1：国庆节当天有地铁和工作午餐）
 closed = {x.isoformat() for x in G.HOLIDAYS}
-commute = [t for t in TX if t.get("category") == "交通/地铁" and t["date"][:10] in closed and not t.get("project")]
+COMMUTE_NOTE = ("", "地铁", "上班", "下班", "早高峰", "加班回来")
+commute = [t for t in TX if t.get("category") == "交通/地铁" and t["date"][:10] in closed and not t.get("project")
+           and t.get("note") in COMMUTE_NOTE]        # 出门玩的地铁不算通勤
 if commute:
     add(FAIL, "B 节假日", f"法定假日出现通勤：{[t['date'][:10] for t in commute][:4]}")
 work_lunch = {m for m, _, _ in G.C.LUNCH}
@@ -187,7 +189,8 @@ for t in TX:
     if cat == "夜宵" and h < 3:          # 凌晨的夜宵
         h += 24
     rule = hour_rules.get(cat)
-    if cat in ("交通/地铁", "地铁") and G.is_workday(day_of(t["date"])) and not (5.5 <= h <= 9.6 or 17 <= h <= 23.9):
+    if cat in ("交通/地铁", "地铁") and G.is_workday(day_of(t["date"])) and t.get("note", "") in ("", "地铁", "上班", "下班", "早高峰", "加班回来") \
+            and not (5.5 <= h <= 9.6 or 17 <= h <= 23.9):
         add(FAIL, "C 时段", f"通勤地铁记在 {t['date'][11:]}：{t.get('note') or ''}")
     elif rule and not rule[0] <= h <= rule[1]:
         add(FAIL, "C 时段", f"{cat} 记在 {t['date'][11:]}：{t.get('note') or ''}")
@@ -508,10 +511,77 @@ for d, r in run_by_day.items():
         if early:
             add(FAIL, "G 当天事实", f"{fmt(d)} 早上 {end.strftime('%H:%M')} 才跑完 {r['value']} 公里，之前却有通勤/咖啡：{[x['date'][11:] for x in early]}")
 
+# ═══════════════ H. 当天事实的另一半（2026-11-24 第五轮：人还没起、人在哪儿、几点下班、当天第几杯）═══════════════
+PLACES = ("良渚", "湘湖", "滨江天廊", "滨江天街", "西湖", "莫干山")
+tx_of_day = defaultdict(list)
+for t in TX:
+    if "date" in t:
+        tx_of_day[day_of(t["date"])].append(t)
+done_of_day = defaultdict(list)
+for t in TK:
+    if t.get("completedAt"):
+        done_of_day[day_of(t["completedAt"])].append(t)
+for t in TH:
+    c, d, w = t["content"], day_of(t["createdAt"]), dt(t["createdAt"])
+    todays = tx_of_day[d]
+    first_tx = min((x["date"] for x in todays), default=None)
+    if re.search("^起床|睡到|自然醒", c) and first_tx and w >= dt(first_tx):
+        add(FAIL, "H 当天事实", f"「{c[:16]}」记在 {w.strftime('%H:%M')}，但当天第一笔消费在 {first_tx[11:]}——人还没起床就花钱了")
+    mine = [p_ for p_ in PLACES if p_ in c]
+    if mine and any(p_ in x.get("note", "") for x in todays for p_ in PLACES if p_ not in mine):
+        add(FAIL, "H 当天事实", f"「{c[:16]}」记在 {fmt(d)}，但当天账上有别的地方的消费：{[x.get('note') for x in todays if any(p_ in x.get('note', '') for p_ in PLACES)][:3]}")
+    if c == "下班" and not any(x.get("category") == "交通/地铁" and abs((dt(x["date"]) - w).total_seconds()) <= 45 * 60 for x in todays):
+        add(FAIL, "H 当天事实", f"「下班」记在 {w.strftime('%H:%M')}，回家那趟地铁对不上：{[x['date'][11:] for x in todays if x.get('category') == '交通/地铁']}")
+    if re.search("加班|开到七点半|九点半|回来的地铁", c) and not re.search("借口|不想加班|明天|以前|上次|去年|报销不了", c) and not any(x.get("category") in ("交通/地铁", "交通/打车") and dt(x["date"]) >= w - timedelta(minutes=45)
+                                                                        for x in todays if dt(x["date"]).hour >= 17):
+        add(FAIL, "H 当天事实", f"「{c[:16]}」记在 {w.strftime('%H:%M')}，但账上没有那之后的回家通勤")
+    if "第二天" in c and d in run_by_day:
+        add(FAIL, "H 当天事实", f"「{c[:16]}」说的是第二天，却记在跑步当天 {fmt(d)}")
+first_day = sorted(tx_of_day[G.START], key=lambda x: x["date"])
+if first_day and not (first_day[0].get("category") == "咖啡"):
+    add(FAIL, "H 开号", f"开始用的第一天，账上第一笔是「{first_day[0].get('note')}」，和「第一笔记了杯咖啡」对不上")
+race_tx = [(x["date"][11:], x.get("category"), x.get("note")) for x in tx_of_day[RACE]
+           if x.get("category") in ("外卖", "购物", "水果", "饮品", "服饰", "日用", "咖啡", "午餐", "早餐", "晚餐", "超市")
+           and not x.get("note", "").startswith(("完赛餐", "凌晨打去起点", "挂着奖牌", "跑团吃饭"))]
+if race_tx:
+    add(FAIL, "H 比赛", f"比赛当天混进了日常消费：{race_tx[:3]}")
+for x in TX:
+    if x.get("category") == "KTV" and dt(x["date"]).hour >= 20:
+        if any(r["habit"] == "阅读" and day_of(r["date"]) == day_of(x["date"]) for r in S["habitRecords"]):
+            add(FAIL, "H 当天事实", f"{fmt(day_of(x['date']))} KTV 唱到半夜，当晚却有睡前阅读打卡")
+for t in TX:
+    if t.get("category") == "咖啡" and "今天第二杯" in t.get("note", "") and not any(
+            x.get("category") == "咖啡" and x["date"] < t["date"] and day_of(x["date"]) == day_of(t["date"]) for x in TX):
+        add(FAIL, "H 当天事实", f"「{t['date'][:10]}」说今天第二杯，之前没有第一杯")
+for note_ in ("iCloud自动续费", "微信读书", "网易云黑胶"):
+    months = {t["date"][:7] for t in TX if t.get("note") == note_}
+    missing = [f"2026-{m:02d}" for m in range(2, 11) if f"2026-{m:02d}" not in months]
+    if missing:
+        add(FAIL, "H 生活", f"自动续费「{note_}」这些月份没扣：{missing}")
+by_day_notes = defaultdict(list)
+for x in TX:
+    if x.get("category") == "买菜" and x.get("note"):
+        by_day_notes[x["date"][:10]].append(x["note"])
+dup_buy = {d: n for d, n in by_day_notes.items() if len(n) != len(set(n))}
+if dup_buy:
+    add(FAIL, "H 当天事实", f"同一天重复买同一样东西：{list(dup_buy.items())[:2]}")
+last_book = max(l["date"][:10] for g_ in S["goals"] if g_.get("metricLogs") for l in g_["metricLogs"])
+for t in TH:
+    if "读了十九本" in t["content"] and t["createdAt"][:10] < last_book:
+        add(FAIL, "H 当天事实", f"「读了十九本」记在 {t['createdAt'][:10]}，第十九本 {last_book} 才读完")
+for title, start in G.C.TASK_FROM.items():
+    early = [t["createdAt"][:10] for t in TK if t["title"] == title and t["createdAt"][:10] < start]
+    if early:
+        add(FAIL, "H 待办", f"「{title}」出现在 {early}，早于它该出现的日期 {start}")
+remark_c = Counter(t.get("note", "") for t in TX)
+for n_, k_ in remark_c.items():
+    if k_ >= 3 and len(n_) >= 8 and "，" in n_ and n_ not in ("全家关东煮，落地第一顿",):
+        add(WARN, "A 文本", f"备注「{n_}」出现了 {k_} 次，同一句俏皮话说太多遍")
+
 # ═══════════════ 输出 ═══════════════
 groups = ["A 文本", "A 情绪", "B 日历", "B 先后", "B 季节", "B 节假日", "B 行程", "B 断档", "C 时间戳", "C 时段", "C 想法时段",
           "C 咬合", "C 比赛", "C 跑步", "D 金额", "D 对账", "D 训练", "D 生活", "D 节奏", "D 工资", "D 预算", "D 退款",
-          "D 目标", "E 待办", "E 节律", "F 互证", "F 待办", "F 生活", "G 当天事实"]
+          "D 目标", "E 待办", "E 节律", "F 互证", "F 待办", "F 生活", "G 当天事实", "H 当天事实", "H 开号", "H 比赛", "H 生活", "H 待办"]
 fails = [i for i in issues if i[0] == FAIL]
 warns = [i for i in issues if i[0] == WARN]
 print(f"文本 {len(texts)} 条｜中文间空格 {space_rate:.1%}｜带标点想法 {punct:.0%}｜句长 ≤6字 {tiny:.0%} / 7~15字 {mid:.0%} / ≥31字 {long_:.0%}")
