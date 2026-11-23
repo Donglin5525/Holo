@@ -289,6 +289,8 @@ struct HoloApp: App {
                     await HoloMemorySimulatorValidationScenario.runIfRequested()
                 // Matter 模拟器纵向验收合成数据（-MatterDemoSeed 启动参数触发，幂等）
                 await MatterDemoSeed.seedIfNeeded()
+                // 剧本文件演示数据（HOLO_STORY_FILE 指向 Documents 下的 JSON，按 storyId 幂等）
+                await HoloStorySeeder.runIfRequested()
                 #else
                 let appStoreScreenshotModeActive = false
                 let simulatorMemoryValidationActive = false
