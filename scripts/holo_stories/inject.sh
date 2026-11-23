@@ -13,7 +13,13 @@
 # 第二次启动直接是主页（注入口会标记引导与首页导览为已看过）。
 set -euo pipefail
 
-UDID="${UDID:-F9F5EDDE-EB22-4951-A876-532BC5C53687}"   # iPhone 17 (iOS 26.3)
+# 默认灌进专用模拟器「Holo-Seed」（和别的会话共用的那台分开，免得被并行跑的测试顶掉）；
+# 拍摄流水线要用哪台就 UDID=<那台的 UDID> ./inject.sh
+DEFAULT_UDID="$(xcrun simctl list devices -j 2>/dev/null | python3 -c 'import json,sys
+for devs in json.load(sys.stdin)["devices"].values():
+    for d in devs:
+        if d["name"] == "Holo-Seed": print(d["udid"]); raise SystemExit' 2>/dev/null)"
+UDID="${UDID:-${DEFAULT_UDID:-F9F5EDDE-EB22-4951-A876-532BC5C53687}}"
 BUNDLE="com.holo.Holo"
 IDB=/opt/homebrew/bin/idb
 HERE="$(cd "$(dirname "$0")" && pwd)"
