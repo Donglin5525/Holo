@@ -27,13 +27,10 @@ private enum HabitLampMetrics {
     static let baseWick: CGFloat = 7
     /// 基准点亮光晕直径
     static let baseHalo: CGFloat = 58
-    /// 灯芯点亮起始 / 过冲缩放
+    /// 灯芯点亮起始缩放（弹到 1.0 的过程中由弹簧自带过冲）
     static let igniteFrom: CGFloat = 0.4
-    static let ignitePeak: CGFloat = 1.15
     /// 光晕亮度峰值时刻（自点亮起，秒）
     static let haloPeakTime: TimeInterval = 0.48
-    /// 灯芯从过冲回落到 1.0 的时长（0.55s 定格 − 0.30s 点亮）
-    static let wickSettleDuration: TimeInterval = 0.25
     /// 光晕缩放峰值 / 终态
     static let haloPeakScale: CGFloat = 1.3
     static let haloEndScale: CGFloat = 1.8
@@ -67,6 +64,12 @@ struct HabitLampView: View {
     @Environment(\.colorScheme) private var scheme
     /// 正在播放点亮动画的令牌（nil = 静止）
     @State private var playingToken: UUID?
+    /// 点亮动画的三个状态量，用普通 SwiftUI 动画驱动。
+    /// 首版用 KeyframeAnimator，在「胶囊换灯」的挂载瞬间只停在初值：灯芯随即消失、光晕全程不出现
+    /// （模拟器连拍逐帧实测），换成状态动画后每一帧都按预期推进。
+    @State private var wickScale: CGFloat = HabitLampMetrics.igniteFrom
+    @State private var haloScale: CGFloat = HabitLampMetrics.igniteFrom
+    @State private var haloOpacity: Double = 0
 
     private var isDark: Bool { scheme == .dark }
 
@@ -96,9 +99,8 @@ struct HabitLampView: View {
 
     var body: some View {
         Group {
-            if let token = playingToken, allowsMotion {
+            if playingToken != nil, allowsMotion {
                 igniteLamp
-                    .id(token)
             } else {
                 restingLamp
             }
@@ -112,28 +114,28 @@ struct HabitLampView: View {
         .accessibilityHidden(true)
     }
 
-    /// 点亮中的灯：光晕在灯体后面，随关键帧扩散淡出
+    /// 点亮中的灯：光晕在灯体后面扩散淡出，灯芯从小放大到最亮
     private var igniteLamp: some View {
-        KeyframeAnimator(initialValue: HabitLampIgniteValues(), repeating: false) { values in
-            ZStack {
-                halo(scale: values.haloScale, opacity: values.haloOpacity)
-                lampBody
-                wick(scale: values.wickScale, opacity: staticWickOpacity)
-            }
-        } keyframes: { _ in
-            KeyframeTrack(\.wickScale) {
-                SpringKeyframe(HabitLampMetrics.ignitePeak, duration: HoloAnimation.lampIgniteDuration)
-                CubicKeyframe(1.0, duration: HabitLampMetrics.wickSettleDuration)
-            }
-            KeyframeTrack(\.haloScale) {
-                CubicKeyframe(HabitLampMetrics.haloPeakScale, duration: HabitLampMetrics.haloPeakTime)
-                CubicKeyframe(HabitLampMetrics.haloEndScale,
-                              duration: HoloAnimation.lampHaloDuration - HabitLampMetrics.haloPeakTime)
-            }
-            KeyframeTrack(\.haloOpacity) {
-                CubicKeyframe(HabitLampMetrics.haloPeakOpacity, duration: HabitLampMetrics.haloPeakTime)
-                CubicKeyframe(0.0,
-                              duration: HoloAnimation.lampHaloDuration - HabitLampMetrics.haloPeakTime)
+        ZStack {
+            halo(scale: haloScale, opacity: haloOpacity)
+            lampBody
+            wick(scale: wickScale, opacity: staticWickOpacity)
+        }
+        .onAppear { playIgnition() }
+    }
+
+    /// 灯芯 0.3 秒弹到最亮；光晕 0.48 秒亮到峰值，再用余下时间放大淡出
+    private func playIgnition() {
+        withAnimation(HoloAnimation.snappy) { wickScale = 1 }
+        withAnimation(HoloAnimation.lampHaloRise) {
+            haloOpacity = HabitLampMetrics.haloPeakOpacity
+            haloScale = HabitLampMetrics.haloPeakScale
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(HabitLampMetrics.haloPeakTime))
+            withAnimation(HoloAnimation.lampHaloFade) {
+                haloOpacity = 0
+                haloScale = HabitLampMetrics.haloEndScale
             }
         }
     }
@@ -209,11 +211,15 @@ struct HabitLampView: View {
     // MARK: 点亮时序
 
     /// 非空点亮令牌到达（挂载即带 = 首次完成的胶囊→灯切换，或令牌变化 = 新点亮）
-    /// 且动效允许 → 进入播放；灯最亮那一刻轻震一次。
+    /// 且动效允许 → 进入播放；灯最亮那一刻轻震一次。（视图卸载时任务自动取消，不会补震）
     /// 令牌由导演在动画窗口结束时清空，所以「挂载时令牌非空」就是「正在播」。
     @MainActor
     private func beginIgnition() async {
         guard let token = ignitionToken, allowsMotion else { return }
+        // 先无动画复位到起始态，再切换到点亮视图，由它的 onAppear 起播
+        wickScale = HabitLampMetrics.igniteFrom
+        haloScale = HabitLampMetrics.igniteFrom
+        haloOpacity = 0
         playingToken = token
         do { try await Task.sleep(for: .seconds(HoloAnimation.lightFlightDelay)) } catch { return }
         HapticManager.soft()
@@ -227,13 +233,6 @@ struct HabitLampView: View {
         do { try await Task.sleep(for: .seconds(HoloAnimation.lampHaloDuration)) } catch { return }
         if playingToken == token { playingToken = nil }
     }
-}
-
-/// 点亮动画的关键帧载荷（初值 = 点亮前一瞬）
-private struct HabitLampIgniteValues {
-    var wickScale: CGFloat = HabitLampMetrics.igniteFrom
-    var haloScale: CGFloat = HabitLampMetrics.igniteFrom
-    var haloOpacity: Double = 0
 }
 
 /// 呼吸相位

@@ -585,6 +585,9 @@ enum HoloAnimation {
     static let lampIgniteDuration: TimeInterval = 0.30
     /// 点亮瞬间的光晕从出现到完全消失
     static let lampHaloDuration: TimeInterval = 1.6
+    /// 光晕亮到峰值（前 0.48 秒）、从峰值放大淡出（余下 1.12 秒）
+    static let lampHaloRise: Animation = .easeOut(duration: 0.48)
+    static let lampHaloFade: Animation = .easeOut(duration: lampHaloDuration - 0.48)
     /// 已点亮的灯芯「呼吸」一个周期
     static let lampBreathPeriod: TimeInterval = 3.6
     /// 光点从习惯行飞到页头「今日的灯」
