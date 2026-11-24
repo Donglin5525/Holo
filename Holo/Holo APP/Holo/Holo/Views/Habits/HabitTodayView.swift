@@ -732,8 +732,8 @@ enum HabitTodayLightsMetrics {
 
 /// 页头一颗小灯：未亮 = 边框灰；亮 = 习惯色径向渐变（同灯体按比例缩小）。
 /// 飞行落地前被 pendingLanding 压住画成未亮；落地（或兜底放行）后亮起并轻跳。
-/// 轻跳只在「未亮 → 亮」的变化时播：打开页面时已经亮着的灯不重播；
-/// 动效关闭时不跳，只用 0.25s 淡入。
+/// 结构固定不变（灰底 + 亮层叠在一起，只变透明度）：不靠「插入一个新视图 + 过渡动画」来亮灯，
+/// 实测那种写法在亮灯同时起跳时会先在错位处闪一下、再灭一下才正常亮。
 private struct HabitTodayHeaderLamp: View {
     let light: HabitTodayLight
     let color: Color
@@ -741,30 +741,33 @@ private struct HabitTodayHeaderLamp: View {
     /// 是否播放落地轻跳（完成动效开关 + 系统减弱动态效果）
     let animatesLanding: Bool
     @Environment(\.colorScheme) private var scheme
-    /// 落地轻跳的播放序号：每次「未亮 → 亮」加一；0 = 尚未在本页跳过
-    @State private var landingPulse = 0
+    /// 轻跳的当前缩放（1 = 静止）。用状态动画驱动：KeyframeAnimator 在这种
+    /// 「视图插入即起播」的场景下实测不播（模拟器连拍：落地后小灯始终 9pt 没有放大）
+    @State private var litScale: CGFloat = 1
 
     private var showsLit: Bool {
         light.isLit && !landingSuppressed
     }
 
     var body: some View {
-        Group {
-            if showsLit {
-                litLamp
-                    .transition(.opacity)
-            } else {
-                Circle()
-                    .fill(Color.holoToolBorder)
-                    .transition(.opacity)
-            }
+        ZStack {
+            Circle()
+                .fill(Color.holoToolBorder)
+            Circle()
+                .fill(litGradient)
+                .opacity(showsLit ? 1 : 0)
         }
+        .scaleEffect(litScale)
         .frame(width: HabitTodayLightsMetrics.lampDiameter,
                height: HabitTodayLightsMetrics.lampDiameter)
-        // 亮 / 熄都是 0.25s 淡变；落地轻跳由 litLamp 自己播
+        // 亮 / 熄都是 0.25s 淡变；落地轻跳由 playLandingPulse 用状态动画播
         .animation(HoloAnimation.reducedFade, value: showsLit)
         .onChange(of: showsLit) { _, isLit in
-            if isLit, animatesLanding { landingPulse += 1 }
+            if isLit {
+                if animatesLanding { playLandingPulse() }
+            } else {
+                litScale = 1
+            }
         }
         // 终点上报：小灯中心（habitToday 坐标系）
         .background(
@@ -779,44 +782,32 @@ private struct HabitTodayHeaderLamp: View {
         .accessibilityHidden(true)
     }
 
-    /// 已亮的小灯：刚落地时轻跳（scale 1 → 1.7 → 1，共 lightLandDuration），之后静止
-    @ViewBuilder
-    private var litLamp: some View {
-        if landingPulse == 0 {
-            litLampBody
-        } else {
-            KeyframeAnimator(initialValue: CGFloat(1), repeating: false) { scale in
-                litLampBody
-                    .scaleEffect(scale)
-            } keyframes: { _ in
-                KeyframeTrack {
-                    CubicKeyframe(HabitTodayLightsMetrics.landScale,
-                                  duration: HoloAnimation.lightLandDuration * HabitTodayLightsMetrics.landRiseFraction)
-                    CubicKeyframe(1,
-                                  duration: HoloAnimation.lightLandDuration * (1 - HabitTodayLightsMetrics.landRiseFraction))
-                }
-            }
-            .id(landingPulse)
+    /// 落地轻跳：scale 1 → 1.7 → 1，共 lightLandDuration。只在「未亮 → 亮」的变化时播；
+    /// 打开页面时已经亮着的灯不跳
+    private func playLandingPulse() {
+        litScale = 1
+        Task { @MainActor in
+            withAnimation(HoloAnimation.lightLandRise) { litScale = HabitTodayLightsMetrics.landScale }
+            try? await Task.sleep(
+                for: .seconds(HoloAnimation.lightLandDuration * HabitTodayLightsMetrics.landRiseFraction))
+            withAnimation(HoloAnimation.lightLandFall) { litScale = 1 }
         }
     }
 
-    private var litLampBody: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [
-                        color.holoMixed(
-                            with: .white,
-                            fraction: scheme == .dark
-                                ? HabitTodayLightsMetrics.mixFractionDark
-                                : HabitTodayLightsMetrics.mixFraction),
-                        color
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: HabitTodayLightsMetrics.lampDiameter / 2
-                )
-            )
+    private var litGradient: RadialGradient {
+        RadialGradient(
+            colors: [
+                color.holoMixed(
+                    with: .white,
+                    fraction: scheme == .dark
+                        ? HabitTodayLightsMetrics.mixFractionDark
+                        : HabitTodayLightsMetrics.mixFraction),
+                color
+            ],
+            center: .center,
+            startRadius: 0,
+            endRadius: HabitTodayLightsMetrics.lampDiameter / 2
+        )
     }
 }
 

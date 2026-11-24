@@ -598,6 +598,9 @@ enum HoloAnimation {
     static let lightLandDuration: TimeInterval = 0.7
     /// 页头灯落入后的轻跳
     static let lightLandPulse: Animation = .easeOut(duration: lightLandDuration)
+    /// 轻跳的两段：放大（前 40% 时长）、回落（余下 60%）
+    static let lightLandRise: Animation = .easeOut(duration: lightLandDuration * 0.4)
+    static let lightLandFall: Animation = .easeOut(duration: lightLandDuration * 0.6)
     /// 任务完成墨线划过
     static let inkStrikeDuration: TimeInterval = 0.32
     /// 墨线划完后文字变淡
