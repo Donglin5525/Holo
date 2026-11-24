@@ -420,6 +420,13 @@ extension Font {
         .system(size: size, weight: .semibold, design: .serif)
     }
 
+    /// 刊物衬线体（2026-11-24 高审美双轨排印）：复用随包思源宋体（HoloNoteSerif），
+    /// 用于首页模板问候/标题、每周回顾个人周刊、引言与空态短句；支持系统动态字体缩放。
+    static func holoEditorialSerif(size: CGFloat, bold: Bool = false) -> Font {
+        let name = bold ? "HoloNoteSerif-Bold" : "HoloNoteSerif-Regular"
+        return .custom(name, size: size, relativeTo: size >= 24 ? .title2 : .body)
+    }
+
     /// 超大标题，用于金额显示；跟随系统动态字体缩放。
     static let holoAmount = Font.largeTitle.weight(.bold)
     
@@ -572,6 +579,30 @@ enum HoloAnimation {
     static let warmLightFadeDuration: TimeInterval = 0.21
     /// 系统「减少动态」主段（原型 prefers-reduced-motion 分支 850ms，光形固定终态）
     static let warmLightReducedMainDuration: TimeInterval = 0.85
+
+    // MARK: 2026-11-23 审美七项
+    /// 习惯灯点亮：灯芯放大到最亮的时长
+    static let lampIgniteDuration: TimeInterval = 0.30
+    /// 点亮瞬间的光晕从出现到完全消失
+    static let lampHaloDuration: TimeInterval = 1.6
+    /// 已点亮的灯芯「呼吸」一个周期
+    static let lampBreathPeriod: TimeInterval = 3.6
+    /// 光点从习惯行飞到页头「今日的灯」
+    static let lightFlightDuration: TimeInterval = 0.7
+    /// 光点在点亮后多久起飞（与灯芯最亮时刻对齐）
+    static let lightFlightDelay: TimeInterval = 0.25
+    /// 页头灯落入后的轻跳时长（scale 1 → 1.7 → 1）
+    static let lightLandDuration: TimeInterval = 0.7
+    /// 页头灯落入后的轻跳
+    static let lightLandPulse: Animation = .easeOut(duration: lightLandDuration)
+    /// 任务完成墨线划过
+    static let inkStrikeDuration: TimeInterval = 0.32
+    /// 墨线划完后文字变淡
+    static let inkStrikeSettle: Animation = .easeOut(duration: 0.2)
+    /// 纸色随时段切换的淡入淡出
+    static let paperCrossfade: Animation = .easeInOut(duration: 1.5)
+    /// 关闭动效时的统一降级
+    static let reducedFade: Animation = .easeOut(duration: 0.25)
 }
 
 // MARK: - Holo Plus 主题
@@ -856,6 +887,36 @@ extension View {
         modifier(HoloSheetShellModifier())
     }
 }
+
+// MARK: - 颜色混合
+
+extension Color {
+    /// 与另一颜色按比例混合：`fraction` 为 0 得到原色，为 1 得到另一颜色。
+    /// 用于在既有 token / 习惯色上派生深浅（如习惯灯的中心提亮），不新增色值。
+    func holoMixed(with other: Color, fraction: Double) -> Color {
+        let t = min(max(fraction, 0), 1)
+        #if canImport(UIKit)
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        guard HoloDynamicColor(self).getRed(&r1, green: &g1, blue: &b1, alpha: &a1),
+              HoloDynamicColor(other).getRed(&r2, green: &g2, blue: &b2, alpha: &a2) else {
+            return self
+        }
+        #else
+        guard let from = HoloDynamicColor(self).usingColorSpace(.deviceRGB),
+              let to = HoloDynamicColor(other).usingColorSpace(.deviceRGB) else {
+            return self
+        }
+        let r1 = from.redComponent, g1 = from.greenComponent, b1 = from.blueComponent, a1 = from.alphaComponent
+        let r2 = to.redComponent, g2 = to.greenComponent, b2 = to.blueComponent, a2 = to.alphaComponent
+        #endif
+        return Color(red: r1 + (r2 - r1) * t,
+                     green: g1 + (g2 - g1) * t,
+                     blue: b1 + (b2 - b1) * t,
+                     opacity: a1 + (a2 - a1) * t)
+    }
+}
+
 
 // MARK: - 习惯磁贴配色
 

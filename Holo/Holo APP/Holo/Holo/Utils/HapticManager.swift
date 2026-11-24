@@ -45,6 +45,11 @@ enum HapticManager {
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
     }
 
+    /// 柔和 - 用于完成瞬间的轻震（习惯灯点亮最亮的那一刻）
+    static func soft() {
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.7)
+    }
+
     // MARK: - 任务完成
 
     /// 任务完成 - 系统音效 + 触觉反馈
@@ -67,6 +72,7 @@ enum HapticManager {
     static func light() {}
     static func medium() {}
     static func heavy() {}
+    static func soft() {}
     static func taskCompletion() {}
     static func selection() {}
     #endif

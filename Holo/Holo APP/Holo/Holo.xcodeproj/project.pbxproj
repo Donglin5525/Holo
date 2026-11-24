@@ -413,6 +413,8 @@
 		CA03B6EA19E555C23B7554B9 /* HoloWidgetModelsStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 436D7BF8CA5DB0D60F1129E3 /* HoloWidgetModelsStandaloneTests.swift */; };
 		CA7E6B0000000000000000B1 /* ThoughtCategoryRulesEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7E6A0000000000000000A1 /* ThoughtCategoryRulesEngineTests.swift */; };
 		CALHLPTEST0000000000000B2 /* CalendarHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */; };
+		AESTHTEST00000000000004 /* HoloPaperPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AESTHTEST00000000000003 /* HoloPaperPaletteTests.swift */; };
+		AESTHTEST00000000000002 /* HoloSolarTermTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AESTHTEST00000000000001 /* HoloSolarTermTests.swift */; };
 		CB0E2A000000000000000002 /* CategoryGridReorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0E2A000000000000000001 /* CategoryGridReorderTests.swift */; };
 		CC01A1B2C3D4E5F6A7B8C9D0 /* FinancePeriodDirectSelectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD01A1B2C3D4E5F6A7B8C9D0 /* FinancePeriodDirectSelectTests.swift */; };
 		CC06A1B2C3D4E5F6A7B8C9D0 /* CoreDataStoreRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD06A1B2C3D4E5F6A7B8C9D0 /* CoreDataStoreRecoveryTests.swift */; };
@@ -977,6 +979,8 @@
 		C8F5DD88C8E720D0DE219D78 /* HoloProfileToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProfileToolTests.swift; sourceTree = "<group>"; };
 		CA7E6A0000000000000000A1 /* ThoughtCategoryRulesEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtCategoryRulesEngineTests.swift; sourceTree = "<group>"; };
 		CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarHelpersTests.swift; sourceTree = "<group>"; };
+		AESTHTEST00000000000003 /* HoloPaperPaletteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloPaperPaletteTests.swift; sourceTree = "<group>"; };
+		AESTHTEST00000000000001 /* HoloSolarTermTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloSolarTermTests.swift; sourceTree = "<group>"; };
 		CB0E2A000000000000000001 /* CategoryGridReorderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategoryGridReorderTests.swift; sourceTree = "<group>"; };
 		CB29CA42663DBD190BD95928 /* ThoughtOrganizationQueueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtOrganizationQueueTests.swift; sourceTree = "<group>"; };
 		CC77A2E30F64B1C5D8E0F215 /* CloudFollowUpChainTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudFollowUpChainTests.swift; sourceTree = "<group>"; };
@@ -1636,6 +1640,8 @@
 			children = (
 				2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */,
 				CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */,
+				AESTHTEST00000000000003 /* HoloPaperPaletteTests.swift */,
+				AESTHTEST00000000000001 /* HoloSolarTermTests.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -2372,6 +2378,8 @@
 				5E3E2DB2A86C4845A1576752 /* EmojiCatalogSearchTests.swift in Sources */,
 				HVPRTEST00000000000000B2 /* HabitReviewProjectionTests.swift in Sources */,
 				CALHLPTEST0000000000000B2 /* CalendarHelpersTests.swift in Sources */,
+				AESTHTEST00000000000004 /* HoloPaperPaletteTests.swift in Sources */,
+				AESTHTEST00000000000002 /* HoloSolarTermTests.swift in Sources */,
 				979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */,
 				7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */,
 				A1A0C0DE20261121A1000001 /* MemoryAlmanacTests.swift in Sources */,
