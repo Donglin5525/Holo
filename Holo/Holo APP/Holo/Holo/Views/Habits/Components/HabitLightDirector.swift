@@ -10,6 +10,8 @@
 //  · flights        正在飞的光点（坐标是起飞时的快照，飞行途中滚动允许轻微错位）
 //  · pendingLanding 飞行未落地前压住页头对应小灯，落地（或兜底超时）后放行
 //
+//  光点往哪去由 flightPlan 决定：页头小灯看得见就飞向小灯；小灯被滚出视口就往上飞走、
+//  在视口顶边前淡尽（2026-11-25 东林拍板：同一个动作，反馈不随滚动位置缩水）。
 //  撤销打卡由页面调 cancel(habitId:)；App 进后台调 clearTransient()。
 //  每日看板（KanbanHabitSection）的 .holoRecordArrival 保持不动：
 //  两个界面不同时可见，isVisible 门控保证只有可见的一方消费。
@@ -43,11 +45,23 @@ struct HabitLampDestinationKey: PreferenceKey {
     }
 }
 
-/// 页头是否还在视口内（maxY > 0；滚下去后不再起飞，只点亮）
-struct HabitHeaderVisibleKey: PreferenceKey {
-    static var defaultValue: Bool { true }
+/// 「今日的灯」那排小灯是否完整露在视口里。页头被 LazyVStack 回收、
+/// 或本来就没画小灯（没有好习惯 / 超过上限只留文字）时没有上报 = false
+struct HabitTallyVisibleKey: PreferenceKey {
+    static var defaultValue: Bool { false }
     static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = value && nextValue()
+        value = value || nextValue()
+    }
+}
+
+/// 滚动内容顶边在视口里的纵向位置（没滚时 ≥ 0，往下滚为负）。
+/// 值必须可选、合并时跳过没设过这个键的节点：合并时列表里别的节点会带着默认值一起进来，
+/// 非可选 + 「取下一个」的写法会被冲回 0——量到了却永远送不到（2026-11-25 模拟器实拍：
+/// 量到 4 → −364 共 55 次，收数端只收到一次 0，光点因此飞过可见范围被切）
+struct HabitContentTopKey: PreferenceKey {
+    static var defaultValue: CGFloat? { nil }
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
     }
 }
 
@@ -68,10 +82,27 @@ extension View {
 
 // MARK: - 飞行模型
 
-/// 一次飞行的起终点（起飞时的坐标快照）
+/// 光点往哪去
+enum HabitLightFlightKind {
+    /// 飞到页头小灯：末段才淡出，落点就是小灯
+    case toTally
+    /// 往上飞走（小灯被滚出视口）：后半程渐淡，在视口顶边前淡尽
+    case upward
+
+    /// 淡出起点（飞行进度 0…1，之前的路程全亮）
+    var fadeStart: Double {
+        switch self {
+        case .toTally: return 0.9
+        case .upward: return 0.5
+        }
+    }
+}
+
+/// 一次飞行的起终点（起飞时的坐标快照）与去向
 struct HabitLightFlightPlan: Equatable {
     let start: CGPoint
     let end: CGPoint
+    var kind: HabitLightFlightKind = .toTally
 }
 
 /// 正在飞的光点
@@ -81,6 +112,7 @@ struct HabitLightFlight: Identifiable {
     let color: Color
     let start: CGPoint
     let end: CGPoint
+    var kind: HabitLightFlightKind = .toTally
 }
 
 /// 光点路径几何：二次贝塞尔 + easeInOut（纯函数，供飞行层与测试共用）
@@ -88,6 +120,10 @@ nonisolated enum HabitLightGeometry {
     /// 控制点相对起终点中点的偏移（向左、向上）
     static let bendLeft: CGFloat = 40
     static let bendUp: CGFloat = 30
+
+    /// 往上飞走时光点在视口顶边下方多远淡尽：光点半径 + 模糊 + 余量。
+    /// 滚动区会把内容切在那条边上，留出这段距离，边上就不会出现被切一半的光点
+    static let topFadeMargin: CGFloat = 18
 
     static func controlPoint(from start: CGPoint, to end: CGPoint) -> CGPoint {
         CGPoint(x: (start.x + end.x) / 2 - bendLeft,
@@ -108,9 +144,36 @@ nonisolated enum HabitLightGeometry {
         if t >= 1 { return 1 }
         return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)
     }
+
+    /// 小灯排完整露在视口里 = 它的顶边已经进了视口。只剩一条边也算滚出去了：
+    /// 这时飞过去，落点几乎看不见，和没飞一样
+    static func tallyIsFullyVisible(topInViewport: CGFloat) -> Bool {
+        topInViewport >= 0
+    }
+
+    /// 往上飞走的终点：横向不动，纵向停在视口顶边下方 topFadeMargin 处。
+    /// 灯离顶边不足这段距离时就地淡尽（不往下走）
+    static func upwardEnd(from start: CGPoint, contentTopInViewport: CGFloat) -> CGPoint {
+        CGPoint(x: start.x, y: min(-contentTopInViewport + topFadeMargin, start.y))
+    }
+
+    /// 淡出：fadeStart 之前全亮，之后线性淡到 0（越界截断）
+    static func opacity(progress: Double, fadeStart: Double) -> Double {
+        guard progress >= fadeStart else { return 1 }
+        let fade = (progress - fadeStart) / (1 - fadeStart)
+        return max(1 - fade, 0)
+    }
 }
 
 // MARK: - 导演
+
+/// 起飞那一刻页面的位置（视口坐标系）。随滚动每帧写入，但不发布——发布会让整页每个滚动帧重绘
+struct HabitLightStage: Equatable {
+    /// 「今日的灯」那排小灯完整露在视口里
+    var tallyIsFullyVisible = false
+    /// 滚动内容顶边在视口里的纵向位置：没滚时 ≥ 0，往下滚为负
+    var contentTopInViewport: CGFloat = 0
+}
 
 @MainActor
 final class HabitLightDirector: ObservableObject {
@@ -128,6 +191,9 @@ final class HabitLightDirector: ObservableObject {
     /// 飞行未落地前，页头对应小灯保持未亮
     @Published private(set) var pendingLanding: Set<UUID> = []
 
+    /// 起飞决策用的页面位置（由今天页随布局写入，不发布）
+    var stage = HabitLightStage()
+
     /// 起飞延迟与兜底时长可注入（测试用极短值，不真等 1.2 秒）
     private let flightDelay: TimeInterval
     private let landingTimeout: TimeInterval
@@ -139,8 +205,24 @@ final class HabitLightDirector: ObservableObject {
         self.landingTimeout = landingTimeout
     }
 
+    /// 起飞决策：小灯排完整露在视口里 → 飞到小灯；被滚出视口或只剩一条边 → 往上飞走。
+    /// 没有小灯排（没有好习惯 / 超过上限只留文字）、拿不到起点，
+    /// 或小灯可见却拿不到它的位置 → 不飞。
+    static func flightPlan(start: CGPoint?, destination: CGPoint?, tallyCount: Int,
+                           stage: HabitLightStage) -> HabitLightFlightPlan? {
+        guard let start, (1...HabitTodayLightsMetrics.maxLampCount).contains(tallyCount) else { return nil }
+        guard stage.tallyIsFullyVisible else {
+            return HabitLightFlightPlan(
+                start: start,
+                end: HabitLightGeometry.upwardEnd(from: start, contentTopInViewport: stage.contentTopInViewport),
+                kind: .upward)
+        }
+        guard let destination else { return nil }
+        return HabitLightFlightPlan(start: start, end: destination)
+    }
+
     /// 消费到一次完成事件：行内立即点亮；给了飞行计划就**立刻**占住页头小灯、延迟起飞，
-    /// 没给（页头不可见 / 起点拿不到 / 灯排隐藏 / 动效关闭）就只点亮不飞。
+    /// 没给（没有小灯排 / 起点拿不到 / 动效关闭）就只点亮不飞。
     func handle(event: HoloMotionEvent, habitId: UUID, color: Color, flight: HabitLightFlightPlan?) {
         ignitions[habitId] = event.operationID
         scheduleIgnitionExpiry(event: event, habitId: habitId)
@@ -156,7 +238,7 @@ final class HabitLightDirector: ObservableObject {
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self else { return }
             self.flights.append(HabitLightFlight(id: flightID, habitId: habitId, color: color,
-                                                 start: flight.start, end: flight.end))
+                                                 start: flight.start, end: flight.end, kind: flight.kind))
             // 兜底：飞行视图被回收 / 回调丢失时，页头小灯也不能永远不亮
             do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
             self.settle(habitId: habitId, flightID: flightID)
@@ -229,13 +311,12 @@ struct HabitLightFlightLayer: View {
 private enum HabitLightFlightMetrics {
     static let dotDiameter: CGFloat = 10
     static let dotBlur: CGFloat = 1.5
-    /// 末段淡出的起点（前 90% 全亮）
-    static let fadeStart: Double = 0.9
     /// 落地回调相对动画时长的余量（保证最后一帧已画完）
     static let landGrace: TimeInterval = 0.05
 }
 
-/// 单颗光点：出现即起飞，按真实时间沿贝塞尔曲线飞 0.7 秒，末段淡出，结束后回调落地。
+/// 单颗光点：出现即起飞，按真实时间沿贝塞尔曲线飞 0.7 秒，淡出后回调落地。
+/// 何时开始淡由去向决定（HabitLightFlightKind.fadeStart）：飞向小灯的末段才淡，往上飞走的后半程渐淡。
 /// 用 TimelineView 按时间推进，不用 KeyframeAnimator——关键帧动画器在这种「插入即起播」的
 /// 场景下实测停在初值不动（模拟器 UI 自动化连拍逐帧量像素：光点起飞后一直停在灯芯上）。
 private struct HabitLightFlightDot: View {
@@ -283,10 +364,7 @@ private struct HabitLightFlightDot: View {
                                  t: HabitLightGeometry.easeInOut(progress))
     }
 
-    /// 前 90% 全亮，末段 10% 线性淡到 0
     private func opacity(at progress: Double) -> Double {
-        guard progress >= HabitLightFlightMetrics.fadeStart else { return 1 }
-        let fade = (progress - HabitLightFlightMetrics.fadeStart) / (1 - HabitLightFlightMetrics.fadeStart)
-        return max(1 - fade, 0)
+        HabitLightGeometry.opacity(progress: progress, fadeStart: flight.kind.fadeStart)
     }
 }

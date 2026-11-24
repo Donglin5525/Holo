@@ -36,8 +36,6 @@ struct HabitTodayView: View {
     @State private var rowLampOrigins: [UUID: CGPoint] = [:]
     /// 页头小灯中心（同坐标系）
     @State private var headerLampCenters: [UUID: CGPoint] = [:]
-    /// 页头是否还在视口内（滚下去后不飞，只点亮）
-    @State private var headerLampsVisible = true
     /// 等待弹层收起中（收起后按转场时长延迟再播）
     @State private var wasWaitingForSurface = false
     /// 上一帧「已记录习惯」集合（撤销打卡时清理导演状态）
@@ -128,9 +126,20 @@ struct HabitTodayView: View {
                         lightDirector.land($0)
                     }
                 }
+                .background {
+                    // 内容顶边在视口里的位置：随滚动每帧变，只写进导演的 stage（不发布，不触发整页重绘）
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: HabitContentTopKey.self,
+                            value: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
+                        )
+                    }
+                }
                 .onPreferenceChange(HabitLampOriginKey.self) { rowLampOrigins = $0 }
                 .onPreferenceChange(HabitLampDestinationKey.self) { headerLampCenters = $0 }
-                .onPreferenceChange(HabitHeaderVisibleKey.self) { headerLampsVisible = $0 }
+                .onPreferenceChange(HabitTallyVisibleKey.self) { lightDirector.stage.tallyIsFullyVisible = $0 }
+                // 还没量到（首帧之前）按没滚动算；那时小灯必然完整可见，走不到「往上飞走」这支
+                .onPreferenceChange(HabitContentTopKey.self) { lightDirector.stage.contentTopInViewport = $0 ?? 0 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.xs)
                 .padding(.bottom, 40)
@@ -233,13 +242,12 @@ struct HabitTodayView: View {
         }
     }
 
-    /// 起飞条件：起点与页头终点都拿得到、页头可见、灯排没超上限隐藏
+    /// 起飞决策（规则在 HabitLightDirector.flightPlan）：这一层只负责把量到的位置交过去
     private func flightPlan(for row: HabitRowSnapshot) -> HabitLightFlightPlan? {
-        guard headerLampsVisible,
-              model.todayLights.count <= HabitTodayLightsMetrics.maxLampCount,
-              let start = rowLampOrigins[row.id],
-              let end = headerLampCenters[row.id] else { return nil }
-        return HabitLightFlightPlan(start: start, end: end)
+        HabitLightDirector.flightPlan(start: rowLampOrigins[row.id],
+                                      destination: headerLampCenters[row.id],
+                                      tallyCount: model.todayLights.count,
+                                      stage: lightDirector.stage)
     }
 
     private func currentRecordedHabitIds() -> Set<UUID> {
@@ -340,15 +348,6 @@ struct HabitTodayView: View {
                 todayLightsRow
             }
         }
-        // 页头可见性上报（视口坐标系 maxY > 0；滚下去后光点不再起飞）
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: HabitHeaderVisibleKey.self,
-                    value: geo.frame(in: .named(HabitTodayLightSpace.viewport)).maxY > 0
-                )
-            }
-        )
     }
 
     /// 第二行：今天点亮了 N / M + 一排小灯（M > 12 只留文字；飞行落地前 N 与小灯先压住）
@@ -381,6 +380,17 @@ struct HabitTodayView: View {
                     }
                 }
                 .accessibilityHidden(true)
+                // 小灯排是否完整露在视口里（顶边进了视口才算；只剩一条边按滚出去了算）
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: HabitTallyVisibleKey.self,
+                            value: HabitLightGeometry.tallyIsFullyVisible(
+                                topInViewport: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
+                            )
+                        )
+                    }
+                )
             }
         }
         .animation(HoloAnimation.lightLandPulse, value: lit)
