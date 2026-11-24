@@ -143,7 +143,7 @@ struct MemoryGalleryTimelineView: View {
     /// P7：按天重算泛黄颜色（daysAgo → 进度 → 端点插值，深浅色各一套）。
     /// 深浅色切换由 body 的 onChange(of: colorScheme) 触发整组重建。
     private func rebuildAgingCache(for days: [Date]) {
-        let today = calendar.startOfDay(for: Date())
+        let today = MemoryAgingReference.today
         func entry(for day: Date) -> MemoryAgedDay {
             let daysAgo = max(calendar.dateComponents([.day], from: day, to: today).day ?? 0, 0)
             let progress = HoloPaperPalette.agingProgress(daysAgo: daysAgo)

@@ -235,13 +235,18 @@ private enum HabitLightFlightMetrics {
     static let landGrace: TimeInterval = 0.05
 }
 
-/// 单颗光点：插入即播（KeyframeAnimator 挂载播放），末段淡出，结束回调落地
+/// 单颗光点：出现即起飞，按真实时间沿贝塞尔曲线飞 0.7 秒，末段淡出，结束后回调落地。
+/// 用 TimelineView 按时间推进，不用 KeyframeAnimator——关键帧动画器在这种「插入即起播」的
+/// 场景下实测停在初值不动（模拟器 UI 自动化连拍逐帧量像素：光点起飞后一直停在灯芯上）。
 private struct HabitLightFlightDot: View {
     let flight: HabitLightFlight
     let onLand: (UUID) -> Void
+    /// 起飞时刻（视图首次插入时取一次）
+    @State private var startedAt = Date()
 
     var body: some View {
-        KeyframeAnimator(initialValue: CGFloat(0), repeating: false) { progress in
+        TimelineView(.animation) { context in
+            let progress = progress(at: context.date)
             Circle()
                 .fill(
                     RadialGradient(
@@ -256,10 +261,6 @@ private struct HabitLightFlightDot: View {
                 .blur(radius: HabitLightFlightMetrics.dotBlur)
                 .position(position(at: progress))
                 .opacity(opacity(at: progress))
-        } keyframes: { _ in
-            KeyframeTrack {
-                CubicKeyframe(1, duration: HoloAnimation.lightFlightDuration)
-            }
         }
         .task {
             try? await Task.sleep(
@@ -270,17 +271,22 @@ private struct HabitLightFlightDot: View {
         .accessibilityHidden(true)
     }
 
+    /// 0…1 的飞行进度（按真实时间，越界截断）
+    private func progress(at date: Date) -> Double {
+        let raw = date.timeIntervalSince(startedAt) / HoloAnimation.lightFlightDuration
+        return raw.isNaN ? 0 : min(max(raw, 0), 1)
+    }
+
     /// 进度（0…1）→ 缓动后的贝塞尔位置
-    private func position(at progress: CGFloat) -> CGPoint {
+    private func position(at progress: Double) -> CGPoint {
         HabitLightGeometry.point(from: flight.start, to: flight.end,
-                                 t: HabitLightGeometry.easeInOut(Double(progress)))
+                                 t: HabitLightGeometry.easeInOut(progress))
     }
 
     /// 前 90% 全亮，末段 10% 线性淡到 0
-    private func opacity(at progress: CGFloat) -> Double {
-        let t = Double(progress)
-        guard t >= HabitLightFlightMetrics.fadeStart else { return 1 }
-        let fade = (t - HabitLightFlightMetrics.fadeStart) / (1 - HabitLightFlightMetrics.fadeStart)
+    private func opacity(at progress: Double) -> Double {
+        guard progress >= HabitLightFlightMetrics.fadeStart else { return 1 }
+        let fade = (progress - HabitLightFlightMetrics.fadeStart) / (1 - HabitLightFlightMetrics.fadeStart)
         return max(1 - fade, 0)
     }
 }

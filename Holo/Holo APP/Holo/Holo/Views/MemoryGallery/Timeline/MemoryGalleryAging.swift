@@ -20,6 +20,35 @@ nonisolated enum MemoryAgingMetrics {
     static let tailFadeHeight: CGFloat = 320
 }
 
+/// 泛黄计算用的「今天」（当地日历零点）。
+nonisolated enum MemoryAgingReference {
+    static var today: Date {
+        #if DEBUG
+        if let forced = MemoryAgingDebug.forcedToday { return forced }
+        #endif
+        return Calendar.current.startOfDay(for: Date())
+    }
+}
+
+#if DEBUG
+/// 验收用启动参数：-HoloPaperAgingToday=2031-11-24 把「今天」换成指定日期，
+/// 用来直接查看多年以前记录的泛黄效果（与 -HoloDaylightPeriod 同一类验收开关，正式包不编译）。
+nonisolated enum MemoryAgingDebug {
+    private static let prefix = "-HoloPaperAgingToday="
+    static let forcedToday: Date? = {
+        guard let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix(prefix) }) else {
+            return nil
+        }
+        let raw = String(argument.dropFirst(prefix.count))
+        let parts = raw.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    }()
+}
+#endif
+
 /// 注入日行的墨色对（环境值；元组不进 Environment，收敛为小的 Equatable 结构）。
 struct MemoryAgingInk: Equatable {
     let ink: Color

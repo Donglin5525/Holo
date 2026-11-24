@@ -64,9 +64,8 @@ struct HabitLampView: View {
     @Environment(\.colorScheme) private var scheme
     /// 正在播放点亮动画的令牌（nil = 静止）
     @State private var playingToken: UUID?
-    /// 点亮动画的三个状态量，用普通 SwiftUI 动画驱动。
-    /// 首版用 KeyframeAnimator，在「胶囊换灯」的挂载瞬间只停在初值：灯芯随即消失、光晕全程不出现
-    /// （模拟器连拍逐帧实测），换成状态动画后每一帧都按预期推进。
+    /// 点亮动画的三个状态量，用普通 SwiftUI 动画驱动。首版用 KeyframeAnimator，
+    /// 在「胶囊换灯、插入即起播」的场景下实测不推进，换成状态动画后逐帧核对按预期推进。
     @State private var wickScale: CGFloat = HabitLampMetrics.igniteFrom
     @State private var haloScale: CGFloat = HabitLampMetrics.igniteFrom
     @State private var haloOpacity: Double = 0
