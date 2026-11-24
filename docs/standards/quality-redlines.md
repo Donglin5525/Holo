@@ -83,10 +83,10 @@
 |---|---|---|---|
 | View Weight Guard | 巨型视图树（真机栈溢出）+ TupleView 劫持修饰链 | 构建相位脚本 | `BuildScripts/view_weight_guard.py` |
 | ForEach ManagedObject Guard | ForEach 渲染已删托管对象（删除后闪退族，§3.3） | 构建相位脚本 | `BuildScripts/foreach_managed_object_guard.py` |
-| Guards: Test Mount + Banned API | 新测试文件未挂 pbxproj（静默不跑）；uniqueKeysWithValues 新增；入口 `.first!`/`try!`/`as!` | 构建相位脚本×2 | `BuildScripts/test_mount_guard.py` + `banned_api_guard.py`（存量基线：`test_mount_baseline.json`/`banned_api_baseline.json`，挂载专项收口后 `--update-baseline` 收缩） |
-| Pre-Commit Guard | xcstrings 全量重写/词条骤减、CHANGELOG 整覆盖、pbxproj 大规模删除 | git hook（三宿主共用） | `BuildScripts/pre_commit_guard.py` + `.git/hooks/pre-commit`；放行=`--no-verify` 且提交说明写明原因 |
-| holo_build.py | 构建假成功（管道吃 exit code/缺成功标记）；测试假绿（0 用例/计数不符） | 统一包装，**以后跑构建/测试一律走它** | `BuildScripts/holo_build.py`（build/test 模式，test 支持 `--expect N` 计数比对） |
-| pbxproj_surgery.py | 手改工程文件翻车（锚点空转/ID 撞号/plutil 过但 Xcode 读不了） | 手术工具，**pbxproj 手术一律走它**（备份/断言/lint/-list 四连，失败自动回滚） | `BuildScripts/pbxproj_surgery.py` |
+| Guards: Test Mount + Banned API | 新测试文件未挂 pbxproj（静默不跑）；**独立脚本式套件没有执行入口（不在自动生成的桥接里，挂了也只编译不执行）**；uniqueKeysWithValues 新增；入口 `.first!`/`try!`/`as!` | 构建相位脚本×2 | `BuildScripts/test_mount_guard.py` + `banned_api_guard.py`（存量基线：`test_mount_baseline.json`/`banned_api_baseline.json`；2026-11-24 两份基线均已收缩为空，此后零容忍） |
+| Pre-Commit Guard + Coupling Guard | xcstrings 全量重写/词条骤减、CHANGELOG 整覆盖、pbxproj 大规模删除；**模块耦合新增**（非界面层依赖功能界面/数据层依赖服务/功能界面互引/视图直连数据库栈/界面层单例，只减不增） | git hook（三宿主共用）；耦合闸门在有 `.swift` 改动时随钩子执行（约 2 秒，不进构建相位） | `BuildScripts/pre_commit_guard.py` + `coupling_guard.py` + `coupling_baseline.json`（规则与例外写法见开发规范 §17）；放行=`--no-verify` 且提交说明写明原因（耦合闸门不许这样绕） |
+| holo_build.py | 构建假成功（管道吃 exit code/缺成功标记）；测试假绿（0 用例/计数不符）；**多会话并发构建抢核、每个任务新开产物目录导致每次全量重编** | 统一包装，**以后跑构建/测试一律走它** | `BuildScripts/holo_build.py`（build/test 模式，test 支持 `--expect N` 计数比对；2026-11-24 增设构建秩序：全机排队锁、低优先级运行、产物目录按工程路径固定复用、`ls`/`gc` 回收闲置目录；同日修正用例计数——Xcode 26.3 起控制台用例行换了格式，旧正则一条都认不出，每次测试都被误判成「执行 0 个用例」） |
+| pbxproj_surgery.py | 手改工程文件翻车（锚点空转/ID 撞号/plutil 过但 Xcode 读不了） | 手术工具，**pbxproj 手术一律走它**（备份/断言/lint/-list 四连，失败自动回滚） | `BuildScripts/pbxproj_surgery.py`（`replace` / `insert` / `mount`——`mount --file 路径` 把测试文件四处登记一次到位，`--all-unmounted` 一次挂齐） |
 | 后端 purpose 完整性 | 新增对话类 LLM purpose 忘配 reasoningEffort（4 次实锤） | 后端测试 | `HoloBackend/tests/configPurposeCompleteness.test.js` |
 | 归档冒烟清单导出 | §8 的「清单不靠自觉」固化 | 发版前跑一次 | `BuildScripts/archive_smoke_list.py` |
 
@@ -94,4 +94,4 @@
 
 ---
 
-*最后更新：2026-11-16（1116 删主题真机闪退根治随案：§3.3 renderable 防线 + §9 机器守门清单（ForEach Guard/TestMount/BannedAPI/pre-commit/holo_build/pbxproj 手术/后端 purpose/归档清单八件）；历史：1112 §8 归档窗口重跑 + Weight Guard 规则 5；1024 §6 推广全库；1022 §6 ChatView；0925 §7；0923 §6）*
+*最后更新：2026-11-24（技术优化一轮：§9 增 Coupling Guard 耦合只减不增、Test Mount 增「独立脚本式套件必须有测试类」规则、holo_build 增构建秩序、pbxproj_surgery 增 mount；历史：1116 删主题真机闪退根治随案：§3.3 renderable 防线 + §9 机器守门清单（ForEach Guard/TestMount/BannedAPI/pre-commit/holo_build/pbxproj 手术/后端 purpose/归档清单八件）；1112 §8 归档窗口重跑 + Weight Guard 规则 5；1024 §6 推广全库；1022 §6 ChatView；0925 §7；0923 §6）*
