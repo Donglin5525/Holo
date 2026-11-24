@@ -22,6 +22,36 @@ struct HabitTodayView: View {
     var focusHabitId: UUID? = nil
     var onFocusConsumed: () -> Void = {}
 
+    // MARK: 光归处导演（2026-11-23 审美七项 P1）
+
+    /// 完成事件在本层统一消费一次，再分发到行内点亮与页面级飞行
+    @StateObject private var lightDirector = HabitLightDirector()
+    @ObservedObject private var motionCenter = HoloMotionFeedbackCenter.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.holoMotionSurfaceIsActive) private var parentSurfaceActive
+    @AppStorage(HoloMotionRollout.completionKey) private var completionMotionEnabled = true
+
+    /// 行内主操作按钮中心（habitToday 坐标系；不可见行不渲染即无起点 → 不飞）
+    @State private var rowLampOrigins: [UUID: CGPoint] = [:]
+    /// 页头小灯中心（同坐标系）
+    @State private var headerLampCenters: [UUID: CGPoint] = [:]
+    /// 页头是否还在视口内（滚下去后不飞，只点亮）
+    @State private var headerLampsVisible = true
+    /// 等待弹层收起中（收起后按转场时长延迟再播）
+    @State private var wasWaitingForSurface = false
+    /// 上一帧「已记录习惯」集合（撤销打卡时清理导演状态）
+    @State private var recordedHabitIds: Set<UUID> = []
+
+    private var lampMotionAllowed: Bool {
+        completionMotionEnabled && !reduceMotion
+    }
+
+    /// 弹层遮住今天页时不消费事件（含本页自己的 sheet）
+    private var lightSurfaceActive: Bool {
+        parentSurfaceActive && presentedSheet == nil
+    }
+
     // MARK: 弹层状态
 
     @State private var presentedSheet: HabitTodaySheet?
@@ -91,15 +121,39 @@ struct HabitTodayView: View {
                         pausedEntry
                     }
                 }
+                // 光归处：内容坐标系 + 起终点收集 + 飞行层（与内容同系，滚动不错位）
+                .coordinateSpace(name: HabitTodayLightSpace.content)
+                .overlay(alignment: .topLeading) {
+                    HabitLightFlightLayer(flights: lightDirector.flights) {
+                        lightDirector.land($0)
+                    }
+                }
+                .onPreferenceChange(HabitLampOriginKey.self) { rowLampOrigins = $0 }
+                .onPreferenceChange(HabitLampDestinationKey.self) { headerLampCenters = $0 }
+                .onPreferenceChange(HabitHeaderVisibleKey.self) { headerLampsVisible = $0 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.xs)
                 .padding(.bottom, 40)
             }
+            .coordinateSpace(name: HabitTodayLightSpace.viewport)
             .onAppear {
                 consumeFocus(proxy)
+                recordedHabitIds = currentRecordedHabitIds()
+                dispatchHabitLightEvents()
             }
             .onChange(of: focusHabitId) { _, _ in consumeFocus(proxy) }
             .onChange(of: model.todayRows.map(\.id)) { _, _ in consumeFocus(proxy) }
+            // 同步分发：与数据更新落在同一次界面刷新里就压住页头小灯。
+            // 用 .task 会晚一拍，小灯会先亮一帧再被压住（模拟器连拍实抓）
+            .onChange(of: lightDelivery) { _, _ in
+                dispatchHabitLightEvents()
+            }
+            .onChange(of: model.todayRows) { _, rows in
+                cancelLightsForUnrecorded(rows)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { lightDirector.clearTransient() }
+            }
         }
         .sheet(item: $presentedSheet) { route in
             switch route {
@@ -115,6 +169,90 @@ struct HabitTodayView: View {
                 HabitFolderEditSheet(model: model, folder: folder)
             }
         }
+    }
+
+    // MARK: 光归处：事件分发（一处消费，两路播放）
+
+    /// 事件投递信号：今天页各习惯的完成世代 + 三个门控，任一变化即重新评估
+    private struct HabitLightDelivery: Hashable {
+        var generations: [UUID: UUID]
+        var allowsMotion: Bool
+        var surfaceActive: Bool
+        var appActive: Bool
+    }
+
+    private var lightDelivery: HabitLightDelivery {
+        var generations: [UUID: UUID] = [:]
+        for row in model.todayRows {
+            generations[row.id] = motionCenter.generations[HoloMotionSubject(domain: .habit, id: row.id)]
+        }
+        return HabitLightDelivery(generations: generations,
+                                  allowsMotion: lampMotionAllowed,
+                                  surfaceActive: lightSurfaceActive,
+                                  appActive: scenePhase == .active)
+    }
+
+    /// 事件分发：常规路径同步消费，与数据更新落在同一次界面刷新里；
+    /// 只有「等弹层退出」这一种情况需要延迟。
+    private func dispatchHabitLightEvents() {
+        guard lampMotionAllowed, scenePhase == .active else {
+            // 关闭动效 / 后台：与 HoloRecordArrival 同口径，直接取走丢弃，重开不补播
+            for row in model.todayRows {
+                _ = motionCenter.consume(HoloMotionSubject(domain: .habit, id: row.id),
+                                         enabled: false, isVisible: true)
+            }
+            return
+        }
+        guard lightSurfaceActive else {
+            // 弹层遮住：事件留在账上，等弹层收起后（信号变化）再播
+            wasWaitingForSurface = true
+            return
+        }
+        if wasWaitingForSurface {
+            wasWaitingForSurface = false
+            // 等弹层收起转场结束再点亮，避免灯在被遮住的列表里提前亮完
+            Task { @MainActor in
+                do { try await Task.sleep(for: .seconds(HoloScreenTransitionMetrics.duration)) } catch { return }
+                drainHabitLightEvents()
+            }
+            return
+        }
+        drainHabitLightEvents()
+    }
+
+    /// 把账上的完成事件取走，分发行内点亮与飞行
+    private func drainHabitLightEvents() {
+        guard lampMotionAllowed, scenePhase == .active, lightSurfaceActive else { return }
+        for row in model.todayRows {
+            let subject = HoloMotionSubject(domain: .habit, id: row.id)
+            guard let event = motionCenter.consume(subject, enabled: true, isVisible: true) else { continue }
+            lightDirector.handle(event: event,
+                                 habitId: row.id,
+                                 color: Color(hex: row.colorHex),
+                                 flight: flightPlan(for: row))
+        }
+    }
+
+    /// 起飞条件：起点与页头终点都拿得到、页头可见、灯排没超上限隐藏
+    private func flightPlan(for row: HabitRowSnapshot) -> HabitLightFlightPlan? {
+        guard headerLampsVisible,
+              model.todayLights.count <= HabitTodayLightsMetrics.maxLampCount,
+              let start = rowLampOrigins[row.id],
+              let end = headerLampCenters[row.id] else { return nil }
+        return HabitLightFlightPlan(start: start, end: end)
+    }
+
+    private func currentRecordedHabitIds() -> Set<UUID> {
+        Set(model.todayRows.filter { $0.today.isRecorded }.map(\.id))
+    }
+
+    /// 撤销打卡（isRecorded true→false）：清理该习惯的点火 / 飞行 / 页头占位
+    private func cancelLightsForUnrecorded(_ rows: [HabitRowSnapshot]) {
+        let recorded = Set(rows.filter { $0.today.isRecorded }.map(\.id))
+        for removed in recordedHabitIds.subtracting(recorded) {
+            lightDirector.cancel(habitId: removed)
+        }
+        recordedHabitIds = recorded
     }
 
     /// 定位到目标习惯（「去今天记录」回跳；等行渲染完成后再滚）
@@ -141,11 +279,16 @@ struct HabitTodayView: View {
             snapshot: row,
             isSaving: model.coordinator.savingHabitIds.contains(row.id),
             inlineErrorMessage: model.inlineError?.habitId == row.id ? model.inlineError?.message : nil,
+            ignitionToken: lightDirector.ignitions[row.id],
             onOpenTodayRecords: {
                 onOpenTodayRecords(row.id)
             },
             onToggleCheckIn: {
-                Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
+                // 来源是今天页：好习惯首次完成的回执触感延后到灯最亮那一刻（§4.8）
+                Task {
+                    await model.record(kind: .toggleCheckIn, habitId: row.id,
+                                       deferCompletionHapticToLamp: true)
+                }
             },
             onIncrement: {
                 Task { await model.record(kind: .increment(amount: 1), habitId: row.id) }
@@ -162,41 +305,87 @@ struct HabitTodayView: View {
         }
     }
 
-    // MARK: 头部（日期 + 已记录数量 + 补录入口；P2 撤筛选，2026-10-15 东林拍板）
+    // MARK: 头部（日期 + 今日的灯 + 补录入口；「已记录 N 项」挪到第二行，P1 光归处）
 
     private var headerSection: some View {
-        HStack(spacing: 6) {
-            Text(dateLineText)
-                .font(.system(size: 13))
-                .foregroundColor(.holoToolTextSecondary)
-            Text("·")
-                .font(.system(size: 13))
-                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-            Text(String(localized: "今天已记录 \(model.recordedTodayCount) 项"))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(model.recordedTodayCount > 0 ? .holoPrimary : .holoToolTextSecondary)
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            HStack(spacing: 6) {
+                Text(dateLineText)
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoToolTextSecondary)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            Button {
-                presentedSheet = .retroactive
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoToolTextSecondary)
-                    Text(String(localized: "补录"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoToolText)
+                Button {
+                    presentedSheet = .retroactive
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoToolTextSecondary)
+                        Text(String(localized: "补录"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoToolText)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(minHeight: 30)
+                    .background(Capsule().fill(Color.holoToolInset))
                 }
-                .padding(.horizontal, 10)
-                .frame(minHeight: 30)
-                .background(Capsule().fill(Color.holoToolInset))
+                .buttonStyle(HoloPressStyle())
+                .accessibilityIdentifier("habit.today.retroactive")
             }
-            .buttonStyle(HoloPressStyle())
-            .accessibilityIdentifier("habit.today.retroactive")
+            .accessibilityElement(children: .combine)
+
+            if !model.todayLights.isEmpty {
+                todayLightsRow
+            }
         }
-        .accessibilityElement(children: .combine)
+        // 页头可见性上报（视口坐标系 maxY > 0；滚下去后光点不再起飞）
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: HabitHeaderVisibleKey.self,
+                    value: geo.frame(in: .named(HabitTodayLightSpace.viewport)).maxY > 0
+                )
+            }
+        )
+    }
+
+    /// 第二行：今天点亮了 N / M + 一排小灯（M > 12 只留文字；飞行落地前 N 与小灯先压住）
+    private var todayLightsRow: some View {
+        let lights = model.todayLights
+        let lit = lights.filter { $0.isLit && !lightDirector.pendingLanding.contains($0.id) }.count
+        return HStack(spacing: HoloSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.xs) {
+                Text("今天点亮了")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoToolTextSecondary)
+                Text("\(lit)")
+                    .font(.holoHeroNumber(size: 17))
+                    .foregroundColor(lit > 0 ? .holoToolText : .holoToolTextSecondary)
+                    .contentTransition(.numericText(value: Double(lit)))
+                Text("/ \(lights.count)")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+            Spacer(minLength: 0)
+            if lights.count <= HabitTodayLightsMetrics.maxLampCount {
+                HStack(spacing: HabitTodayLightsMetrics.lampSpacing) {
+                    ForEach(lights) { light in
+                        HabitTodayHeaderLamp(
+                            light: light,
+                            color: Color(hex: light.colorHex),
+                            landingSuppressed: lightDirector.pendingLanding.contains(light.id),
+                            animatesLanding: lampMotionAllowed
+                        )
+                    }
+                }
+                .accessibilityHidden(true)
+            }
+        }
+        .animation(HoloAnimation.lightLandPulse, value: lit)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("今天点亮了 \(lit) / \(lights.count)"))
     }
 
     private var dateLineText: String {
@@ -316,26 +505,38 @@ struct HabitTodayView: View {
                 .accessibilityHint(Text(String(localized: "连续打卡中")))
 
                 Button {
-                    Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
+                    // 来源是今天页：好习惯首次完成的回执触感延后到灯最亮那一刻（§4.8）
+                    Task {
+                        await model.record(kind: .toggleCheckIn, habitId: row.id,
+                                           deferCompletionHapticToLamp: true)
+                    }
                 } label: {
                     Group {
                         if done {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(Circle().fill(accent))
+                            // 已打卡 = 一盏更大的习惯灯（主角卡按比例放大）
+                            HabitLampView(
+                                color: accent,
+                                ignitionToken: lightDirector.ignitions[row.id],
+                                allowsMotion: lampMotionAllowed,
+                                lampDiameter: HabitTodayLightsMetrics.heroLampDiameter
+                            )
+                            .frame(width: 56, height: 56)
+                            .transition(.opacity)
                         } else {
                             Text(String(localized: "打卡"))
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(accent)
                                 .frame(width: 66, height: 52)
                                 .background(Capsule().fill(accent.opacity(0.14)))
+                                .transition(.opacity)
                         }
                     }
+                    .animation(HoloAnimation.reducedFade, value: done)
                 }
                 .buttonStyle(HoloPressStyle())
                 .disabled(model.coordinator.savingHabitIds.contains(row.id))
+                // 光点起飞起点 = 主角卡打卡灯中心
+                .habitLampOrigin(id: row.id)
                 .accessibilityIdentifier("habit.row.\(row.id).record")
                 .accessibilityLabel(Text(done ? String(localized: "取消打卡") : String(localized: "打卡")))
             }
@@ -480,70 +681,142 @@ struct HabitTodayView: View {
         }
     }
 
-    // MARK: 空状态（分形态，不伪装；全暂停/全归档/首次空；筛选已撤）
+    // MARK: 空状态（分形态，不伪装；全暂停/全归档/首次空；P5 #9 改一句话留白）
 
     @ViewBuilder
     private var emptyState: some View {
         if !model.pausedRows.isEmpty {
-            emptyCard(
-                title: String(localized: "给日常留一点空隙"),
-                message: String(localized: "暂停中的习惯和以前的记录都还在。"),
-                buttonTitle: String(localized: "查看暂停习惯"),
-                icon: "pause.circle"
-            ) {
-                onOpenLifecycleList()
-            }
+            HoloQuietEmptyState(
+                line: "给日常留一点空隙",
+                byline: "— \(String(localized: "暂停中的习惯和以前的记录都还在。"))",
+                actionTitle: "查看暂停习惯",
+                action: { onOpenLifecycleList() }
+            )
         } else if !model.archivedRows.isEmpty {
-            emptyCard(
-                title: String(localized: "习惯都已归档"),
-                message: String(localized: "想继续的时候，可以再找回来。"),
-                buttonTitle: String(localized: "查看归档习惯"),
-                icon: "archivebox"
-            ) {
-                onOpenLifecycleList()
-            }
+            HoloQuietEmptyState(
+                line: "习惯都已归档",
+                byline: "— \(String(localized: "想继续的时候，可以再找回来。"))",
+                actionTitle: "查看归档习惯",
+                action: { onOpenLifecycleList() }
+            )
         } else {
-            emptyCard(
-                title: String(localized: "从一件小事开始"),
-                message: String(localized: "先创建一个习惯，今天就能留下第一条记录。"),
-                buttonTitle: String(localized: "创建第一个习惯")
-            ) {
-                onOpenAddHabit(nil)
+            HoloQuietEmptyState(
+                line: "从一件小事开始",
+                byline: "— \(String(localized: "先创建一个习惯，今天就能留下第一条记录。"))",
+                actionTitle: "创建第一个习惯",
+                action: { onOpenAddHabit(nil) }
+            )
+        }
+    }
+}
+
+// MARK: - 页头小灯（E 光归处的落点）
+
+/// 「今日的灯」的局部尺寸
+enum HabitTodayLightsMetrics {
+    /// 超过这个数量不画小灯，只显示文字（打卡也不飞）
+    static let maxLampCount = 12
+    /// 小灯直径与间距
+    static let lampDiameter: CGFloat = 9
+    static let lampSpacing: CGFloat = 6
+    /// 落地轻跳的放大峰值（scale 1 → 1.7 → 1）
+    static let landScale: CGFloat = 1.7
+    /// 轻跳里「放大」占整段时长的比例，其余时间回落
+    static let landRiseFraction: Double = 0.4
+    /// 主角大卡的灯体直径（56pt 命中区按 30/44 同比例放大）
+    static let heroLampDiameter: CGFloat = 38
+    /// 灯体中心与白色混合比例（深色更收敛，与行内灯一致）
+    static let mixFraction: Double = 0.55
+    static let mixFractionDark: Double = 0.35
+}
+
+/// 页头一颗小灯：未亮 = 边框灰；亮 = 习惯色径向渐变（同灯体按比例缩小）。
+/// 飞行落地前被 pendingLanding 压住画成未亮；落地（或兜底放行）后亮起并轻跳。
+/// 轻跳只在「未亮 → 亮」的变化时播：打开页面时已经亮着的灯不重播；
+/// 动效关闭时不跳，只用 0.25s 淡入。
+private struct HabitTodayHeaderLamp: View {
+    let light: HabitTodayLight
+    let color: Color
+    let landingSuppressed: Bool
+    /// 是否播放落地轻跳（完成动效开关 + 系统减弱动态效果）
+    let animatesLanding: Bool
+    @Environment(\.colorScheme) private var scheme
+    /// 落地轻跳的播放序号：每次「未亮 → 亮」加一；0 = 尚未在本页跳过
+    @State private var landingPulse = 0
+
+    private var showsLit: Bool {
+        light.isLit && !landingSuppressed
+    }
+
+    var body: some View {
+        Group {
+            if showsLit {
+                litLamp
+                    .transition(.opacity)
+            } else {
+                Circle()
+                    .fill(Color.holoToolBorder)
+                    .transition(.opacity)
             }
+        }
+        .frame(width: HabitTodayLightsMetrics.lampDiameter,
+               height: HabitTodayLightsMetrics.lampDiameter)
+        // 亮 / 熄都是 0.25s 淡变；落地轻跳由 litLamp 自己播
+        .animation(HoloAnimation.reducedFade, value: showsLit)
+        .onChange(of: showsLit) { _, isLit in
+            if isLit, animatesLanding { landingPulse += 1 }
+        }
+        // 终点上报：小灯中心（habitToday 坐标系）
+        .background(
+            GeometryReader { geo in
+                let frame = geo.frame(in: .named(HabitTodayLightSpace.content))
+                Color.clear.preference(
+                    key: HabitLampDestinationKey.self,
+                    value: [light.id: CGPoint(x: frame.midX, y: frame.midY)]
+                )
+            }
+        )
+        .accessibilityHidden(true)
+    }
+
+    /// 已亮的小灯：刚落地时轻跳（scale 1 → 1.7 → 1，共 lightLandDuration），之后静止
+    @ViewBuilder
+    private var litLamp: some View {
+        if landingPulse == 0 {
+            litLampBody
+        } else {
+            KeyframeAnimator(initialValue: CGFloat(1), repeating: false) { scale in
+                litLampBody
+                    .scaleEffect(scale)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(HabitTodayLightsMetrics.landScale,
+                                  duration: HoloAnimation.lightLandDuration * HabitTodayLightsMetrics.landRiseFraction)
+                    CubicKeyframe(1,
+                                  duration: HoloAnimation.lightLandDuration * (1 - HabitTodayLightsMetrics.landRiseFraction))
+                }
+            }
+            .id(landingPulse)
         }
     }
 
-    private func emptyCard(title: String, message: String,
-                           buttonTitle: String? = nil,
-                           icon: String = "leaf",
-                           action: (() -> Void)? = nil) -> some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 24, weight: .light))
-                .foregroundColor(.holoPrimary.opacity(0.7))
-                .frame(width: 52, height: 52)
-                .background(RoundedRectangle(cornerRadius: 17).fill(Color.holoToolInset))
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.holoToolText)
-            Text(message)
-                .font(.system(size: 12))
-                .foregroundColor(.holoToolTextSecondary)
-                .multilineTextAlignment(.center)
-            if let buttonTitle, let action {
-                Button(action: action) {
-                    Text(buttonTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.holoToolOnAction)
-                        .padding(.horizontal, 18)
-                        .frame(minHeight: 44)
-                        .background(Capsule().fill(Color.holoToolAction))
-                }
-                .buttonStyle(HoloPressStyle())
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+    private var litLampBody: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        color.holoMixed(
+                            with: .white,
+                            fraction: scheme == .dark
+                                ? HabitTodayLightsMetrics.mixFractionDark
+                                : HabitTodayLightsMetrics.mixFraction),
+                        color
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: HabitTodayLightsMetrics.lampDiameter / 2
+                )
+            )
     }
 }
 

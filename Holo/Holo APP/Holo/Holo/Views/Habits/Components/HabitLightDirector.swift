@@ -1,0 +1,286 @@
+//
+//  HabitLightDirector.swift
+//  Holo
+//
+//  习惯完成「E 光归处」（2026-11-23 审美七项 P1）的事件导演：
+//  HoloMotionFeedbackCenter 的完成事件取走即失，行内点亮与页面级飞行
+//  不能各自 consume——由今天页这一层统一消费一次，再分发两路播放：
+//
+//  · ignitions      行内灯的点亮令牌（event.operationID）
+//  · flights        正在飞的光点（坐标是起飞时的快照，飞行途中滚动允许轻微错位）
+//  · pendingLanding 飞行未落地前压住页头对应小灯，落地（或兜底超时）后放行
+//
+//  撤销打卡由页面调 cancel(habitId:)；App 进后台调 clearTransient()。
+//  每日看板（KanbanHabitSection）的 .holoRecordArrival 保持不动：
+//  两个界面不同时可见，isVisible 门控保证只有可见的一方消费。
+//
+
+import Combine
+import SwiftUI
+
+// MARK: - 坐标系与起点 / 终点上报
+
+/// 今天页两个命名坐标系：viewport = ScrollView 视口（页头可见性判断），
+/// content = 滚动内容（光点起终点与飞行层共用，滚动时同系不错位）。
+enum HabitTodayLightSpace {
+    static let viewport = "habitTodayViewport"
+    static let content = "habitToday"
+}
+
+/// 行内主操作按钮（灯 / ＋ / 记录）中心点上报：habitId → content 坐标系坐标
+struct HabitLampOriginKey: PreferenceKey {
+    static var defaultValue: [UUID: CGPoint] { [:] }
+    static func reduce(value: inout [UUID: CGPoint], nextValue: () -> [UUID: CGPoint]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// 页头小灯中心点上报（同 content 坐标系）
+struct HabitLampDestinationKey: PreferenceKey {
+    static var defaultValue: [UUID: CGPoint] { [:] }
+    static func reduce(value: inout [UUID: CGPoint], nextValue: () -> [UUID: CGPoint]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// 页头是否还在视口内（maxY > 0；滚下去后不再起飞，只点亮）
+struct HabitHeaderVisibleKey: PreferenceKey {
+    static var defaultValue: Bool { true }
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value && nextValue()
+    }
+}
+
+extension View {
+    /// 把当前视图中心上报为光点起飞起点（habitToday 坐标系；不可见行不渲染即无起点）
+    func habitLampOrigin(id: UUID) -> some View {
+        background(
+            GeometryReader { geo in
+                let frame = geo.frame(in: .named(HabitTodayLightSpace.content))
+                Color.clear.preference(
+                    key: HabitLampOriginKey.self,
+                    value: [id: CGPoint(x: frame.midX, y: frame.midY)]
+                )
+            }
+        )
+    }
+}
+
+// MARK: - 飞行模型
+
+/// 一次飞行的起终点（起飞时的坐标快照）
+struct HabitLightFlightPlan: Equatable {
+    let start: CGPoint
+    let end: CGPoint
+}
+
+/// 正在飞的光点
+struct HabitLightFlight: Identifiable {
+    let id: UUID
+    let habitId: UUID
+    let color: Color
+    let start: CGPoint
+    let end: CGPoint
+}
+
+/// 光点路径几何：二次贝塞尔 + easeInOut（纯函数，供飞行层与测试共用）
+nonisolated enum HabitLightGeometry {
+    /// 控制点相对起终点中点的偏移（向左、向上）
+    static let bendLeft: CGFloat = 40
+    static let bendUp: CGFloat = 30
+
+    static func controlPoint(from start: CGPoint, to end: CGPoint) -> CGPoint {
+        CGPoint(x: (start.x + end.x) / 2 - bendLeft,
+                y: (start.y + end.y) / 2 - bendUp)
+    }
+
+    /// 二次贝塞尔取点（t ∈ 0…1）
+    static func point(from start: CGPoint, to end: CGPoint, t: Double) -> CGPoint {
+        let c = controlPoint(from: start, to: end)
+        let mt = 1 - t
+        return CGPoint(x: mt * mt * start.x + 2 * mt * t * c.x + t * t * end.x,
+                       y: mt * mt * start.y + 2 * mt * t * c.y + t * t * end.y)
+    }
+
+    /// 标准 easeInOut 曲线（0→0，0.5→0.5，1→1；越界截断）
+    static func easeInOut(_ t: Double) -> Double {
+        if t <= 0 { return 0 }
+        if t >= 1 { return 1 }
+        return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)
+    }
+}
+
+// MARK: - 导演
+
+@MainActor
+final class HabitLightDirector: ObservableObject {
+
+    /// 落地兜底：光点起飞后无论是否落地，到时都放行页头小灯（默认 1.2s）
+    private static let defaultLandingTimeout: TimeInterval = 1.2
+    /// 点亮令牌的生命周期：动画播完后即清空，行被 LazyVStack 回收重挂时不重播
+    /// （光晕时长 + 收尾余量）
+    private static let ignitionLifetime: TimeInterval = HoloAnimation.lampHaloDuration + 0.1
+
+    /// 行内点亮令牌：habitId → 本次点亮的 token
+    @Published private(set) var ignitions: [UUID: UUID] = [:]
+    /// 正在飞的光点
+    @Published private(set) var flights: [HabitLightFlight] = []
+    /// 飞行未落地前，页头对应小灯保持未亮
+    @Published private(set) var pendingLanding: Set<UUID> = []
+
+    /// 起飞延迟与兜底时长可注入（测试用极短值，不真等 1.2 秒）
+    private let flightDelay: TimeInterval
+    private let landingTimeout: TimeInterval
+    private var landingTasks: [UUID: Task<Void, Never>] = [:]
+
+    init(flightDelay: TimeInterval = HoloAnimation.lightFlightDelay,
+         landingTimeout: TimeInterval = HabitLightDirector.defaultLandingTimeout) {
+        self.flightDelay = flightDelay
+        self.landingTimeout = landingTimeout
+    }
+
+    /// 消费到一次完成事件：行内立即点亮；给了飞行计划就**立刻**占住页头小灯、延迟起飞，
+    /// 没给（页头不可见 / 起点拿不到 / 灯排隐藏 / 动效关闭）就只点亮不飞。
+    func handle(event: HoloMotionEvent, habitId: UUID, color: Color, flight: HabitLightFlightPlan?) {
+        ignitions[habitId] = event.operationID
+        scheduleIgnitionExpiry(event: event, habitId: habitId)
+        cancelLandingTask(habitId)
+        guard let flight else { return }
+        // 一拿到事件就压住页头小灯：若等起飞才压，点亮到起飞之间小灯会「先亮一下再熄灭」
+        // （模拟器连拍实抓），与「飞行未落地前小灯保持未亮」的规格不符
+        pendingLanding.insert(habitId)
+        let flightID = UUID()
+        let delay = flightDelay
+        let timeout = landingTimeout
+        landingTasks[habitId] = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            guard let self else { return }
+            self.flights.append(HabitLightFlight(id: flightID, habitId: habitId, color: color,
+                                                 start: flight.start, end: flight.end))
+            // 兜底：飞行视图被回收 / 回调丢失时，页头小灯也不能永远不亮
+            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+            self.settle(habitId: habitId, flightID: flightID)
+        }
+    }
+
+    /// 落地：移除飞行、放行页头小灯（页头随后自播落地轻跳）
+    func land(_ flightID: UUID) {
+        guard let flight = flights.first(where: { $0.id == flightID }) else { return }
+        cancelLandingTask(flight.habitId)
+        settle(habitId: flight.habitId, flightID: flightID)
+    }
+
+    /// 撤销打卡：点火、飞行、页头占位全部清理
+    func cancel(habitId: UUID) {
+        ignitions[habitId] = nil
+        cancelLandingTask(habitId)
+        flights.removeAll { $0.habitId == habitId }
+        pendingLanding.remove(habitId)
+    }
+
+    /// App 进后台：清掉进行中的飞行与占位（事件本体由 Motion 中心照常丢弃）
+    func clearTransient() {
+        landingTasks.values.forEach { $0.cancel() }
+        landingTasks.removeAll()
+        flights.removeAll()
+        pendingLanding.removeAll()
+    }
+
+    private func settle(habitId: UUID, flightID: UUID) {
+        flights.removeAll { $0.id == flightID }
+        pendingLanding.remove(habitId)
+    }
+
+    /// 点亮令牌到期即清：非 nil 窗口 = 「正在播」。灯视图挂载时带着非 nil 令牌
+    /// 即播（首次完成的胶囊→灯切换正属于这种挂载）；窗口外回收重挂只见 nil，不重播
+    private func scheduleIgnitionExpiry(event: HoloMotionEvent, habitId: UUID) {
+        let lifetime = HabitLightDirector.ignitionLifetime
+        Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(lifetime)) } catch { return }
+            guard let self else { return }
+            if self.ignitions[habitId] == event.operationID {
+                self.ignitions[habitId] = nil
+            }
+        }
+    }
+
+    private func cancelLandingTask(_ habitId: UUID) {
+        landingTasks[habitId]?.cancel()
+        landingTasks[habitId] = nil
+    }
+}
+
+// MARK: - 飞行层
+
+/// 光点飞行层：盖在滚动内容上（坐标同系，飞行途中滚动不错位），不参与命中
+struct HabitLightFlightLayer: View {
+    let flights: [HabitLightFlight]
+    let onLand: (UUID) -> Void
+
+    var body: some View {
+        ForEach(flights) { flight in
+            HabitLightFlightDot(flight: flight, onLand: onLand)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// 飞行光点的局部尺寸与节拍
+private enum HabitLightFlightMetrics {
+    static let dotDiameter: CGFloat = 10
+    static let dotBlur: CGFloat = 1.5
+    /// 末段淡出的起点（前 90% 全亮）
+    static let fadeStart: Double = 0.9
+    /// 落地回调相对动画时长的余量（保证最后一帧已画完）
+    static let landGrace: TimeInterval = 0.05
+}
+
+/// 单颗光点：插入即播（KeyframeAnimator 挂载播放），末段淡出，结束回调落地
+private struct HabitLightFlightDot: View {
+    let flight: HabitLightFlight
+    let onLand: (UUID) -> Void
+
+    var body: some View {
+        KeyframeAnimator(initialValue: CGFloat(0), repeating: false) { progress in
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [.white, flight.color, .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: HabitLightFlightMetrics.dotDiameter / 2
+                    )
+                )
+                .frame(width: HabitLightFlightMetrics.dotDiameter,
+                       height: HabitLightFlightMetrics.dotDiameter)
+                .blur(radius: HabitLightFlightMetrics.dotBlur)
+                .position(position(at: progress))
+                .opacity(opacity(at: progress))
+        } keyframes: { _ in
+            KeyframeTrack {
+                CubicKeyframe(1, duration: HoloAnimation.lightFlightDuration)
+            }
+        }
+        .task {
+            try? await Task.sleep(
+                for: .seconds(HoloAnimation.lightFlightDuration + HabitLightFlightMetrics.landGrace))
+            onLand(flight.id)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 进度（0…1）→ 缓动后的贝塞尔位置
+    private func position(at progress: CGFloat) -> CGPoint {
+        HabitLightGeometry.point(from: flight.start, to: flight.end,
+                                 t: HabitLightGeometry.easeInOut(Double(progress)))
+    }
+
+    /// 前 90% 全亮，末段 10% 线性淡到 0
+    private func opacity(at progress: CGFloat) -> Double {
+        let t = Double(progress)
+        guard t >= HabitLightFlightMetrics.fadeStart else { return 1 }
+        let fade = (t - HabitLightFlightMetrics.fadeStart) / (1 - HabitLightFlightMetrics.fadeStart)
+        return max(1 - fade, 0)
+    }
+}

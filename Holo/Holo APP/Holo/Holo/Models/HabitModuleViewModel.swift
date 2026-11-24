@@ -85,6 +85,9 @@ final class HabitModuleViewModel: ObservableObject {
     @Published private(set) var reviewLoadFailed = false
     /// 今天已记录的不同习惯数（新口径，方案 §9.1）
     @Published private(set) var recordedTodayCount: Int = 0
+    /// 页头「今日的灯」（审美七项 P1 光归处）：好习惯一盏，今天已记录 = 亮。
+    /// 口径与 recordedTodayCount（含坏习惯）不同，互不影响
+    @Published private(set) var todayLights: [HabitTodayLight] = []
     @Published private(set) var isLoading = true
     @Published var todayFilter: TodayFilter = .all {
         didSet { recomputeFilteredRows() }
@@ -209,6 +212,7 @@ final class HabitModuleViewModel: ObservableObject {
         }
 
         recordedTodayCount = todayRows.filter { $0.today.isRecorded }.count
+        rebuildTodayLights()
 
         // V2 回顾：全量未删除习惯（历史不随生命周期隐去，§6.2）
         let reviewHabits = repository.fetchAllHabitsForReview().map { habit -> HabitReviewHabitInfo in
@@ -221,6 +225,26 @@ final class HabitModuleViewModel: ObservableObject {
 
         recomputeFilteredRows()
         isLoading = false
+    }
+
+    /// 重建页头「今日的灯」：好习惯一盏，顺序对齐今天页分节显示顺序
+    /// （打卡主角 → 数值 → 每周每月；节内保持库内排序）。
+    private func rebuildTodayLights() {
+        todayLights = todayRows
+            .enumerated()
+            .filter { !$0.element.isBadHabit }
+            .sorted {
+                let rankA = HabitTodayLightOrder.sectionRank(kind: $0.element.kind,
+                                                              frequency: $0.element.frequency)
+                let rankB = HabitTodayLightOrder.sectionRank(kind: $1.element.kind,
+                                                              frequency: $1.element.frequency)
+                return rankA == rankB ? $0.offset < $1.offset : rankA < rankB
+            }
+            .map {
+                HabitTodayLight(id: $0.element.id,
+                                colorHex: $0.element.colorHex,
+                                isLit: $0.element.today.isRecorded)
+            }
     }
 
     /// 按当前 overviewMonth 与展示偏好重建整体快照（纯内存，无 fetch）。
@@ -268,10 +292,13 @@ final class HabitModuleViewModel: ObservableObject {
     // MARK: 记录动作
 
     /// 今天页/详情页的记录动作入口。结果驱动快照刷新与反馈时序。
+    /// `deferCompletionHapticToLamp` 仅由习惯今天页的打卡入口传 true（见 §4.8）。
     @discardableResult
-    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil) async -> Bool {
+    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil,
+                deferCompletionHapticToLamp: Bool = false) async -> Bool {
         inlineError = nil
-        guard let result = await coordinator.perform(kind, habitId: habitId, note: note) else {
+        guard let result = await coordinator.perform(kind, habitId: habitId, note: note,
+                                                     deferCompletionHapticToLamp: deferCompletionHapticToLamp) else {
             return false // 同习惯保存中：忽略重复提交
         }
 
@@ -369,6 +396,28 @@ final class HabitModuleViewModel: ObservableObject {
         case .invalidValue: return String(localized: "数值无效，请检查后重试")
         case .recordChanged: return String(localized: "这条记录已变化，请到详情确认")
         case .archivedNeedsUnarchive: return String(localized: "请先取消归档再记录")
+        }
+    }
+}
+
+// MARK: - 页头「今日的灯」
+
+/// 页头「今日的灯」的一盏（审美七项 P1）：好习惯今天已记录 = 亮
+nonisolated struct HabitTodayLight: Identifiable, Equatable {
+    let id: UUID
+    let colorHex: String
+    let isLit: Bool
+}
+
+/// 「今日的灯」排序 = 今天页分节显示顺序（打卡主角 → 数值 → 每周每月；
+/// 坏习惯不进灯，与今天页「想减少的事」节一致）
+enum HabitTodayLightOrder {
+    static func sectionRank(kind: HabitRowKind, frequency: HabitFrequency) -> Int {
+        switch frequency {
+        case .daily:
+            return kind == .checkIn ? 0 : 1
+        case .weekly, .monthly:
+            return 2
         }
     }
 }

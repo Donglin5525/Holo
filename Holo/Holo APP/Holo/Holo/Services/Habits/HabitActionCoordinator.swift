@@ -11,6 +11,11 @@ import Foundation
 import Combine
 import CoreData
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 @MainActor
 final class HabitActionCoordinator: ObservableObject {
@@ -29,15 +34,22 @@ final class HabitActionCoordinator: ObservableObject {
     // MARK: - 动作入口
 
     /// 发起一次记录动作。返回 nil = 同习惯保存中，本次忽略（不产生新意图）。
-    func perform(_ kind: HabitActionKind, habitId: UUID, note: String? = nil) async -> HabitActionResult? {
+    /// `deferCompletionHapticToLamp`：调用方是习惯今天页（行内有灯）时对「好习惯
+    /// 当天首次打卡完成」把回执 success 触感延后到灯最亮那一刻（由 HabitLampView
+    /// 播 soft）；没有灯的调用方（每日看板、详情页、意图路由）一律默认即时震动。
+    func perform(_ kind: HabitActionKind, habitId: UUID, note: String? = nil,
+                 deferCompletionHapticToLamp: Bool = false) async -> HabitActionResult? {
         guard !savingHabitIds.contains(habitId) else { return nil }
         savingHabitIds.insert(habitId)
         defer { savingHabitIds.remove(habitId) }
 
         let result: HabitActionResult
+        var checkInLampEventArmed = false
         switch kind {
         case .toggleCheckIn:
-            result = performToggleCheckIn(habitId: habitId, note: note)
+            let (outcome, lampArmed) = performToggleCheckIn(habitId: habitId, note: note)
+            result = outcome
+            checkInLampEventArmed = lampArmed
         case .addNumeric(let value):
             result = performAddNumeric(habitId: habitId, value: value, note: note)
         case .increment(let amount):
@@ -51,7 +63,10 @@ final class HabitActionCoordinator: ObservableObject {
         case .deleteRecord(let recordId):
             result = performDeleteRecord(habitId: habitId, recordId: recordId)
         }
-        playHabitHaptic(HabitHapticPolicy.haptic(for: kind, result: result))
+        // 数值行没有灯（按钮不变灯），触感恒为回执即时档；只有打卡行可延后
+        let lampDeferralActive = deferCompletionHapticToLamp && checkInLampEventArmed && Self.lampMotionAllowed
+        playHabitHaptic(HabitHapticPolicy.haptic(for: kind, result: result,
+                                                 lampDeferralActive: lampDeferralActive))
         return result
     }
 
@@ -59,29 +74,48 @@ final class HabitActionCoordinator: ObservableObject {
         switch haptic {
         case .success: HapticManager.success()
         case .light: HapticManager.light()
+        // 已交给灯：灯最亮那一刻由 HabitLampView 播 soft
+        case .deferredToLamp: break
         case nil: break
         }
     }
 
+    /// 灯点亮动画是否允许播放（完成动效开关 + 系统减弱动态效果）。
+    /// 灯不播时回执触感回落为即时档，不会出现「无灯也无震」。
+    private static var lampMotionAllowed: Bool {
+        guard HoloMotionPreferencePolicy.isEnabled(HoloMotionRollout.completionKey) else { return false }
+        #if canImport(UIKit)
+        return !UIAccessibility.isReduceMotionEnabled
+        #else
+        return !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        #endif
+    }
+
     // MARK: - 打卡
 
-    private func performToggleCheckIn(habitId: UUID, note: String?) -> HabitActionResult {
+    private func performToggleCheckIn(habitId: UUID, note: String?) -> (HabitActionResult, lampEventArmed: Bool) {
         let wasRecorded: Bool
         if let habit = repository.findHabit(by: habitId) {
             wasRecorded = repository.isTodayCompleted(for: habit)
         } else {
-            return .invalidated(.habitUnavailable)
+            return (.invalidated(.habitUnavailable), false)
         }
 
         do {
             let data = try repository.performCheckInReceipt(habitId: habitId, note: note)
             let habit = repository.findHabit(by: habitId)
             let isFirstCompletion = data.newState && !wasRecorded
-            // 好习惯完成暖光：Motion 中心自带当天去重，坏习惯不庆祝
+            // 好习惯完成暖光：Motion 中心自带当天去重，坏习惯不庆祝。
+            // 世代值真的前进（事件入账：当天首次 + 开关开启 + 前台）才会有点亮动画，
+            // 触感才允许延后；撤销后重勾、关动效、坏习惯都保持即时回执档
+            var lampEventArmed = false
             if isFirstCompletion, let habit, !habit.isBadHabit {
+                let subject = HoloMotionSubject(domain: .habit, id: habitId)
+                let generationBefore = HoloMotionFeedbackCenter.shared.generations[subject]
                 HoloMotionFeedbackCenter.shared.completedHabit(habitId)
+                lampEventArmed = HoloMotionFeedbackCenter.shared.generations[subject] != generationBefore
             }
-            return .confirmed(HabitActionReceipt(
+            return (.confirmed(HabitActionReceipt(
                 operationID: UUID(),
                 habitId: habitId,
                 kind: .toggleCheckIn,
@@ -89,16 +123,16 @@ final class HabitActionCoordinator: ObservableObject {
                 previousCheckInState: data.previousState,
                 newCheckInState: data.newState,
                 isTodayFirstCompletion: isFirstCompletion
-            ))
+            )), lampEventArmed)
         } catch let error as HabitError {
             switch error {
-            case .notFound: return .invalidated(.habitUnavailable)
-            case .habitIsPaused: return .invalidated(.habitPaused)
-            case .invalidData: return .invalidated(.typeNotSupported)
-            default: return .failed(error.localizedDescription)
+            case .notFound: return (.invalidated(.habitUnavailable), false)
+            case .habitIsPaused: return (.invalidated(.habitPaused), false)
+            case .invalidData: return (.invalidated(.typeNotSupported), false)
+            default: return (.failed(error.localizedDescription), false)
             }
         } catch {
-            return .failed(String(localized: "这次没有保存成功，内容还在"))
+            return (.failed(String(localized: "这次没有保存成功，内容还在")), false)
         }
     }
 
@@ -285,14 +319,21 @@ final class HabitActionCoordinator: ObservableObject {
 
 /// 记录动作 → 触觉档位映射。语义沿旧磁贴版：勾上打卡/当日首笔数值 = success，
 /// 取消、追加、撤销与补录 = light；失败/无变化不震（各走行内错误文案）。
+/// 例外（2026-11-23 审美七项 P1 §4.8）：好习惯当天首次打卡且这次交给灯点亮
+/// （来源是习惯今天页 + 事件入账 + 动效允许）→ .deferredToLamp，回执不震，
+/// 由 HabitLampView 在灯最亮那一刻播 soft；数值行没有灯，恒为即时档。
 /// 坏习惯超限的 warning 震由超限警告 toast（HoloToastCenter .warning）自带。
 enum HabitHapticPolicy {
-    enum Haptic: Equatable { case success, light }
+    enum Haptic: Equatable { case success, light, deferredToLamp }
 
-    static func haptic(for kind: HabitActionKind, result: HabitActionResult) -> Haptic? {
+    static func haptic(for kind: HabitActionKind, result: HabitActionResult,
+                       lampDeferralActive: Bool = false) -> Haptic? {
         guard case .confirmed(let receipt) = result else { return nil }
         switch kind {
         case .toggleCheckIn:
+            if receipt.newCheckInState == true, receipt.isTodayFirstCompletion, lampDeferralActive {
+                return .deferredToLamp
+            }
             // 勾上恒 success（暖光才看当天首次）；取消 = light
             return receipt.newCheckInState == true ? .success : .light
         case .addNumeric, .increment:

@@ -18,11 +18,21 @@ struct HabitRowView: View {
     let isSaving: Bool
     /// 行内错误消息（覆盖副标题位置短暂显示）
     let inlineErrorMessage: String?
+    /// 今天页导演分发的灯点亮令牌（当天首次完成才有；nil = 静止）
+    var ignitionToken: UUID? = nil
     var onOpenTodayRecords: () -> Void
     var onToggleCheckIn: () -> Void
     var onIncrement: () -> Void
     var onDecrement: () -> Void
     var onMeasureRecord: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(HoloMotionRollout.completionKey) private var completionMotionEnabled = true
+
+    /// 灯动效是否允许（完成动效开关 + 系统减弱动态效果）
+    private var lampMotionAllowed: Bool {
+        completionMotionEnabled && !reduceMotion
+    }
 
     // MARK: 文案
 
@@ -219,35 +229,81 @@ struct HabitRowView: View {
         }
     }
 
+    /// 打卡按钮：好习惯已记录 = 习惯灯（审美七项 P1「A 点亮」），
+    /// 坏习惯保持实心圆 + 对勾（不点灯、不飞、不进「今日的灯」）
     private var checkInButton: some View {
         Button {
             onToggleCheckIn()
         } label: {
             Group {
-                if snapshot.today.isRecorded {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(Color(hex: snapshot.colorHex)))
+                if snapshot.isBadHabit {
+                    badHabitCheckInContent
                 } else {
-                    Text(snapshot.isBadHabit ? String(localized: "记录发生") : String(localized: "打卡"))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(hex: snapshot.colorHex))
-                        .padding(.horizontal, 14)
-                        .frame(height: 44)
-                        .background(
-                            Capsule().fill(Color(hex: snapshot.colorHex).opacity(0.12))
-                        )
+                    goodHabitCheckInContent
                 }
             }
         }
         .buttonStyle(HoloPressStyle())
         .disabled(isSaving)
+        // 光点起飞起点 = 按钮中心（habitToday 坐标系）
+        .habitLampOrigin(id: snapshot.id)
         .accessibilityIdentifier("habit.row.\(snapshot.id).record")
         .accessibilityLabel(Text(snapshot.today.isRecorded
             ? String(localized: snapshot.isBadHabit ? "取消发生记录" : "取消打卡")
             : String(localized: snapshot.isBadHabit ? "记录发生" : "打卡")))
+    }
+
+    /// 坏习惯「记录发生」：样式维持现状（无过渡动画）
+    private var badHabitCheckInContent: some View {
+        Group {
+            if snapshot.today.isRecorded {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color(hex: snapshot.colorHex)))
+            } else {
+                Text(String(localized: "记录发生"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(hex: snapshot.colorHex))
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(
+                        Capsule().fill(Color(hex: snapshot.colorHex).opacity(0.12))
+                    )
+            }
+        }
+    }
+
+    /// 好习惯「打卡」：未记录 = 习惯色浅底胶囊；已记录 = 灯。
+    /// 亮灯 / 熄灯按 reducedFade 0.25s 淡变；首次点亮动画由灯自己播
+    private var goodHabitCheckInContent: some View {
+        Group {
+            if snapshot.today.isRecorded {
+                HabitLampView(
+                    color: Color(hex: snapshot.colorHex),
+                    ignitionToken: ignitionToken,
+                    allowsMotion: lampMotionAllowed
+                )
+                .frame(width: 44, height: 44)
+                .transition(.opacity)
+            } else {
+                checkInCapsule
+                    .transition(.opacity)
+            }
+        }
+        .animation(HoloAnimation.reducedFade, value: snapshot.today.isRecorded)
+    }
+
+    private var checkInCapsule: some View {
+        Text(String(localized: "打卡"))
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(Color(hex: snapshot.colorHex))
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(
+                Capsule().fill(Color(hex: snapshot.colorHex).opacity(0.12))
+            )
     }
 
     private var countControls: some View {
@@ -275,6 +331,8 @@ struct HabitRowView: View {
             }
             .buttonStyle(HoloPressStyle())
             .disabled(isSaving)
+            // 数值行光点从主操作按钮（＋）起飞
+            .habitLampOrigin(id: snapshot.id)
             .accessibilityIdentifier("habit.row.\(snapshot.id).increment")
             .accessibilityLabel(Text(String(localized: "增加一次")))
         }
@@ -328,6 +386,8 @@ struct HabitRowView: View {
         }
         .buttonStyle(HoloPressStyle())
         .disabled(isSaving)
+        // 测量/计数（quantity 输入态）行光点从「记录」按钮起飞
+        .habitLampOrigin(id: snapshot.id)
         .accessibilityIdentifier("habit.row.\(snapshot.id).record")
         .accessibilityLabel(Text(snapshot.today.isRecorded
             ? String(localized: "再记录一次")
