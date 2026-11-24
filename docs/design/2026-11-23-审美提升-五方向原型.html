@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo 审美提升 · 五个方向原型 · 2026-11-23</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC",sans-serif;background:#E7E5E0;color:#1d1d1b;line-height:1.55;padding:36px 24px 120px}
+.wrap{max-width:1320px;margin:0 auto}
+h1{font-size:26px}
+h2{font-size:20px;margin:56px 0 4px;display:flex;align-items:baseline;gap:10px}
+h2 em{font-style:normal;font-size:12px;font-weight:500;color:#fff;background:#2F2B26;border-radius:4px;padding:1px 7px}
+h2 em.m{background:#8A6E4B}
+.lead{color:#55534d;font-size:14.5px;max-width:980px;margin-top:6px}
+.note{background:#fff;border-left:3px solid #F46D38;border-radius:8px;padding:10px 16px;font-size:13.5px;margin-top:12px;max-width:980px}
+.note li{margin:3px 0 3px 18px}
+.row{display:flex;gap:26px;flex-wrap:wrap;margin-top:20px;align-items:flex-start}
+.col{width:360px}
+.col.s{width:290px}
+.col-h{font-size:14px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between}
+.col-h span{font-weight:400;color:#6b6962;font-size:12px}
+.col-h .rec{color:#F46D38;font-weight:600}
+.cap{font-size:12.5px;color:#55534d;margin-top:8px}
+.cap b{color:#1d1d1b}
+.serifN{font-family:ui-serif,"New York",Georgia,serif}
+.song{font-family:"Songti SC","Noto Serif SC","Source Han Serif SC",serif}
+/* 手机页面 */
+.page{width:360px;background:#FDFCF8;color:#333;border-radius:28px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.1);position:relative}
+.s .page{width:290px}
+.nav{height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:17px;font-weight:600;border-bottom:.5px solid #E9E4DA}
+.nav span{width:44px;text-align:center;font-weight:400;color:#6E6E6E}
+.body{padding:20px}
+.meta{font-size:13px;color:#6E6E6E}
+.btn{display:inline-flex;align-items:center;gap:6px;background:#EA580C;color:#fff;border-radius:12px;padding:10px 22px;font-size:15px;font-weight:600}
+.replay{margin-top:10px;font-size:12.5px;border:1px solid #C9C4BA;background:#fff;border-radius:6px;padding:4px 12px;cursor:pointer}
+
+/* ===== 1 完成仪式 ===== */
+.habit{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:.5px solid #E9E4DA;position:relative}
+.habit .ic{width:38px;height:38px;border-radius:11px;background:#F7F1EA;display:flex;align-items:center;justify-content:center;font-size:17px}
+.habit .t{flex:1}.habit .t b{display:block;font-weight:500;font-size:16px}.habit .t small{font-size:12.5px;color:#6E6E6E}
+.chk{width:30px;height:30px;border-radius:50%;border:1.6px solid #CFC8BC;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.chk.on{background:#4E8C64;border-color:#4E8C64}
+.stampbox{width:46px;height:46px;position:relative;display:flex;align-items:center;justify-content:center}
+.stamp{width:44px;height:44px;border-radius:50%;border:2px solid #B84A3E;color:#B84A3E;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;transform:rotate(-12deg);opacity:.88;
+  font-family:"Songti SC",serif;font-weight:700;font-size:15px;box-shadow:inset 0 0 0 2px rgba(184,74,62,.12)}
+.stamp small{font-family:ui-serif,Georgia,serif;font-size:8px;font-weight:600;margin-top:2px;letter-spacing:.5px}
+.stamp.play{animation:stampIn .42s cubic-bezier(.2,.9,.25,1.25) both}
+@keyframes stampIn{0%{transform:scale(1.9) rotate(-4deg);opacity:0}55%{transform:scale(.92) rotate(-13deg);opacity:.95}100%{transform:scale(1) rotate(-12deg);opacity:.88}}
+.ink{position:absolute;inset:0;border-radius:50%;pointer-events:none}
+.ink.play{animation:inkRing .5s ease-out .18s both}
+@keyframes inkRing{0%{box-shadow:0 0 0 0 rgba(184,74,62,.35)}100%{box-shadow:0 0 0 14px rgba(184,74,62,0)}}
+.done .t b{color:#8a857b}
+.timeline{display:flex;gap:0;margin-top:14px;font-size:11.5px;color:#55534d}
+.timeline div{flex:1;border-top:2px solid #2F2B26;padding-top:5px;margin-right:6px}
+.timeline div b{display:block;color:#1d1d1b;font-size:12px}
+.taskrow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:.5px solid #E9E4DA}
+.taskrow .t{flex:1;font-size:15.5px}
+.taskrow.done .t{color:#9a958b}
+.strike{position:relative;display:inline-block}
+.strike::after{content:"";position:absolute;left:-2px;right:-2px;top:52%;height:1.6px;background:#2F2B26;transform-origin:left;transform:scaleX(0)}
+.strike.play::after{animation:strikeIn .32s ease-out .05s forwards}
+@keyframes strikeIn{to{transform:scaleX(1)}}
+.amt{font-size:42px;line-height:1;margin-top:4px}
+.digit{display:inline-block;overflow:hidden;height:1em;vertical-align:top}
+.digit span{display:block}
+.digit.play span{animation:roll .6s cubic-bezier(.3,.8,.3,1) both}
+@keyframes roll{from{transform:translateY(-70%);opacity:.2}to{transform:none;opacity:1}}
+
+/* ===== 2 宋体标题 ===== */
+.kicker{font-size:11px;letter-spacing:2.2px;color:#8a857b;font-weight:600}
+.mt{font-size:30px;font-weight:600;margin-top:2px;line-height:1.25}
+.mt.song{font-weight:600;font-size:31px;letter-spacing:.5px}
+.sub2{font-size:14px;color:#6E6E6E;margin-top:4px}
+.rule{height:.5px;background:#2F2B26;opacity:.25;margin:14px 0}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:.5px solid #E9E4DA;font-size:15px}
+.stat .v{font-size:22px}
+.card{background:#fff;border:.5px solid #E9E4DA;border-radius:14px;padding:14px;margin-top:12px}
+.card .h{font-size:16px;font-weight:600}
+.card .h.song{font-size:17px}
+.card p{font-size:14px;color:#55534d;margin-top:4px}
+
+/* ===== 3 文字空状态 ===== */
+.empty-old{display:flex;flex-direction:column;align-items:center;text-align:center;padding:60px 20px 40px}
+.empty-old .big{font-size:54px;color:rgba(110,110,110,.45);line-height:1}
+.empty-old b{font-weight:400;font-size:16px;color:#6E6E6E;margin-top:14px}
+.empty-old small{font-size:12.5px;color:rgba(110,110,110,.7);margin-top:4px}
+.empty-old .btn{margin-top:20px}
+.empty-new{padding:92px 32px 40px;text-align:center}
+.empty-new .line{font-size:22px;color:#3a3732;letter-spacing:1px;line-height:1.6}
+.empty-new .by{font-size:12px;color:#9a958b;margin-top:14px;letter-spacing:1px}
+.empty-new .act{margin-top:34px;font-size:15px;color:#EA580C;font-weight:500;display:inline-block;border-bottom:1px solid rgba(234,88,12,.35);padding-bottom:2px}
+.copytbl{background:#fff;border-radius:12px;padding:14px 20px;margin-top:20px;max-width:1100px;font-size:13.5px;border-collapse:collapse;width:100%}
+.copytbl td,.copytbl th{padding:8px 10px;border-bottom:.5px solid #E9E4DA;text-align:left;vertical-align:top}
+.copytbl th{font-size:12px;color:#6b6962;font-weight:500}
+.copytbl td.n{font-family:"Songti SC",serif;font-size:15px;color:#2a2723}
+
+/* ===== 4 时间变色 ===== */
+.tod .page{transition:none}
+.home .date{font-size:12px;letter-spacing:2px;opacity:.65;font-weight:600}
+.home .greet{font-size:24px;font-weight:600;margin-top:4px}
+.home .big{font-size:46px;line-height:1;margin-top:18px}
+.home .bigu{font-size:14px;opacity:.7}
+.home .item{display:flex;justify-content:space-between;padding:11px 0;font-size:14.5px;border-bottom:.5px solid currentColor;border-color:rgba(127,120,110,.22)}
+.home .item span:last-child{opacity:.6}
+.home .pill{margin-top:18px;border-radius:12px;padding:11px 14px;font-size:13.5px}
+
+/* ===== 5 数据变旧 ===== */
+.tl{padding:10px 18px 20px}
+.tl .yr{font-size:11px;letter-spacing:2px;color:#8a857b;font-weight:600;margin:16px 0 6px}
+.mem{border-radius:12px;padding:12px 14px;margin-bottom:10px;border:.5px solid rgba(80,60,30,.12)}
+.mem .d{font-size:11.5px;letter-spacing:.5px}
+.mem .x{font-size:14.5px;margin-top:3px}
+.mem .k{font-size:11.5px;margin-top:5px}
+.decide{background:#fff;border-radius:12px;padding:18px 22px;margin-top:40px;font-size:14px;max-width:1100px}
+.decide ol{padding-left:18px}.decide li{margin:7px 0}
+.cost{display:inline-block;font-size:11.5px;border-radius:4px;padding:0 6px;background:#EEEAE2;color:#55534d;margin-left:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Holo 审美提升 · 五个方向原型</h1>
+<p class="lead">接着「去 AI 味四件套」和「人生年鉴」往下做。前三个（完成仪式、宋体标题、文字空状态）是推荐先做的，改动小、全局都受益。后两个（随时间变色、数据变旧）最有 Holo 自己的特点，但要先看会不会影响数据好不好读，所以只画出来供你慢慢看。每一节都是「现在 vs 改后」并排。</p>
+
+<!-- ================= 1 ================= -->
+<h2>01 · 完成的那一刻 <em>推荐先做</em> <span class="cost">小～中</span></h2>
+<p class="lead">打卡、完成任务、记一笔，是用户每天重复最多的动作。现在它们只是一个勾，改后每种完成都有一个专属的「落定」动作，统一用「纸和墨」的比喻。点下面的「重放」按钮可以看动画。</p>
+<div class="row">
+  <div class="col"><div class="col-h">现在 · 习惯打卡 <span>勾变绿</span></div>
+    <div class="page"><div class="nav"><span>‹</span>今日习惯<span>＋</span></div><div class="body" style="padding-top:6px">
+      <div class="habit"><div class="ic">💧</div><div class="t"><b>喝水</b><small>今日 6 / 8 杯</small></div><div class="chk on">✓</div></div>
+      <div class="habit"><div class="ic">📖</div><div class="t"><b>读书 20 分钟</b><small>连续 12 天</small></div><div class="chk on">✓</div></div>
+      <div class="habit"><div class="ic">🏃</div><div class="t"><b>跑步</b><small>本周 2 / 3 次</small></div><div class="chk"></div></div>
+    </div></div>
+    <p class="cap">勾选是系统级的通用动作，在哪个 App 里都一样，用户感觉不到「我完成了一件事」。</p>
+  </div>
+  <div class="col"><div class="col-h">改后 · 盖一枚「印」 <span class="rec">推荐</span></div>
+    <div class="page"><div class="nav"><span>‹</span>今日习惯<span>＋</span></div><div class="body" style="padding-top:6px">
+      <div class="habit done"><div class="ic">💧</div><div class="t"><b>喝水</b><small>今日 6 / 8 杯</small></div><div class="stampbox"><div class="stamp" style="opacity:.55">成<small>11·23</small></div></div></div>
+      <div class="habit done"><div class="ic">📖</div><div class="t"><b>读书 20 分钟</b><small>连续 12 天</small></div><div class="stampbox"><div class="stamp" id="st1">成<small>11·23</small></div><div class="ink" id="ink1"></div></div></div>
+      <div class="habit"><div class="ic">🏃</div><div class="t"><b>跑步</b><small>本周 2 / 3 次</small></div><div class="chk"></div></div>
+    </div></div>
+    <button class="replay" onclick="play('st1','ink1')">▶ 重放落印</button>
+    <p class="cap">完成时一枚朱红小印从上方落下，带一点回弹，印的边缘扩散一圈很淡的墨晕。印上是<b>「成」字 + 日期</b>。之前完成的印颜色更淡，像干了的墨。</p>
+  </div>
+  <div class="col s"><div class="col-h">落印的节奏 <span>共 0.42 秒</span></div>
+    <div class="timeline"><div><b>0 ms</b>手指松开</div><div><b>~230 ms</b>印面压到底<br>触感 .rigid</div><div><b>420 ms</b>回弹定格<br>墨晕散开</div></div>
+    <p class="cap" style="margin-top:14px">· 触感只在「压到底」那一下，不在点按时，<b>听觉/触觉/视觉同一时刻</b>，才会觉得「实」。<br>· 音效默认关闭，在设置里提供「轻声」开关（一声短促的木质「嗒」）。<br>· 取消打卡时印淡出，不做反向动画，避免一直盯着它。<br>· 印的颜色用现有的 holoError 朱红（#B84A3E），不新增颜色。</p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col"><div class="col-h">任务完成 · 一笔划掉 <span>代替整行变灰</span></div>
+    <div class="page"><div class="body" style="padding-top:8px">
+      <div class="taskrow done"><div class="chk on" style="background:#2F2B26;border-color:#2F2B26;width:24px;height:24px;font-size:12px">✓</div><div class="t"><span class="strike play" id="sk1">给妈妈打电话</span></div></div>
+      <div class="taskrow"><div class="chk" style="width:24px;height:24px"></div><div class="t">交季度报销单</div></div>
+      <div class="taskrow"><div class="chk" style="width:24px;height:24px"></div><div class="t">买猫粮</div></div>
+    </div></div>
+    <button class="replay" onclick="replayClass('sk1')">▶ 重放划线</button>
+    <p class="cap">像在纸质清单上用笔划掉一样，一条墨线从左往右划过（0.32 秒），划完后文字才变淡。</p>
+  </div>
+  <div class="col"><div class="col-h">记一笔 · 数字逐位落定 <span>衬线数字</span></div>
+    <div class="page"><div class="body">
+      <div class="meta">本月支出</div>
+      <div class="amt serifN" id="amt">¥<span class="digit"><span>3</span></span>,<span class="digit"><span>2</span></span><span class="digit"><span>8</span></span><span class="digit"><span>6</span></span></div>
+      <div class="meta" style="margin-top:10px">刚刚 · 午餐 −¥38</div>
+    </div></div>
+    <button class="replay" onclick="rollAmt()">▶ 重放数字</button>
+    <p class="cap">记完一笔回到页面，总额从个位开始逐位翻动、依次落定，像机械计数器（SwiftUI 自带 <code>.numericText()</code>，几乎不花开发量）。</p>
+  </div>
+</div>
+
+<!-- ================= 2 ================= -->
+<h2>02 · 中文标题用宋体 <em>推荐先做</em> <span class="cost">中</span></h2>
+<p class="lead">数字已经换成了衬线体，但中文标题还是系统黑体，两种字放在一起有点「半套西装」。改后定成三层：<b>大标题 / 卡片标题用宋体，正文 / 按钮 / 数据仍用系统黑体，数字用衬线</b>。宋体只出现在「讲话」的地方，不出现在「操作」的地方。</p>
+<div class="row">
+  <div class="col"><div class="col-h">现在 · 我的积累</div>
+    <div class="page"><div class="nav"><span>‹</span>我的积累<span>ⓘ</span></div><div class="body">
+      <div class="meta">日子里的小小积累</div>
+      <div class="mt">记录了 <span class="serifN" style="font-size:44px">315</span> 天</div>
+      <div class="sub2">那些看似平常的日子，都留下了痕迹。</div>
+      <div class="card"><div class="h">本周回顾</div><p>你这周读书 5 次，比上周多 2 次。</p></div>
+      <div class="card"><div class="h">下一站：想法 200 条</div><p>还差 13 条，慢慢积累就好。</p></div>
+    </div></div>
+  </div>
+  <div class="col"><div class="col-h">改后 · 宋体标题 + 刊头 <span class="rec">推荐</span></div>
+    <div class="page"><div class="nav"><span>‹</span><span style="width:auto;color:#333;font-weight:600">我的积累</span><span>ⓘ</span></div><div class="body">
+      <div class="kicker">第 47 周 · 小雪</div>
+      <div class="mt song">记录了 <span class="serifN" style="font-size:44px">315</span> 天</div>
+      <div class="sub2">那些看似平常的日子，都留下了痕迹。</div>
+      <div class="rule"></div>
+      <div class="card"><div class="h song">本周回顾</div><p>你这周读书 5 次，比上周多 2 次。</p></div>
+      <div class="card"><div class="h song">下一站 · 想法 200 条</div><p>还差 13 条，慢慢积累就好。</p></div>
+    </div></div>
+    <p class="cap">只换标题字体，加一行字距拉开的<b>刊头</b>（周数 · 节气），再加一条细线。导航栏保持黑体，因为它属于「操作」。</p>
+  </div>
+  <div class="col"><div class="col-h">改后 · 记忆长廊的某一天</div>
+    <div class="page"><div class="nav"><span>‹</span><span style="width:auto;color:#333;font-weight:600">记忆长廊</span><span>⌕</span></div><div class="body">
+      <div class="kicker">2026 · 十一月</div>
+      <div class="mt song" style="font-size:27px">十一月十八日，周三</div>
+      <div class="sub2">3 件事 · 记一笔、读书、一条想法</div>
+      <div class="rule"></div>
+      <div class="card"><div class="h song">「慢一点也没关系」</div><p>下班路上想到的。最近总觉得被推着走……</p></div>
+      <div class="card"><div class="h">午餐 · ¥38</div><p>和小林一起，楼下新开的面馆。</p></div>
+    </div></div>
+    <p class="cap">日期标题、想法标题用宋体，账目这类「数据」保持黑体。<b>一眼就能分出哪些是你写的话，哪些是记录。</b></p>
+  </div>
+</div>
+<div class="note"><b>落地成本要先说清楚</b>
+  <ul>
+    <li>iOS 不带可直接使用的宋体，需要把<b>思源宋体 / Noto Serif SC 打进包里</b>。全量约 10–20 MB，只用 Semibold 一个字重、子集化到常用 3500 字后约 <b>1.5–2.5 MB</b>。用户自己写的生僻字会自动回退成系统字。</li>
+    <li>代码层面只加一个 <code>Font.holoDisplay(size:)</code> 令牌，替换约 30–40 处大标题，不会动布局。</li>
+    <li>开源字体许可（SIL OFL）可以商用、可以打包，不需要授权费。</li>
+  </ul>
+</div>
+
+<!-- ================= 3 ================= -->
+<h2>03 · 空状态写成一句话 <em>推荐先做</em> <span class="cost">小</span></h2>
+<p class="lead">现在的空状态都是「大图标 + 暂无 XX + 一行灰字提示 + 橙色按钮」，这是最典型的模板味。改后不放图标，只写一句宋体短句，按钮降级成文字链接。<b>留白本身就是设计。</b></p>
+<div class="row">
+  <div class="col s"><div class="col-h">现在 · 任务（真实文案）</div>
+    <div class="page" style="height:440px"><div class="nav"><span>‹</span>任务<span>＋</span></div>
+      <div class="empty-old"><div class="big">☰</div><b>暂无任务</b><small>告诉 Holo 要做什么，或手动创建</small><div class="btn">⊕ 创建第一个任务</div></div></div>
+  </div>
+  <div class="col s"><div class="col-h">改后 · 任务 <span class="rec">推荐</span></div>
+    <div class="page" style="height:440px"><div class="nav"><span>‹</span>任务<span>＋</span></div>
+      <div class="empty-new"><div class="line song">今天还是<br>一张白纸。</div><div class="by">— 想做点什么，就写下来</div><div class="act">写第一件事 →</div></div></div>
+  </div>
+  <div class="col s"><div class="col-h">改后 · 想法</div>
+    <div class="page" style="height:440px"><div class="nav"><span>‹</span>想法<span>＋</span></div>
+      <div class="empty-new"><div class="line song">念头来得快，<br>走得也快。</div><div class="by">— 抓住一个</div><div class="act">记一条想法 →</div></div></div>
+  </div>
+  <div class="col s"><div class="col-h">改后 · 记忆长廊（新用户）</div>
+    <div class="page" style="height:440px"><div class="nav"><span>‹</span>记忆长廊<span>⌕</span></div>
+      <div class="empty-new"><div class="line song">这里会慢慢<br>长出你的日子。</div><div class="by">— 从今天开始</div><div class="act">去记一笔 →</div></div></div>
+  </div>
+</div>
+<table class="copytbl">
+<tr><th style="width:18%">位置</th><th style="width:30%">现在</th><th>改后（宋体一句 · 灰色小字 · 文字链接）</th></tr>
+<tr><td>任务列表（今天无待办）</td><td>今天没有待办<br>享受轻松的一天，或点右下角 + 计划一件事</td><td class="n">今天没什么非做不可的事。 <small style="font-family:-apple-system;color:#9a958b">— 好好过</small></td></tr>
+<tr><td>任务列表（完全没有）</td><td>暂无任务<br>告诉 Holo 要做什么，或手动创建</td><td class="n">今天还是一张白纸。</td></tr>
+<tr><td>想法列表</td><td>（图标 + 提示）</td><td class="n">念头来得快，走得也快。</td></tr>
+<tr><td>归档的任务</td><td>暂无已归档的任务</td><td class="n">还没有放下过什么。</td></tr>
+<tr><td>贴纸收藏</td><td>还没有收藏的贴纸</td><td class="n">遇到喜欢的，长按留下来。</td></tr>
+<tr><td>设置 / 诊断类页面</td><td>暂无同步错误记录</td><td><b>保持不变</b>。工具页要的是清楚，不需要文学感。</td></tr>
+</table>
+<p class="cap">文案原则：<b>不说「暂无」「还没有数据」，不打感叹号，不卖萌</b>；一句话不超过 12 个字；所有文案按 PROMPT_GUIDELINES 的人格层统一过一遍再定稿。</p>
+
+<!-- ================= 4 ================= -->
+<h2>04 · 界面跟着一天的时间走 <em class="m">慢慢看</em> <span class="cost">中</span></h2>
+<p class="lead">同一个首页在一天里的四个时段。不是系统的深色模式，而是 Holo 自己的「作息」：纸张颜色和墨色<b>随时间轻微偏移</b>，橙色主色不变。变化幅度刻意压得很小，单独看一张察觉不到，几张放在一起才看得出。</p>
+<div class="row tod" id="tod"></div>
+<div class="note"><b>要先想清楚的问题</b>
+  <ul>
+    <li><b>会不会被当成 bug？</b>如果用户同一天截了两张图颜色不一样，可能会困惑。建议只在「首页 + 我的积累」生效，记账、图表这类要看数据的页面不变。</li>
+    <li><b>和系统深色模式怎么共处？</b>系统是深色时完全听系统；系统是浅色时，晚上 22 点后才切到「台灯」纸色（仍然是浅色系，只是更暖、更暗）。</li>
+    <li>对比度：四套纸色都要过现有的 verify-visual-v2 对比度闸门（≥ 4.5）。</li>
+    <li>建议做成设置里的开关，默认开，命名「随时间变换纸色」。</li>
+  </ul>
+</div>
+
+<!-- ================= 5 ================= -->
+<h2>05 · 越久的记忆越「旧」 <em class="m">慢慢看</em> <span class="cost">中</span></h2>
+<p class="lead">记忆长廊往回翻时，卡片纸色慢慢泛黄、墨色慢慢变淡，像翻一本旧相册。<b>一年以内几乎看不出来</b>，三年以上才明显。文字始终保持可读（对比度 ≥ 4.5）。</p>
+<div class="row">
+  <div class="col"><div class="col-h">现在 · 所有年份一个样</div>
+    <div class="page"><div class="nav"><span>‹</span>记忆长廊<span>⌕</span></div><div class="tl" id="tlOld"></div></div>
+    <p class="cap">三年前的一天和昨天看起来完全一样，翻得再远也没有「远」的感觉。</p>
+  </div>
+  <div class="col"><div class="col-h">改后 · 随时间泛黄 <span class="rec">想法阶段</span></div>
+    <div class="page"><div class="nav"><span>‹</span>记忆长廊<span>⌕</span></div><div class="tl" id="tlNew"></div></div>
+    <p class="cap">按「距今多久」插值：0 天 = 当前纸色，5 年 = 旧纸色；墨色从 #333 淡到 #5E5240（仍然清楚可读）。<b>只影响卡片底色和字色，不影响图片。</b></p>
+  </div>
+  <div class="col s"><div class="col-h">怎么做 / 风险</div>
+    <p class="cap">· 实现上就是一个函数 <code>agedPaper(daysAgo:)</code>，返回两种颜色，卡片读取它。代码量很小。<br><br>
+    · <b>风险一：</b>用户刚开始用 Holo 的前一两年完全看不到效果，属于「埋给老用户的彩蛋」，短期见不到收益。<br><br>
+    · <b>风险二：</b>深色模式下「泛黄」不好表现，可以改成「越久越偏暖棕」，需要单独调。<br><br>
+    · 建议等 01–03 做完、看过真机效果再决定要不要做。</p>
+  </div>
+</div>
+
+<div class="decide">
+  <b>需要你拍板（可以只回复编号，比如「01 02 03 做，04 05 先放着」）</b>
+  <ol>
+    <li><b>01 完成仪式</b>：习惯 = 落印、任务 = 划线、记账 = 数字翻动，三件一起做（推荐）。印上的字用「成」（推荐），也可以用「✓」或日期。</li>
+    <li><b>02 宋体标题</b>：打包子集化的思源宋体 Semibold（约 2 MB），只用在大标题和卡片标题（推荐）。</li>
+    <li><b>03 文字空状态</b>：先改任务 / 想法 / 记忆长廊 / 归档 / 收藏五处，工具类页面不动（推荐）。</li>
+    <li><b>04 随时间变色</b>、<b>05 记忆变旧</b>：建议先不开工，等前三个上线后再评估。</li>
+  </ol>
+</div>
+</div>
+
+<script>
+function play(a,b){[a,b].forEach(id=>{const e=document.getElementById(id);e.classList.remove('play');void e.offsetWidth;e.classList.add('play');});}
+function replayClass(id){play(id,id);}
+function rollAmt(){document.querySelectorAll('#amt .digit').forEach((d,i,all)=>{d.classList.remove('play');void d.offsetWidth;d.querySelector('span').style.animationDelay=((all.length-1-i)*0.09)+'s';d.classList.add('play');});}
+window.addEventListener('load',()=>{play('st1','ink1');rollAmt();});
+
+// 04 时间变色：同一首页四个时段
+const tods=[
+  {t:'早上 7:30',g:'早上好',bg:'#FDFBF4',ink:'#2E2C28',pill:'rgba(234,88,12,.07)',cap:'晨光：偏亮的暖白。'},
+  {t:'中午 12:40',g:'中午好',bg:'#FDFCF8',ink:'#333333',pill:'rgba(234,88,12,.06)',cap:'正午：就是现在的标准纸色，作为基准。'},
+  {t:'傍晚 18:20',g:'傍晚好',bg:'#FAF3E6',ink:'#3A3128',pill:'rgba(234,88,12,.09)',cap:'傍晚：纸色泛一点琥珀。'},
+  {t:'夜里 23:10',g:'夜深了',bg:'#EFE7D8',ink:'#3B342B',pill:'rgba(234,88,12,.10)',cap:'台灯：更暖、更暗的纸，仍然是浅色系，不刺眼。'},
+];
+document.getElementById('tod').innerHTML=tods.map(d=>`<div class="col s"><div class="col-h">${d.t}</div>
+  <div class="page home" style="background:${d.bg};color:${d.ink}"><div class="body" style="padding-top:26px">
+    <div class="date">11月23日 · 周一 · 小雪</div><div class="greet">${d.g}，东林</div>
+    <div class="big serifN">289<span class="bigu" style="font-family:-apple-system"> 天有记录</span></div>
+    <div style="margin-top:16px"><div class="item"><span>喝水</span><span>6 / 8</span></div><div class="item"><span>读书 20 分钟</span><span>已完成</span></div><div class="item"><span>今日支出</span><span class="serifN">¥ 126</span></div></div>
+    <div class="pill" style="background:${d.pill}">今天还有 2 件事没做</div>
+  </div></div><p class="cap">${d.cap}</p></div>`).join('');
+
+// 05 数据变旧
+const mems=[
+  {y:'2026',d:'11月21日 · 周六',x:'和小林去看了展，出来下雨了。',k:'想法 · 2 天前',age:0},
+  {y:'2025',d:'11月19日 · 周三',x:'第一次跑完 10 公里。',k:'习惯 · 1 年前',age:1},
+  {y:'2023',d:'11月02日 · 周四',x:'搬进新家，第一顿饭是泡面。',k:'记账 · 3 年前',age:3},
+  {y:'2021',d:'10月28日 · 周四',x:'外婆说，冬天要多穿一点。',k:'想法 · 5 年前',age:5},
+];
+const mix=(a,b,t)=>'#'+[0,2,4].map(i=>Math.round(parseInt(a.substr(i+1,2),16)*(1-t)+parseInt(b.substr(i+1,2),16)*t).toString(16).padStart(2,'0')).join('');
+function tl(id,aged){let last='';document.getElementById(id).innerHTML=mems.map(m=>{
+  const t=aged?Math.min(m.age/5,1):0, curve=t*t*.6+t*.4;
+  const bg=mix('#FFFFFF','#EFE2C6',curve), ink=mix('#333333','#5E5240',curve), sub=mix('#6E6E6E','#6E604A',curve);
+  const yr=m.y!==last?`<div class="yr">${m.y}</div>`:''; last=m.y;
+  return yr+`<div class="mem" style="background:${bg};color:${ink}"><div class="d" style="color:${sub}">${m.d}</div><div class="x ${aged?'song':''}">${m.x}</div><div class="k" style="color:${sub}">${m.k}</div></div>`;}).join('');}
+tl('tlOld',false);tl('tlNew',true);
+</script>
+</body>
+</html>
