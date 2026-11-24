@@ -1,4 +1,6 @@
 // 我的积累：个人页与长廊共用的成长总览。
+// 2026-11-23 审美七项 P4：主标题/区块标题改思源宋体（holoEditorialSerif），
+// metadata 行换刊头（HoloIssueKicker）+ 0.5pt 细线；数字保持 New York 衬线。
 import SwiftUI
 
 struct HoloGrowthView: View {
@@ -154,7 +156,8 @@ struct HoloGrowthView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("每一种开始，都值得")
                 .holoText(.metadata).foregroundStyle(Color.holoToolAction)
-            Text("留下你的第一条记录").holoText(.sectionTitle)
+            Text("留下你的第一条记录")
+                .font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.sectionTitle, bold: true))
             Text("一笔账、一个念头，或一次习惯打卡。")
                 .holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
             Button("记录一笔") { onOpenModule(.addTransaction) }
@@ -168,7 +171,8 @@ struct HoloGrowthView: View {
     private var history: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text(service.milestones.isEmpty ? "未来的里程碑" : "走过的里程碑").holoText(.body).fontWeight(.semibold)
+                Text(service.milestones.isEmpty ? "未来的里程碑" : "走过的里程碑")
+                    .font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.sectionTitle, bold: true))
                 Spacer()
                 if service.milestones.count > 3 {
                     NavigationLink { HoloGrowthHistoryView(service: service) } label: {
@@ -195,17 +199,22 @@ struct HoloGrowthHero: View {
     @ScaledMetric(relativeTo: .largeTitle) private var numberSize: CGFloat = 64
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("日子里的小小积累").holoText(.metadata).foregroundStyle(Color.holoToolTextSecondary)
+            // P4 刊头：替代原 metadata 行「日子里的小小积累」
+            issueKicker
             if days == 0 {
-                Text(isSyncing ? "正在接收你的记录" : "从第一笔开始积累").holoText(.pageTitle)
+                Text(isSyncing ? "正在接收你的记录" : "从第一笔开始积累")
+                    .font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.heroTitle, bold: true))
+                    .lineSpacing(2)
             } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("记录了").holoText(.pageTitle)
+                        Text("记录了").font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.heroTitle, bold: true))
                         Text(days.formatted()).font(.system(size: numberSize, weight: .regular, design: .serif)).contentTransition(.numericText())
-                        Text("天").holoText(.sectionTitle)
+                        Text("天").font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.heroUnit, bold: true))
                     }
-                    Text("累计记录 \(days) 天").holoText(.pageTitle)
+                    Text("累计记录 \(days) 天")
+                        .font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.heroTitle, bold: true))
+                        .lineSpacing(2)
                 }
             }
             Text(days == 0 ? (isSyncing ? "本机还没有可统计的记录，同步后会在这里更新。" : "不用做很多，留下一点就很好。") : "那些看似平常的日子，都留下了痕迹。")
@@ -215,6 +224,28 @@ struct HoloGrowthHero: View {
         .padding(.vertical, 12)
         .accessibilityElement(children: .combine)
     }
+
+    /// 刊头 + 0.5pt 细线（P4 #2）：细线与下方内容间距 HoloSpacing.md
+    ///（本 VStack 间距 12 + 底部补 HoloSpacing.xs = 16）。
+    private var issueKicker: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HoloIssueKicker(date: Date())
+            Rectangle()
+                .fill(Color.holoToolBorder)
+                .frame(height: 0.5)
+        }
+        .padding(.bottom, HoloSpacing.xs)
+    }
+}
+
+/// 「我的积累」宋体标题的局部排版尺寸（2026-11-23 审美七项 P4）。
+enum HoloGrowthSerifMetrics {
+    /// 主标题（原 pageTitle 档 28pt 的衬线等档）
+    static let heroTitle: CGFloat = 28
+    /// 主标题里的量词「天」
+    static let heroUnit: CGFloat = 20
+    /// 各区块标题（原黑体 sectionTitle/body 档改衬线 17pt）
+    static let sectionTitle: CGFloat = 17
 }
 
 struct HoloGrowthMetricRow: View {
@@ -266,7 +297,8 @@ struct HoloGrowthNextStop: View {
                     Spacer()
                     Image(systemName: "flag").accessibilityHidden(true)
                 }.foregroundStyle(Color.holoToolAction)
-                Text(progress.metric.milestoneTitle(target)).holoText(.sectionTitle)
+                Text(progress.metric.milestoneTitle(target))
+                    .font(.holoEditorialSerif(size: HoloGrowthSerifMetrics.sectionTitle, bold: true))
                 Text("还差 \(target - progress.count) \(progress.metric.unit)，慢慢积累就好。")
                     .holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
                 ProgressView(value: Double(progress.count), total: Double(target))

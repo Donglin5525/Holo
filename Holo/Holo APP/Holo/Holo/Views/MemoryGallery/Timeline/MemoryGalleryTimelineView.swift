@@ -8,6 +8,9 @@
 //  - 两条及以上显示「当天 N 条记录」，点一下原地展开其余记录（同一时间只展开一天）
 //  - 找日期/回到最近/在长廊看这天统一经 findDate.pendingJump 定位；空白日临时落位
 //  - 同步中/部分失败/全空/加载态沿用原型状态文案
+//  - 2026-11-23 审美七项：P4 月份名/想法节选改思源宋体（holoEditorialSerif，真正的中文衬线）；
+//    P5 空态改 HoloQuietEmptyState；P7 旧记忆泛黄（纸面按天渐变铺满屏宽、墨色走
+//    memoryAgingInk 环境键，基建见 MemoryGalleryAging.swift）
 //
 
 import SwiftUI
@@ -73,6 +76,12 @@ struct MemoryGalleryTimelineView: View {
     /// revision 不变→awaitingBackToRecent 永不消费=死按钮；对抗审查 G 必改1）。
     let onBackToLatestReload: () -> Void
 
+    // MARK: P7 旧记忆泛黄
+
+    @Environment(\.colorScheme) private var colorScheme
+    /// 泛黄开关（默认开）：关闭时墨色回原色、纸面不铺背景
+    @AppStorage(HoloPaperSettings.agingKey) private var agingEnabled = true
+
     @State private var expandedDay: Date?
     /// 同日同习惯聚合行展开的行 id（原型 ②：轻点看逐条时刻）
     @State private var expandedAggregations: Set<UUID> = []
@@ -105,6 +114,9 @@ struct MemoryGalleryTimelineView: View {
     @State private var recordDaysCache: [Date] = []
     @State private var displayDaysCache: [Date] = []
     @State private var chaptersCache: [Chapter] = []
+    /// P7 泛黄颜色按天缓存（纯函数结果；与 chaptersCache 同步重建，滚动帧内零重算）。
+    /// 键含每个展示日与其前一天（前一天是行纸面渐变的底色端点）。
+    @State private var agingCache: [Date: MemoryAgedDay] = [:]
 
     private var recordDays: [Date] { recordDaysCache }
     private var mostRecentDay: Date? { recordDaysCache.first }
@@ -125,6 +137,66 @@ struct MemoryGalleryTimelineView: View {
         displayDaysCache = days
         recordDaysCache = days.filter { !(selectedDay == $0 && (eventsByDay[$0]?.isEmpty ?? true)) }
         chaptersCache = grouped.keys.sorted(by: >).map { Chapter(month: $0, days: grouped[$0] ?? []) }
+        rebuildAgingCache(for: days)
+    }
+
+    /// P7：按天重算泛黄颜色（daysAgo → 进度 → 端点插值，深浅色各一套）。
+    /// 深浅色切换由 body 的 onChange(of: colorScheme) 触发整组重建。
+    private func rebuildAgingCache(for days: [Date]) {
+        let today = calendar.startOfDay(for: Date())
+        func entry(for day: Date) -> MemoryAgedDay {
+            let daysAgo = max(calendar.dateComponents([.day], from: day, to: today).day ?? 0, 0)
+            let progress = HoloPaperPalette.agingProgress(daysAgo: daysAgo)
+            let colors = HoloPaperPalette.agedColors(progress: progress, scheme: colorScheme)
+            return MemoryAgedDay(paper: colors.paper, ink: colors.ink, quiet: colors.quiet, progress: progress)
+        }
+        var cache: [Date: MemoryAgedDay] = [:]
+        for day in days {
+            cache[day] = entry(for: day)
+            // 前一天是本行纸面渐变的底色端点；章节首行还要衔住上一月尾行
+            if let previous = calendar.date(byAdding: .day, value: -1, to: day) {
+                cache[previous] = entry(for: previous)
+            }
+        }
+        agingCache = cache
+    }
+
+    /// P7：该日墨色；开关关闭或进度低于可见阈值时返回 nil（行内回退原色）。
+    private func agedInk(for day: Date) -> MemoryAgingInk? {
+        guard agingEnabled, let entry = agingCache[day], entry.isVisible else { return nil }
+        return MemoryAgingInk(ink: entry.ink, quiet: entry.quiet)
+    }
+
+    /// P7：该日纸面（顶=本日纸色，底=前一日纸色，逐日衔接成整章连续渐变）。
+    /// 低于可见阈值时返回 nil（不铺背景，与现状完全一样）。
+    private func agedPaperGradient(for day: Date) -> LinearGradient? {
+        guard agingEnabled, let top = agingCache[day] else { return nil }
+        guard let previous = calendar.date(byAdding: .day, value: -1, to: day) else { return nil }
+        let bottom = agingCache[previous] ?? top
+        guard top.isVisible || bottom.isVisible else { return nil }
+        return LinearGradient(colors: [top.paper, bottom.paper], startPoint: .top, endPoint: .bottom)
+    }
+
+    /// P7：吸顶月头的纸底（章节首行当天的纸色）；阈值之下返回 nil 保持 galleryPaper。
+    private func agedHeaderPaper(_ chapter: Chapter) -> Color? {
+        guard agingEnabled, let first = chapter.days.first,
+              let entry = agingCache[first], entry.isVisible else { return nil }
+        return entry.paper
+    }
+
+    /// P7：时间线尽头的纸面收尾——从最早一日的旧纸色渐变回纸底。
+    /// 没有它，最后一行泛黄纸面会直接接上未泛黄的留白，像一条断层。
+    /// 最早记录未达可见阈值（或开关关闭）时不占位，与现状完全一样。
+    @ViewBuilder
+    private var agedTailFade: some View {
+        if agingEnabled, let oldest = recordDays.last,
+           let entry = agingCache[oldest], entry.isVisible {
+            LinearGradient(colors: [entry.paper, Color.galleryPaper], startPoint: .top, endPoint: .bottom)
+                .padding(.horizontal, -HoloSpacing.page)
+                .frame(height: MemoryAgingMetrics.tailFadeHeight)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private struct Chapter: Identifiable {
@@ -148,9 +220,16 @@ struct MemoryGalleryTimelineView: View {
                 // 空态判断用数据源本身：分组缓存要等时间线挂载后才有人重建（见下），
                 // 吃缓存会把「缓存未初始化」误判成「没有记录」（11-15 东林真机实报根因）。
                 if failedModules.isEmpty {
-                    stateView(icon: "book", title: "长廊还没有记录",
-                              message: "写下的想法、账单、打卡和完成的任务，会按日期出现在这里。",
-                              action: ("写条想法", { DeepLinkState.shared.navigate(to: .recordThought) }))
+                    // P5 #6：真·零记录空态改一句话留白（原型 03）；
+                    // 动作保持原 deep link「写条想法」。
+                    HoloQuietEmptyState(
+                        line: "这里会慢慢\n长出你的日子。",
+                        byline: "— 写下的想法、账单、打卡，会按日期出现在这里",
+                        actionTitle: "写条想法",
+                        action: { DeepLinkState.shared.navigate(to: .recordThought) },
+                        palette: .gallery,
+                        topSpacing: .flexible
+                    )
                 } else {
                     stateView(icon: "info.circle", title: "暂时无法载入记录",
                               message: "可以稍后再试一次。", action: ("重试", onRetry))
@@ -165,6 +244,8 @@ struct MemoryGalleryTimelineView: View {
         .onAppear { rebuildSections() }
         .onChange(of: dataRevision) { _, _ in rebuildSections() }
         .onChange(of: selectedDay) { _, _ in rebuildSections() }
+        // P7：泛黄颜色缓存按深浅色分套，外观模式切换时整组重建
+        .onChange(of: colorScheme) { _, _ in rebuildSections() }
     }
 
     private var timeline: some View {
@@ -176,17 +257,28 @@ struct MemoryGalleryTimelineView: View {
                         Section {
                             ForEach(chapter.days, id: \.self) { day in
                                 dayRow(day)
+                                    // P7 纸面：按天铺全宽渐变（负 padding 对冲时间线水平缩进，
+                                    // 铺满屏宽不留两条边）；阈值之下无背景，与现状完全一样
+                                    .background {
+                                        if let gradient = agedPaperGradient(for: day) {
+                                            gradient.padding(.horizontal, -HoloSpacing.page)
+                                        }
+                                    }
+                                    // P7 墨色：注入该日墨色，行内文字经 memoryAgedInk(_:) 读取
+                                    .environment(\.memoryAgingInk, agedInk(for: day))
                                     .id(day)
                             }
                         } header: {
                             // 章节上距放在吸顶头的背景之内：否则吸顶时头部上方留透明缝，
                             // 滚动中会露出上一月的节尾行（冒烟判读实抓）。
-                            monthHeader(chapter.month, topInset: index == 0 ? 24 : 34)
+                            monthHeader(chapter, topInset: index == 0 ? 24 : 34)
                                 // 阅读章节只按月头进入回写（在档坑：按行 onAppear 写 @Published
                                 // 打穿 MemoryGalleryView 全量重渲染=滚动卡顿主因之一）。
                                 .onAppear { syncReadingChapter(chapter) }
                         }
                     }
+                    // P7：最早一行之后由旧纸色渐变回纸底，避免泛黄内容尽头露出一条生硬的分界
+                    agedTailFade
                     tailView
                 }
                 .padding(.horizontal, 20)
@@ -285,13 +377,14 @@ struct MemoryGalleryTimelineView: View {
 
     // MARK: 月份章节头（吸顶）
 
-    private func monthHeader(_ month: Date, topInset: CGFloat) -> some View {
+    private func monthHeader(_ chapter: Chapter, topInset: CGFloat) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(month.formatted(.dateTime.month(.wide)))
-                .font(.system(size: monthTitleSize, weight: .bold, design: .serif))
-                .tracking(-1.9)
+            // P4 #5：中文月份名改思源宋体（.system(design: .serif) 对中文无衬线字形，
+            // 实际回退苹方）；去掉负字距（中文负字距会粘连），年份数字保持 Georgia
+            Text(chapter.month.formatted(.dateTime.month(.wide)))
+                .font(.holoEditorialSerif(size: monthTitleSize, bold: true))
                 .foregroundStyle(Color.galleryInk)
-            Text(String(calendar.component(.year, from: month)))
+            Text(String(calendar.component(.year, from: chapter.month)))
                 .font(.custom("Georgia", size: monthTitleSize * 0.5625))
                 .foregroundStyle(Color.galleryQuiet)
             Spacer(minLength: 0)
@@ -299,11 +392,23 @@ struct MemoryGalleryTimelineView: View {
         .padding(.top, topInset + 6)
         .padding(.bottom, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.galleryPaper)
+        .background(headerBackdrop(chapter))
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.galleryRule).frame(height: 1)
         }
         .accessibilityAddTraits(.isHeader)
+    }
+
+    /// P7 吸顶头纸底：与章节首行纸面同色，避免吸顶时出现异色带；
+    /// 阈值之下保持 galleryPaper。
+    @ViewBuilder
+    private func headerBackdrop(_ chapter: Chapter) -> some View {
+        if let paper = agedHeaderPaper(chapter) {
+            // 负 padding 对冲时间线水平缩进，吸顶时铺满屏宽
+            paper.padding(.horizontal, -HoloSpacing.page)
+        } else {
+            Color.galleryPaper
+        }
     }
 
     // MARK: 日行
@@ -344,15 +449,15 @@ struct MemoryGalleryTimelineView: View {
             Text("\(calendar.component(.day, from: day))")
                 .font(.custom("Georgia", size: dayNumberSize))
                 .tracking(-1.95)
-                .foregroundStyle(highlighted ? Color.galleryAccent : Color.galleryInk)
+                .memoryAgedInk(.ink, accentOverride: highlighted)
             Text(day.formatted(.dateTime.weekday(.abbreviated)))
                 .font(.system(size: metaSize))
-                .foregroundStyle(Color.galleryQuiet)
+                .memoryAgedInk(.quiet)
                 .padding(.top, 5)
             if isToday {
                 Text("今天")
                     .font(.system(size: metaSize))
-                    .foregroundStyle(Color.galleryQuiet)
+                    .memoryAgedInk(.quiet)
             }
         }
         .padding(.top, 22)
@@ -447,11 +552,12 @@ struct MemoryGalleryTimelineView: View {
                     MemoryGalleryCroppedBanner(data: thumb, ratio: 1.88, cornerRadius: 9)
                         .padding(.bottom, 11)
                 }
+                // P4 #4：想法节选主标题改思源宋体（真正的中文衬线，黑体衬线回退问题同月份名）
                 Text(event.title)
-                    .font(.system(size: leadHeadlineSize, weight: .semibold,
-                                  design: event.module == .thought ? .serif : .default))
-                    .foregroundStyle(Color.galleryInk)
+                    .font(.holoEditorialSerif(size: leadHeadlineSize, bold: true))
+                    .memoryAgedInk(.ink)
                     .multilineTextAlignment(.leading)
+                    .lineSpacing(2)
                 if hasBadges(event) {
                     MemoryGalleryBadgeRow(topics: event.topicBadges ?? [], tags: event.tagBadges ?? [])
                         .padding(.top, 7)
@@ -464,7 +570,7 @@ struct MemoryGalleryTimelineView: View {
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .font(.system(size: metaSize))
-                .foregroundStyle(Color.galleryQuiet)
+                .memoryAgedInk(.quiet)
                 .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -511,7 +617,7 @@ struct MemoryGalleryTimelineView: View {
                             Text(event.title)
                                 .font(.system(size: rowTitleSize, weight: .semibold,
                                               design: event.module == .thought ? .serif : .default))
-                                .foregroundStyle(Color.galleryInk)
+                                .memoryAgedInk(.ink)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                             if isAggregated {
@@ -532,7 +638,7 @@ struct MemoryGalleryTimelineView: View {
                                     .rotationEffect(.degrees(expandedAggregations.contains(event.id) ? 180 : 0))
                             }
                             .font(.system(size: metaSize))
-                            .foregroundStyle(Color.galleryQuiet)
+                            .memoryAgedInk(.quiet)
                         } else if hasBadges(event) {
                             // 想法行内迷你胶囊（原型 ①）：1 主题 + 1 tag，宽行不挤
                             HStack(spacing: 5) {
@@ -543,14 +649,14 @@ struct MemoryGalleryTimelineView: View {
                         } else {
                             Text(metaText(event))
                                 .font(.system(size: metaSize))
-                                .foregroundStyle(Color.galleryQuiet)
+                                .memoryAgedInk(.quiet)
                         }
                     }
                     Spacer(minLength: 0)
                     if let detail = event.detail, !detail.isEmpty {
                         Text(detail)
                             .font(.system(size: rowValueSize, weight: isAggregated ? .semibold : .regular).monospacedDigit())
-                            .foregroundStyle(Color.galleryInk)
+                            .memoryAgedInk(.ink)
                             .lineLimit(1)
                     } else {
                         Image(systemName: "chevron.right")
@@ -573,7 +679,7 @@ struct MemoryGalleryTimelineView: View {
                             }
                         }
                         .font(.system(size: 12).monospacedDigit())
-                        .foregroundStyle(Color.galleryQuiet)
+                        .memoryAgedInk(.quiet)
                     }
                 }
                 .padding(.top, 2)
