@@ -392,7 +392,7 @@ actor ThoughtFollowupCoordinator {
         for (index, note) in inputs.enumerated() {
             let ref = "N\(index)"
             noteIDByRef[ref] = note.thoughtID
-            windowOffsets[ref] = Dictionary(uniqueKeysWithValues: windows[index].map { ($0.ref, $0.offsetUTF16) })
+            windowOffsets[ref] = Dictionary(windows[index].map { ($0.ref, $0.offsetUTF16) }, uniquingKeysWith: { first, _ in first })
         }
         return (noteIDByRef, windowOffsets)
     }

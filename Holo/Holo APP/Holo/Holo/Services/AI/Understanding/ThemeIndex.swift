@@ -78,7 +78,7 @@ nonisolated enum ThemeIndex {
         for c in allConcepts { clusters[root(c), default: []].append(c) }
 
         // ③ 每簇：成员=含簇概念的所有观察 + 簇概念回扫想法原话
-        let byID = Dictionary(uniqueKeysWithValues: observations.map { ($0.id, $0) })
+        let byID = Dictionary(observations.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var themes: [ObservationTheme] = []
         for (_, clusterConcepts) in clusters {
             // 主题身份 = 稳定强锚：优先簇自身挂 ≥2 概念的首字锚（成员增减不换代表词，
@@ -135,8 +135,8 @@ nonisolated enum ThemeIndex {
     }
 
     static func detectChanges(old: [ObservationTheme], new: [ObservationTheme]) -> [ThemeChange] {
-        let oldBy = Dictionary(uniqueKeysWithValues: old.map { ($0.key, $0) })
-        let newBy = Dictionary(uniqueKeysWithValues: new.map { ($0.key, $0) })
+        let oldBy = Dictionary(old.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        let newBy = Dictionary(new.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         var changes: [ThemeChange] = []
         for (key, newTheme) in newBy {
             if oldBy[key] == nil {

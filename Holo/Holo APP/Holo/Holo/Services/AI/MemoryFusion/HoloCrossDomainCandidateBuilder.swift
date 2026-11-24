@@ -40,7 +40,8 @@ nonisolated enum HoloCrossDomainCandidateBuilder {
                 // R04（2026-10-04 体检）：历史记录可能带重复 stableKey（解码绕过 init 规范化），
                 // 先走统一规范化获得键唯一性，再建字典——canonicalAnchors 的输出按构造即键唯一。
                 let rightAnchors = Dictionary(
-                    uniqueKeysWithValues: HoloMemoryIdentity.canonicalAnchors(right.anchorRefs).map { ($0.stableKey, $0) }
+                    HoloMemoryIdentity.canonicalAnchors(right.anchorRefs).map { ($0.stableKey, $0) },
+                    uniquingKeysWith: { first, _ in first }
                 )
                 let sharedAnchors = HoloMemoryIdentity.canonicalAnchors(
                     left.anchorRefs.compactMap { rightAnchors[$0.stableKey] }

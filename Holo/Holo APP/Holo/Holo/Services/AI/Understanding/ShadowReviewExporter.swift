@@ -47,7 +47,7 @@ nonisolated enum ShadowReviewExporter {
                          index: ObservationIndex,
                          now: Date = Date()) -> ReviewPackage {
         let byID = index.observations
-        let themesByKey = Dictionary(uniqueKeysWithValues: themes.map { ($0.key, $0) })
+        let themesByKey = Dictionary(themes.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
 
         let candidates = ledger.snapshot().map { candidate -> CandidateReview in
             let theme = themesByKey[candidate.themeKey]

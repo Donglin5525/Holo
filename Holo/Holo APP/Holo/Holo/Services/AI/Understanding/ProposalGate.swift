@@ -76,7 +76,7 @@ nonisolated enum ProposalGate {
     /// 「有引用」的缺口已补）。水位不足→降级 observe（不拒——有价值线索保留
     /// 观察，M1.6 S04-weak 的正确处理）。
     static func evidenceGate(candidate: ProposalCandidate, observations: [LifeObservation]) -> GateVerdict {
-        let byRef = Dictionary(uniqueKeysWithValues: observations.map { ($0.sourceRef, $0) })
+        let byRef = Dictionary(observations.map { ($0.sourceRef, $0) }, uniquingKeysWith: { first, _ in first })
         // 便捷时段计算（与 evidence 视图 timeOfDayBand 同口径）
         func band(of obs: LifeObservation) -> String {
             if obs.timePrecision == .midnightDefault { return "unknown" }

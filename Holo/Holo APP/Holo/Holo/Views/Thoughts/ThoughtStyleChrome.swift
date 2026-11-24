@@ -164,13 +164,13 @@ struct ThoughtCardDateMark: View {
 
 enum ThoughtPaperDate {
     private static let formats: [String: DateFormatter] = {
-        Dictionary(uniqueKeysWithValues: ["yyyy.MM.dd", "yyyy.MM.dd HH:mm", "yyyy", "M月", "d", "EEE", "HH:mm", "yyyy.MM"].map { format in
+        Dictionary(["yyyy.MM.dd", "yyyy.MM.dd HH:mm", "yyyy", "M月", "d", "EEE", "HH:mm", "yyyy.MM"].map { format in
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "zh_CN")
             formatter.calendar = Calendar(identifier: .gregorian)
             formatter.dateFormat = format
             return (format, formatter)
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }()
     static func text(_ date: Date, format: String) -> String { formats[format]?.string(from: date) ?? "" }
 }

@@ -846,9 +846,9 @@ enum HoloMemorySimulatorValidationScenario {
             completedAt: completedAt,
             status: recorder.assertions.allSatisfy(\.passed) ? "passed" : "failed",
             assertions: recorder.assertions,
-            recordStates: Dictionary(uniqueKeysWithValues: records.map {
+            recordStates: Dictionary(records.map {
                 ($0.id, "\($0.state.rawValue)/\($0.userDecision.rawValue)/v\($0.recordVersion)")
-            }),
+            }, uniquingKeysWith: { first, _ in first }),
             queryResults: queryResults
         )
     }

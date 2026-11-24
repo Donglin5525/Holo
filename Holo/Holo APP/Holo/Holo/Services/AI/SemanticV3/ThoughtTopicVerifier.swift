@@ -630,8 +630,8 @@ nonisolated enum ThoughtTopicVerifier {
         diagnostics["recalled"] = recall.candidates.map { $0.topicID.uuidString }
         if !payloadDroppedTopicIDs.isEmpty { diagnostics["payloadDropped"] = payloadDroppedTopicIDs.map(\.uuidString) }
         if !skippedRuleTopics.isEmpty {
-            diagnostics["ruleSkipped"] = Dictionary(uniqueKeysWithValues:
-                skippedRuleTopics.map { ($0.topicID.uuidString, $0.reason) })
+            diagnostics["ruleSkipped"] = Dictionary(
+                skippedRuleTopics.map { ($0.topicID.uuidString, $0.reason) }, uniquingKeysWith: { first, _ in first })
         }
         if !verdictsByTopic.isEmpty {
             var decisions: [String: String] = [:]

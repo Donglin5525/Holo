@@ -315,7 +315,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             all[batchKey] = record
             if all.count > maxTrackedKeys {
                 let keep = all.sorted { $0.value.lastAt > $1.value.lastAt }.prefix(maxTrackedKeys)
-                all = Dictionary(uniqueKeysWithValues: keep.map { ($0.key, $0.value) })
+                all = Dictionary(keep.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
             }
             save(all, defaults: defaults)
             return record.count

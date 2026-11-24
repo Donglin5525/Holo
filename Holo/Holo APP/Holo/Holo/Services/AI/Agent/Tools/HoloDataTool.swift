@@ -630,7 +630,7 @@ nonisolated enum HoloDynamicQueryValidator {
             let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
             guard days <= schema.maximumRangeDays else { throw HoloDynamicQueryValidationError.rangeTooLarge(days) }
         }
-        let fields = Dictionary(uniqueKeysWithValues: schema.fields.map { ($0.name, $0) })
+        let fields = Dictionary(schema.fields.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         for filter in plan.filters {
             guard filter.field != HoloDynamicFilter.searchFieldName else {
                 // _search 虚拟字段不在目录注册，仅限 contains（跨字段关键词检索唯一用法）
@@ -1235,7 +1235,7 @@ nonisolated enum HoloDynamicQueryEngine {
         let current = currentRows.filter { matches($0, filters: plan.filters) }
         let baseline = baselineRows.filter { matches($0, filters: plan.filters) }
         let currentBuckets = buckets(current, grouping: plan.groupBy.first, calendar: calendar)
-        let baselineBuckets = Dictionary(uniqueKeysWithValues: buckets(baseline, grouping: plan.groupBy.first, calendar: calendar).map { ($0.key, $0.rows) })
+        let baselineBuckets = Dictionary(buckets(baseline, grouping: plan.groupBy.first, calendar: calendar).map { ($0.key, $0.rows) }, uniquingKeysWith: { first, _ in first })
 
         var metrics: [HoloMetric] = []
         for bucket in currentBuckets {

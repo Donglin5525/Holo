@@ -283,7 +283,7 @@ final class HoloBackgroundContinuationManager {
             return  // 被下一次恢复取消：说明又有新触发，交新哨兵接管
         }
         let after = await snapshotWaitingJobs()
-        let afterByID = Dictionary(uniqueKeysWithValues: after.map { ($0.id, $0) })
+        let afterByID = Dictionary(after.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var didMarkStalled = false
         for stalled in before {
             guard let current = afterByID[stalled.id],

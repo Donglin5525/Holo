@@ -70,11 +70,11 @@ nonisolated enum HoloMemoryLiveObservationPlan {
         signalsByDomain: [HoloMemoryDomain: [HoloDomainMemorySignal]],
         previous: [String: String]
     ) -> [HoloMemoryDomain: String] {
-        Dictionary(uniqueKeysWithValues: signalsByDomain.compactMap { domain, signals in
+        Dictionary(signalsByDomain.compactMap { domain, signals in
             guard !signals.isEmpty else { return nil }
             let current = signalDigest(signals)
             return previous[domain.rawValue] == current ? nil : (domain, current)
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     static func crossDomainDigest(_ candidates: [HoloCrossDomainFusionCandidate]) -> String {
