@@ -221,7 +221,7 @@ struct ArchiveManagementView: View {
             )
 
             if archivedTasks.isEmpty {
-                emptyStateView(message: String(localized: "暂无已归档的任务"))
+                emptyStateView(line: "还没有放下过什么。")
             } else {
                 ForEach(archivedTasks.renderable, id: \.id) { task in
                     ArchivedTaskRow(
@@ -250,7 +250,7 @@ struct ArchiveManagementView: View {
             )
 
             if archivedLists.isEmpty {
-                emptyStateView(message: String(localized: "暂无已归档的清单"))
+                emptyStateView(line: "还没有收起来的清单。")
             } else {
                 ForEach(archivedLists.renderable, id: \.id) { list in
                     ArchivedListRow(
@@ -293,17 +293,9 @@ struct ArchiveManagementView: View {
 
     // MARK: - 空状态视图
 
-    private func emptyStateView(message: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "archivebox")
-                .font(.system(size: 48, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-            Text(message)
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-        }
-        .padding(.top, 60)
+    /// 一句话留白（审美七项 P5）：归档为空不再放 archivebox 大图标
+    private func emptyStateView(line: LocalizedStringKey) -> some View {
+        HoloQuietEmptyState(line: line)
     }
 
     // MARK: - 操作方法

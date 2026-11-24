@@ -973,59 +973,11 @@ struct TaskListView: View {
     // MARK: - 空状态
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            if selectedFilter == .today {
-                Image(systemName: "sun.max")
-                    .font(.system(size: 52, weight: .light))
-                    .foregroundColor(.holoPrimary.opacity(0.6))
-
-                Text("今天没有待办")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-
-                Text("享受轻松的一天，或点右下角 + 计划一件事")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
-            } else {
-                Image(systemName: "checklist")
-                    .font(.system(size: 60, weight: .light))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-                Text("暂无任务")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-
-                Text("告诉 Holo 要做什么，或手动创建")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
-
-                if let onAddRequested {
-                    Button(action: onAddRequested) {
-                        Label(String(localized: "创建第一个任务"), systemImage: "plus.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 26)
-                            .padding(.vertical, 11)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.holoPrimary)
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
-                    .accessibilityIdentifier("taskEmptyCta")
-                }
-            }
-
-            if selectedFilter != .today, ICloudSyncStatusService.shared.isInitialSyncPending {
-                Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoInfo)
-                    .transition(.opacity)
-            }
-        }
-        .padding(.top, 80)
+        TaskListEmptyState(
+            isTodayScope: selectedFilter == .today,
+            onAddRequested: onAddRequested,
+            showsRestoreHint: ICloudSyncStatusService.shared.isInitialSyncPending
+        )
     }
 
     // MARK: - 已完成任务按周分组

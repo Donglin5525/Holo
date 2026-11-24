@@ -868,33 +868,15 @@ struct TaskExperienceView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checklist")
-                .font(.system(size: 52, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
-            Text("暂无任务")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-            Text("告诉 Holo 要做什么，或手动创建")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
-            Button {
-                openCreation()
-            } label: {
-                Label(String(localized: "创建第一个任务"), systemImage: "plus.circle")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 11)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.holoDivider, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("taskEmptyCtaV2")
-        }
-        .padding(.top, 60)
+        // 一句话留白（审美七项 P5）：不放图标、不放描边胶囊；本页已有橙色主行动，链接退为墨色
+        HoloQuietEmptyState(
+            line: "今天还是\n一张白纸。",
+            byline: "— 想做点什么，就写下来",
+            actionTitle: "写第一件事",
+            actionStyle: .ink,
+            action: { openCreation() },
+            actionIdentifier: "taskEmptyCtaV2"
+        )
     }
 
     // MARK: - 详情右栏（宽屏）

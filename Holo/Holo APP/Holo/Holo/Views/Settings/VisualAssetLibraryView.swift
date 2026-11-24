@@ -440,38 +440,42 @@ struct VisualAssetLibraryView: View {
     // MARK: - 空态
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: searchText.isEmpty ? "smallcircle.filled.circle" : "magnifyingglass")
-                .font(.system(size: 28))
-                .foregroundColor(.holoToolTextSecondary)
-            if !searchText.isEmpty {
-                Text("没有找到与「\(searchText)」相关的贴纸")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                Text("换个关键词，或清空搜索看看全部")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(.holoToolTextSecondary)
-            } else if case .favorite = filter {
-                Text("还没有收藏的贴纸")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                Text("点开任意贴纸点击星标，即可加入收藏")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(.holoToolTextSecondary)
-            } else if case .group(let name) = filter {
-                Text("「\(name)」分组还没有贴纸")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                Text("直接拍照制作，或在「全部」里批量移入此分组")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(.holoToolTextSecondary)
+        Group {
+            if searchText.isEmpty, case .favorite = filter {
+                // 收藏为空：一句话留白（审美七项 P5）；其余说明性空态保持工具页原有样式
+                HoloQuietEmptyState(
+                    line: "遇到喜欢的，\n点星标留下来。",
+                    topSpacing: .flexible
+                )
             } else {
-                Text("把身边的一件东西做成贴纸")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                Text("耳机、水杯、书、跑鞋——拍下来就是你的")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(.holoToolTextSecondary)
+                VStack(spacing: 10) {
+                    Image(systemName: searchText.isEmpty ? "smallcircle.filled.circle" : "magnifyingglass")
+                        .font(.system(size: 28))
+                        .foregroundColor(.holoToolTextSecondary)
+                    if !searchText.isEmpty {
+                        Text("没有找到与「\(searchText)」相关的贴纸")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                        Text("换个关键词，或清空搜索看看全部")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(.holoToolTextSecondary)
+                    } else if case .group(let name) = filter {
+                        Text("「\(name)」分组还没有贴纸")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                        Text("直接拍照制作，或在「全部」里批量移入此分组")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(.holoToolTextSecondary)
+                    } else {
+                        Text("把身边的一件东西做成贴纸")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                        Text("耳机、水杯、书、跑鞋——拍下来就是你的")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

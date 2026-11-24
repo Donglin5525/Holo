@@ -1849,59 +1849,15 @@ struct ThoughtListView: View {
 
     private var emptyStateView: some View {
         // 空态按语境区分（R3 体检实锤）：搜索/筛选无结果 ≠ 一条想法都没有——
-        // 前两者引导换关键词/换范围，只有真·零想法才引导「记录第一条」，
-        // 否则搜索落空时出现「记录第一条想法」按钮语义错位
-        let isSearching = !searchText.trimmingCharacters(in: .whitespaces).isEmpty
-        let isFiltering = currentFilters != nil
-            || selectedTagName != nil
-            || (drawerSelection != nil && drawerSelection != .aiOrganize)
-        let icon = isSearching ? "magnifyingglass" : "lightbulb"
-        let title = isSearching ? "没有找到相关想法" : (isFiltering ? "该范围内暂无想法" : "暂无想法")
-        let caption = isSearching ? "换个关键词试试"
-            : (isFiltering ? "换个范围，或清空筛选再看看" : "一闪而过的念头，都值得留下来")
-        return VStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.system(size: 60, weight: .light))
-                .foregroundColor(.holoToolTextSecondary.opacity(0.3))
-
-            Text(title)
-                .font(ThoughtLayout.body)
-                .foregroundColor(.holoToolTextSecondary)
-
-            Text(caption)
-                .font(ThoughtLayout.secondary)
-                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
-
-            // 空态行动按钮：右下 FAB 是本屏唯一橙主行动，此处退为灰描边次级引导
-            if !isSearching && !isFiltering {
-                Button {
-                    showAddThought = true
-                } label: {
-                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle")
-                        .font(ThoughtLayout.secondary.weight(.semibold))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .padding(.horizontal, 26)
-                        .padding(.vertical, 11)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Color.holoToolBorder, lineWidth: 1)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
-                .accessibilityIdentifier("thoughtEmptyCta")
-            }
-
-            if ICloudSyncStatusService.shared.isInitialSyncPending {
-                Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
-                    .font(ThoughtLayout.secondary)
-                    .foregroundColor(.holoInfo)
-                    .transition(.opacity)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 40)
+        // 前两者引导换关键词/换范围，只有真·零想法才给「记一条想法」入口
+        ThoughtQuietEmptyState(
+            isSearching: !searchText.trimmingCharacters(in: .whitespaces).isEmpty,
+            isFiltering: currentFilters != nil
+                || selectedTagName != nil
+                || (drawerSelection != nil && drawerSelection != .aiOrganize),
+            onRecord: { showAddThought = true },
+            showsRestoreHint: ICloudSyncStatusService.shared.isInitialSyncPending
+        )
     }
 }
 
