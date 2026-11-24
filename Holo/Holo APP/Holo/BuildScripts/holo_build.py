@@ -17,6 +17,9 @@
 #   ./holo_build.py test   [-only HoloTests/XXX] [-expect N] [--workers 4]   # N=预期用例数，不填则只要求 N>0
 #   ./holo_build.py ls     # 列出各工程副本的产物目录（工程路径 / 大小 / 上次使用）
 #   ./holo_build.py gc [--days 14]   # 回收这么多天没用过的产物目录
+#   ./holo_build.py archive [--config Release] [--archive-path 路径.xcarchive]   # 出归档包（真机可装）
+#     默认 Release / generic iOS 设备 / 存到 Xcode 归档目录（Organizer 里能看到）；
+#     判定 = exit 0 + "** ARCHIVE SUCCEEDED **" + 无编译错误 + 包里真有 Holo.app
 #   test 默认开并行（-parallel-testing-enabled YES + 4 个并发模拟器 worker），--workers 0 关闭
 # 构建秩序：
 #   - 排队：全机同一时间只跑一个构建/测试。别的 holo_build 在跑 → 排队等；别的裸 xcodebuild 在跑 →
@@ -29,6 +32,7 @@
 # 判定（三者缺一不可）：
 #   build：exit code 0 + 输出含 "** BUILD SUCCEEDED **" + 无 "\.swift:.*: error"
 #   test ：exit code 0 + "** TEST SUCCEEDED **" + 用例计数与预期相符（默认 N>0）
+#   archive：exit code 0 + "** ARCHIVE SUCCEEDED **" + 无编译错误 + 包内存在 Holo.app
 #          计数以逐用例行（Test Case '...' passed/failed/skipped）为准——并行模式下
 #          "Executed N tests" 汇总被 clone 拆散、max() 会低估，逐用例行不重复最可靠
 # 退出码：0=真绿；1=假绿/失败（stderr 摘要）。
@@ -50,10 +54,21 @@ SRCROOT = os.path.dirname(HERE)  # BuildScripts 的上级 = xcodeproj 所在
 
 DD_ROOT = "/tmp/holo_dd"                      # 所有工程副本的产物目录统一放这里（重启自动清空）
 LOCK_PATH = os.path.join(DD_ROOT, ".build.lock")
-NICE = ["nice", "-n", "10"]                   # 让路：低优先级跑，界面优先
+NICE = shlex.split(os.environ.get("HOLO_BUILD_NICE", "nice -n 10"))   # 让路：低优先级跑，界面优先
+                                                    # （HOLO_BUILD_NICE="nice -n 0" 可关闭，只给对照实验用）
 DEFAULT_DEST = "platform=iOS Simulator,name=iPhone 17"   # 具体机型；generic 会把每个文件编两遍
 FOREIGN_WAIT_SECONDS = 30 * 60                # 等别人裸跑的 xcodebuild 的上限
 GC_DAYS_DEFAULT = 14                          # 产物目录闲置多少天后回收
+
+
+DEFAULT_ARCHIVE_DEST = "generic/platform=iOS"
+
+
+def default_archive_path(config):
+    """归档包默认落点：Xcode 归档目录下按日期分目录（Organizer 里直接能看到）。"""
+    day = time.strftime("%Y-%m-%d")
+    name = "Holo-%s-%s.xcarchive" % (config, time.strftime("%Y%m%d-%H%M%S"))
+    return os.path.expanduser("~/Library/Developer/Xcode/Archives/%s/%s" % (day, name))
 
 
 def default_dd():
@@ -175,13 +190,16 @@ def run(cmd, live_log):
 
 def scan_log(path):
     """跑完后逐行扫描 xcodebuild 输出，得到判定所需的全部事实。"""
-    facts = {"build_succeeded": False, "test_succeeded": False, "errors": [], "cases": [], "executed": []}
+    facts = {"build_succeeded": False, "test_succeeded": False, "archive_succeeded": False,
+             "errors": [], "cases": [], "executed": []}
     with open(path, encoding="utf-8", errors="replace") as log:
         for line in log:
             if "** BUILD SUCCEEDED **" in line:
                 facts["build_succeeded"] = True
             elif "** TEST SUCCEEDED **" in line:
                 facts["test_succeeded"] = True
+            elif "** ARCHIVE SUCCEEDED **" in line:
+                facts["archive_succeeded"] = True
             if ERROR_RE.search(line):
                 facts["errors"].append(line.strip())
             if line.startswith(("Test Case '", "Test case '")):
@@ -197,9 +215,9 @@ def scan_log(path):
 def main():
     global GC_DAYS_DEFAULT
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["build", "test", "ls", "gc"])
+    ap.add_argument("mode", choices=["build", "test", "archive", "ls", "gc"])
     ap.add_argument("--scheme", default="Holo")
-    ap.add_argument("--config", default="Debug")
+    ap.add_argument("--config", default=None, help="默认：build/test 用 Debug，archive 用 Release")
     ap.add_argument("--dest", default=None,
                     help="默认：具体模拟器 iPhone 17（generic 目标会把每个文件编两遍，不要用于日常构建）")
     ap.add_argument("--dd", default=None,
@@ -210,6 +228,7 @@ def main():
                     help="并行测试 worker 数（默认 4；0=串行）")
     ap.add_argument("--days", type=int, default=14, help="gc：回收多少天没用过的产物目录")
     ap.add_argument("--log", help="把 xcodebuild 完整输出落盘到该路径（诊断用）")
+    ap.add_argument("--archive-path", default=None, help="archive：归档包路径（默认存到 Xcode 归档目录）")
     args = ap.parse_args()
 
     GC_DAYS_DEFAULT = args.days
@@ -220,8 +239,11 @@ def main():
         cmd_gc(args.days)
         return
 
-    args.dest = args.dest or DEFAULT_DEST
+    is_archive = args.mode == "archive"
+    args.config = args.config or ("Release" if is_archive else "Debug")
+    args.dest = args.dest or (DEFAULT_ARCHIVE_DEST if is_archive else DEFAULT_DEST)
     args.dd = args.dd or default_dd()
+    args.archive_path = args.archive_path or default_archive_path(args.config)
     started = time.time()
 
     wait_foreign_xcodebuild()
@@ -235,6 +257,8 @@ def main():
     extra = shlex.split(os.environ.get("HOLO_XCODEBUILD_ARGS", ""))
     if args.mode == "build":
         cmd = base + ["build"] + extra
+    elif is_archive:
+        cmd = base + ["archive", "-archivePath", args.archive_path] + extra
     else:
         cmd = base + ["test"]
         if args.workers > 0:
@@ -257,9 +281,17 @@ def main():
     if rc != 0:
         fail.append("xcodebuild 退出码 %d" % rc)
     is_test = args.mode == "test"
-    succeeded = facts["test_succeeded"] if is_test else facts["build_succeeded"]
+    mark = {"test": "** TEST SUCCEEDED **", "archive": "** ARCHIVE SUCCEEDED **"}.get(args.mode, "** BUILD SUCCEEDED **")
+    succeeded = facts["test_succeeded"] if is_test else facts["archive_succeeded"] if is_archive else facts["build_succeeded"]
     if not succeeded:
-        fail.append("输出缺少 %s 标记" % ("** TEST SUCCEEDED **" if is_test else "** BUILD SUCCEEDED **"))
+        fail.append("输出缺少 %s 标记" % mark)
+    if is_archive and succeeded:
+        app_in_archive = os.path.join(args.archive_path, "Products", "Applications", "Holo.app")
+        if not os.path.isdir(app_in_archive):
+            fail.append("归档包里没有 Holo.app（%s）——包不完整" % app_in_archive)
+        else:
+            print("holo_archive: 包内应用 %s" % app_in_archive, file=sys.stderr)
+            print("holo_archive: 归档路径 %s" % args.archive_path, file=sys.stderr)
     errors = facts["errors"]
     if errors:
         fail.append("存在 %d 条编译错误" % len(errors))
@@ -294,7 +326,7 @@ def main():
         print("holo_%s: 假绿/失败 —— %s" % (args.mode, "; ".join(fail)), file=sys.stderr)
         sys.exit(1)
     print("holo_%s: 真绿（exit0 + 成功标记 + 错误零 + %s）" % (
-        args.mode, ("用例数符合预期" if args.mode == "test" else "无编译错误")))
+        args.mode, "用例数符合预期" if is_test else "包内有 Holo.app" if is_archive else "无编译错误"))
 
 
 if __name__ == "__main__":
