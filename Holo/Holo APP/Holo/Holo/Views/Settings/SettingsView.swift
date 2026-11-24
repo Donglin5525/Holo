@@ -83,6 +83,10 @@ struct SettingsView: View {
     /// 任务纸面动效灰度开关（动效融合 G2）：key/默认值与 HoloTaskMotionRolloutPolicy 对齐，
     /// 未设置时默认开；拨动即落 UserDefaults，重启/即时生效（外观由视图每次取值）
     @AppStorage(HoloTaskMotionRolloutPolicy.Flag.taskPaperMotionEnabled.rawValue) private var taskPaperMotionEnabled: Bool = true
+    /// 纸张（2026-11-23 审美七项）：随时间变换纸色 / 旧记忆泛黄，key 与 HoloPaperSettings 对齐，
+    /// 默认开；只改变展示，拨动即时生效
+    @AppStorage(HoloPaperSettings.daylightKey) private var daylightPaperEnabled = true
+    @AppStorage(HoloPaperSettings.agingKey) private var memoryAgingEnabled = true
     #if DEBUG
     /// 「开发者选项」折叠行展开状态（默认收起，跨启动记忆）
     @AppStorage("settings.developerOptionsExpanded") private var developerOptionsExpanded = false
@@ -201,6 +205,7 @@ struct SettingsView: View {
             VStack(spacing: HoloSpacing.lg) {
                 userInfoCard
                 generalSection
+                paperSettingsSection
                 dataSyncSection
                 privacySecuritySection
                 aiMemorySection
@@ -327,7 +332,12 @@ struct SettingsView: View {
         case .aiMemory: aiMemorySection
         case .dataSync: dataSyncSection
         case .privacySecurity: privacySecuritySection
-        case .general: generalSection
+        case .general:
+            // 纸张属于显示偏好，与「使用偏好」同栏呈现，不单独占一个导航项
+            VStack(spacing: HoloSpacing.lg) {
+                generalSection
+                paperSettingsSection
+            }
         case .support: supportSection
         case .danger: dangerSection
         }
@@ -736,6 +746,36 @@ struct SettingsView: View {
                     NotificationSettingsView()
                 }
 
+            }
+            .holoSurface()
+        }
+    }
+
+    // MARK: - 纸张
+
+    /// 纸色随一天的时间走、旧记忆慢慢泛黄（2026-11-23 审美七项）；两个开关互相独立，只改变展示。
+    private var paperSettingsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            sectionHeader(icon: "text.page", title: String(localized: "纸张"), color: .holoToolTextSecondary)
+
+            VStack(spacing: 0) {
+                SettingsToggleRow(
+                    icon: "sun.max",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "随时间变换纸色"),
+                    subtitle: String(localized: "早晨更亮，夜里更暖。只影响首页和我的积累。"),
+                    isOn: $daylightPaperEnabled
+                )
+
+                SettingsRowDivider()
+
+                SettingsToggleRow(
+                    icon: "book.pages",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "旧记忆慢慢泛黄"),
+                    subtitle: String(localized: "记忆长廊里越早的日子，纸色越旧。"),
+                    isOn: $memoryAgingEnabled
+                )
             }
             .holoSurface()
         }

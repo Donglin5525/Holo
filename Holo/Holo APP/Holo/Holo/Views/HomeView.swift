@@ -186,8 +186,8 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            // 背景色
-            Color.holoBackground
+            // 背景色：随一天的时间走（仅浅色模式生效，深色模式与正午仍是原底色；见 HoloDaylightPaperBackground）
+            HoloDaylightPaperBackground()
                 .ignoresSafeArea()
 
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）

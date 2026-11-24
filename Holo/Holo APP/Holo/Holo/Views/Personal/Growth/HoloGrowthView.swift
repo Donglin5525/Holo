@@ -13,6 +13,9 @@ struct HoloGrowthView: View {
     @State private var almanacSelectedDay: Date?
     @State private var showAlmanacShare = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // P6 纸色随时间变化：导航栏底色要与页面同一张纸
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(HoloPaperSettings.daylightKey) private var daylightPaperEnabled = true
     let onOpenModule: @MainActor @Sendable (DeepLinkTarget) -> Void
 
     init(service: HoloGrowthService? = nil, onOpenModule: @escaping @MainActor @Sendable (DeepLinkTarget) -> Void = { DeepLinkState.shared.navigate(to: $0) }) {
@@ -56,9 +59,15 @@ struct HoloGrowthView: View {
             .holoContentColumn(paintsBackground: false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.holoToolBackground.ignoresSafeArea())
+        // P6：纸色随一天的时间走（仅浅色模式；深色模式与正午仍是 holoToolBackground）
+        .holoDaylightPaper()
         #if canImport(UIKit)
-        .toolbarBackground(Color.holoToolBackground, for: .navigationBar)
+        // 导航栏底色跟页面同一张纸，避免夜里滚动时顶部露出一条色差带
+        .toolbarBackground(
+            HoloDaylightPaperBackground.currentPaper(isDark: colorScheme == .dark,
+                                                     isEnabled: daylightPaperEnabled),
+            for: .navigationBar
+        )
         #endif
         .navigationTitle("我的积累")
         #if canImport(UIKit)
