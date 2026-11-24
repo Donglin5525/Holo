@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A36C557FF16CD24F5B56B57E /* Services/Matter/HoloMatterBatchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */; };
 		B347E30F21F528D523FB2521 /* Models/FinanceCategoryNameCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */; };
 		61F2256F97865940EC4FCC46 /* Models/FinanceAnalysisNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */; };
 		2A93086BDA624E359D48A523 /* Models/ResidentScreenRouteStackStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */; };
@@ -619,6 +620,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Matter/HoloMatterBatchQueryTests.swift; sourceTree = "<group>"; };
 		29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/FinanceCategoryNameCacheTests.swift; sourceTree = "<group>"; };
 		64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/FinanceAnalysisNavigationTests.swift; sourceTree = "<group>"; };
 		DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/ResidentScreenRouteStackStandaloneTests.swift; sourceTree = "<group>"; };
@@ -1800,6 +1802,7 @@
 		8D9FDE44AC903B6747A6C03F /* HoloTests */ = {
 			isa = PBXGroup;
 			children = (
+				F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */,
 				29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */,
 				64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */,
 				DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */,
@@ -2511,6 +2514,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A36C557FF16CD24F5B56B57E /* Services/Matter/HoloMatterBatchQueryTests.swift in Sources */,
 				B347E30F21F528D523FB2521 /* Models/FinanceCategoryNameCacheTests.swift in Sources */,
 				61F2256F97865940EC4FCC46 /* Models/FinanceAnalysisNavigationTests.swift in Sources */,
 				2A93086BDA624E359D48A523 /* Models/ResidentScreenRouteStackStandaloneTests.swift in Sources */,

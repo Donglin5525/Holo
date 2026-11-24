@@ -108,9 +108,18 @@ final class HoloMatterRepository: ObservableObject {
     /// Open Loop 组装为 attention/Next Action 输入，并解析 loop→task 真实对应。
     /// loop→task 对应约定：addLink(.todoTask) 时把 sourceRevision 写为 loopID（真实 UUID 对应，不靠标题匹配）。
     func attentionLoopInputs(matterID: UUID) -> [HoloMatterAttentionPolicy.LoopInput] {
-        let loops = openLoops(matterID: matterID, activeOnly: true)
-        let taskLinks = links(matterID: matterID).filter { $0.entityType == .todoTask }
-        return loops.map { loop in
+        Self.makeLoopInputs(
+            loops: openLoops(matterID: matterID, activeOnly: true),
+            taskLinks: links(matterID: matterID).filter { $0.entityType == .todoTask }
+        )
+    }
+
+    /// 纯组装（不查库）：open loop → attention 输入，并解析 loop→task 真实对应。
+    static func makeLoopInputs(
+        loops: [HoloMatterOpenLoop],
+        taskLinks: [HoloMatterLink]
+    ) -> [HoloMatterAttentionPolicy.LoopInput] {
+        loops.map { loop in
             HoloMatterAttentionPolicy.LoopInput(
                 id: loop.id,
                 title: loop.title,
@@ -122,6 +131,75 @@ final class HoloMatterRepository: ObservableObject {
                     .flatMap { UUID(uuidString: $0.entityID) }
             )
         }
+    }
+
+    // MARK: - 批量查询（今日快照用）
+    //
+    // 「今日」快照对每个 Matter 逐个查 open loop / link / 计划任务：每个 Matter 4 次 fetch
+    // 再加每条任务链接 1 次，20 个活跃事项就是近百次主线程查询（2026-11-24 性能剖析：
+    // HoloTodaySnapshotBuilder.build 是启动期 App 侧头号主线程热点）。下面三个批量版
+    // 各只发 1 次 fetch，结果与逐个查询完全一致（HoloMatterBatchQueryTests 逐项对拍）。
+
+    func openLoops(matterIDs: [UUID], activeOnly: Bool = false) -> [UUID: [HoloMatterOpenLoop]] {
+        guard !matterIDs.isEmpty else { return [:] }
+        let request = NSFetchRequest<HoloMatterOpenLoop>(entityName: "HoloMatterOpenLoop")
+        if activeOnly {
+            request.predicate = NSPredicate(
+                format: "matterID IN %@ AND deletedAt == nil AND stateRaw IN %@",
+                matterIDs,
+                [HoloMatterOpenLoopState.open.rawValue, HoloMatterOpenLoopState.waiting.rawValue]
+            )
+        } else {
+            request.predicate = NSPredicate(format: "matterID IN %@ AND deletedAt == nil", matterIDs)
+        }
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        return Dictionary(grouping: (try? context.fetch(request)) ?? [], by: \.matterID)
+    }
+
+    func links(matterIDs: [UUID], linkedOnly: Bool = true) -> [UUID: [HoloMatterLink]] {
+        guard !matterIDs.isEmpty else { return [:] }
+        let request = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+        if linkedOnly {
+            request.predicate = NSPredicate(
+                format: "matterID IN %@ AND deletedAt == nil AND statusRaw == %@",
+                matterIDs,
+                HoloMatterLinkStatus.linked.rawValue
+            )
+        } else {
+            request.predicate = NSPredicate(format: "matterID IN %@ AND deletedAt == nil", matterIDs)
+        }
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        return Dictionary(grouping: (try? context.fetch(request)) ?? [], by: \.matterID)
+    }
+
+    /// 批量版 attention 输入：open loop 与 link 各一次 fetch 后按 Matter 组装。
+    func attentionLoopInputs(matterIDs: [UUID]) -> [UUID: [HoloMatterAttentionPolicy.LoopInput]] {
+        let loopsByMatter = openLoops(matterIDs: matterIDs, activeOnly: true)
+        let linksByMatter = links(matterIDs: matterIDs)
+        var inputs: [UUID: [HoloMatterAttentionPolicy.LoopInput]] = [:]
+        for matterID in matterIDs {
+            inputs[matterID] = Self.makeLoopInputs(
+                loops: loopsByMatter[matterID] ?? [],
+                taskLinks: (linksByMatter[matterID] ?? []).filter { $0.entityType == .todoTask }
+            )
+        }
+        return inputs
+    }
+
+    /// 按 ID 批量查任务（V2 计划查询跨域只读；软删除排除）。同 id 多行（iCloud 副本）时取 fetch 顺序里的第一条，
+    /// 与逐个 todoTask(id:) 的取法一致；归档/其它状态由调用方按原逻辑判断。
+    func todoTasks(ids: [UUID]) -> [UUID: TodoTask] {
+        guard !ids.isEmpty else { return [:] }
+        let found: [TodoTask]? = performAndWait { ctx in
+            let request = TodoTask.fetchRequest()
+            request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids)
+            return try ctx.fetch(request)
+        }
+        var byID: [UUID: TodoTask] = [:]
+        for task in found ?? [] where byID[task.id] == nil {
+            byID[task.id] = task
+        }
+        return byID
     }
 
     func events(matterID: UUID, limit: Int = 50) -> [HoloMatterEvent] {
