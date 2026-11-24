@@ -91,14 +91,18 @@ struct TaskExperienceRow: View {
                     withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(member.title)
-                            .holoText(.body)
-                            .fontWeight(.semibold)
-                            .foregroundColor(isCompleted ? .holoToolTextSecondary : .holoTextPrimary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .strikethrough(isCompleted, color: .holoTextPlaceholder)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        // 完成即划掉：墨线从左往右划过标题，划完文字淡为完成色（审美七项 P2）
+                        HoloInkStrikeText(
+                            text: member.title,
+                            isStruck: isCompleting || isCompleted,
+                            font: .system(.body).weight(.semibold),
+                            activeColor: .holoTextPrimary,
+                            doneColor: .holoToolTextSecondary,
+                            strikeColor: .holoToolText.opacity(0.75)
+                        )
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         // 唯一辅助信息：历史行报完成时间；进行中报截止（今天橙/逾期红）
                         if let auxiliary = auxiliaryText {

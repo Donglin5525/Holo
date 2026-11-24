@@ -114,11 +114,16 @@ struct TaskCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     // 标题 + 右上时间胶囊
                     HStack(alignment: .top, spacing: 8) {
-                        Text(task.title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .strikethrough(showsCompleted)
-                            .foregroundColor(showsCompleted ? .holoTextSecondary : .holoTextPrimary)
-                            .lineLimit(2)
+                        // 完成即划掉：墨线从左往右划过标题，划完文字淡为完成色（审美七项 P2）
+                        HoloInkStrikeText(
+                            text: task.title,
+                            isStruck: showsCompleted,
+                            font: .system(size: 15, weight: .semibold),
+                            activeColor: .holoTextPrimary,
+                            doneColor: .holoTextSecondary,
+                            strikeColor: .holoToolText.opacity(0.75)
+                        )
+                        .lineLimit(2)
 
                         Spacer(minLength: 6)
 
