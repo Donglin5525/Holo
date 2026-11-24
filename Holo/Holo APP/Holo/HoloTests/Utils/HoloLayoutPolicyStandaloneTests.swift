@@ -152,17 +152,14 @@ struct HoloLayoutPolicyStandaloneTests {
         if failures.isEmpty {
             print("✅ HoloLayoutPolicyStandaloneTests 全部通过（\(passed) 断言）")
         } else {
+            // 测试工程里报成用例失败并继续（执行入口是自动生成的桥接）；独立脚本运行才打印后退出
+            #if HOLO_XCTEST_BRIDGE
+            failures.forEach { XCTFail($0) }
+            #else
             print("❌ HoloLayoutPolicyStandaloneTests \(failures.count) 项失败：")
             failures.forEach { print("  - \($0)") }
             exit(1)
+            #endif
         }
     }
 }
-
-#if HOLO_XCTEST_BRIDGE
-extension HoloLayoutPolicyStandaloneTests: XCTestCase {
-    func testAll() {
-        HoloLayoutPolicyStandaloneTests.main()
-    }
-}
-#endif

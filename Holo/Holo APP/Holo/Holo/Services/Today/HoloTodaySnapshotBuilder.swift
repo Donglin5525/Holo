@@ -41,8 +41,20 @@ enum HoloTodaySnapshotBuilder {
         if HoloMatterRolloutPolicy.storageEnabled {
             do {
                 let matters = HoloMatterRepository.shared.matters(lifecycles: [.active]).prefix(20)
+                // 事项相关的 open loop / link / 计划任务一次批量取全，循环里只查字典。
+                // 原先每个 Matter 逐个查 4 次再加每条任务链接 1 次，20 个活跃事项就是近百次主线程查询
+                //（2026-11-24 性能剖析：本构建器是启动期 App 侧头号主线程热点）。
+                let matterIDs = matters.map(\.id)
+                let loopInputsByMatter = HoloMatterRepository.shared.attentionLoopInputs(matterIDs: matterIDs)
+                let linksByMatter = HoloMatterRepository.shared.links(matterIDs: matterIDs)
+                let planTaskIDs = Set(
+                    linksByMatter.values.joined()
+                        .filter { $0.entityType == .todoTask && $0.role == .action }
+                        .compactMap { UUID(uuidString: $0.entityID) }
+                )
+                let planTasksByID = HoloMatterRepository.shared.todoTasks(ids: Array(planTaskIDs))
                 for matter in matters {
-                    let loopInputs = HoloMatterRepository.shared.attentionLoopInputs(matterID: matter.id)
+                    let loopInputs = loopInputsByMatter[matter.id] ?? []
                     let attention = HoloMatterAttentionPolicy.evaluate(
                         targetDate: matter.targetDate, loops: loopInputs, now: referenceTime
                     )
@@ -52,7 +64,7 @@ enum HoloTodaySnapshotBuilder {
 
                     // 真实链接任务集合（link 行 entityID）。
                     let linkedTaskIDs = Set(
-                        HoloMatterRepository.shared.links(matterID: matter.id)
+                        (linksByMatter[matter.id] ?? [])
                             .filter { $0.entityType == .todoTask }
                             .compactMap { UUID(uuidString: $0.entityID) }
                     )
@@ -91,7 +103,9 @@ enum HoloTodaySnapshotBuilder {
                     matterCandidates.append(candidate)
 
                     // V2 计划进度：planOrder 口径实时计算（§5.6），不依赖 projection。
-                    let planTasks = MatterPlanQuery.planTasks(matterID: matter.id, repository: HoloMatterRepository.shared)
+                    let planTasks = MatterPlanQuery.planTasks(
+                        links: linksByMatter[matter.id] ?? [], tasks: planTasksByID
+                    )
                     matterItems.append(HoloTodayMatterItem(
                         id: matter.id,
                         title: matter.title,

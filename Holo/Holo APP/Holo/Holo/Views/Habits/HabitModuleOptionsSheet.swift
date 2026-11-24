@@ -335,7 +335,7 @@ struct SortPage: View {
     }
 
     private var rowsById: [UUID: HabitRowSnapshot] {
-        Dictionary(uniqueKeysWithValues: model.todayRows.map { ($0.id, $0) })
+        Dictionary(model.todayRows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     var body: some View {
@@ -491,7 +491,7 @@ private struct VisibilityPage: View {
     }
 
     private var rowsById: [UUID: HabitRowSnapshot] {
-        Dictionary(uniqueKeysWithValues: allRows.map { ($0.id, $0) })
+        Dictionary(allRows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     var body: some View {

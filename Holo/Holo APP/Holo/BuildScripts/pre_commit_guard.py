@@ -10,6 +10,7 @@
 #   R1 *.xcstrings：staged 删除行 > 原文件行数 25%，或词条 key 数减少 > 20
 #   R2 CHANGELOG.md：staged 删除行 > 原文件行数 60%（整文件覆盖特征）
 #   R3 *.pbxproj：staged 删除行 > 150（手术事故特征）
+#   R4 模块耦合只减不增：有 App 源码（.swift）改动时调用 coupling_guard.py（规则/基线见该脚本）
 # 放行：确属有意的重写/清理 → git commit --no-verify（或 HOLO_ALLOW_RISKY=1），
 #       且要求在提交说明里写明原因。
 #
@@ -64,12 +65,32 @@ def xcstrings_keys(head_version, staged_version):
     return keys(head_version), keys(staged_version)
 
 
+def coupling_guard(staged):
+    """模块耦合「只减不增」（2026-11-24 随技术优化增设）。
+    有 App 源码改动才跑（全量正则扫描约 2 秒）；规则与基线见 coupling_guard.py。
+    本钩子是软链、被各工程副本共用，脚本按真实路径找——本树里没有这个脚本就不跑。"""
+    if not any(f.endswith(".swift") and f.startswith("Holo/Holo APP/Holo/Holo/") for f in staged):
+        return
+    script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "coupling_guard.py")
+    if not os.path.exists(script):
+        return
+    if subprocess.run([sys.executable, script]).returncode != 0:
+        print(
+            "Pre-Commit Guard：模块耦合闸门未过。规则见 coupling_guard.py 头注释；"
+            "确属必须的新耦合：python3 coupling_guard.py --update-baseline --accept-growth，并把打印的增量写进提交说明",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main():
     if os.environ.get("HOLO_ALLOW_RISKY") == "1":
         print("Pre-Commit Guard: HOLO_ALLOW_RISKY=1 已放行（请在提交说明写明原因）")
         return
     problems = []
-    for f in staged_files():
+    staged = staged_files()
+    coupling_guard(staged)
+    for f in staged:
         base = os.path.basename(f)
         add, dele = staged_diff_stat(f)
         if base.endswith(".xcstrings"):

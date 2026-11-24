@@ -88,7 +88,7 @@ enum UnderstandingShadowRunner {
         //    会让 ASCII key（AppStore/GPT）系统性挤占 CJK 主题（BUG-3）。
         let ledgerForSelection = ShadowLedger.load(directory: storage)
         let processedKeys = Set(ledgerForSelection.candidates.values.map(\.themeKey))
-        let themesByKey = Dictionary(uniqueKeysWithValues: themes.map { ($0.key, $0) })
+        let themesByKey = Dictionary(themes.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
         var pendingKeys = changes.filter { $0.kind == .added || $0.kind == .updated }.map(\.key)
         let neverProcessed = themes
             .filter { !processedKeys.contains($0.key) && !pendingKeys.contains($0.key) }
@@ -111,7 +111,7 @@ enum UnderstandingShadowRunner {
         var rejections: [String] = []
         var modelFailures: [String] = []
         var proposalsReceived = 0
-        let observationsByRef = Dictionary(uniqueKeysWithValues: allObservations.map { ($0.sourceRef, $0) })
+        let observationsByRef = Dictionary(allObservations.map { ($0.sourceRef, $0) }, uniquingKeysWith: { first, _ in first })
 
         for theme in pending {
             let candidateID = "theme:\(theme.key):\(theme.fingerprint.prefix(8))"
@@ -271,7 +271,8 @@ enum UnderstandingShadowRunner {
         // oid 用短编号（BUG-6）：模型抄 e1..e12 不会错；真实 sourceRef 随返回值
         // 交给调用方做 gate 回源（修复自映射陷阱：value 不能取 evidence.oid 本身）。
         let shortToSourceRef = Dictionary(
-            uniqueKeysWithValues: picked.enumerated().map { ("e\($0.offset + 1)", $0.element.sourceRef) }
+            picked.enumerated().map { ("e\($0.offset + 1)", $0.element.sourceRef) },
+            uniquingKeysWith: { first, _ in first }
         )
         let items = picked.enumerated().map { index, obs in
             SemanticEvidenceItem(

@@ -10,6 +10,8 @@ output_path = tests_root.join("Support/StandaloneExecutableBridgeTests.swift")
 
 # 只桥接真正挂在 HoloTests target 里的文件：pbxproj 不含的 @main 套件是
 # 「仅 swiftc 脚本运行」形态，桥进去会让 XCTest 构建找不到符号。
+# 挂载与否按文件名判定（与 test_mount_guard 同口径）：pbxproj_surgery mount 挂的文件
+# path 可能带子目录前缀（path = Services/XTests.swift），不能只认 "path = 文件名"。
 pbxproj = File.read(repo_root.join("Holo/Holo APP/Holo/Holo.xcodeproj/project.pbxproj"))
 
 # 已提交但从未进桥的文件（历史上仅脚本运行形态）不自动收编——桥接须由作者显式登记
@@ -32,7 +34,7 @@ Dir.glob(tests_root.join("**/*.swift")).sort.each do |absolute_path|
   next unless content.include?("@main")
   next if content.include?("import XCTest") && !content.include?("HOLO_XCTEST_BRIDGE")
 
-  unless pbxproj.include?("path = #{path.basename}")
+  unless pbxproj.include?(path.basename.to_s)
     warn "⚠️ 跳过未挂载进 HoloTests target 的 @main 文件（仅脚本运行形态）：#{path}"
     next
   end
@@ -108,6 +110,8 @@ methods = entries.each_with_index.map do |entry, index|
   <<~SWIFT
         func test_#{format("%03d", index + 1)}_#{entry[:type]}() async throws {
             // 来源：#{entry[:label]}
+            // 已知失败的套件登记在 StandaloneSuites.knownFailing（HoloTests/Support/StandaloneSuiteBridge.swift）：默认跳过并显式可见
+            try StandaloneSuites.skipIfListed("#{entry[:type]}")
             #{invocation.join(" ")}
         }
   SWIFT

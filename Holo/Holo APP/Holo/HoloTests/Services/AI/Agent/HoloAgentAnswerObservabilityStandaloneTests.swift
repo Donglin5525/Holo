@@ -27,6 +27,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -193,7 +200,7 @@ struct HoloAgentAnswerObservabilityStandaloneTests {
         let result = HoloAgentResultRenderer().render(
             claims: [claim], evidence: [], title: "本期观察", question: "花了多少", coverage: nil
         )
-        expect(result.directAnswer == "这次分析没能形成可信结论，已为你保留数据明细。",
+        expect(result.directAnswer == "这次没有形成可信结论，可能是因为这段时间的可用数据不足。",
                "failed 应走边界说明，实际：\(result.directAnswer ?? "nil")")
         expect(counter.count(for: .coverageFailed) == 1, "coverage_failed 应 +1，实际 \(counter.count(for: .coverageFailed))")
         expect(counter.snapshot()["agent.answer.coverage_failed|NO_EVIDENCE"] == 1, "coverage_failed 上下文应为失败短码")

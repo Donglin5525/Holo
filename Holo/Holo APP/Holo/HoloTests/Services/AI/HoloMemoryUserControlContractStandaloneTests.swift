@@ -10,6 +10,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -140,7 +147,12 @@ struct HoloMemoryUserControlContractStandaloneTests {
         let confirm = makeEvent(id: "e-confirm", kind: .confirmed)
         let disable = makeEvent(id: "e-disable", kind: .disabled)
         guard case .restrictiveWins(let winner) = HoloMemoryControlEventAlgebra.resolveConcurrent(confirm, disable) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 停用与确认并发应判限制优先")
+            return
+            #else
             fatalError("❌ 停用与确认并发应判限制优先")
+            #endif
         }
         expect(winner.id == "e-disable", "限制事件胜出，确认方需重新校验")
     }
@@ -149,7 +161,12 @@ struct HoloMemoryUserControlContractStandaloneTests {
         let editA = makeEvent(id: "e-edit-a", kind: .corrected)
         let editB = makeEvent(id: "e-edit-b", kind: .corrected)
         guard case .needsReview(let events) = HoloMemoryControlEventAlgebra.resolveConcurrent(editA, editB) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 两次编辑并发应转需核对")
+            return
+            #else
             fatalError("❌ 两次编辑并发应转需核对")
+            #endif
         }
         expect(events.count == 2, "两次编辑都保留，不静默二选一")
     }

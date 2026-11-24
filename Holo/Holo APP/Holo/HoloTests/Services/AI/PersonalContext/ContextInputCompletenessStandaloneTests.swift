@@ -16,6 +16,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -285,7 +292,7 @@ struct ContextInputCompletenessStandaloneTests {
 
     /// G1 修复断言：全库追平（空页）后萃取游标必须保留，不得清空重启全历史。
     private static func testCaughtUpKeepsWatermark() async throws {
-        final class CursorRecordingWriter: PackageCountingWriter, @unchecked Sendable {
+        nonisolated final class CursorRecordingWriter: PackageCountingWriter, @unchecked Sendable {
             var savedCursors: [HoloContextExtractionCursorState] = []
             override func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws {
                 savedCursors.append(cursor)

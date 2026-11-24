@@ -5,8 +5,13 @@ func expectMarkdownRenderer(_ condition: @autoclosure () -> Bool, _ message: Str
     if condition() {
         return true
     }
+    #if HOLO_XCTEST_BRIDGE
+    XCTFail(message)
+    return false
+    #else
     print("FAIL: \(message)")
     exit(1)
+    #endif
 }
 
 #if HOLO_XCTEST_BRIDGE

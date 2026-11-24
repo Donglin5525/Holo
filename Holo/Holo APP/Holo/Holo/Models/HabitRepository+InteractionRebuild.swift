@@ -316,7 +316,7 @@ extension HabitRepository {
     func persistTodayOrder(_ orderedActiveIds: [UUID]) throws {
         if !isReady { setup() }
         let all = fetchAllHabitsForReview()
-        let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        let byId = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let mergedIds = HabitOrderMerge.interleaveActive(
             allIds: all.map(\.id),
             newActiveOrder: orderedActiveIds

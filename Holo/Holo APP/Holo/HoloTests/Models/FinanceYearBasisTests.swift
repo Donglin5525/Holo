@@ -3,6 +3,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -193,7 +200,12 @@ struct FinanceYearBasisTests {
             isOngoing: false
         )
         guard let percentage = point.changePercentage else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("上期有值时涨跌幅不应为 nil")
+            return
+            #else
             fatalError("上期有值时涨跌幅不应为 nil")
+            #endif
         }
         expect(abs(percentage - 9.0) < 0.05, "6420 vs 5890 ≈ +9.0%，实际 \(percentage)")
 
@@ -221,6 +233,13 @@ struct FinanceYearBasisTests {
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
-        guard condition() else { fatalError(message) }
+        guard condition() else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail(message)
+            return
+            #else
+            fatalError(message)
+            #endif
+        }
     }
 }

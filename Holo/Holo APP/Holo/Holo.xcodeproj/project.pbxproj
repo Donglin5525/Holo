@@ -7,6 +7,56 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A36C557FF16CD24F5B56B57E /* Services/Matter/HoloMatterBatchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */; };
+		B347E30F21F528D523FB2521 /* Models/FinanceCategoryNameCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */; };
+		61F2256F97865940EC4FCC46 /* Models/FinanceAnalysisNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */; };
+		2A93086BDA624E359D48A523 /* Models/ResidentScreenRouteStackStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */; };
+		C2DAE511FF8E9A2543C58582 /* Models/TaskInputContractStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC110D7EFCD581AAF7076722 /* Models/TaskInputContractStandaloneTests.swift */; };
+		A3F9840797E0199B7F697CDE /* Models/TaskPostponePolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7C8F1A3FDE91635B15BA51 /* Models/TaskPostponePolicyStandaloneTests.swift */; };
+		6C4AAA5C3D43BF89C0B60B4B /* Models/TodoTaskDatePolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA20D3606B64186F129FD11 /* Models/TodoTaskDatePolicyStandaloneTests.swift */; };
+		FE2DDB7BB7A27CC6FDFF25FB /* Models/UserAvatarCropGeometryStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E42112412A0DC4ACE4260801 /* Models/UserAvatarCropGeometryStandaloneTests.swift */; };
+		F849D45CB99EF9985EFAB5F1 /* Services/AI/Agent/HoloAgentBudgetSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DC78BA06218E3EF1C6612E3 /* Services/AI/Agent/HoloAgentBudgetSelectorTests.swift */; };
+		8AEAA215790BB0B043BD5B73 /* Services/AI/Agent/HoloAgentContractPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6C0BE23A3452B019A5CD0D /* Services/AI/Agent/HoloAgentContractPolicyTests.swift */; };
+		EC74AF3AC527E4C4E1B8E208 /* Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5846FE8B10C9CDF554B71DD /* Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift */; };
+		D6022A326CFA9E2F7A2573B5 /* Services/AI/Agent/HoloAgentPolicyContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC71065B35CA386E15229FE8 /* Services/AI/Agent/HoloAgentPolicyContextTests.swift */; };
+		0A86DBD55FACE5C2BF68BA8C /* Services/AI/Agent/HoloAgentProactivityScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584D0714B7E1340C8398E1B5 /* Services/AI/Agent/HoloAgentProactivityScorerTests.swift */; };
+		E676DD8223B61DF291E35927 /* Services/AI/Agent/HoloAgentUsabilityContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7A9A8E1AF96366089645B6 /* Services/AI/Agent/HoloAgentUsabilityContractTests.swift */; };
+		D61E661B58314C6C85DABACE /* Services/AI/Agent/HoloClaimVerifierV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B3946B7D8A335DC4528090 /* Services/AI/Agent/HoloClaimVerifierV2Tests.swift */; };
+		FA97F079FBE02815ED6D9504 /* Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813C9C0CA3BC582D48417AD8 /* Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift */; };
+		136892FF12A855F53B766F42 /* Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9307E31F2397AFE9EDE45AC0 /* Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift */; };
+		6EDF604697369CE5E4D9D557 /* Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4646AB36855B6608B2EA3F90 /* Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift */; };
+		41DE410E85BC290317A0622D /* Services/AI/PersonalContext/ContextAccessStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8452AC86D0298853C61235 /* Services/AI/PersonalContext/ContextAccessStandaloneTests.swift */; };
+		4847ABA57609590DE55B4DB6 /* Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C970A015D2018CA702DE36E /* Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift */; };
+		A49CA715754378DCA47EDB5F /* Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74A022B42BBAF5AD055FFA8 /* Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift */; };
+		F65CD4C6C49832E8EE1B1C4C /* Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B139D82018B27655B6649544 /* Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift */; };
+		14A7F33185EC1E4B76EE2F38 /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A4297911D7E65E8614741C /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift */; };
+		E097E3B409776E48472E5181 /* Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DFE4BD4B90A0300D002C6DA /* Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift */; };
+		7C71853DB8E7CF87D16A981B /* Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0C43D20990C2215F7B515 /* Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift */; };
+		0CA4BC9C7EC4972015465BA5 /* Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FB4198AF746334542CF1678 /* Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift */; };
+		7CEB4C187C596F24DAEC36CE /* Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72311E1190619285CDDFAC6B /* Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift */; };
+		8440286E3502CFA90AC56F5E /* Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A829E9BAC28DB3774B85F7FD /* Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift */; };
+		0B1CE9BD20A63AEFDC521D31 /* Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C665946B6C7B10CFE3286DBE /* Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift */; };
+		574F13683E0E2CD3EFDF2B00 /* Services/AI/ThoughtOrganizationPipelineScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48787CF6CE039F90D9E632CE /* Services/AI/ThoughtOrganizationPipelineScenarioTests.swift */; };
+		3E49C03B7C3EC2476EA6AEF8 /* Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB2432C4EDE1A1178ECBCE4B /* Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift */; };
+		3B1868B128980BC8D7C6A00F /* Services/Calendar/DailyReplayPresentationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD13EDA162EAAFFC53984517 /* Services/Calendar/DailyReplayPresentationStandaloneTests.swift */; };
+		27E32BBE10B005EDB47E83DF /* Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51EBB9703AE63BB6FB79525D /* Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift */; };
+		DD3C530DAAA697A9636CF697 /* Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFE40F63A2A95BF6A9A5D75 /* Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift */; };
+		1ED0302FE35AA9DCBF64E856 /* Services/Sync/FinanceDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5318D5747321B59B90F675B /* Services/Sync/FinanceDuplicateRepairStandaloneTests.swift */; };
+		1E45B08DBAEC5D73762A02C4 /* Services/Sync/GlobalDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4216FDB76073152E5BB09D58 /* Services/Sync/GlobalDuplicateRepairStandaloneTests.swift */; };
+		652421C6301F2A4060B5EDE1 /* Services/Sync/HabitDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42BEC2189B60B6640B992358 /* Services/Sync/HabitDuplicateRepairStandaloneTests.swift */; };
+		10884197FF0C5439D3841A11 /* Services/Thoughts/AttachmentImageLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4D525F1D13F9C6600D00BD5 /* Services/Thoughts/AttachmentImageLoaderTests.swift */; };
+		29718B40E79AD007BDCCD594 /* Services/Thoughts/ThoughtAttachmentProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED770E92E6CCCD31A6570E4 /* Services/Thoughts/ThoughtAttachmentProjectionTests.swift */; };
+		8E0F9B0F557EE5C3389F0C09 /* Services/Thoughts/ThoughtEditorCommitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA4E97CB783EEC2F5A03E47 /* Services/Thoughts/ThoughtEditorCommitTests.swift */; };
+		DBCEF7FA18DD9C5F7F8937BA /* Services/Thoughts/ThoughtEditorRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BBDC6F517453DC43ABAEFD1 /* Services/Thoughts/ThoughtEditorRecoveryTests.swift */; };
+		26C25DEA60D4C0FB1E572535 /* Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4745FAA4DCC31903CA6D2CD9 /* Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift */; };
+		D53EA4250506CD7F8362CC6F /* Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5750EC98E96B1889DDF9DCB3 /* Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift */; };
+		A9C08B71E44165D82C282BE0 /* Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 104E2562D5AFE586F6BB3AA8 /* Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift */; };
+		C9134832BD07C92CDF3E979C /* Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 972034941B64A7264BEF94C9 /* Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift */; };
+		652EEDA318B8772BE29CB8CF /* Support/PersonalContextIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C122AAA9832F244EDA5D9F1 /* Support/PersonalContextIntegrationTests.swift */; };
+		1F31C3A66F7F153BA84732BB /* Support/StandaloneSuiteBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0882BBE0935D23640611F7E3 /* Support/StandaloneSuiteBridge.swift */; };
+		A9C5A0850DD3F02447F452DC /* Utils/HoloLayoutPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F64D5CED1AC2957E7F436D0 /* Utils/HoloLayoutPolicyStandaloneTests.swift */; };
+		0C347AB3D0A311366067E682 /* Views/Chat/ChatScrollBehaviorStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AAD4B8B77A36A0F87651D4E /* Views/Chat/ChatScrollBehaviorStandaloneTests.swift */; };
+		B538FBD010D59820B950EF65 /* GalleryPhotoStackWalkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2F88163D8EF134DB2E52FB /* GalleryPhotoStackWalkUITests.swift */; };
 		0009867F6020999D115D66EB /* HoloLegacyMemoryStoreRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E45E5C115F57CB16E57702 /* HoloLegacyMemoryStoreRegressionTests.swift */; };
 		01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A66C7B7E7EFB79D2835DAE6 /* AnalysisReadableTextParserStandaloneTests.swift */; };
 		05E6BDB9A31A2917C3E1FF4A /* CategorySFSymbolMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */; };
@@ -575,6 +625,56 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Matter/HoloMatterBatchQueryTests.swift; sourceTree = "<group>"; };
+		29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/FinanceCategoryNameCacheTests.swift; sourceTree = "<group>"; };
+		64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/FinanceAnalysisNavigationTests.swift; sourceTree = "<group>"; };
+		DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/ResidentScreenRouteStackStandaloneTests.swift; sourceTree = "<group>"; };
+		AC110D7EFCD581AAF7076722 /* Models/TaskInputContractStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/TaskInputContractStandaloneTests.swift; sourceTree = "<group>"; };
+		1B7C8F1A3FDE91635B15BA51 /* Models/TaskPostponePolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/TaskPostponePolicyStandaloneTests.swift; sourceTree = "<group>"; };
+		AAA20D3606B64186F129FD11 /* Models/TodoTaskDatePolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/TodoTaskDatePolicyStandaloneTests.swift; sourceTree = "<group>"; };
+		E42112412A0DC4ACE4260801 /* Models/UserAvatarCropGeometryStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models/UserAvatarCropGeometryStandaloneTests.swift; sourceTree = "<group>"; };
+		6DC78BA06218E3EF1C6612E3 /* Services/AI/Agent/HoloAgentBudgetSelectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentBudgetSelectorTests.swift; sourceTree = "<group>"; };
+		3F6C0BE23A3452B019A5CD0D /* Services/AI/Agent/HoloAgentContractPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentContractPolicyTests.swift; sourceTree = "<group>"; };
+		C5846FE8B10C9CDF554B71DD /* Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift; sourceTree = "<group>"; };
+		BC71065B35CA386E15229FE8 /* Services/AI/Agent/HoloAgentPolicyContextTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentPolicyContextTests.swift; sourceTree = "<group>"; };
+		584D0714B7E1340C8398E1B5 /* Services/AI/Agent/HoloAgentProactivityScorerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentProactivityScorerTests.swift; sourceTree = "<group>"; };
+		CB7A9A8E1AF96366089645B6 /* Services/AI/Agent/HoloAgentUsabilityContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloAgentUsabilityContractTests.swift; sourceTree = "<group>"; };
+		98B3946B7D8A335DC4528090 /* Services/AI/Agent/HoloClaimVerifierV2Tests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/Agent/HoloClaimVerifierV2Tests.swift; sourceTree = "<group>"; };
+		813C9C0CA3BC582D48417AD8 /* Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift; sourceTree = "<group>"; };
+		9307E31F2397AFE9EDE45AC0 /* Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift; sourceTree = "<group>"; };
+		4646AB36855B6608B2EA3F90 /* Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift; sourceTree = "<group>"; };
+		FE8452AC86D0298853C61235 /* Services/AI/PersonalContext/ContextAccessStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextAccessStandaloneTests.swift; sourceTree = "<group>"; };
+		1C970A015D2018CA702DE36E /* Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift; sourceTree = "<group>"; };
+		D74A022B42BBAF5AD055FFA8 /* Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift; sourceTree = "<group>"; };
+		B139D82018B27655B6649544 /* Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift; sourceTree = "<group>"; };
+		03A4297911D7E65E8614741C /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextPlanStandaloneTests.swift; sourceTree = "<group>"; };
+		2DFE4BD4B90A0300D002C6DA /* Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift; sourceTree = "<group>"; };
+		B8F0C43D20990C2215F7B515 /* Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift; sourceTree = "<group>"; };
+		6FB4198AF746334542CF1678 /* Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift; sourceTree = "<group>"; };
+		72311E1190619285CDDFAC6B /* Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift; sourceTree = "<group>"; };
+		A829E9BAC28DB3774B85F7FD /* Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift; sourceTree = "<group>"; };
+		C665946B6C7B10CFE3286DBE /* Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift; sourceTree = "<group>"; };
+		48787CF6CE039F90D9E632CE /* Services/AI/ThoughtOrganizationPipelineScenarioTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/ThoughtOrganizationPipelineScenarioTests.swift; sourceTree = "<group>"; };
+		BB2432C4EDE1A1178ECBCE4B /* Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift; sourceTree = "<group>"; };
+		FD13EDA162EAAFFC53984517 /* Services/Calendar/DailyReplayPresentationStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Calendar/DailyReplayPresentationStandaloneTests.swift; sourceTree = "<group>"; };
+		51EBB9703AE63BB6FB79525D /* Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift; sourceTree = "<group>"; };
+		FDFE40F63A2A95BF6A9A5D75 /* Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift; sourceTree = "<group>"; };
+		F5318D5747321B59B90F675B /* Services/Sync/FinanceDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Sync/FinanceDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
+		4216FDB76073152E5BB09D58 /* Services/Sync/GlobalDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Sync/GlobalDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
+		42BEC2189B60B6640B992358 /* Services/Sync/HabitDuplicateRepairStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Sync/HabitDuplicateRepairStandaloneTests.swift; sourceTree = "<group>"; };
+		D4D525F1D13F9C6600D00BD5 /* Services/Thoughts/AttachmentImageLoaderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/AttachmentImageLoaderTests.swift; sourceTree = "<group>"; };
+		1ED770E92E6CCCD31A6570E4 /* Services/Thoughts/ThoughtAttachmentProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtAttachmentProjectionTests.swift; sourceTree = "<group>"; };
+		6FA4E97CB783EEC2F5A03E47 /* Services/Thoughts/ThoughtEditorCommitTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtEditorCommitTests.swift; sourceTree = "<group>"; };
+		3BBDC6F517453DC43ABAEFD1 /* Services/Thoughts/ThoughtEditorRecoveryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtEditorRecoveryTests.swift; sourceTree = "<group>"; };
+		4745FAA4DCC31903CA6D2CD9 /* Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift; sourceTree = "<group>"; };
+		5750EC98E96B1889DDF9DCB3 /* Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift; sourceTree = "<group>"; };
+		104E2562D5AFE586F6BB3AA8 /* Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift; sourceTree = "<group>"; };
+		972034941B64A7264BEF94C9 /* Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift; sourceTree = "<group>"; };
+		2C122AAA9832F244EDA5D9F1 /* Support/PersonalContextIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Support/PersonalContextIntegrationTests.swift; sourceTree = "<group>"; };
+		0882BBE0935D23640611F7E3 /* Support/StandaloneSuiteBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Support/StandaloneSuiteBridge.swift; sourceTree = "<group>"; };
+		1F64D5CED1AC2957E7F436D0 /* Utils/HoloLayoutPolicyStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Utils/HoloLayoutPolicyStandaloneTests.swift; sourceTree = "<group>"; };
+		0AAD4B8B77A36A0F87651D4E /* Views/Chat/ChatScrollBehaviorStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Views/Chat/ChatScrollBehaviorStandaloneTests.swift; sourceTree = "<group>"; };
+		7C2F88163D8EF134DB2E52FB /* GalleryPhotoStackWalkUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GalleryPhotoStackWalkUITests.swift; sourceTree = "<group>"; };
 		01D12F979B323B1B7D656B4D /* HoloMemoryConsumerPolicyIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryConsumerPolicyIntegrationTests.swift; sourceTree = "<group>"; };
 		01D1CD88D4AF51CCA9C5425C /* HoloConversationToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloConversationToolTests.swift; sourceTree = "<group>"; };
 		048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloDomainObservationSecurityTests.swift; sourceTree = "<group>"; };
@@ -1715,6 +1815,55 @@
 		8D9FDE44AC903B6747A6C03F /* HoloTests */ = {
 			isa = PBXGroup;
 			children = (
+				F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */,
+				29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */,
+				64F94EB2952B0CCA36C6B378 /* Models/FinanceAnalysisNavigationTests.swift */,
+				DF1A6A254BFE195DDF50D839 /* Models/ResidentScreenRouteStackStandaloneTests.swift */,
+				AC110D7EFCD581AAF7076722 /* Models/TaskInputContractStandaloneTests.swift */,
+				1B7C8F1A3FDE91635B15BA51 /* Models/TaskPostponePolicyStandaloneTests.swift */,
+				AAA20D3606B64186F129FD11 /* Models/TodoTaskDatePolicyStandaloneTests.swift */,
+				E42112412A0DC4ACE4260801 /* Models/UserAvatarCropGeometryStandaloneTests.swift */,
+				6DC78BA06218E3EF1C6612E3 /* Services/AI/Agent/HoloAgentBudgetSelectorTests.swift */,
+				3F6C0BE23A3452B019A5CD0D /* Services/AI/Agent/HoloAgentContractPolicyTests.swift */,
+				C5846FE8B10C9CDF554B71DD /* Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift */,
+				BC71065B35CA386E15229FE8 /* Services/AI/Agent/HoloAgentPolicyContextTests.swift */,
+				584D0714B7E1340C8398E1B5 /* Services/AI/Agent/HoloAgentProactivityScorerTests.swift */,
+				CB7A9A8E1AF96366089645B6 /* Services/AI/Agent/HoloAgentUsabilityContractTests.swift */,
+				98B3946B7D8A335DC4528090 /* Services/AI/Agent/HoloClaimVerifierV2Tests.swift */,
+				813C9C0CA3BC582D48417AD8 /* Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift */,
+				9307E31F2397AFE9EDE45AC0 /* Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift */,
+				4646AB36855B6608B2EA3F90 /* Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift */,
+				FE8452AC86D0298853C61235 /* Services/AI/PersonalContext/ContextAccessStandaloneTests.swift */,
+				1C970A015D2018CA702DE36E /* Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift */,
+				D74A022B42BBAF5AD055FFA8 /* Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift */,
+				B139D82018B27655B6649544 /* Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift */,
+				03A4297911D7E65E8614741C /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift */,
+				2DFE4BD4B90A0300D002C6DA /* Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift */,
+				B8F0C43D20990C2215F7B515 /* Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift */,
+				6FB4198AF746334542CF1678 /* Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift */,
+				72311E1190619285CDDFAC6B /* Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift */,
+				A829E9BAC28DB3774B85F7FD /* Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift */,
+				C665946B6C7B10CFE3286DBE /* Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift */,
+				48787CF6CE039F90D9E632CE /* Services/AI/ThoughtOrganizationPipelineScenarioTests.swift */,
+				BB2432C4EDE1A1178ECBCE4B /* Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift */,
+				FD13EDA162EAAFFC53984517 /* Services/Calendar/DailyReplayPresentationStandaloneTests.swift */,
+				51EBB9703AE63BB6FB79525D /* Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift */,
+				FDFE40F63A2A95BF6A9A5D75 /* Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift */,
+				F5318D5747321B59B90F675B /* Services/Sync/FinanceDuplicateRepairStandaloneTests.swift */,
+				4216FDB76073152E5BB09D58 /* Services/Sync/GlobalDuplicateRepairStandaloneTests.swift */,
+				42BEC2189B60B6640B992358 /* Services/Sync/HabitDuplicateRepairStandaloneTests.swift */,
+				D4D525F1D13F9C6600D00BD5 /* Services/Thoughts/AttachmentImageLoaderTests.swift */,
+				1ED770E92E6CCCD31A6570E4 /* Services/Thoughts/ThoughtAttachmentProjectionTests.swift */,
+				6FA4E97CB783EEC2F5A03E47 /* Services/Thoughts/ThoughtEditorCommitTests.swift */,
+				3BBDC6F517453DC43ABAEFD1 /* Services/Thoughts/ThoughtEditorRecoveryTests.swift */,
+				4745FAA4DCC31903CA6D2CD9 /* Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift */,
+				5750EC98E96B1889DDF9DCB3 /* Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift */,
+				104E2562D5AFE586F6BB3AA8 /* Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift */,
+				972034941B64A7264BEF94C9 /* Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift */,
+				2C122AAA9832F244EDA5D9F1 /* Support/PersonalContextIntegrationTests.swift */,
+				0882BBE0935D23640611F7E3 /* Support/StandaloneSuiteBridge.swift */,
+				1F64D5CED1AC2957E7F436D0 /* Utils/HoloLayoutPolicyStandaloneTests.swift */,
+				0AAD4B8B77A36A0F87651D4E /* Views/Chat/ChatScrollBehaviorStandaloneTests.swift */,
 				A7C200000000000000000001 /* Services/Today/TodayPlanMigrationTests.swift */,
 				A7C200000000000000000003 /* Services/Today/TodayPlanServiceTests.swift */,
 				A7C200000000000000000005 /* Services/Today/TodayReliefCoordinatorTests.swift */,
@@ -2016,6 +2165,7 @@
 		FE1000000000000000000004 /* HoloUITests */ = {
 			isa = PBXGroup;
 			children = (
+				7C2F88163D8EF134DB2E52FB /* GalleryPhotoStackWalkUITests.swift */,
 				4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */,
 				AA11BB22CC33DD44EE55FF1 /* RandomWalkWarmLightUITests.swift */,
 				C10D0000A1B1C1D1E1F1BB01 /* CalendarPickerWalkUITests.swift */,
@@ -2379,6 +2529,55 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A36C557FF16CD24F5B56B57E /* Services/Matter/HoloMatterBatchQueryTests.swift in Sources */,
+				B347E30F21F528D523FB2521 /* Models/FinanceCategoryNameCacheTests.swift in Sources */,
+				61F2256F97865940EC4FCC46 /* Models/FinanceAnalysisNavigationTests.swift in Sources */,
+				2A93086BDA624E359D48A523 /* Models/ResidentScreenRouteStackStandaloneTests.swift in Sources */,
+				C2DAE511FF8E9A2543C58582 /* Models/TaskInputContractStandaloneTests.swift in Sources */,
+				A3F9840797E0199B7F697CDE /* Models/TaskPostponePolicyStandaloneTests.swift in Sources */,
+				6C4AAA5C3D43BF89C0B60B4B /* Models/TodoTaskDatePolicyStandaloneTests.swift in Sources */,
+				FE2DDB7BB7A27CC6FDFF25FB /* Models/UserAvatarCropGeometryStandaloneTests.swift in Sources */,
+				F849D45CB99EF9985EFAB5F1 /* Services/AI/Agent/HoloAgentBudgetSelectorTests.swift in Sources */,
+				8AEAA215790BB0B043BD5B73 /* Services/AI/Agent/HoloAgentContractPolicyTests.swift in Sources */,
+				EC74AF3AC527E4C4E1B8E208 /* Services/AI/Agent/HoloAgentPlanAndSemanticFrameTests.swift in Sources */,
+				D6022A326CFA9E2F7A2573B5 /* Services/AI/Agent/HoloAgentPolicyContextTests.swift in Sources */,
+				0A86DBD55FACE5C2BF68BA8C /* Services/AI/Agent/HoloAgentProactivityScorerTests.swift in Sources */,
+				E676DD8223B61DF291E35927 /* Services/AI/Agent/HoloAgentUsabilityContractTests.swift in Sources */,
+				D61E661B58314C6C85DABACE /* Services/AI/Agent/HoloClaimVerifierV2Tests.swift in Sources */,
+				FA97F079FBE02815ED6D9504 /* Services/AI/HoloCrossDomainCandidateBuilderSafetyStandaloneTests.swift in Sources */,
+				136892FF12A855F53B766F42 /* Services/AI/HoloDomainMemoryCorrectnessStandaloneTests.swift in Sources */,
+				6EDF604697369CE5E4D9D557 /* Services/AI/PersonalContext/ChatTaskGroupStandaloneTests.swift in Sources */,
+				41DE410E85BC290317A0622D /* Services/AI/PersonalContext/ContextAccessStandaloneTests.swift in Sources */,
+				4847ABA57609590DE55B4DB6 /* Services/AI/PersonalContext/ContextExtractionStandaloneTests.swift in Sources */,
+				A49CA715754378DCA47EDB5F /* Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift in Sources */,
+				F65CD4C6C49832E8EE1B1C4C /* Services/AI/PersonalContext/ContextInputCompletenessStandaloneTests.swift in Sources */,
+				14A7F33185EC1E4B76EE2F38 /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift in Sources */,
+				E097E3B409776E48472E5181 /* Services/AI/PersonalContext/ContextRetrievalStandaloneTests.swift in Sources */,
+				7C71853DB8E7CF87D16A981B /* Services/AI/PersonalContext/HoloPersonalContextControlsStandaloneTests.swift in Sources */,
+				0CA4BC9C7EC4972015465BA5 /* Services/AI/PersonalContext/PersonalContextCodableStandaloneTests.swift in Sources */,
+				7CEB4C187C596F24DAEC36CE /* Services/AI/PersonalContext/PersonalContextIdentityStandaloneTests.swift in Sources */,
+				8440286E3502CFA90AC56F5E /* Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift in Sources */,
+				0B1CE9BD20A63AEFDC521D31 /* Services/AI/ThoughtClassificationFeedbackStoreStandaloneTests.swift in Sources */,
+				574F13683E0E2CD3EFDF2B00 /* Services/AI/ThoughtOrganizationPipelineScenarioTests.swift in Sources */,
+				3E49C03B7C3EC2476EA6AEF8 /* Services/AI/ThoughtOrganizationPresentationPolicyStandaloneTests.swift in Sources */,
+				3B1868B128980BC8D7C6A00F /* Services/Calendar/DailyReplayPresentationStandaloneTests.swift in Sources */,
+				27E32BBE10B005EDB47E83DF /* Services/Calendar/MemoryTimeChapterPresentationStandaloneTests.swift in Sources */,
+				DD3C530DAAA697A9636CF697 /* Services/Calendar/WeeklyGridWindowPolicyStandaloneTests.swift in Sources */,
+				1ED0302FE35AA9DCBF64E856 /* Services/Sync/FinanceDuplicateRepairStandaloneTests.swift in Sources */,
+				1E45B08DBAEC5D73762A02C4 /* Services/Sync/GlobalDuplicateRepairStandaloneTests.swift in Sources */,
+				652421C6301F2A4060B5EDE1 /* Services/Sync/HabitDuplicateRepairStandaloneTests.swift in Sources */,
+				10884197FF0C5439D3841A11 /* Services/Thoughts/AttachmentImageLoaderTests.swift in Sources */,
+				29718B40E79AD007BDCCD594 /* Services/Thoughts/ThoughtAttachmentProjectionTests.swift in Sources */,
+				8E0F9B0F557EE5C3389F0C09 /* Services/Thoughts/ThoughtEditorCommitTests.swift in Sources */,
+				DBCEF7FA18DD9C5F7F8937BA /* Services/Thoughts/ThoughtEditorRecoveryTests.swift in Sources */,
+				26C25DEA60D4C0FB1E572535 /* Services/Thoughts/ThoughtShareCardPolaroidLayoutTests.swift in Sources */,
+				D53EA4250506CD7F8362CC6F /* Services/Thoughts/ThoughtTagIndexProjectionStandaloneTests.swift in Sources */,
+				A9C08B71E44165D82C282BE0 /* Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift in Sources */,
+				C9134832BD07C92CDF3E979C /* Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift in Sources */,
+				652EEDA318B8772BE29CB8CF /* Support/PersonalContextIntegrationTests.swift in Sources */,
+				1F31C3A66F7F153BA84732BB /* Support/StandaloneSuiteBridge.swift in Sources */,
+				A9C5A0850DD3F02447F452DC /* Utils/HoloLayoutPolicyStandaloneTests.swift in Sources */,
+				0C347AB3D0A311366067E682 /* Views/Chat/ChatScrollBehaviorStandaloneTests.swift in Sources */,
 				L1FESRC0000000000000009 /* HoloLifeUnderstandingContinuationTests.swift in Sources */,
 				L1FESRC0000000000000007 /* Fixtures/HoloLifeUnderstandingFixtures.swift in Sources */,
 				L1FESRC0000000000000005 /* HoloLifeUnderstandingRelationTests.swift in Sources */,
@@ -2861,6 +3060,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B538FBD010D59820B950EF65 /* GalleryPhotoStackWalkUITests.swift in Sources */,
 				FE1000000000000000000003 /* HoloAcceptanceUITests.swift in Sources */,
 				AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1AA02 /* HoloCloudAnalysisQAUITests.swift in Sources */,
@@ -3047,6 +3247,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ENABLE_COMPILE_CACHE = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};

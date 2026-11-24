@@ -3,6 +3,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -42,7 +49,7 @@ struct SemanticDomainMemorySignalsTests {
             )
         ])
         expect(signals.count == 1, "健康缺失数据应被跳过，不能当成异常")
-        guard let signal = signals.first else { fatalError("健康聚合信号缺失") }
+        guard let signal = signals.first else { Swift.fatalError("健康聚合信号缺失") }
         expect(signal.evidence.kind == .aggregateSnapshot && signal.evidence.sourceID == nil,
                "健康记忆只能保存 aggregate snapshot，不能复制原始样本 ID")
         expect(signal.prohibitedInferences.contains(where: { $0.contains("医疗诊断") }),
@@ -64,7 +71,7 @@ struct SemanticDomainMemorySignalsTests {
         )
         let signals = ThoughtMemorySignalBuilder.build(from: [casual, explicit])
         expect(signals.count == 1, "一次普通随想不得升级为观点记忆")
-        guard let signal = signals.first else { fatalError("明确观点信号缺失") }
+        guard let signal = signals.first else { Swift.fatalError("明确观点信号缺失") }
         expect(signal.userText == explicit.originalText, "用户原话必须单独保留")
         expect(signal.explicitUserStance == explicit.explicitStance, "明确立场必须与原话区分")
         expect(signal.aiSummary == explicit.aiSummary, "AI 摘要必须标记为派生表达")
@@ -108,7 +115,12 @@ struct SemanticDomainMemorySignalsTests {
         }
         let signals = TaskMemorySignalBuilder.build(from: openWithoutDeadlines, now: now)
         guard let backlog = signals.first(where: { $0.id == "task-open-backlog" }) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("无截止时间任务积压信号缺失")
+            return
+            #else
             fatalError("无截止时间任务积压信号缺失")
+            #endif
         }
         expect(backlog.numericFacts["openCount"] == 12, "未完成任务必须进入积压总数")
         expect(backlog.numericFacts["withoutDueDateCount"] == 12,
@@ -135,7 +147,12 @@ struct SemanticDomainMemorySignalsTests {
         }
         let signals = TaskMemorySignalBuilder.build(from: completed, now: now)
         guard let activity = signals.first(where: { $0.id == "task-completion-activity" }) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("近期完成活动信号缺失")
+            return
+            #else
             fatalError("近期完成活动信号缺失")
+            #endif
         }
         expect(!signals.contains(where: { $0.id == "task-completion-rhythm" }),
                "完成总数不能继续冒充稳定节奏")
@@ -167,7 +184,7 @@ struct SemanticDomainMemorySignalsTests {
         ]
         let signals = ConversationMemorySignalBuilder.build(from: inputs)
         expect(signals.count == 1, "AI 回复和普通闲聊永远不能成为对话记忆证据")
-        guard let signal = signals.first else { fatalError("用户明确偏好信号缺失") }
+        guard let signal = signals.first else { Swift.fatalError("用户明确偏好信号缺失") }
         expect(signal.evidence.sourceDomain == .conversation && signal.evidence.sourceID == "user-pref",
                "对话证据必须来自用户消息稳定 ID")
         expect(signal.evidence.summary == "以后回答我尽量简洁",
@@ -186,7 +203,7 @@ struct SemanticDomainMemorySignalsTests {
             aiSummary: nil, topic: "长期价值", revisionDigest: "r-long", createdAt: now
         )
         let longSignals = ThoughtMemorySignalBuilder.build(from: [longInput])
-        guard let longSignal = longSignals.first else { fatalError("长文本观点信号缺失") }
+        guard let longSignal = longSignals.first else { Swift.fatalError("长文本观点信号缺失") }
         expect(longSignal.evidence.summary == String(longText.prefix(200)),
                "观点证据摘要应截取用户原话前 200 字")
 
@@ -196,13 +213,20 @@ struct SemanticDomainMemorySignalsTests {
             profileAnchor: nil
         )
         let markerSignals = ConversationMemorySignalBuilder.build(from: [injected])
-        guard let markerSignal = markerSignals.first else { fatalError("标记隔离信号缺失") }
+        guard let markerSignal = markerSignals.first else { Swift.fatalError("标记隔离信号缺失") }
         expect(markerSignal.evidence.summary?.contains("user:") == false,
                "证据摘要必须隔离角色标记，防止原文携带提示注入片段")
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         assertions += 1
-        guard condition() else { fatalError(message) }
+        guard condition() else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail(message)
+            return
+            #else
+            fatalError(message)
+            #endif
+        }
     }
 }

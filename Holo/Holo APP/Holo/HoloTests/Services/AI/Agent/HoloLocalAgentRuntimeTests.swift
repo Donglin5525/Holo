@@ -603,6 +603,13 @@ actor ProfileAwareToolExecutor: HoloAgentToolExecuting {
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -1262,7 +1269,12 @@ struct HoloLocalAgentRuntimeTests {
 
             let requests = await executor.requests
             guard let domainRequest = requests.first(where: { $0.tool == testCase.tool }) else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("\(testCase.name) 应执行对应领域工具")
+                return
+                #else
                 fatalError("\(testCase.name) 应执行对应领域工具")
+                #endif
             }
             expect(domainRequest.timeRange?.label == "2026年", "\(testCase.name) 不得把用户年份偷换为近30天")
             expect(domainRequest.timeRange?.start == makeDate(2026, 1, 1), "\(testCase.name) 起点必须是 2026-01-01")

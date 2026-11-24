@@ -94,7 +94,7 @@ extension UnderstandingDataSource {
                 let habitsRequest = Habit.fetchRequest()
                 habitsRequest.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
                 let habits = (try? context.fetch(habitsRequest)) ?? []
-                let habitByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+                let habitByID = Dictionary(habits.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 let recordsRequest = HabitRecord.fetchRequest()
                 recordsRequest.predicate = NSPredicate(format: "date >= %@", windowStart as NSDate)
                 recordsRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]

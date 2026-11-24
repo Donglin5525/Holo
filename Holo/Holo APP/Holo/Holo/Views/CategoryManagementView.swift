@@ -584,9 +584,10 @@ struct CategoryManagementView: View {
             disposition = .secondary(.deleteWithReferences)
         } else {
             let dispositions = Dictionary(
-                uniqueKeysWithValues: snapshot.childCategories.map {
+                snapshot.childCategories.map {
                     ($0.id, SecondaryCategoryDisposition.deleteWithReferences)
-                }
+                },
+                uniquingKeysWith: { first, _ in first }
             )
             disposition = .primary(.disposeChildren(dispositions))
         }

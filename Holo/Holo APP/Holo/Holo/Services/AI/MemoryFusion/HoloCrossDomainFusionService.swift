@@ -150,7 +150,8 @@ nonisolated enum HoloCrossDomainFusionService {
         }
 
         let evidenceByID = Dictionary(
-            uniqueKeysWithValues: candidate.evidenceRefs.map { ($0.id, $0) }
+            candidate.evidenceRefs.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
         )
         let evidenceIDs = Array(Set(output.evidenceIDs)).sorted()
         let selectedEvidence = evidenceIDs.compactMap { evidenceByID[$0] }

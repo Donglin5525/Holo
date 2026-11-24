@@ -12,6 +12,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -48,11 +55,21 @@ struct MemoryExtractionCostSlimTests {
         guard let root = try JSONSerialization.jsonObject(
             with: Data(request.userDataJSON.utf8)
         ) as? [String: Any] else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("请求必须是 JSON 对象")
+            return
+            #else
             fatalError("请求必须是 JSON 对象")
+            #endif
         }
         guard let memories = root["existingMemories"] as? [[String: Any]],
               memories.count == 1 else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("existingMemories 投影后必须保留条目")
+            return
+            #else
             fatalError("existingMemories 投影后必须保留条目")
+            #endif
         }
         let keys = Set(memories[0].keys)
         expect(
@@ -87,7 +104,12 @@ struct MemoryExtractionCostSlimTests {
             with: Data(request.userDataJSON.utf8)
         ) as? [String: Any],
               let memories = root["existingMemories"] as? [[String: Any]] else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("请求必须是 JSON 对象")
+            return
+            #else
             fatalError("请求必须是 JSON 对象")
+            #endif
         }
         expect(memories.count == 200, "250 条既有记忆必须截断到上限 200，实际 \(memories.count)")
         let ids = Set(memories.map { $0["id"] as? String ?? "" })
@@ -350,6 +372,13 @@ struct MemoryExtractionCostSlimTests {
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         assertions += 1
-        guard condition() else { fatalError(message) }
+        guard condition() else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail(message)
+            return
+            #else
+            fatalError(message)
+            #endif
+        }
     }
 }

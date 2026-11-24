@@ -52,6 +52,13 @@ actor ExtractionGate {
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -84,7 +91,14 @@ struct HoloMemorySchedulerStandaloneTests {
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         assertions += 1
-        guard condition() else { fatalError(message) }
+        guard condition() else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail(message)
+            return
+            #else
+            fatalError(message)
+            #endif
+        }
     }
 
     private static func testDirtyCoalescingAndBoundedCatchUp() {
@@ -204,7 +218,12 @@ struct HoloMemorySchedulerStandaloneTests {
             commit: { _, _ in }
         )
         guard case .failed(_, let retryAt) = failed.last else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("失败 observation 必须记录重试时间")
+            return
+            #else
             fatalError("失败 observation 必须记录重试时间")
+            #endif
         }
         assertions += 1
         let beforeRetry = await retryScheduler.runIfNeeded(
@@ -292,7 +311,12 @@ struct HoloMemorySchedulerStandaloneTests {
             commit: { _, _ in throw HoloMemoryCommitValidationRefused() }
         )
         guard case .failed(_, let retryAt) = events.last else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("校验拒绝必须按失败记录重试时间")
+            return
+            #else
             fatalError("校验拒绝必须按失败记录重试时间")
+            #endif
         }
         // 「每日」频控语义是用户生活日历（本地日），不再是 UTC 日界：
         // UTC 日界会让北京下午起「新的一天」提前到来，每域一天被跑两次。
@@ -466,7 +490,12 @@ struct HoloMemorySchedulerStandaloneTests {
                 commit: { _, _ in await counter.committed() }
             )
             guard case .failed(_, let retryAt) = events.last else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("前两次失败应记录指数退避，实际 \(events)")
+                return
+                #else
                 fatalError("前两次失败应记录指数退避，实际 \(events)")
+                #endif
             }
             assertions += 1
             lastRetry = retryAt
@@ -506,7 +535,12 @@ struct HoloMemorySchedulerStandaloneTests {
                 commit: { _, _ in }
             )
             guard case .failed(_, let retryAt) = events.last else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("第 \(round) 次失败应记录重试时间，实际 \(events)")
+                return
+                #else
                 fatalError("第 \(round) 次失败应记录重试时间，实际 \(events)")
+                #endif
             }
             assertions += 1
             if round == 3 {

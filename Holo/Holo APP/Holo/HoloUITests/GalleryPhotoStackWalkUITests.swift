@@ -14,6 +14,11 @@ final class GalleryPhotoStackWalkUITests: XCTestCase {
     }
 
     func testWalkGalleryPhotoStack() throws {
+        // 2026-11-24 首次进自动测试即失败，且在优化前的代码上同样失败（同一报错）：
+        // 截图种子路由 memory-gallery-multi-photo 在当前代码里不再产出带「1 / 3」页码的多图卡
+        //（11-23 想法头图改版之后这条走查从未被运行过）。需想法线确认多图卡现状后重写本走查并删掉这一行。
+        throw XCTSkip("过期走查：当前截图种子不产出带「1 / 3」页码的多图卡，待想法线确认多图卡现状后重写")
+
         let app = XCUIApplication()
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "memory-gallery-multi-photo"

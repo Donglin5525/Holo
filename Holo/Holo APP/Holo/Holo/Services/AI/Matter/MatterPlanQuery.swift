@@ -25,12 +25,20 @@ import Foundation
     /// 按 task id 去重：重复 link（历史数据/多轮修复残留）不得让 ForEach 出现重复 id
     /// （重复 id 会引发点一行多行联动的渲染错乱），planOrder 取最小值。
     static func planTasks(matterID: UUID, repository: HoloMatterRepository) -> [PlanTask] {
-        let links = repository.links(matterID: matterID, linkedOnly: true)
-            .filter { $0.entityType == .todoTask && $0.role == .action }
+        planTasks(links: repository.links(matterID: matterID, linkedOnly: true)) { repository.todoTask(id: $0) }
+    }
+
+    /// 同上，但 link 与任务由调用方批量取好后传入（「今日」快照一次取全，不逐个 Matter 查库）。
+    static func planTasks(links: [HoloMatterLink], tasks: [UUID: TodoTask]) -> [PlanTask] {
+        planTasks(links: links) { tasks[$0] }
+    }
+
+    private static func planTasks(links: [HoloMatterLink], lookup: (UUID) -> TodoTask?) -> [PlanTask] {
+        let actionLinks = links.filter { $0.entityType == .todoTask && $0.role == .action }
         var byID: [UUID: PlanTask] = [:]
-        for link in links {
+        for link in actionLinks {
             guard let taskID = UUID(uuidString: link.entityID) else { continue }
-            guard let task = repository.todoTask(id: taskID),
+            guard let task = lookup(taskID),
                   task.deletedAt == nil, !task.archived else { continue }
             let candidate = PlanTask(
                 id: task.id,

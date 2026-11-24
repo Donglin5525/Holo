@@ -24,8 +24,12 @@ struct ThoughtTagIndexProjectionStandaloneTests {
         var passed = 0
         func run(_ name: String, _ body: () throws -> Void) {
             do { try body(); passed += 1 } catch {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("\(name) — \(error)")
+                #else
                 FileHandle.standardError.write("FAILED: \(name) — \(error)\n".data(using: .utf8)!)
                 exit(1)
+                #endif
             }
         }
 
@@ -271,9 +275,3 @@ struct ThoughtTagIndexProjectionStandaloneTests {
         guard ThoughtIndexV2Policy.engineVersion == "thought_index_v2.1" else { throw TestError("引擎版本漂移") }
     }
 }
-
-#if HOLO_XCTEST_BRIDGE
-extension ThoughtTagIndexProjectionStandaloneTests {
-    static func main() { /* 桥接模式下由 XCTest 运行测试方法 */ }
-}
-#endif

@@ -4,6 +4,16 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+private func precondition(_ condition: @autoclosure () -> Bool, _ message: @autoclosure () -> String = String(), file: StaticString = #filePath, line: UInt = #line) {
+    if !condition() { XCTFail(message(), file: file, line: line) }
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -159,7 +169,7 @@ struct GlobalDuplicateRepairStandaloneTests {
     static func fetchSingle(_ context: NSManagedObjectContext, entityName: String, id: UUID) throws -> NSManagedObject {
         let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-        guard let row = try context.fetch(request).first else { fatalError("断言前置失败：\(entityName) 无行") }
+        guard let row = try context.fetch(request).first else { Swift.fatalError("断言前置失败：\(entityName) 无行") }
         return row
     }
 

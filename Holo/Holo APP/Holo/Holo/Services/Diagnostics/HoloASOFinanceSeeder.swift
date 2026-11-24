@@ -62,7 +62,7 @@ enum HoloASOFinanceSeeder {
               Set(fixture.transactions.map(\.logicalID)).count == 108,
               fixture.groups.count == 9,
               Set(fixture.groups.map(\.blueprintName)).count == 9 else { throw error("演示文件日期或数量不匹配") }
-        let groups = Dictionary(uniqueKeysWithValues: fixture.groups.map { ($0.blueprintName, $0) })
+        let groups = Dictionary(fixture.groups.map { ($0.blueprintName, $0) }, uniquingKeysWith: { first, _ in first })
         guard fixture.transactions.allSatisfy({ $0.amountCents > 0 && groups[$0.category]?.direction == $0.direction }),
               fixture.transactions.filter({ $0.project == "城市漫游" }).reduce(0, { $0 + $1.amountCents }) == 24600 else {
             throw error("演示分类、金额或项目不匹配")

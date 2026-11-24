@@ -62,8 +62,10 @@ enum MemorySignalDataAdapter {
         let calendar = Calendar.current
         let currentStart = calendar.date(byAdding: .day, value: -90, to: now) ?? now
         let previousStart = calendar.date(byAdding: .day, value: -180, to: now) ?? currentStart
-        // 统计口径：排除对账调整流水，避免「余额调整」混进消费信号
-        let transactions = (try? await FinanceRepository.shared.getAllTransactions())?
+        // 统计口径：排除对账调整流水，避免「余额调整」混进消费信号。
+        // 只取窗口起点（近 180 天）之后的流水：快照只用得到这些，不必全表取出再在内存里按时间筛
+        // （2026-11-24 性能剖析：原先全表一万多笔逐笔映射，是启动后主线程卡顿的来源之一）。
+        let transactions = (try? await FinanceRepository.shared.getAllTransactions(from: previousStart))?
             .filter { !$0.isReconciliationAdjustment } ?? []
         let mapped = transactions.compactMap { transaction -> FinanceMemoryTransactionInput? in
             // 消费信号只看真实消费行为：退款笔（冲减流水）不参与记忆信号

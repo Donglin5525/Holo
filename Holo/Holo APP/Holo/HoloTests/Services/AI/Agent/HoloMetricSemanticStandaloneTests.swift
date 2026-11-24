@@ -19,6 +19,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -94,7 +101,7 @@ struct HoloMetricSemanticStandaloneTests {
 
         func metric(_ suffix: String) -> HoloMetric {
             guard let metric = output.metrics.first(where: { $0.metricKey.hasSuffix(suffix) }) else {
-                fatalError("缺少指标 \(suffix)，实际：\(output.metrics.map(\.metricKey))")
+                Swift.fatalError("缺少指标 \(suffix)，实际：\(output.metrics.map(\.metricKey))")   // 不变量保险丝：有返回值的函数里必须真正中止
             }
             return metric
         }
@@ -362,7 +369,7 @@ struct HoloMetricSemanticStandaloneTests {
     // MARK: - 工具
 
     private static func unwrap<T>(_ value: T?, _ message: String) throws -> T {
-        guard let value else { fatalError(message) }
+        guard let value else { Swift.fatalError(message) }
         return value
     }
 

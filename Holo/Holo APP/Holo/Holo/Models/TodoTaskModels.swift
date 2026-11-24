@@ -157,11 +157,6 @@ extension Calendar {
         let components = DateComponents(hour: 23, minute: 59, second: 59)
         return self.date(byAdding: components, to: startOfDay(for: date)) ?? date
     }
-
-    /// 判断两个日期是否在同一天
-    func isDate(_ date1: Date, inSameDayAs date2: Date) -> Bool {
-        isDate(date1, equalTo: date2, toGranularity: .day)
-    }
 }
 
 extension Date {

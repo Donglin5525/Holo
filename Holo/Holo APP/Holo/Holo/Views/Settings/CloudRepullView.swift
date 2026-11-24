@@ -202,7 +202,7 @@ struct CloudRepullView: View {
 
     /// 计数列表：拉取后数量为主文案；提供 before 时对照显示（括号内）
     private func countList(counts: [CloudRepullService.EntityCount], before: [CloudRepullService.EntityCount]? = nil) -> some View {
-        let beforeByEntity = Dictionary(uniqueKeysWithValues: (before ?? []).map { ($0.entity, $0.count) })
+        let beforeByEntity = Dictionary((before ?? []).map { ($0.entity, $0.count) }, uniquingKeysWith: { first, _ in first })
 
         return VStack(alignment: .leading, spacing: HoloSpacing.md) {
             Text("数据数量")

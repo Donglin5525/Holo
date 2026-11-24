@@ -50,7 +50,7 @@ actor HoloReportUnderstandingLedger {
             Self.logger.error("台账解码失败，按空台账启动（文件保留不删）")
             return
         }
-        entries = Dictionary(uniqueKeysWithValues: list.map { ($0.processingKey, $0) })
+        entries = Dictionary(list.map { ($0.processingKey, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func save() {

@@ -8,6 +8,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -91,7 +98,12 @@ struct HoloMemoryUserControlServiceStandaloneTests {
             projection: project(record)
         )
         guard case .applied(let newVersion, _) = outcome else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 纠正应成功并返回新版本")
+            return
+            #else
             fatalError("❌ 纠正应成功并返回新版本")
+            #endif
         }
         expect(newVersion == record.recordVersion + 1, "纠正升内容版本")
         let after = try await repository.fetch(id: record.id)
@@ -251,7 +263,12 @@ struct HoloMemoryUserControlServiceStandaloneTests {
             projection: nil
         )
         guard case .conflict = outcome else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 非最新操作的撤销应冲突")
+            return
+            #else
             fatalError("❌ 非最新操作的撤销应冲突")
+            #endif
         }
     }
 
@@ -282,7 +299,12 @@ struct HoloMemoryUserControlServiceStandaloneTests {
 
         let outcome = try await service.apply(request(.confirm, record: record), projection: deadProjection)
         guard case .notAllowed(let reason) = outcome, reason == .sourceInvalid else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 来源失效的确认应被预检拒绝")
+            return
+            #else
             fatalError("❌ 来源失效的确认应被预检拒绝")
+            #endif
         }
         let after = try await repository.fetch(id: record.id)
         expect(after?.state == .candidate, "被拒路径记录不动（保存成功才展示成功）")

@@ -3,6 +3,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -44,7 +51,12 @@ struct HoloMemoryEvidenceRoutingTests {
         let financeID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
         let finance = makeEvidence(kind: .entityRef, domain: .finance, sourceID: financeID.uuidString)
         guard case .transactionDetail(let transactionId)? = HoloMemoryEvidenceRouter.deepLinkTarget(for: finance) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("财务 entityRef 证据应直达交易详情")
+            return
+            #else
             fatalError("财务 entityRef 证据应直达交易详情")
+            #endif
         }
         expect(transactionId == financeID, "路由必须携带原始交易 ID")
         expect(HoloMemoryEvidenceRouter.sourceEntityName(for: finance) == "Transaction",
@@ -53,7 +65,12 @@ struct HoloMemoryEvidenceRoutingTests {
         let goalID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let goal = makeEvidence(kind: .entityRef, domain: .goal, sourceID: goalID.uuidString)
         guard case .goalDetail(let routedGoalID)? = HoloMemoryEvidenceRouter.deepLinkTarget(for: goal) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("目标 entityRef 证据应直达目标详情")
+            return
+            #else
             fatalError("目标 entityRef 证据应直达目标详情")
+            #endif
         }
         expect(routedGoalID == goalID, "路由必须携带原始目标 ID")
     }
@@ -64,7 +81,12 @@ struct HoloMemoryEvidenceRoutingTests {
             kind: .explicitUserStatement, domain: .thought, sourceID: thoughtID.uuidString
         )
         guard case .thoughtDetail(let routedID)? = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("观点域用户原话证据应直达原始想法详情")
+            return
+            #else
             fatalError("观点域用户原话证据应直达原始想法详情")
+            #endif
         }
         expect(routedID == thoughtID, "路由必须携带原始想法 ID")
         expect(HoloMemoryEvidenceRouter.sourceEntityName(for: evidence) == "Thought",
@@ -133,6 +155,13 @@ struct HoloMemoryEvidenceRoutingTests {
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         assertions += 1
-        guard condition() else { fatalError(message) }
+        guard condition() else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail(message)
+            return
+            #else
+            fatalError(message)
+            #endif
+        }
     }
 }

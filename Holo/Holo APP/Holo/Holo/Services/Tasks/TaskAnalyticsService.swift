@@ -53,7 +53,7 @@ final class TaskAnalyticsService {
         )
         return Result(
             analytics: analytics,
-            recordsByID: Dictionary(uniqueKeysWithValues: snapshots.map { ($0.id, $0) })
+            recordsByID: Dictionary(snapshots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         )
     }
 }

@@ -16,6 +16,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -151,10 +158,20 @@ struct HoloLifeUnderstandingRelationTests {
             now: Date(timeIntervalSince1970: 1_775_000_000)
         )
         guard decisions.count == 1, let decision = decisions.first else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("应产生一条决策")
+            return
+            #else
             fatalError("应产生一条决策")
+            #endif
         }
         guard case .create = decision.action else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("Q0 聚合候选应建新记录（实际 \(decision.action)）")
+            return
+            #else
             fatalError("Q0 聚合候选应建新记录（实际 \(decision.action)）")
+            #endif
         }
         expect(decision.admissionLevel == .adviceEligible, "qualified 核验 → adviceEligible")
         expect(
@@ -227,7 +244,12 @@ struct HoloLifeUnderstandingRelationTests {
             now: Date(timeIntervalSince1970: 1_775_000_000)
         )
         guard case .discard = decisions.first?.action else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("unsupported + inferred 必须丢弃（实际 \(String(describing: decisions.first?.action))）")
+            return
+            #else
             fatalError("unsupported + inferred 必须丢弃（实际 \(String(describing: decisions.first?.action))）")
+            #endif
         }
     }
 

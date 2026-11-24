@@ -12,8 +12,12 @@ import Foundation
 @discardableResult
 private func expectReportReadable(_ condition: @autoclosure () -> Bool, _ message: String) -> Bool {
     if !condition() {
+        #if HOLO_XCTEST_BRIDGE
+        XCTFail(message)
+        #else
         FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
         exit(1)
+        #endif
     }
     return true
 }

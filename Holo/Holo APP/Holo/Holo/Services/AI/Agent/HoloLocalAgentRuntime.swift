@@ -1592,9 +1592,10 @@ actor HoloLocalAgentRuntime {
         now: Date
     ) -> HoloAgentMessage {
         let evidenceByMemoryID = Dictionary(
-            uniqueKeysWithValues: evidence.compactMap { record in
+            evidence.compactMap { record in
                 record.referencedByMemoryIDs.first.map { ($0, record.id) }
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         let lines = summary.entries.compactMap { entry -> String? in
             guard let evidenceID = evidenceByMemoryID[entry.id] else { return nil }
@@ -1720,7 +1721,7 @@ actor HoloLocalAgentRuntime {
         jobID: String,
         now: Date
     ) -> [HoloEvidenceRecord] {
-        let memoriesByID = Dictionary(uniqueKeysWithValues: memories.map { ($0.id, $0) })
+        let memoriesByID = Dictionary(memories.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return summary.entries.compactMap { entry in
             guard let memory = memoriesByID[entry.id] else { return nil }
             let evidenceID = "memory-context-\(jobID)-\(entry.id)"

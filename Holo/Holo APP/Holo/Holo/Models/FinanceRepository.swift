@@ -46,6 +46,20 @@ class FinanceRepository {
     /// 实例级（测试用 init(context:) 注入的独立实例互不影响）。
     private var isSetupComplete = false
 
+    /// 分类层级名称缓存（objectID → 一级/二级名称）。
+    /// 同一个分类会被成千上万笔流水反复解析（记忆信号、理解数据源、财务规律挖掘都按流水逐笔调用）；
+    /// 原先每次都按 parentId 查一次库——上万笔就是上万次主线程查询（2026-11-24 性能剖析实锤：
+    /// 启动后约 1.8 秒处接近 0.9 秒的主线程卡顿，主因在这里）。分类极少变动：
+    /// 上下文里任何分类的新增/修改/刷新/删除通知到来时清空，下次调用重建。
+    private var categoryNameCache: [NSManagedObjectID: (primary: String, sub: String?)] = [:]
+    private var categoryChangeObserver: NSObjectProtocol?
+
+    deinit {
+        if let categoryChangeObserver {
+            NotificationCenter.default.removeObserver(categoryChangeObserver)
+        }
+    }
+
     /// 延迟初始化：触发 Core Data → seed
     /// 在首次使用 FinanceRepository 时调用；重复调用无副作用
     func setup() {
@@ -520,21 +534,49 @@ class FinanceRepository {
         return try? context.fetch(request).first
     }
 
-    /// 解析分类层级名称（一级/二级）
+    /// 解析分类层级名称（一级/二级）。结果按分类缓存，分类有任何变更即失效（见 categoryNameCache）。
     func resolveCategoryNames(from category: Category) -> (primary: String, sub: String?) {
-        if let parentId = category.parentId,
-           let parent = findCategory(by: parentId) {
-            return (parent.name, category.name)
+        if categoryChangeObserver == nil {
+            observeCategoryChanges()
         }
-        return (category.name, nil)
+        if let cached = categoryNameCache[category.objectID] {
+            return cached
+        }
+        let names: (primary: String, sub: String?)
+        if let parentId = category.parentId, let parent = findCategory(by: parentId) {
+            names = (parent.name, category.name)
+        } else {
+            names = (category.name, nil)
+        }
+        categoryNameCache[category.objectID] = names
+        return names
     }
 
-    func getAllTransactions(asOf snapshotDate: Date = Date()) async throws -> [Transaction] {
+    private func observeCategoryChanges() {
+        categoryChangeObserver = NotificationCenter.default.addObserver(
+            forName: .NSManagedObjectContextObjectsDidChange,
+            object: context,
+            queue: .main
+        ) { [weak self] note in
+            let keys = [NSInsertedObjectsKey, NSUpdatedObjectsKey, NSRefreshedObjectsKey,
+                        NSDeletedObjectsKey, NSInvalidatedObjectsKey]
+            let touched = keys.flatMap { note.userInfo?[$0] as? Set<NSManagedObject> ?? [] }
+            guard touched.contains(where: { $0 is Category }) else { return }
+            MainActor.assumeIsolated { self?.categoryNameCache.removeAll() }
+        }
+    }
+
+    /// - Parameter startDate: 只取该时刻（含）之后发生的流水；不传 = 全部已发生流水
+    func getAllTransactions(asOf snapshotDate: Date = Date(), from startDate: Date? = nil) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        var predicates = [
             FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate),
             NSPredicate(format: "deletedAt == nil")
-        ])
+        ]
+        if let startDate {
+            predicates.append(NSPredicate(format: "date >= %@", startDate as NSDate))
+        }
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
