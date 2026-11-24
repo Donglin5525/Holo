@@ -82,7 +82,12 @@ struct HoloAgentJSONStoreTests {
             fatalError("损坏 JSON 应抛 decodeFailed，而非返回空数组")
         } catch let error as HoloAgentStoreError {
             guard case .decodeFailed = error else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("应抛 decodeFailed，实际 \(error)")
+                return
+                #else
                 fatalError("应抛 decodeFailed，实际 \(error)")
+                #endif
             }
         } catch {
             fatalError("应抛 HoloAgentStoreError，实际 \(error)")
@@ -107,7 +112,12 @@ struct HoloAgentJSONStoreTests {
         } catch let error as HoloAgentStoreError {
             // load 阶段即抛 decodeFailed/quarantined；两者都属于「拒绝执行 transform」
             guard case .decodeFailed = error else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("隔离后 mutate 应抛 decodeFailed/storeQuarantined，实际 \(error)")
+                return
+                #else
                 fatalError("隔离后 mutate 应抛 decodeFailed/storeQuarantined，实际 \(error)")
+                #endif
             }
         } catch {
             fatalError("应抛 HoloAgentStoreError，实际 \(error)")
@@ -117,7 +127,12 @@ struct HoloAgentJSONStoreTests {
             fatalError("隔离后 save 应抛 storeQuarantined")
         } catch let error as HoloAgentStoreError {
             guard case .storeQuarantined = error else {
+                #if HOLO_XCTEST_BRIDGE
+                XCTFail("隔离后 save 应抛 storeQuarantined，实际 \(error)")
+                return
+                #else
                 fatalError("隔离后 save 应抛 storeQuarantined，实际 \(error)")
+                #endif
             }
         } catch {
             fatalError("应抛 HoloAgentStoreError，实际 \(error)")
@@ -192,5 +207,14 @@ private struct HoloStandaloneLauncher {
     static func main() async throws {
         await HoloAgentJSONStoreTests.main()
     }
+}
+#endif
+
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件、只在测试工程编译时生效；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
 }
 #endif

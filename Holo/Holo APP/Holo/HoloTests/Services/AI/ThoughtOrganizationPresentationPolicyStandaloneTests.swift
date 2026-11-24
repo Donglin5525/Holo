@@ -144,7 +144,11 @@ struct ThoughtOrganizationPresentationPolicyStandaloneTests {
         } else {
             print("❌ 失败 \(failures.count)/\(total)：")
             failures.forEach { print("  - \($0)") }
+            #if HOLO_XCTEST_BRIDGE
+            failures.forEach { XCTFail($0) }
+            #else
             exit(1)
+            #endif
         }
     }
 

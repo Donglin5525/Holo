@@ -55,7 +55,11 @@ struct HoloLifeUnderstandingRedTests {
             print("HoloLifeUnderstandingRedTests：\(failures.count) 处断言未过——")
             for failure in failures { print("  - \(failure)") }
             print("（R0 预期红：以上为已冻结缺陷，R3 修复后本套件转绿）")
+            #if HOLO_XCTEST_BRIDGE
+            failures.forEach { XCTFail($0) }   // 测试工程里报成用例失败，不退出进程
+            #else
             exit(1)
+            #endif
         }
         print("HoloLifeUnderstandingRedTests：全部断言通过")
         print("（红测转绿：若 R3 尚未实施，说明断言失效，需人工核对检索层是否已被并行改动修复）")

@@ -10,8 +10,12 @@ import Foundation
 @discardableResult
 private func expectAnalysisReadableText(_ condition: @autoclosure () -> Bool, _ message: String) -> Bool {
     if !condition() {
+        #if HOLO_XCTEST_BRIDGE
+        XCTFail(message)
+        #else
         print("FAIL: \(message)")
         exit(1)
+        #endif
     }
     return true
 }

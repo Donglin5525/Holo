@@ -111,9 +111,23 @@ struct HoloCrossDomainToolTests {
     static func test非法字段和未授权组合会被拒绝() {
         let tool = HoloCrossDomainTool(dataSource: MockCrossDomainDataSource(values: [:]))
         let invalidField = request(HoloCrossDomainQueryPlan(leftSource: "task.daily", leftField: "title", rightSource: "habit.daily", rightField: "value", operation: .correlation))
-        guard case .invalid = tool.validate(invalidField) else { fatalError("未注册字段必须拒绝") }
+        guard case .invalid = tool.validate(invalidField) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("未注册字段必须拒绝")
+            return
+            #else
+            fatalError("未注册字段必须拒绝")
+            #endif
+        }
         let invalidPair = request(HoloCrossDomainQueryPlan(leftSource: "finance.transactions", leftField: "amount", rightSource: "task.daily", rightField: "value", operation: .correlation))
-        guard case .invalid = tool.validate(invalidPair) else { fatalError("未授权跨域组合必须拒绝") }
+        guard case .invalid = tool.validate(invalidPair) else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("未授权跨域组合必须拒绝")
+            return
+            #else
+            fatalError("未授权跨域组合必须拒绝")
+            #endif
+        }
     }
 
     static func test对齐天数不足返回明确空结果() async throws {
@@ -134,5 +148,14 @@ private struct HoloStandaloneLauncher {
     static func main() async throws {
         await try HoloCrossDomainToolTests.main()
     }
+}
+#endif
+
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件、只在测试工程编译时生效；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
 }
 #endif

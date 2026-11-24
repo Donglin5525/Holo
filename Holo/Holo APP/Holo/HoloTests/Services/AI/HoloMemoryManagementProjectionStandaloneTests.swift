@@ -10,6 +10,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -100,7 +107,12 @@ struct HoloMemoryManagementProjectionStandaloneTests {
         )
         expect(expired.bucket == .history, "validTo 已过应进过去桶（读取时立即判定，不等后台归档）")
         guard case .expired(let until)? = expired.historyCause else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ 过期原因应携带到期时间")
+            return
+            #else
             fatalError("❌ 过期原因应携带到期时间")
+            #endif
         }
         expect(until == now.addingTimeInterval(-86_400), "过期原因应携带 validTo")
 
@@ -281,7 +293,12 @@ struct HoloMemoryManagementProjectionStandaloneTests {
         )
         expect(bounded.timeGroup == .recent, "用户指定的更窄范围优先，bounded → 近期")
         guard case .bounded(let until) = bounded.effectiveRange else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("❌ bounded 适用范围应携带到期时间")
+            return
+            #else
             fatalError("❌ bounded 适用范围应携带到期时间")
+            #endif
         }
         expect(until == now.addingTimeInterval(30 * 86_400), "bounded 携带 validTo")
     }

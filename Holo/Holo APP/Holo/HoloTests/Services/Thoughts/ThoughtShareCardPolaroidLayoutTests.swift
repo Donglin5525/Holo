@@ -38,15 +38,15 @@ final class ThoughtShareCardPolaroidLayoutTests: XCTestCase {
         let bitmapL = try XCTUnwrap(Self.rgbaBitmap(imageL))
         XCTAssertEqual(bitmapP.pixels.count, bitmapL.pixels.count, "两张导出图尺寸应一致")
 
-        let photoTopL = try XCTUnwrap(Self.firstWhiteFrameRow(bitmap: bitmapL))
-        let photoTopP = try XCTUnwrap(Self.firstWhiteFrameRow(bitmap: bitmapP))
-        // 竖图白框一旦向上溢出，P 的相框上缘会早于 L 出现
+        let photoTopL = try XCTUnwrap(Self.firstPhotoRow(bitmap: bitmapL))
+        let photoTopP = try XCTUnwrap(Self.firstPhotoRow(bitmap: bitmapP))
+        // 竖图一旦向上溢出，P 的首张照片上缘会早于 L 出现
         XCTAssertGreaterThanOrEqual(
             photoTopP, photoTopL,
-            "竖图卡拍立得上缘不得高于横图卡（=竖图撑爆槽位向上溢出）"
+            "竖图卡首张照片上缘不得高于横图卡（=竖图撑爆槽位向上溢出）"
         )
 
-        // 正文区（首张相框上缘之上）必须逐位一致：照片不得画进文字
+        // 正文区（首张照片上缘之上）必须逐位一致：照片不得画进文字
         for row in 0..<photoTopL {
             let base = row * bitmapL.width * 4
             for byte in base..<(base + bitmapL.width * 4) {
@@ -117,16 +117,19 @@ final class ThoughtShareCardPolaroidLayoutTests: XCTestCase {
         return Bitmap(pixels: pixels, width: cg.width, height: cg.height)
     }
 
-    /// 首个「拍立得白框」行：一行内出现 ≥60 连续像素近乎纯白（纸底 b≈240，白框 ≥252，可区分）。
-    /// 相框带 ±2.2° 微旋转，上缘为斜边，取该行即可。
-    private static func firstWhiteFrameRow(bitmap: Bitmap) -> Int? {
+    /// 首个「照片」行：一行内出现 ≥60 连续的彩色像素（三通道极差 ≥60；纸底与正文是灰阶，不会命中）。
+    /// 原先按「拍立得白框 ≥252」找相框上缘（纸底 b≈240 可区分）——卡片改版后纸底与相框同为浅灰（约 248），
+    /// 白框判据再也命中不了，测试在对照组上就取不到值（2026-11-24 首次进自动测试时发现；实测竖图/横图导出逐字节相同）。
+    /// 改按照片本身的彩色定位上缘，不依赖相框配色。
+    private static func firstPhotoRow(bitmap: Bitmap) -> Int? {
         var run = 0
         for row in 0..<bitmap.height {
             run = 0
             for col in 0..<bitmap.width {
                 let i = (row * bitmap.width + col) * 4
-                let isWhite = bitmap.pixels[i] >= 252 && bitmap.pixels[i + 1] >= 252 && bitmap.pixels[i + 2] >= 252
-                run = isWhite ? run + 1 : 0
+                let channels = [Int(bitmap.pixels[i]), Int(bitmap.pixels[i + 1]), Int(bitmap.pixels[i + 2])]
+                let isPhoto = (channels.max() ?? 0) - (channels.min() ?? 0) >= 60
+                run = isPhoto ? run + 1 : 0
                 if run >= 60 { return row }
             }
         }

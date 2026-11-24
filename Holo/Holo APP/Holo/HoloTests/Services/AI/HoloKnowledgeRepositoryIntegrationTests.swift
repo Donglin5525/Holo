@@ -4,6 +4,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -212,7 +219,14 @@ struct HoloKnowledgeRepositoryIntegrationTests {
             action: .confirm, entry: "memoryCenter", issuedAt: day(30)
         )
         let outcome = try await service.apply(request)
-        guard case .applied(_, let undoable) = outcome else { fatalError("确认应生效: \(outcome)") }
+        guard case .applied(_, let undoable) = outcome else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("确认应生效: \(outcome)")
+            return
+            #else
+            fatalError("确认应生效: \(outcome)")
+            #endif
+        }
         expect(undoable == "confirm-1", "确认可撤销")
         let asyncCheck2 = try await service.apply(request) == .alreadyApplied
         expect(asyncCheck2, "同 operationID 重试 = 幂等成功")
@@ -245,7 +259,14 @@ struct HoloKnowledgeRepositoryIntegrationTests {
             expectedSemanticDigest: "sd-not-current", knownOperationIDs: [],
             action: .confirm, entry: "memoryCenter", issuedAt: day(1)
         ))
-        guard case .conflict(_, let reason) = stale, reason == "semanticChanged" else { fatalError("过期指纹应冲突: \(stale)") }
+        guard case .conflict(_, let reason) = stale, reason == "semanticChanged" else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("过期指纹应冲突: \(stale)")
+            return
+            #else
+            fatalError("过期指纹应冲突: \(stale)")
+            #endif
+        }
 
         let forget = try await service.apply(HoloKnowledgeControlRequest(
             operationID: "forget-1", propositionID: revision.propositionID,
@@ -265,7 +286,14 @@ struct HoloKnowledgeRepositoryIntegrationTests {
             expectedSemanticDigest: nil, knownOperationIDs: [],
             action: .restore, entry: "memoryCenter", issuedAt: day(4)
         ))
-        guard case .conflict(_, let r2) = blindRestore, r2 == "unseenRestriction" else { fatalError("未见限制的恢复应冲突: \(blindRestore)") }
+        guard case .conflict(_, let r2) = blindRestore, r2 == "unseenRestriction" else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("未见限制的恢复应冲突: \(blindRestore)")
+            return
+            #else
+            fatalError("未见限制的恢复应冲突: \(blindRestore)")
+            #endif
+        }
     }
 
     // MARK: M01–M04 / M09 迁移分流与幂等
@@ -363,7 +391,7 @@ struct HoloKnowledgeRepositoryIntegrationTests {
         budget.validFrom = t0
         _ = try await repository.upsert(budget, observationKey: "b")
         let snapshot = try await repository.knowledgeStoreSnapshot()
-        guard let revision = snapshot.revisions.first else { fatalError("有界来源关联事实应形成知识") }
+        guard let revision = snapshot.revisions.first else { Swift.fatalError("有界来源关联事实应形成知识") }
         let asyncCheck6 = try await repository.resolvedKnowledge(propositionID: revision.propositionID, now: day(1))?.decision == .remembered
         expect(asyncCheck6, "来源关联当前情境已记住")
         // 来源删除 → 相应证据退出

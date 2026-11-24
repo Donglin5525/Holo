@@ -216,3 +216,12 @@ private struct HoloStandaloneLauncher {
     }
 }
 #endif
+
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件、只在测试工程编译时生效；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+#endif

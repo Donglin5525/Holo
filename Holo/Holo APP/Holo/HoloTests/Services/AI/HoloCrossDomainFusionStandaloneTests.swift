@@ -3,6 +3,13 @@ import Foundation
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
+
+// 进测试工程后的断言出口：记为用例失败并继续，不再崩掉整个测试进程。
+// 只在本文件生效（外层 #if HOLO_XCTEST_BRIDGE 已保证仅测试工程编译）；独立脚本运行仍用标准库的 fatalError / precondition。
+private func fatalError(_ message: @autoclosure () -> String, file: StaticString = #filePath, line: UInt = #line) {
+    XCTFail(message(), file: file, line: line)
+}
+
 #else
 @main
 private struct HoloStandaloneLauncher {
@@ -165,7 +172,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let firstCrossDomainRecord) = firstCrossDomain else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("首次跨域结论应落为待确认记录")
+            return
+            #else
             fatalError("首次跨域结论应落为待确认记录")
+            #endif
         }
         expect(firstCrossDomainRecord.state == .candidate,
                "首次跨域结论确认前不得生效")
@@ -180,7 +192,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let record) = persisted else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("连续第二个周期成立后应允许持久化")
+            return
+            #else
             fatalError("连续第二个周期成立后应允许持久化")
+            #endif
         }
         expect(record.scope == .crossDomain, "持久化记录必须是 crossDomain")
         expect(record.sourceDomains == [.finance, .health], "持久化记录必须保留来源领域")
@@ -199,7 +216,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let sensitiveFirstRecord) = sensitiveFirst else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("模型标记 sensitiveLocal 的跨域结论应落盘为待确认记录")
+            return
+            #else
             fatalError("模型标记 sensitiveLocal 的跨域结论应落盘为待确认记录")
+            #endif
         }
         expect(sensitiveFirstRecord.sensitivity == .sensitive,
                "模型标记 sensitiveLocal 的跨域记忆必须落为敏感")
@@ -213,7 +235,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let sensitiveRepeatRecord) = sensitiveRepeat else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("重复出现的敏感跨域结论仍应落盘")
+            return
+            #else
             fatalError("重复出现的敏感跨域结论仍应落盘")
+            #endif
         }
         expect(sensitiveRepeatRecord.state == .candidate &&
                sensitiveRepeatRecord.adoptionMetadata?.reason == .sensitiveMemory,
@@ -227,7 +254,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let confirmedRecord) = confirmed else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("用户确认后应允许持久化")
+            return
+            #else
             fatalError("用户确认后应允许持久化")
+            #endif
         }
         expect(confirmedRecord.state == .active && confirmedRecord.userDecision == .confirmed,
                "用户确认的敏感跨域结论应立即生效")
@@ -255,7 +287,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let firstNormalRecord) = firstNormal else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("首次普通跨域结论应进入待确认")
+            return
+            #else
             fatalError("首次普通跨域结论应进入待确认")
+            #endif
         }
         expect(firstNormalRecord.state == .candidate &&
                firstNormalRecord.adoptionMetadata?.reason == .firstCrossDomainInference,
@@ -268,7 +305,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist(let repeatedNormalRecord) = repeatedNormal else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("重复支持的普通跨域结论应落盘")
+            return
+            #else
             fatalError("重复支持的普通跨域结论应落盘")
+            #endif
         }
         expect(repeatedNormalRecord.state == .active &&
                repeatedNormalRecord.adoptionMetadata?.reason == .repeatedCrossDomainInference,
@@ -315,7 +357,12 @@ struct HoloCrossDomainFusionStandaloneTests {
             now: now
         )
         guard case .persist = decodedDecisions.first else {
+            #if HOLO_XCTEST_BRIDGE
+            XCTFail("服务端 envelope 应能匹配本地候选并通过统一 Validator")
+            return
+            #else
             fatalError("服务端 envelope 应能匹配本地候选并通过统一 Validator")
+            #endif
         }
         expect(
             HoloCrossDomainFusionService.evaluate(
