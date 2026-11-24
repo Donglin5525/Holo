@@ -19,6 +19,41 @@ struct MonthlySummaryCard: View {
     /// 今日金额（nil 时不显示右列）
     var todayAmount: Decimal? = nil
 
+    // MARK: 数字逐位落定（2026-11-23 审美七项 P3）
+
+    /// 本月合计的衬线主角数字字号（令牌口径：holoHeroNumber 只用于 ≥28pt）
+    private static let heroNumberSize: CGFloat = 28
+    /// 落定标记的有效窗口（手动记账后金额刷新通常在 1 秒内到达）
+    private static let settleWindow: Duration = .seconds(5)
+    @State private var settleWindowTask: Task<Void, Never>?
+
+    /// 渲染用金额：只有手动记账后的那一次变化走落定动画，切月/同步直接换值
+    @State private var displayedAmount: Decimal?
+    @State private var displayedTodayAmount: Decimal?
+    /// 收到手动记账通知后为 true，被随后那次金额变化消耗（月份/今日各一份，避免互相抢先清掉）
+    @State private var settlesAmountChange = false
+    @State private var settlesTodayChange = false
+    /// 落定被记账弹层挡住：金额已在弹层下更新、等回到账本可见再播（同 HoloRecordArrival 的等待口径）
+    @State private var deferredAmountSettle = false
+    @State private var deferredTodaySettle = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.holoMotionSurfaceIsActive) private var surfaceActive
+    @AppStorage(HoloMotionRollout.recordKey) private var recordMotionEnabled = true
+
+    /// 是否允许播放落定（记账反馈开关 + 减弱动态效果）
+    private var allowsSettle: Bool {
+        recordMotionEnabled && !reduceMotion
+    }
+
+    private var effectiveAmount: Decimal {
+        displayedAmount ?? amount
+    }
+
+    private var effectiveTodayAmount: Decimal? {
+        displayedTodayAmount ?? todayAmount
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             // Row 1: 标题行 — 左侧图标+标题 | 右侧"今日"
@@ -41,22 +76,25 @@ struct MonthlySummaryCard: View {
                 }
             }
 
-            // Row 2: 金额行 — 本月金额(左，主) | 今日金额(右，次级小字)
+            // Row 2: 金额行 — 本月金额(左，衬线主角数字) | 今日金额(右，次级小字)
             HStack(alignment: .firstTextBaseline) {
-                Text(formatAmount(amount))
-                    .holoText(.sectionTitle)
+                Text(formatAmount(effectiveAmount))
+                    .font(.holoHeroNumber(size: Self.heroNumberSize))
                     .monospacedDigit()
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText(value: Double(truncating: effectiveAmount as NSDecimalNumber)))
 
                 Spacer(minLength: 0)
 
-                if let today = todayAmount {
+                if let today = effectiveTodayAmount {
                     Text(formatAmount(today))
                         .holoText(.supporting)
                         .monospacedDigit()
                         .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
+                        .contentTransition(.numericText(value: Double(truncating: today as NSDecimalNumber)))
                 }
             }
 
@@ -74,6 +112,69 @@ struct MonthlySummaryCard: View {
         // 月度卡片位于账本页的白色大面板内，必须是带底色的嵌套卡；
         // holoSurface 体系(independent/floating 均白底)在白面板上会隐形
         .holoNestedCard()
+        .onAppear {
+            displayedAmount = amount
+            displayedTodayAmount = todayAmount
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoManualFinanceRecordSaved)) { _ in
+            // 只有手动记账成功才发这条通知；切月/同步刷新不会发
+            guard allowsSettle else { return }
+            settlesAmountChange = true
+            settlesTodayChange = true
+            // 标记只在这段窗口内有效：记的是别的月份等情况金额不会变，到期作废，
+            // 免得之后再切月时误播一次落定
+            settleWindowTask?.cancel()
+            settleWindowTask = Task { @MainActor in
+                try? await Task.sleep(for: Self.settleWindow)
+                settlesAmountChange = false
+                settlesTodayChange = false
+            }
+        }
+        .onChange(of: amount) { _, newValue in
+            let settles = settlesAmountChange
+            settlesAmountChange = false
+            if settles, surfaceActive {
+                withAnimation(HoloAnimation.recordSettle) { displayedAmount = newValue }
+            } else if settles {
+                // 记账弹层还盖着：保持旧值，回到账本可见后再落定
+                deferredAmountSettle = true
+            } else {
+                deferredAmountSettle = false
+                displayedAmount = newValue
+            }
+        }
+        .onChange(of: todayAmount) { _, newValue in
+            let settles = settlesTodayChange
+            settlesTodayChange = false
+            if settles, surfaceActive {
+                withAnimation(HoloAnimation.recordSettle) { displayedTodayAmount = newValue }
+            } else if settles {
+                deferredTodaySettle = true
+            } else {
+                deferredTodaySettle = false
+                displayedTodayAmount = newValue
+            }
+        }
+        .onChange(of: surfaceActive) { _, active in
+            guard active, deferredAmountSettle || deferredTodaySettle else { return }
+            // 等弹层真正退出后再播，避免数字在遮罩下滑过（同 HoloRecordArrival 的等待口径）
+            Task { @MainActor in
+                do { try await Task.sleep(for: .seconds(HoloScreenTransitionMetrics.duration)) } catch { return }
+                playDeferredSettles()
+            }
+        }
+    }
+
+    /// 弹层退出后补播被挡住的落定
+    private func playDeferredSettles() {
+        if deferredAmountSettle {
+            deferredAmountSettle = false
+            withAnimation(HoloAnimation.recordSettle) { displayedAmount = amount }
+        }
+        if deferredTodaySettle {
+            deferredTodaySettle = false
+            withAnimation(HoloAnimation.recordSettle) { displayedTodayAmount = todayAmount }
+        }
     }
 
     // MARK: - Helper
