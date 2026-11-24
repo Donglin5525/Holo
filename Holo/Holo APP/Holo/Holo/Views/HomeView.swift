@@ -186,9 +186,18 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            // 背景色：随一天的时间走（仅浅色模式生效，深色模式与正午仍是原底色；见 HoloDaylightPaperBackground）
+            // 根底色：原底色。常驻模块页与 iPad 的设置 / 个人页都盖在这层 ZStack 上、自己不带整页底色，
+            // 透出来的就是这里——所以它必须保持原色。
+            Color.holoBackground
+                .ignoresSafeArea()
+
+            // 随一天的时间走的纸色：只在首页自己露面时铺，盖上来时与转场同步淡回原底色
+            //（否则会透给所有盖在上面的页面）。仅浅色模式生效，深色模式与正午仍是原底色；
+            // 见 HoloDaylightPaperBackground。
             HoloDaylightPaperBackground()
                 .ignoresSafeArea()
+                .opacity(homePageIsOnTop ? 1 : 0)
+                .animation(.holoScreenTransition, value: homePageIsOnTop)
 
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
@@ -1065,6 +1074,12 @@ struct HomeView: View {
 
     private var homeMotionIsVisible: Bool {
         activeScreen == nil && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage
+    }
+
+    /// 首页自己是否正露在这层 ZStack 的最上面：没有常驻模块、也没有 iPad 侧栏的设置 / 个人页盖着。
+    /// iPhone 上设置 / 个人 / 今日看板走系统 sheet 与全屏覆盖，首页仍在它们后面，不算盖住。
+    private var homePageIsOnTop: Bool {
+        activeScreen == nil && !showSettingsPage && !showPersonalPage
     }
     private var backgroundDecorations: some View {
         TimelineView(.animation(minimumInterval: 0.1, paused: !backgroundMotionActive)) { timeline in
