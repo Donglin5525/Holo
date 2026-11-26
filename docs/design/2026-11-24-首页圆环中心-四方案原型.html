@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo 首页圆环中心 · 四方案交互原型 · 2026-11-24</title>
+<style>
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf");font-weight:400}
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf");font-weight:700}
+
+:root{
+  --paper:#F6F2E9;
+  --paper-card:#FDFCF8;
+  --ink:#2F2B26;
+  --ink-deep:#1C1916;
+  --ink-mid:#6E685F;
+  --ink-soft:#9E978D;
+  --rule:rgba(47,43,38,.14);
+  --rule-strong:rgba(47,43,38,.34);
+  --vermilion:#F46D38;
+  --vermilion-deep:#C84B20;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+  background:#E6E2DA;
+  color:var(--ink-deep);
+  line-height:1.55;
+  padding:36px 24px 100px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1460px;margin:0 auto}
+
+/* 顶部标题与交互控制栏 */
+.top-bar{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;
+  padding-bottom:20px;border-bottom:1.5px solid var(--ink-deep);
+}
+.kicker-top{font-family:"SF Mono","Menlo",monospace;font-size:11px;letter-spacing:2.4px;color:var(--ink-mid);margin-bottom:6px}
+h1{font-family:"HoloSerif","Songti SC",serif;font-size:28px;font-weight:700;letter-spacing:.6px}
+.sub{font-size:13.5px;color:#57524A;margin-top:6px;max-width:720px}
+
+.controls{
+  display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  margin-top:18px;padding:12px 16px;
+  background:rgba(253,252,248,.82);border:.5px solid var(--rule);border-radius:12px;
+}
+.ctrl-group{display:flex;align-items:center;gap:8px}
+.ctrl-label{font-size:12px;color:var(--ink-mid);font-weight:600}
+.seg{display:inline-flex;background:rgba(47,43,38,.08);padding:3px;border-radius:8px;gap:2px}
+.seg button{
+  border:none;background:transparent;padding:5px 11px;border-radius:6px;
+  font-size:12px;color:var(--ink-mid);cursor:pointer;font-weight:500;transition:.15s;
+}
+.seg button.active{background:#FDFCF8;color:var(--ink-deep);box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.ctrl-sep{width:1px;height:20px;background:var(--rule)}
+.time-slider{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-mid)}
+.time-slider input{width:110px;accent-color:var(--vermilion)}
+
+/* 四列手机陈列 */
+.grid{
+  display:grid;grid-template-columns:repeat(4,324px);gap:24px;
+  margin-top:26px;overflow-x:auto;padding-bottom:12px;
+}
+.col-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.col-h b{font-size:14.5px;font-weight:700}
+.col-h .badge{font-family:"SF Mono","Menlo",monospace;font-size:10.5px;color:var(--ink-mid)}
+.col-h .badge.rec{color:var(--vermilion-deep);font-weight:600}
+.cap{font-size:12.5px;color:#57524A;margin-top:12px;line-height:1.6}
+.cap b{color:var(--ink-deep)}
+
+/* 手机壳 */
+.phone{
+  width:324px;height:690px;border-radius:46px;border:9px solid #161513;
+  position:relative;overflow:hidden;
+  background:var(--paper);color:var(--ink);
+  box-shadow:0 20px 44px rgba(24,20,14,.16);
+  transition:background .25s,color .25s;
+}
+.phone::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:20;opacity:.30;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .42 0 0 0 0 .36 0 0 0 0 .28 0 0 0 .16 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+body.dark-mode .phone{
+  background:#141311;color:#ECE7DD;border-color:#0A0908;
+}
+body.dark-mode .phone::before{opacity:.13;mix-blend-mode:screen}
+
+.sb{height:40px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font-size:11.5px;font-weight:600}
+.scr{position:absolute;inset:40px 0 0 0}
+
+.serif{font-family:"HoloSerif","Songti SC","Georgia",serif}
+.hero-num{font-family:"Iowan Old Style","Baskerville","Georgia",serif;font-variant-numeric:tabular-nums}
+.mono{font-family:"SF Mono","Menlo",monospace;font-variant-numeric:tabular-nums}
+
+/* 顶部问候 + 日程 */
+.h-top{padding:8px 22px 0;display:flex;justify-content:space-between;align-items:flex-start}
+.h-date{font-size:10px;letter-spacing:2px;color:var(--ink-soft);margin-bottom:3px}
+body.dark-mode .h-date{color:#8E887D}
+.h-greet{font-size:23px;font-weight:700;letter-spacing:.6px}
+.avatar{
+  width:30px;height:30px;border-radius:50%;border:1px solid var(--rule-strong);
+  display:flex;align-items:center;justify-content:center;font-size:11.5px;color:var(--ink-mid);
+}
+body.dark-mode .avatar{border-color:rgba(236,231,221,.24);color:#9B9488}
+
+.sched{
+  margin:12px 22px 0;padding:9px 0;border-top:.5px solid var(--rule);border-bottom:.5px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:center;font-size:12px;
+}
+body.dark-mode .sched{border-color:rgba(236,231,221,.13)}
+.sched .dot{width:5px;height:5px;border-radius:50%;background:var(--vermilion);display:inline-block;margin-right:7px;vertical-align:middle}
+body.dark-mode .sched .dot{background:#F08A5B}
+.sched .eta{font-size:10.5px;color:var(--ink-soft)}
+body.dark-mode .sched .eta{color:#8E887D}
+
+/* 中央五角舞台 */
+.stage{position:relative;width:306px;height:376px;margin:10px auto 0}
+.ring-box{position:absolute;left:153px;top:172px;transform:translate(-50%,-50%);text-align:center}
+/* 摘要安静落在圆环下方（延续 09-14 拍板位置，不压进圆内） */
+.ring-caption{
+  position:absolute;left:50%;top:272px;transform:translateX(-50%);
+  text-align:center;white-space:nowrap;
+}
+.ring-caption .t{font-size:11.5px;letter-spacing:1.4px;color:var(--ink-mid);font-weight:500}
+.ring-caption .s{font-size:10px;color:var(--ink-soft);margin-top:2px;letter-spacing:.6px}
+body.dark-mode .ring-caption .t{color:#B8B1A5}
+body.dark-mode .ring-caption .s{color:#7C766C}
+
+/* 5 个模块入口 */
+.node{position:absolute;transform:translate(-50%,-50%);text-align:center}
+.n1{left:153px;top:30px}
+.n2{left:268px;top:124px}
+.n3{left:238px;top:308px}
+.n4{left:68px;top:308px}
+.n5{left:38px;top:124px}
+
+.n-ic{width:32px;height:32px;margin:0 auto 3px;display:flex;align-items:center;justify-content:center}
+.n-ic svg{stroke:#2F2B26}
+body.dark-mode .n-ic svg{stroke:#ECE7DD}
+.n-title{font-size:11.5px;letter-spacing:1px;font-weight:500}
+.n-num{font-size:9px;letter-spacing:1.2px;color:var(--ink-soft);display:block;margin-bottom:1px}
+body.dark-mode .n-num{color:#8E887D}
+.n-bar{width:12px;height:1.5px;background:currentColor;opacity:.22;margin:3px auto 0}
+
+/* 切换入口样式：line vs index */
+body.entry-line .only-index{display:none}
+body.entry-index .only-line{display:none}
+
+/* 底部极简刊脚导航 */
+.nav{
+  position:absolute;left:22px;right:22px;bottom:20px;
+  border-top:.5px solid var(--rule-strong);padding-top:13px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+body.dark-mode .nav{border-top-color:rgba(236,231,221,.22)}
+.nav .tab{font-size:12px;letter-spacing:1.8px;color:var(--ink-mid);width:74px}
+.nav .tab.r{text-align:right}
+body.dark-mode .nav .tab{color:#9B9488}
+.nav-btn{
+  width:38px;height:38px;border-radius:50%;background:var(--ink-deep);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 12px rgba(28,25,22,.16);
+}
+body.dark-mode .nav-btn{background:#ECE7DD}
+
+/* SVG 主题变量 */
+svg .ink-stroke{stroke:#2F2B26}
+svg .ink-fill{fill:#2F2B26}
+svg .ink-soft-stroke{stroke:rgba(47,43,38,0.14)}
+svg .ink-faint-stroke{stroke:rgba(47,43,38,0.09)}
+svg .paper-fill{fill:#FDFCF8}
+svg .verm-stroke{stroke:#F46D38}
+svg .verm-fill{fill:#F46D38}
+svg .text-main{fill:#1C1916}
+svg .text-soft{fill:#8E887D}
+
+body.dark-mode svg .ink-stroke{stroke:#ECE7DD}
+body.dark-mode svg .ink-fill{fill:#ECE7DD}
+body.dark-mode svg .ink-soft-stroke{stroke:rgba(236,231,221,0.15)}
+body.dark-mode svg .ink-faint-stroke{stroke:rgba(236,231,221,0.09)}
+body.dark-mode svg .paper-fill{fill:#1C1A17}
+body.dark-mode svg .verm-stroke{stroke:#F08A5B}
+body.dark-mode svg .verm-fill{fill:#F08A5B}
+body.dark-mode svg .text-main{fill:#ECE7DD}
+body.dark-mode svg .text-soft{fill:#9B9488}
+</style>
+</head>
+<body class="entry-line">
+<div class="wrap">
+
+  <div class="top-bar">
+    <div>
+      <div class="kicker-top">HOLO HOME CENTERPIECE · 4 NON-BLOATED OPTIONS · 2026-11-24</div>
+      <h1>首页圆环中央怎么画才不臃肿？四套实景对比</h1>
+      <p class="sub">核心改变：<b>把多行文字全部请出圆环</b>（摘要安静回到圆环正下方，延续你 09-14 拍板的位置）。圆环内部只保留「单符号」或「纯图形」，你可以用下面工具栏自由组合浅/暗色、数据密度与入口风格。</p>
+    </div>
+  </div>
+
+  <!-- 实时交互控制栏 -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">明暗</span>
+      <div class="seg" id="themeSeg">
+        <button class="active" onclick="setTheme('light',this)">浅色纸本</button>
+        <button onclick="setTheme('dark',this)">暖炭暗夜</button>
+      </div>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">数据态</span>
+      <div class="seg" id="densitySeg">
+        <button class="active" onclick="setDensity('normal',this)">常规（5/9）</button>
+        <button onclick="setDensity('sparse',this)">稀疏（1/2）</button>
+        <button onclick="setDensity('empty',this)">空白（0 件事）</button>
+      </div>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">五入口</span>
+      <div class="seg" id="entrySeg">
+        <button class="active" onclick="setEntry('line',this)">纸本线描</button>
+        <button onclick="setEntry('index',this)">器物编号</button>
+      </div>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="time-slider">
+      <span class="ctrl-label">拖动时刻</span>
+      <input type="range" min="6" max="23" step="0.5" value="14.5" oninput="setHour(this.value)">
+      <span class="mono" id="hourLabel">14:30</span>
+    </div>
+  </div>
+
+  <!-- 四台手机横向对比 -->
+  <div class="grid" id="phonesGrid"></div>
+
+</div>
+
+<script>
+const OPTIONS = [
+  {
+    id: 'date',
+    title: '① 单一大字日期',
+    badge: '最稳妥 · 零学习成本',
+    rec: true,
+    desc: '<b>圆内只留一个 48pt 衬线日号「24」</b>，像翻开的实体台历或机械表日历窗。每天打开数字都会变；外圈两道细弧表达任务与习惯，圆下小字承接「今天 · 摘要」。'
+  },
+  {
+    id: 'sundial',
+    title: '② 日晷时间针（纯留白）',
+    badge: '最纯粹 · 零文字',
+    rec: true,
+    desc: '<b>圆内一个字都没有</b>，只有一枚随当下时刻缓缓转动的极细时间指针 + 中心朱砂原点（试试拖动上方「时刻」滑块）。像一枚安静的天文仪，怎么看都不腻。'
+  },
+  {
+    id: 'dots',
+    title: '③ 今日印记点阵',
+    badge: '无字承接真实数据',
+    rec: false,
+    desc: '<b>把今天的任务和习惯变成一圈/一簇极小的墨点</b>：完成即落墨，刚刚完成点亮一颗朱砂，未完成是极淡空心圆。切到「稀疏」或「空白」态依然极简体面。'
+  },
+  {
+    id: 'phase',
+    title: '④ 盈亏月相切面',
+    badge: '诗意 · 情绪价值',
+    rec: false,
+    desc: '<b>把今日完成度转译成一枚几何明暗切面</b>：清晨是一弯细月，随着任务与习惯推进逐渐盈满。完全用光影说话，尤其在「暖炭暗夜」下极具氛围感。'
+  }
+];
+
+const NODES_HTML = `
+  <div class="node n1">
+    <div class="only-line"><div class="n-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.35"><path d="M5 7h14M5 12h10M5 17h7"/><circle cx="18" cy="16.5" r="2.2"/></svg></div><div class="n-title serif">任务</div></div>
+    <div class="only-index"><span class="n-num mono">01</span><div class="n-title">任务</div><div class="n-bar"></div></div>
+  </div>
+  <div class="node n2">
+    <div class="only-line"><div class="n-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.35"><rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M4 10h16M15.5 14h2"/></svg></div><div class="n-title serif">财务</div></div>
+    <div class="only-index"><span class="n-num mono">02</span><div class="n-title">财务</div><div class="n-bar"></div></div>
+  </div>
+  <div class="node n3">
+    <div class="only-line"><div class="n-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.35"><path d="M3 13h4l2.2-5 3.6 9 2.2-4H21"/></svg></div><div class="n-title serif">健康</div></div>
+    <div class="only-index"><span class="n-num mono">03</span><div class="n-title">健康</div><div class="n-bar"></div></div>
+  </div>
+  <div class="node n4">
+    <div class="only-line"><div class="n-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.35"><path d="M7 4h10v16l-5-3.2L7 20V4z"/></svg></div><div class="n-title serif">想法</div></div>
+    <div class="only-index"><span class="n-num mono">04</span><div class="n-title">想法</div><div class="n-bar"></div></div>
+  </div>
+  <div class="node n5">
+    <div class="only-line"><div class="n-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="1.35"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2" class="ink-fill"/></svg></div><div class="n-title serif">习惯</div></div>
+    <div class="only-index"><span class="n-num mono">05</span><div class="n-title">习惯</div><div class="n-bar"></div></div>
+  </div>
+`;
+
+let state = { density: 'normal', hour: 14.5 };
+
+function arcPath(cx, cy, r, pct){
+  if(pct <= 0.001) return '';
+  if(pct >= 0.999) pct = 0.999;
+  const start = -Math.PI / 2;
+  const end = start + pct * Math.PI * 2;
+  const x1 = cx + r * Math.cos(start), y1 = cy + r * Math.sin(start);
+  const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+  const large = pct > 0.5 ? 1 : 0;
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+function getData(){
+  if(state.density === 'normal') return { taskPct: 0.60, habitPct: 0.50, overall: 0.56, totalDots: 9, doneDots: 5, cap: '今天 · 任务 3/5 · 习惯 2/4' };
+  if(state.density === 'sparse') return { taskPct: 0.50, habitPct: 0.50, overall: 0.50, totalDots: 2, doneDots: 1, cap: '今天 · 任务 1/1 · 习惯 0/1' };
+  return { taskPct: 0, habitPct: 0, overall: 0, totalDots: 0, doneDots: 0, cap: '今天 · 尚未安排' };
+}
+
+function renderCenterSVG(id){
+  const d = getData();
+  const outerRings = `
+    <circle cx="96" cy="96" r="88" fill="none" class="ink-soft-stroke" stroke-width="0.7" stroke-dasharray="1.5 5.5"/>
+    <circle cx="96" cy="96" r="70" fill="none" class="ink-faint-stroke" stroke-width="1"/>
+    ${d.taskPct > 0 ? `<path d="${arcPath(96,96,70,d.taskPct)}" fill="none" class="ink-stroke" stroke-width="1.4" stroke-linecap="round"/>` : ''}
+    <circle cx="96" cy="96" r="56" fill="none" class="ink-faint-stroke" stroke-width="0.9"/>
+    ${d.habitPct > 0 ? `<path d="${arcPath(96,96,56,d.habitPct)}" fill="none" class="verm-stroke" stroke-width="1.9" stroke-linecap="round"/>` : ''}
+  `;
+
+  if(id === 'date'){
+    return `<svg width="192" height="192" viewBox="0 0 192 192">
+      ${outerRings}
+      <circle cx="96" cy="96" r="42" class="paper-fill ink-soft-stroke" stroke-width="0.7"/>
+      <text x="96" y="112" text-anchor="middle" font-family="Iowan Old Style, Baskerville, Georgia, serif" font-size="44" font-weight="600" class="text-main" letter-spacing="-1">24</text>
+    </svg>`;
+  }
+
+  if(id === 'sundial'){
+    // 06:00 -> -110deg, 14:30 -> +18deg, 23:00 -> +145deg
+    const deg = ((state.hour - 12) / 12) * 150;
+    const rad = (deg - 90) * Math.PI / 180;
+    const x2 = 96 + 32 * Math.cos(rad);
+    const y2 = 96 + 32 * Math.sin(rad);
+    const ticks = [0, 90, 180, 270].map(a => {
+      const r1 = 37, r2 = 41, rr = a * Math.PI / 180;
+      return `<line x1="${(96+r1*Math.cos(rr)).toFixed(1)}" y1="${(96+r1*Math.sin(rr)).toFixed(1)}" x2="${(96+r2*Math.cos(rr)).toFixed(1)}" y2="${(96+r2*Math.sin(rr)).toFixed(1)}" class="ink-soft-stroke" stroke-width="1"/>`;
+    }).join('');
+    return `<svg width="192" height="192" viewBox="0 0 192 192">
+      ${outerRings}
+      <circle cx="96" cy="96" r="42" class="paper-fill ink-soft-stroke" stroke-width="0.7"/>
+      ${ticks}
+      <line x1="96" y1="96" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="ink-stroke" stroke-width="1.35" stroke-linecap="round"/>
+      <circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="2" class="verm-fill"/>
+      <circle cx="96" cy="96" r="3" class="ink-fill"/>
+    </svg>`;
+  }
+
+  if(id === 'dots'){
+    let inner = '';
+    if(d.totalDots === 0){
+      inner = `<circle cx="96" cy="96" r="3" class="verm-fill" opacity="0.85"/>`;
+    } else if(d.totalDots <= 3){
+      const gap = 14;
+      const startX = 96 - ((d.totalDots - 1) * gap) / 2;
+      for(let i=0;i<d.totalDots;i++){
+        const cx = startX + i * gap;
+        if(i < d.doneDots){
+          inner += `<circle cx="${cx}" cy="96" r="4" class="${i === d.doneDots - 1 ? 'verm-fill' : 'ink-fill'}"/>`;
+        } else {
+          inner += `<circle cx="${cx}" cy="96" r="3.6" fill="none" class="ink-soft-stroke" stroke-width="1.2"/>`;
+        }
+      }
+    } else {
+      // 3x3 居中印记矩阵
+      const cols = 3, gap = 14;
+      for(let i=0;i<d.totalDots;i++){
+        const r = Math.floor(i / cols), c = i % cols;
+        const cx = 96 + (c - 1) * gap;
+        const cy = 96 + (r - 1) * gap;
+        if(i < d.doneDots){
+          inner += `<circle cx="${cx}" cy="${cy}" r="3.6" class="${i === d.doneDots - 1 ? 'verm-fill' : 'ink-fill'}"/>`;
+        } else {
+          inner += `<circle cx="${cx}" cy="${cy}" r="3.2" fill="none" class="ink-soft-stroke" stroke-width="1.1"/>`;
+        }
+      }
+    }
+    return `<svg width="192" height="192" viewBox="0 0 192 192">
+      ${outerRings}
+      <circle cx="96" cy="96" r="42" class="paper-fill ink-soft-stroke" stroke-width="0.7"/>
+      ${inner}
+    </svg>`;
+  }
+
+  if(id === 'phase'){
+    // 盈亏月相：根据 overall (0 ~ 1) 控制阴影偏移
+    const pct = d.overall;
+    const maskId = 'moonMask_' + state.density;
+    // pct=0 -> 极细新月, pct=0.5 -> 半月, pct=1 -> 满月
+    const shadowShift = 6 + pct * 36;
+    return `<svg width="192" height="192" viewBox="0 0 192 192">
+      <defs>
+        <mask id="${maskId}">
+          <rect width="192" height="192" fill="black"/>
+          <circle cx="96" cy="96" r="24" fill="white"/>
+          <circle cx="${(96 - shadowShift).toFixed(1)}" cy="96" r="23" fill="black"/>
+        </mask>
+      </defs>
+      ${outerRings}
+      <circle cx="96" cy="96" r="42" class="paper-fill ink-soft-stroke" stroke-width="0.7"/>
+      <circle cx="96" cy="96" r="24" fill="none" class="ink-soft-stroke" stroke-width="0.8"/>
+      <circle cx="96" cy="96" r="24" class="ink-fill" mask="url(#${maskId})" opacity="0.88"/>
+      <circle cx="96" cy="64" r="2.2" class="verm-fill"/>
+    </svg>`;
+  }
+}
+
+function renderAll(){
+  const d = getData();
+  const h = Math.floor(state.hour);
+  const m = state.hour % 1 ? '30' : '00';
+  const greet = h < 11 ? '早安，东林' : h < 18 ? '午安，东林' : '晚安，东林';
+  const grid = document.getElementById('phonesGrid');
+  grid.innerHTML = OPTIONS.map(opt => `
+    <div>
+      <div class="col-h">
+        <b>${opt.title}</b>
+        <span class="badge ${opt.rec ? 'rec' : ''}">${opt.badge}</span>
+      </div>
+      <div class="phone">
+        <div class="sb"><span>${String(h).padStart(2,'0')}:${m}</span><span>5G · 86%</span></div>
+        <div class="scr">
+          <div class="h-top">
+            <div>
+              <div class="h-date mono">2026 · 11 · 24 · TUE</div>
+              <div class="h-greet serif">${greet}</div>
+            </div>
+            <div class="avatar serif">东</div>
+          </div>
+
+          <div class="sched">
+            <div><span class="dot"></span><span class="serif">14:30</span> 产品审美评审</div>
+            <span class="eta mono">2h 后</span>
+          </div>
+
+          <div class="stage">
+            <div class="ring-box">${renderCenterSVG(opt.id)}</div>
+            <div class="ring-caption">
+              <div class="t serif">今天</div>
+              <div class="s mono">${d.cap.replace('今天 · ','')}</div>
+            </div>
+            ${NODES_HTML}
+          </div>
+
+          <div class="nav">
+            <div class="tab serif">个人</div>
+            <div class="nav-btn">
+              <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="6.2" stroke="${document.body.classList.contains('dark-mode') ? '#141311' : '#FDFCF8'}" stroke-width="1.25"/>
+                <circle cx="9" cy="9" r="2.3" fill="${document.body.classList.contains('dark-mode') ? '#F08A5B' : '#F46D38'}"/>
+              </svg>
+            </div>
+            <div class="tab r serif">记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap">${opt.desc}</div>
+    </div>
+  `).join('');
+}
+
+function setTheme(mode, btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.body.classList.toggle('dark-mode', mode === 'dark');
+  renderAll();
+}
+function setDensity(mode, btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.density = mode;
+  renderAll();
+}
+function setEntry(mode, btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.body.classList.remove('entry-line','entry-index');
+  document.body.classList.add('entry-' + mode);
+}
+function setHour(val){
+  state.hour = parseFloat(val);
+  const h = Math.floor(state.hour);
+  const m = state.hour % 1 ? '30' : '00';
+  document.getElementById('hourLabel').textContent = `${String(h).padStart(2,'0')}:${m}`;
+  renderAll();
+}
+
+renderAll();
+</script>
+</body>
+</html>

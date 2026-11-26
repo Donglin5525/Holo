@@ -83,8 +83,9 @@ outputs/finance-import-validation/*.inspect.ndjson
 .zcode-derived/
 /build/
 
-# 记忆插件自动注入的工作区说明，机器管理不入库
+# 记忆插件自动注入的工作区说明与本地宿主规则，机器管理不入库
 /AGENTS.md
+/GEMINI.md
 
 # 目标共创评测产物（2026-09-17 方案任务 7：生成物不入库）
 outputs/goal-workshop-eval*/
@@ -121,3 +122,6 @@ outputs/sleep-detail-review-20261021/
 
 # 并行会话的一次性构建产物目录（2026-11-05）
 build-116-ctrl/
+
+# 想法主题归类评测的私有数据（真实想法正文 / 金标标注 / 含正文的评测结果，2026-11-24）
+docs/thoughts/plans/2026-11-24-想法主题归类准确性闭环/eval/private/

@@ -40,6 +40,8 @@
 - 给设备装包前记录构建产物路径与时间戳；排查东林手机上的问题时**先核对包身份**（.ips 里的构建号 + 构建产物 UUID 匹配），防多会话 / 旧目录装错包（有前科）。
 - **给东林的验收包必须从干净检出组装**（git worktree 干净检出 HEAD + 只放本次改动文件，方法论见 memory `parallel-workspace-verify-worktree`）；禁止把主工作区多会话叠加态直接打包上机——2026-09-23 事故的直接诱因即未提交在途 +217 行随包上机，任何会话都没有完整验证过叠加态。
 
+- **东林的日用设备（iPhone + Mac）恒装最新开发包**：真机 / 线上行为与预期不符时，先拿证据——线上台账与探针、App 侧日志、构建号与包身份；**禁止把「可能没装新包 / 没更新」列为候选解释**，除非构建号或日志证据确实指向它（2026-10-12、11-06、11-09 三次因这个猜测被东林纠正）。判别铁律：`.ips` 顶部元数据 `modelCode` 以 `Mac` 开头 = 模拟器的崩溃记录，不能当手机装机证据；真机 `.ips` 的 `modelCode` 是 `iPhone18,x` 这类。（2026-11-26 由记忆档入册）
+
 ## 5. 与「少写防御性代码」的边界
 闸门设在**交付流程与陷阱清单**，不在代码里到处 `try?` / 判空。只有确有边界的收口（如 `URL.applicationSupportDirectory` 替代 `.first!`、`if let` 拆包）才动代码；禁止为想象中的异常堆兜底。
 
@@ -94,4 +96,4 @@
 
 ---
 
-*最后更新：2026-11-24（技术优化一轮：§9 增 Coupling Guard 耦合只减不增、Test Mount 增「独立脚本式套件必须有测试类」规则、holo_build 增构建秩序、pbxproj_surgery 增 mount；历史：1116 删主题真机闪退根治随案：§3.3 renderable 防线 + §9 机器守门清单（ForEach Guard/TestMount/BannedAPI/pre-commit/holo_build/pbxproj 手术/后端 purpose/归档清单八件）；1112 §8 归档窗口重跑 + Weight Guard 规则 5；1024 §6 推广全库；1022 §6 ChatView；0925 §7；0923 §6）*
+*最后更新：2026-11-26（§4 增「东林日用设备恒装最新开发包：排查先拿证据，禁拿『没装新包』当解释」，由记忆档入册）；上一次：2026-11-24（技术优化一轮：§9 增 Coupling Guard 耦合只减不增、Test Mount 增「独立脚本式套件必须有测试类」规则、holo_build 增构建秩序、pbxproj_surgery 增 mount；历史：1116 删主题真机闪退根治随案：§3.3 renderable 防线 + §9 机器守门清单（ForEach Guard/TestMount/BannedAPI/pre-commit/holo_build/pbxproj 手术/后端 purpose/归档清单八件）；1112 §8 归档窗口重跑 + Weight Guard 规则 5；1024 §6 推广全库；1022 §6 ChatView；0925 §7；0923 §6）*

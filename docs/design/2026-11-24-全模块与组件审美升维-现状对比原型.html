@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo 全模块与组件审美升维 · 现状 vs 新方案对比原型 · 2026-11-24</title>
+<style>
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf");font-weight:400}
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf");font-weight:700}
+@font-face{font-family:"HoloHand";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteHand-Regular.ttf");font-weight:400}
+
+:root{
+  --canvas:#E6E1D8;
+  --paper:#FDFCF8;
+  --paper-warm:#F6F1E7;
+  --paper-aged:#F3EBDD;
+  --surface:#FFFFFF;
+  --inset:#F7F1EA;
+  --ink:#333333;
+  --ink-deep:#1C1916;
+  --ink-mid:#6E685F;
+  --ink-soft:#9E978D;
+  --stone:#BDB5A8;
+  --rule:rgba(47,43,38,.14);
+  --rule-strong:rgba(47,43,38,.36);
+  --vermilion:#EA580C;
+  --vermilion-bright:#F46D38;
+  --vermilion-soft:#FED7AA;
+  --moss:#4E8C64;
+  --moss-bg:#E4EEE7;
+  --seal:#B84A3E;
+  --seal-bg:#F5E3DF;
+  --slate:#40546B;
+  --ai:#5B6488;
+  /* Dark tokens */
+  --d-paper:#0E0E10;
+  --d-elev:#1C1C1E;
+  --d-surface:#2C2C2E;
+  --d-ink:#F2EEE6;
+  --d-mid:#A49E94;
+  --d-rule:rgba(242,238,230,.14);
+  --d-orange:#FF8A5C;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+  background:var(--canvas);
+  color:var(--ink-deep);
+  line-height:1.55;
+  padding:0 0 120px;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===== 顶部吸顶导航 ===== */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  background:rgba(230,225,216,.88);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:.5px solid var(--rule);
+  padding:12px 24px;
+}
+.topbar-in{
+  max-width:1460px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+.nav-pills{display:flex;gap:6px;flex-wrap:wrap}
+.nav-pills a{
+  text-decoration:none;font-size:12px;font-weight:500;color:var(--ink-mid);
+  padding:5px 11px;border-radius:999px;border:.5px solid transparent;transition:.15s;
+}
+.nav-pills a:hover{color:var(--ink-deep);background:rgba(253,252,248,.75);border-color:var(--rule)}
+.mode-ctrl{display:flex;align-items:center;gap:8px}
+.seg{display:inline-flex;background:rgba(47,43,38,.09);padding:3px;border-radius:8px;gap:2px}
+.seg button{
+  border:none;background:transparent;padding:5px 12px;border-radius:6px;
+  font-size:12px;color:var(--ink-mid);cursor:pointer;font-weight:500;transition:.15s;
+}
+.seg button.active{background:#FDFCF8;color:var(--ink-deep);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+.wrap{max-width:1460px;margin:0 auto;padding:36px 24px 0}
+
+/* ===== 页头 ===== */
+.hero-head{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+  padding-bottom:24px;border-bottom:1.5px solid var(--ink-deep);
+}
+.hero-kicker{font-size:11px;letter-spacing:2.4px;color:var(--ink-mid);text-transform:uppercase;margin-bottom:8px;font-weight:600}
+h1{font-family:"HoloSerif","Songti SC","Georgia",serif;font-size:32px;font-weight:700;letter-spacing:.8px;line-height:1.2}
+.lead{color:#57524A;font-size:14.5px;max-width:820px;margin-top:10px;line-height:1.72}
+.audit-strip{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;
+}
+.a-card{
+  background:rgba(253,252,248,.82);border:.5px solid var(--rule);border-radius:10px;padding:13px 15px;
+}
+.a-card b{display:block;font-size:13px;color:var(--ink-deep);margin-bottom:4px}
+.a-card p{font-size:12px;color:var(--ink-mid);line-height:1.55}
+.a-card .num{font-family:"SF Mono","Menlo",monospace;font-size:11px;color:var(--vermilion);margin-right:6px;font-weight:600}
+
+/* ===== 分区 ===== */
+.sec{margin-top:68px;scroll-margin-top:76px}
+.sec-head{
+  display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:12px;
+  padding-top:16px;border-top:1.5px solid var(--ink-deep);margin-bottom:8px;
+}
+.sec-head h2{font-family:"HoloSerif","Songti SC",serif;font-size:22px;font-weight:700;display:flex;align-items:baseline;gap:12px}
+.sec-head .idx{font-family:"SF Mono","Menlo",monospace;font-size:12px;color:var(--vermilion);letter-spacing:1.4px}
+.sec-sub{font-size:13.5px;color:#57524A;margin-bottom:20px;max-width:900px}
+
+.row{display:flex;gap:28px;overflow-x:auto;padding:10px 4px 18px;align-items:flex-start}
+.col{flex:0 0 auto;width:338px}
+.col-h{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.badge{
+  font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:.3px;
+}
+.badge.old{background:rgba(184,74,62,.12);color:#9B3A30}
+.badge.new{background:rgba(78,140,100,.14);color:#356947}
+.badge.sparse{background:rgba(64,84,107,.12);color:#3B5068}
+.cap{font-size:12.5px;color:#57524A;margin-top:12px;line-height:1.62}
+.cap b{color:var(--ink-deep)}
+
+/* ===== 手机壳 ===== */
+.phone{
+  width:338px;height:690px;border-radius:46px;border:9px solid #181715;
+  position:relative;overflow:hidden;
+  box-shadow:0 22px 46px rgba(24,20,14,.17),0 2px 6px rgba(0,0,0,.08);
+  background:var(--paper);color:var(--ink);
+  transition:background .25s,color .25s;
+}
+.phone.old-bg{background:#F5F5F7;color:#1D1D1F}
+.phone.warm{background:var(--paper-warm)}
+body.dark-preview .phone.new-ui{background:var(--d-paper);color:var(--d-ink);border-color:#080808}
+body.dark-preview .phone.new-ui.warm{background:#151412}
+
+.grain::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:20;opacity:.3;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .42 0 0 0 0 .36 0 0 0 0 .28 0 0 0 .15 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+body.dark-preview .phone.new-ui.grain::before{opacity:.12;mix-blend-mode:screen}
+
+.sb{
+  height:40px;display:flex;justify-content:space-between;align-items:center;
+  padding:0 26px;font-size:11.5px;font-weight:600;position:relative;z-index:5;
+}
+.scr{position:absolute;inset:40px 0 0 0;overflow-y:auto;overflow-x:hidden;padding-bottom:24px}
+.scr::-webkit-scrollbar{display:none}
+
+/* ===== 排印与辅助 ===== */
+.serif{font-family:"HoloSerif","Songti SC","Iowan Old Style","Georgia",serif}
+.hero-num{font-family:"Iowan Old Style","Baskerville","Georgia",serif;font-variant-numeric:tabular-nums}
+.rounded{font-family:"SF Pro Rounded","Arial Rounded MT Bold",-apple-system,sans-serif;font-variant-numeric:tabular-nums}
+.mono{font-family:"SF Mono","Menlo",monospace;font-variant-numeric:tabular-nums}
+.hair{height:.5px;background:var(--rule);width:100%}
+body.dark-preview .phone.new-ui .hair{background:var(--d-rule)}
+.kicker{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+body.dark-preview .phone.new-ui .kicker{color:var(--d-mid)}
+.muted{color:var(--ink-mid)}
+body.dark-preview .phone.new-ui .muted{color:var(--d-mid)}
+.accent{color:var(--vermilion)}
+body.dark-preview .phone.new-ui .accent{color:var(--d-orange)}
+.moss{color:var(--moss)}
+.seal{color:var(--seal)}
+.ai-ink{color:var(--ai)}
+
+/* ===== 现状（旧工具风）通用件 ===== */
+.old-pad{padding:8px 16px 20px}
+.old-title{font-size:24px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.old-card{
+  background:#FFFFFF;border-radius:16px;padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 4px 14px rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.03);
+}
+.old-grad-card{
+  background:linear-gradient(135deg,#F97316 0%,#EA580C 100%);
+  color:#FFF;border-radius:18px;padding:16px;margin-bottom:12px;
+  box-shadow:0 8px 20px rgba(234,88,12,.28);
+}
+.old-sec-h{font-size:14px;font-weight:700;margin:12px 0 8px;display:flex;align-items:center;gap:6px;color:#333}
+.old-ico{
+  width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0;
+}
+.old-pill{
+  display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
+  padding:4px 10px;border-radius:999px;background:#FFF3EB;color:#EA580C;
+}
+.old-btn{
+  background:#F46D38;color:#FFF;border:none;border-radius:12px;padding:8px 14px;
+  font-size:12px;font-weight:600;box-shadow:0 4px 10px rgba(244,109,56,.25);
+}
+
+/* ===== 新方案（纸本无卡风）通用件 ===== */
+.new-pad{padding:10px 22px 24px}
+.new-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px}
+.new-title{font-size:26px;font-weight:700;letter-spacing:.3px;line-height:1.15}
+.new-sec-h{
+  font-size:12px;letter-spacing:1.4px;color:var(--ink-soft);font-weight:600;
+  text-transform:uppercase;margin:20px 0 10px;display:flex;justify-content:space-between;align-items:center;
+}
+body.dark-preview .phone.new-ui .new-sec-h{color:var(--d-mid)}
+.new-row{
+  display:flex;align-items:center;justify-content:space-between;padding:12px 0;
+  border-bottom:.5px solid var(--rule);
+}
+body.dark-preview .phone.new-ui .new-row{border-bottom-color:var(--d-rule)}
+.new-row:last-child{border-bottom:none}
+.new-entity-card{
+  background:#FFFFFF;border:.5px solid var(--rule);border-radius:14px;padding:14px 16px;
+}
+body.dark-preview .phone.new-ui .new-entity-card{background:var(--d-elev);border-color:var(--d-rule)}
+.vermilion-cta{
+  background:var(--vermilion);color:#FFF;border:none;border-radius:999px;
+  padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
+}
+body.dark-preview .phone.new-ui .vermilion-cta{background:var(--d-orange);color:#1C1916}
+.ink-outline-btn{
+  background:transparent;color:var(--ink);border:.5px solid var(--rule-strong);
+  border-radius:999px;padding:7px 14px;font-size:12px;font-weight:500;
+}
+body.dark-preview .phone.new-ui .ink-outline-btn{color:var(--d-ink);border-color:var(--d-rule)}
+
+/* 交互式任务划掉 */
+.task-item{cursor:pointer;user-select:none;transition:opacity .25s}
+.task-check{
+  width:18px;height:18px;border-radius:50%;border:1.2px solid var(--stone);
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:.25s;
+}
+.task-item.done .task-check{border-color:var(--ink-mid);background:var(--ink-mid);color:#FDFCF8}
+.task-title{position:relative;display:inline-block;transition:color .25s}
+.task-title::after{
+  content:"";position:absolute;left:-2px;right:-2px;top:54%;height:1.2px;
+  background:var(--ink-mid);transform:scaleX(0);transform-origin:left center;transition:transform .32s cubic-bezier(.2,.8,.2,1);
+}
+.task-item.done .task-title{color:var(--ink-soft)}
+.task-item.done .task-title::after{transform:scaleX(1)}
+
+/* 极细进度轨 */
+.hair-track{height:2px;background:rgba(47,43,38,.12);border-radius:2px;overflow:hidden;width:100%}
+body.dark-preview .phone.new-ui .hair-track{background:rgba(242,238,230,.14)}
+.hair-fill{height:100%;border-radius:2px}
+
+/* ===== 组件级对比画板（Section 06） ===== */
+.comp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+@media(max-width:960px){.comp-grid{grid-template-columns:1fr}.audit-strip{grid-template-columns:repeat(2,1fr)}}
+.comp-box{
+  background:rgba(253,252,248,.92);border:.5px solid var(--rule);border-radius:16px;
+  padding:20px 22px;display:flex;flex-direction:column;gap:14px;
+}
+.comp-box-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:.5px solid var(--rule);padding-bottom:10px}
+.comp-box-head h3{font-family:"HoloSerif","Songti SC",serif;font-size:17px;font-weight:700}
+.comp-box-head code{font-size:11px;color:var(--ink-mid);background:rgba(47,43,38,.06);padding:2px 6px;border-radius:4px}
+.split-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.split-2{grid-template-columns:1fr}}
+.stage{
+  border-radius:12px;padding:14px;position:relative;border:.5px solid var(--rule);
+  display:flex;flex-direction:column;justify-content:space-between;gap:10px;
+}
+.stage.old-s{background:#F4F4F6}
+.stage.new-s{background:var(--paper)}
+.stage-lbl{font-size:10.5px;font-weight:600;letter-spacing:.4px;margin-bottom:4px;display:flex;justify-content:space-between}
+
+/* 分享卡（Section 07） */
+.share-card{
+  width:310px;min-height:430px;border-radius:18px;padding:24px 22px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;
+  box-shadow:0 16px 34px rgba(24,20,14,.14);
+}
+.share-old{background:#FFF;border:1px solid #EAEAEA;color:#222}
+.share-new-paper{background:#FAF6EE;border:.5px solid rgba(47,43,38,.18);color:var(--ink-deep)}
+.share-new-dark{background:#181614;border:.5px solid rgba(242,238,230,.14);color:#EFEAE0}
+.seal-stamp{
+  display:inline-block;border:1px solid var(--vermilion);color:var(--vermilion);
+  font-size:10px;padding:1px 5px;border-radius:2px;letter-spacing:1px;font-weight:600;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="nav-pills">
+      <a href="#s1">01 财务</a>
+      <a href="#s2">02 健康与目标</a>
+      <a href="#s3">03 任务与看板</a>
+      <a href="#s4">04 每周回顾</a>
+      <a href="#s5">05 长廊与纪念日</a>
+      <a href="#s6">06 公共组件底座</a>
+      <a href="#s7">07 分享资产</a>
+    </div>
+    <div class="mode-ctrl">
+      <span style="font-size:11.5px;color:var(--ink-mid)">新方案明暗预览</span>
+      <div class="seg" id="themeToggle">
+        <button class="active" data-mode="light">浅色纸面</button>
+        <button data-mode="dark">深色夜间</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero-head">
+    <div>
+      <div class="hero-kicker">HOLO DESIGN SYSTEM · BEFORE / AFTER AUDIT · 2026-11-24</div>
+      <h1>全模块与公共组件审美升维：现状 vs 新方案</h1>
+      <p class="lead">
+        首页与「审美提升七项」已确立了 Holo 的新视觉母语——<b>暖纸底、0.5pt 暖灰细线、一页一橙、衬线主角数字、默认无卡</b>。
+        本原型基于代码库实测扫描，逐一对照 <b>5 大业务模块 + 5 类公共组件 + 分享资产</b> 的「现状」与「升维后」效果，含最惨稀疏态与浅/深色切换。
+      </p>
+    </div>
+  </div>
+
+  <div class="audit-strip">
+    <div class="a-card">
+      <b><span class="num">01</span>默认无卡（Cardless）</b>
+      <p>财务/健康/目标/任务当前累计 55+ 处 <code>holoSurface</code> 与 60+ 处阴影；常规列表改为直落纸底 + 0.5pt 细线，白卡只留给独立实体。</p>
+    </div>
+    <div class="a-card">
+      <b><span class="num">02</span>去圆体、立衬线主角</b>
+      <p>全仓尚存 90+ 处 <code>design: .rounded</code>（仅财务就占 38 处）。主角大数字统一改 New York 衬线 <code>holoHeroNumber</code>。</p>
+    </div>
+    <div class="a-card">
+      <b><span class="num">03</span>一页一橙 &amp; 清图标汤</b>
+      <p>清掉区块标题与列表前的浅色圆角方块图标，去掉 <code>sparkles</code> 与渐变按钮，单屏朱砂橙严格 ≤ 1–2 处。</p>
+    </div>
+    <div class="a-card">
+      <b><span class="num">04</span>双端拉满：稀疏态 &amp; 分享卡</b>
+      <p>下限保证 1–2 条记录时依然安静体面，上限把周报、年鉴、纪念日做成「值得发朋友圈」的刊物级卡片。</p>
+    </div>
+  </div>
+
+  <!-- ================= 01 财务模块 ================= -->
+  <section class="sec" id="s1">
+    <div class="sec-head">
+      <h2><span class="idx">01</span>财务模块（Views/Finance/）</h2>
+      <span class="kicker">代码现状：38 处 rounded · 27 处 shadow · 15 处 holoSurface</span>
+    </div>
+    <p class="sec-sub">高频工具页的「去卡片化」标杆：去掉橙色大渐变头卡、圆体数字和每行图标方块；本月支出直接落在纸面，用衬线大数字 + 极细分隔线建立账本秩序。</p>
+
+    <div class="row">
+      <!-- 财务现状 -->
+      <div class="col">
+        <div class="col-h"><span>现状 · 工具卡片堆叠</span><span class="badge old">BEFORE</span></div>
+        <div class="phone old-bg">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr old-pad">
+            <div class="old-title">
+              <span>财务</span>
+              <span class="old-pill">✨ AI 财务洞察</span>
+            </div>
+            <div class="old-grad-card">
+              <div style="font-size:11px;opacity:.85">11 月总支出</div>
+              <div class="rounded" style="font-size:32px;font-weight:800;margin:4px 0">¥ 4,826.50</div>
+              <div style="display:flex;gap:14px;font-size:11px;opacity:.92;margin-top:6px">
+                <span>收入 ¥18,500</span><span>·</span><span>预算剩余 38%</span>
+              </div>
+            </div>
+            <div class="old-sec-h"><span class="old-ico" style="background:#FFF3EB;color:#EA580C">💳</span> 我的账户</div>
+            <div class="old-card" style="display:flex;justify-content:space-between;align-items:center">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="old-ico" style="background:#E0F2FE;color:#0284C7">🏦</span>
+                <div><div style="font-size:13.5px;font-weight:600">招商银行储蓄卡</div><div style="font-size:11px;color:#888">尾号 4821</div></div>
+              </div>
+              <div class="rounded" style="font-weight:700;font-size:15px">¥26,410</div>
+            </div>
+            <div class="old-sec-h"><span class="old-ico" style="background:#FEF3C7;color:#D97706">🧾</span> 最近明细</div>
+            <div class="old-card" style="padding:10px 14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #F2F2F2">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="old-ico" style="background:#FEE2E2;color:#DC2626">🍜</span>
+                  <div><div style="font-size:13px;font-weight:600">牛肉面 · 午餐</div><div style="font-size:10.5px;color:#888">今天 12:20</div></div>
+                </div>
+                <div class="rounded" style="font-weight:700;color:#DC2626">-¥38.00</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #F2F2F2">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="old-ico" style="background:#FEF3C7;color:#B45309">☕</span>
+                  <div><div style="font-size:13px;font-weight:600">Manner 美式</div><div style="font-size:10.5px;color:#888">今天 09:05</div></div>
+                </div>
+                <div class="rounded" style="font-weight:700;color:#DC2626">-¥15.00</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span class="old-ico" style="background:#DCFCE7;color:#16A34A">🚇</span>
+                  <div><div style="font-size:13px;font-weight:600">地铁通勤</div><div style="font-size:10.5px;color:#888">昨天 19:42</div></div>
+                </div>
+                <div class="rounded" style="font-weight:700;color:#DC2626">-¥6.00</div>
+              </div>
+            </div>
+            <button class="old-btn" style="width:100%;padding:11px">+ 记一笔</button>
+          </div>
+        </div>
+        <div class="cap"><b>痛点：</b>大面积橙色渐变卡 + 38 处圆体数字 + 每个标题和列表行都配彩色小方块，视觉噪音大、像通用记账模板。</div>
+      </div>
+
+      <!-- 财务新方案 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 纸本账簿无卡化</span><span class="badge new">AFTER</span></div>
+        <div class="phone new-ui grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div class="new-head">
+              <div>
+                <div class="kicker">2026 · 十一月账簿</div>
+                <div class="new-title serif" style="margin-top:2px">财务</div>
+              </div>
+              <button class="vermilion-cta" style="padding:7px 14px;font-size:12px">记一笔</button>
+            </div>
+
+            <div style="padding:8px 0 18px">
+              <div style="font-size:12px" class="muted">本月支出</div>
+              <div class="hero-num" style="font-size:40px;font-weight:600;letter-spacing:-1px;line-height:1.12;margin:4px 0 12px">
+                <span style="font-size:22px;margin-right:2px">¥</span>4,826<span style="font-size:22px;opacity:.6">.50</span>
+              </div>
+              <div class="hair-track"><div class="hair-fill" style="width:62%;background:var(--ink)"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-top:8px" class="muted">
+                <span>收入 <b class="mono" style="color:inherit">¥18,500</b></span>
+                <span>预算余 <b class="mono" style="color:inherit">¥2,973</b></span>
+              </div>
+            </div>
+
+            <div class="hair"></div>
+            <div class="new-sec-h"><span>账户实体卡</span><span style="letter-spacing:0">净资产 ¥26,410</span></div>
+            <div class="new-entity-card" style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-size:14px;font-weight:600">招商银行储蓄卡</div>
+                <div style="font-size:11px;margin-top:2px" class="muted mono">•••• 4821</div>
+              </div>
+              <div class="hero-num" style="font-size:19px;font-weight:600">¥26,410</div>
+            </div>
+
+            <div class="new-sec-h"><span>今日明细</span><span style="letter-spacing:0">3 笔</span></div>
+            <div class="new-row">
+              <div>
+                <div style="font-size:14.5px;font-weight:500">牛肉面 · 午餐</div>
+                <div style="font-size:11.5px;margin-top:2px" class="muted">餐饮 · 12:20</div>
+              </div>
+              <div class="mono seal" style="font-size:14.5px;font-weight:600">-38.00</div>
+            </div>
+            <div class="new-row">
+              <div>
+                <div style="font-size:14.5px;font-weight:500">Manner 美式</div>
+                <div style="font-size:11.5px;margin-top:2px" class="muted">咖啡 · 09:05</div>
+              </div>
+              <div class="mono seal" style="font-size:14.5px;font-weight:600">-15.00</div>
+            </div>
+            <div class="new-row">
+              <div>
+                <div style="font-size:14.5px;font-weight:500">地铁通勤</div>
+                <div style="font-size:11.5px;margin-top:2px" class="muted">交通 · 昨天 19:42</div>
+              </div>
+              <div class="mono seal" style="font-size:14.5px;font-weight:600">-6.00</div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>升维点：</b>总支出直落纸面、New York 衬线大数字 + 1.5pt 暖墨预算轨；全屏仅右上角「记一笔」一处朱砂；白卡只留给「银行卡实体」。</div>
+      </div>
+
+      <!-- 财务最惨稀疏态 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 最惨稀疏态（1 笔）</span><span class="badge sparse">SPARSE</span></div>
+        <div class="phone new-ui grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div class="new-head">
+              <div>
+                <div class="kicker">2026 · 十一月账簿</div>
+                <div class="new-title serif" style="margin-top:2px">财务</div>
+              </div>
+              <button class="vermilion-cta" style="padding:7px 14px;font-size:12px">记一笔</button>
+            </div>
+            <div style="padding:10px 0 20px">
+              <div style="font-size:12px" class="muted">本月支出</div>
+              <div class="hero-num" style="font-size:40px;font-weight:600;letter-spacing:-1px;line-height:1.12;margin:4px 0">
+                <span style="font-size:22px;margin-right:2px">¥</span>15<span style="font-size:22px;opacity:.6">.00</span>
+              </div>
+              <div style="font-size:12px;margin-top:6px" class="muted">本月刚开始，暂未产生趋势图</div>
+            </div>
+            <div class="hair"></div>
+            <div class="new-sec-h"><span>今日明细</span><span style="letter-spacing:0">1 笔</span></div>
+            <div class="new-row">
+              <div>
+                <div style="font-size:14.5px;font-weight:500">Manner 美式</div>
+                <div style="font-size:11.5px;margin-top:2px" class="muted">咖啡 · 09:05</div>
+              </div>
+              <div class="mono seal" style="font-size:14.5px;font-weight:600">-15.00</div>
+            </div>
+            <div style="margin-top:84px;text-align:center">
+              <div class="serif muted" style="font-size:14px;line-height:1.8">账本还很轻，记下日常就好。</div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>稀疏态验收：</b>只有 1 笔时不画空饼图/孤柱图，直接自然留白 + 一句宋体短句，体面不尴尬。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 健康与目标 ================= -->
+  <section class="sec" id="s2">
+    <div class="sec-head">
+      <h2><span class="idx">02</span>健康与目标（Views/Health/ · Views/Goals/）</h2>
+      <span class="kicker">代码现状：38 处 holoSurface 白卡嵌套 · 14 处 rounded</span>
+    </div>
+    <p class="sec-sub">把层层白卡拆平：健康核心指标与目标进度改用「大衬线数字 + 发丝进度轨 + 0.5pt 暖灰细线」，一眼分清主次，不再满屏方盒子。</p>
+
+    <div class="row">
+      <!-- 健康/目标现状 -->
+      <div class="col">
+        <div class="col-h"><span>现状 · 多层白卡网格</span><span class="badge old">BEFORE</span></div>
+        <div class="phone old-bg">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr old-pad">
+            <div class="old-title"><span>健康与目标</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div class="old-card" style="margin:0">
+                <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#666">
+                  <span class="old-ico" style="width:22px;height:22px;background:#DCFCE7;color:#16A34A;font-size:11px">🏃</span>步数
+                </div>
+                <div class="rounded" style="font-size:24px;font-weight:800;margin-top:8px">8,420</div>
+                <div style="font-size:10.5px;color:#16A34A;margin-top:2px">已达标 84%</div>
+              </div>
+              <div class="old-card" style="margin:0">
+                <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#666">
+                  <span class="old-ico" style="width:22px;height:22px;background:#EDE9FE;color:#7C3AED;font-size:11px">🌙</span>睡眠
+                </div>
+                <div class="rounded" style="font-size:24px;font-weight:800;margin-top:8px">7.2h</div>
+                <div style="font-size:10.5px;color:#7C3AED;margin-top:2px">深睡 1.8h</div>
+              </div>
+            </div>
+
+            <div class="old-sec-h"><span class="old-ico" style="background:#FFF3EB;color:#EA580C">🎯</span> 进行中的目标</div>
+            <div class="old-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:14px">半程马拉松 21.1km</span>
+                <span class="old-pill">68%</span>
+              </div>
+              <div style="height:8px;background:#F1F1F4;border-radius:99px;margin:10px 0 8px;overflow:hidden">
+                <div style="width:68%;height:100%;background:linear-gradient(90deg,#F97316,#FB923C);border-radius:99px"></div>
+              </div>
+              <div style="font-size:11px;color:#888">本月已跑 14.3 / 21.1 km · 剩余 19 天</div>
+            </div>
+            <div class="old-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;font-size:14px">年度阅读 24 本</span>
+                <span class="old-pill" style="background:#DCFCE7;color:#16A34A">75%</span>
+              </div>
+              <div style="height:8px;background:#F1F1F4;border-radius:99px;margin:10px 0 8px;overflow:hidden">
+                <div style="width:75%;height:100%;background:#22C55E;border-radius:99px"></div>
+              </div>
+              <div style="font-size:11px;color:#888">已读 18 本 · 正在读《建筑的诗意》</div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>痛点：</b>Tailwind 亮绿/亮紫 + 8pt 粗彩色进度条 + 每张目标都包圆角白盒，页面像健身房仪表盘。</div>
+      </div>
+
+      <!-- 健康/目标新方案 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 无卡指标 + 发丝轨</span><span class="badge new">AFTER</span></div>
+        <div class="phone new-ui grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div class="new-head">
+              <div>
+                <div class="kicker">BODY &amp; HORIZON</div>
+                <div class="new-title serif" style="margin-top:2px">健康与目标</div>
+              </div>
+              <span class="ink-outline-btn">记录</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:6px 0 20px">
+              <div>
+                <div style="font-size:11.5px" class="muted">今日步数</div>
+                <div class="hero-num" style="font-size:34px;font-weight:600;line-height:1.15;margin:4px 0">8,420</div>
+                <div class="hair-track"><div class="hair-fill" style="width:84%;background:var(--moss)"></div></div>
+                <div style="font-size:11px;margin-top:6px" class="moss">距目标 1,580 步</div>
+              </div>
+              <div>
+                <div style="font-size:11.5px" class="muted">昨晚睡眠</div>
+                <div class="hero-num" style="font-size:34px;font-weight:600;line-height:1.15;margin:4px 0">7.2<span style="font-size:16px;margin-left:2px">h</span></div>
+                <div class="hair-track"><div class="hair-fill" style="width:78%;background:var(--slate)"></div></div>
+                <div style="font-size:11px;margin-top:6px" class="muted">深睡 1.8 小时</div>
+              </div>
+            </div>
+
+            <div class="hair"></div>
+            <div class="new-sec-h"><span>正在推进</span><span style="letter-spacing:0">2 项</span></div>
+
+            <div style="padding:14px 0;border-bottom:.5px solid var(--rule)">
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <div class="serif" style="font-size:16.5px;font-weight:700">半程马拉松 21.1km</div>
+                <div class="hero-num accent" style="font-size:18px;font-weight:600">68%</div>
+              </div>
+              <div class="hair-track" style="margin:10px 0 8px"><div class="hair-fill" style="width:68%;background:var(--vermilion)"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px" class="muted">
+                <span>14.3 / 21.1 km</span><span>余 19 天</span>
+              </div>
+            </div>
+
+            <div style="padding:14px 0;border-bottom:.5px solid var(--rule)">
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <div class="serif" style="font-size:16.5px;font-weight:700">年度阅读 24 本</div>
+                <div class="hero-num" style="font-size:18px;font-weight:600">75%</div>
+              </div>
+              <div class="hair-track" style="margin:10px 0 8px"><div class="hair-fill" style="width:75%;background:var(--ink)"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px" class="muted">
+                <span>已读 18 本 · 《建筑的诗意》</span><span>进度稳健</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>升维点：</b>零白卡、零阴影；2pt 发丝进度轨替代粗彩条；降饱和苔绿/墨蓝语义色，全页只把唯一重点目标的 68% 点一点朱砂。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 任务与今日看板 ================= -->
+  <section class="sec" id="s3">
+    <div class="sec-head">
+      <h2><span class="idx">03</span>任务与今日看板（Views/Tasks/ · DailyKanban/）</h2>
+      <span class="kicker">代码现状：32 处 shadow · 9 处 LinearGradient · 13 处 rounded</span>
+    </div>
+    <p class="sec-sub">你们已上线「墨线划掉」动效，但外层容器仍带着厚重投影和独立圆角盒。新方案把清单放回纸面——<b>点击右侧新方案里的任意任务，可以直接体验墨线划掉效果</b>。</p>
+
+    <div class="row">
+      <!-- 任务现状 -->
+      <div class="col">
+        <div class="col-h"><span>现状 · 阴影盒清单</span><span class="badge old">BEFORE</span></div>
+        <div class="phone old-bg">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr old-pad">
+            <div class="old-title">
+              <span>今天</span>
+              <span class="rounded" style="font-size:13px;background:#EA580C;color:#FFF;padding:3px 10px;border-radius:99px">剩余 3 项</span>
+            </div>
+            <div class="old-card" style="display:flex;align-items:center;gap:10px">
+              <div style="width:20px;height:20px;border-radius:6px;border:2px solid #EA580C"></div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600">确认 1.2.0 首页两套视觉定稿</div>
+                <div style="font-size:11px;color:#EA580C;margin-top:2px">🔥 高优先级 · 14:00</div>
+              </div>
+            </div>
+            <div class="old-card" style="display:flex;align-items:center;gap:10px">
+              <div style="width:20px;height:20px;border-radius:6px;border:2px solid #999"></div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600">给父母寄出冬季茶叶礼盒</div>
+                <div style="font-size:11px;color:#888;margin-top:2px">📦 生活 · 今天</div>
+              </div>
+            </div>
+            <div class="old-card" style="display:flex;align-items:center;gap:10px">
+              <div style="width:20px;height:20px;border-radius:6px;border:2px solid #999"></div>
+              <div style="flex:1">
+                <div style="font-size:14px;font-weight:600">整理 11 月报销电子发票</div>
+                <div style="font-size:11px;color:#888;margin-top:2px">🧾 财务 · 晚上</div>
+              </div>
+            </div>
+            <div style="margin-top:16px">
+              <button class="old-btn" style="width:100%;padding:11px">✨ AI 帮我拆解今天</button>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>痛点：</b>每条任务各自套一个带阴影的白盒 + emoji 标签 + 底部大橙按钮，轻盈的任务被画得很沉重。</div>
+      </div>
+
+      <!-- 任务新方案 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 纸面清单（可点击划掉）</span><span class="badge new">AFTER</span></div>
+        <div class="phone new-ui grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div class="new-head">
+              <div>
+                <div class="kicker">NOV 24 · 小雪第三日</div>
+                <div class="new-title serif" style="margin-top:2px">今日待办</div>
+              </div>
+              <span class="hero-num muted" style="font-size:15px">1 / 4</span>
+            </div>
+
+            <div class="hair"></div>
+            <div class="new-row task-item" onclick="this.classList.toggle('done')">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span class="task-check" style="margin-top:2px;border-color:var(--vermilion)"></span>
+                <div>
+                  <div class="task-title" style="font-size:15px;font-weight:500">确认 1.2.0 首页两套视觉定稿</div>
+                  <div style="font-size:11.5px;margin-top:3px" class="accent">14:00 · 重点</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="new-row task-item" onclick="this.classList.toggle('done')">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span class="task-check" style="margin-top:2px"></span>
+                <div>
+                  <div class="task-title" style="font-size:15px;font-weight:500">给父母寄出冬季茶叶礼盒</div>
+                  <div style="font-size:11.5px;margin-top:3px" class="muted">生活</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="new-row task-item" onclick="this.classList.toggle('done')">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span class="task-check" style="margin-top:2px"></span>
+                <div>
+                  <div class="task-title" style="font-size:15px;font-weight:500">整理 11 月报销电子发票</div>
+                  <div style="font-size:11.5px;margin-top:3px" class="muted">财务 · 晚间</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="new-row task-item done" onclick="this.classList.toggle('done')">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span class="task-check" style="margin-top:2px">✓</span>
+                <div>
+                  <div class="task-title" style="font-size:15px;font-weight:500">晨跑 5 公里</div>
+                  <div style="font-size:11.5px;margin-top:3px" class="muted">07:15 已划掉</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:28px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px" class="ai-ink">按精力重新排序 →</span>
+              <button class="vermilion-cta" style="padding:8px 16px;font-size:12.5px">记一件事</button>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>升维点：</b>像手账纸一样平铺；重点事项只用一圈极细朱砂圆环提示；AI 入口降为克制的靛灰行式文字，不抢主操作。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 每周回顾 ================= -->
+  <section class="sec" id="s4">
+    <div class="sec-head">
+      <h2><span class="idx">04</span>每周回顾 → 个人周刊小报（WeeklyReviewView）</h2>
+      <span class="kicker">人文模块灯塔样板 · 含最惨稀疏态</span>
+    </div>
+    <p class="sec-sub">把「数据汇总仪表盘 + 庆祝腔 AI 评语」改造成「每周日寄给自己的个人小报」：刊头、节气期号、双轨排印，即使本周几乎没记，留白依然高级。</p>
+
+    <div class="row">
+      <!-- 周报现状 -->
+      <div class="col">
+        <div class="col-h"><span>现状 · 数据格 + AI 庆祝卡</span><span class="badge old">BEFORE</span></div>
+        <div class="phone old-bg">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr old-pad">
+            <div class="old-title"><span>每周回顾</span></div>
+            <div class="old-card" style="background:linear-gradient(135deg,#F3E8FF,#EDE9FE);border:1px solid #DDD6FE">
+              <div style="font-size:12px;font-weight:700;color:#6D28D9;margin-bottom:6px">✨ AI 本周点评</div>
+              <div style="font-size:13px;color:#3B0764;line-height:1.6">太棒了🎉！你本周完成了 85% 的习惯，消费控制得非常出色，继续保持哦！</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="old-card" style="margin:0;text-align:center"><div style="font-size:11px;color:#888">记录条数</div><div class="rounded" style="font-size:24px;font-weight:800;margin-top:4px">26</div></div>
+              <div class="old-card" style="margin:0;text-align:center"><div style="font-size:11px;color:#888">习惯完成</div><div class="rounded" style="font-size:24px;font-weight:800;margin-top:4px;color:#16A34A">85%</div></div>
+              <div class="old-card" style="margin:0;text-align:center"><div style="font-size:11px;color:#888">本周支出</div><div class="rounded" style="font-size:22px;font-weight:800;margin-top:4px;color:#EA580C">¥1,240</div></div>
+              <div class="old-card" style="margin:0;text-align:center"><div style="font-size:11px;color:#888">任务完成</div><div class="rounded" style="font-size:24px;font-weight:800;margin-top:4px">14</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>痛点：</b>紫色渐变 AI 卡片 + 星星 emoji + 庆祝腔文案 + 四宫格均等白卡，典型的「AI 模板味」。</div>
+      </div>
+
+      <!-- 周报新方案 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 个人周刊小报</span><span class="badge new">AFTER</span></div>
+        <div class="phone new-ui warm grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div style="border-top:1.5px solid currentColor;border-bottom:.5px solid var(--rule);padding:10px 0;display:flex;justify-content:space-between;align-items:center">
+              <span class="kicker">HOLO WEEKLY · NO.47</span>
+              <span style="font-size:11px" class="muted">小雪 · 11.18–11.24</span>
+            </div>
+
+            <div class="serif" style="font-size:23px;font-weight:700;line-height:1.38;margin:18px 0 12px">
+              节奏放慢的一周，<br>但早睡稳住了。
+            </div>
+            <p style="font-size:13.5px;line-height:1.78" class="muted">
+              周三之后外食减少，晚间留在书桌前的时间比上周多了 4 小时。记下的 6 条想法里，有 3 条都在琢磨同一件事：把生活里的噪音再减掉一层。
+            </p>
+
+            <div class="hair" style="margin:20px 0 16px"></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+              <div>
+                <div style="font-size:10.5px" class="muted">点亮的灯</div>
+                <div class="hero-num" style="font-size:26px;font-weight:600;margin-top:2px">18<span style="font-size:13px;opacity:.55">/21</span></div>
+              </div>
+              <div>
+                <div style="font-size:10.5px" class="muted">支出</div>
+                <div class="hero-num" style="font-size:26px;font-weight:600;margin-top:2px">1,240</div>
+              </div>
+              <div>
+                <div style="font-size:10.5px" class="muted">划掉事项</div>
+                <div class="hero-num" style="font-size:26px;font-weight:600;margin-top:2px">14</div>
+              </div>
+            </div>
+
+            <div class="hair" style="margin:18px 0 14px"></div>
+            <div class="new-sec-h" style="margin-top:0"><span>本周一句</span></div>
+            <div class="serif" style="font-size:14.5px;line-height:1.75;padding-left:12px;border-left:2px solid var(--vermilion)">
+              「把不需要的卡片撤掉之后，日子本身就显出来了。」
+            </div>
+            <div style="font-size:11px;margin-top:6px;padding-left:14px" class="muted">摘自 11 月 22 日深夜想法</div>
+
+            <div style="margin-top:24px;text-align:right">
+              <span class="ink-outline-btn">生成周报分享图</span>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>升维点：</b>暖纸底 + 双线刊头 + 宋体标题 + 事实感平实叙事 + 左缘一道朱砂引线，完全摆脱工具感。</div>
+      </div>
+
+      <!-- 周报稀疏态 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 稀疏态（仅 2 条）</span><span class="badge sparse">SPARSE</span></div>
+        <div class="phone new-ui warm grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div style="border-top:1.5px solid currentColor;border-bottom:.5px solid var(--rule);padding:10px 0;display:flex;justify-content:space-between;align-items:center">
+              <span class="kicker">HOLO WEEKLY · NO.47</span>
+              <span style="font-size:11px" class="muted">小雪 · 11.18–11.24</span>
+            </div>
+            <div style="margin-top:78px;padding:0 6px">
+              <div class="serif" style="font-size:22px;font-weight:700;line-height:1.45">
+                这一周过得很轻，<br>留下的两笔也算数。
+              </div>
+              <p style="font-size:13.5px;line-height:1.8;margin-top:16px" class="muted">
+                没有硬凑的图表和百分比。你在周二记了一顿晚饭，在周五点亮了一次阅读。下周想记的时候，纸页一直在这里。
+              </p>
+              <div class="hair" style="margin:28px 0 14px"></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px" class="muted">
+                <span>11/19 · 记账 ¥42</span><span>11/22 · 阅读已点亮</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>稀疏态验收：</b>数据极少时用大留白承接情绪，不把 0% 和空图表糊在用户脸上。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 记忆长廊与纪念日 ================= -->
+  <section class="sec" id="s5">
+    <div class="sec-head">
+      <h2><span class="idx">05</span>记忆长廊与纪念日（MemoryGallery/ · Anniversary/）</h2>
+      <span class="kicker">代码现状：25 处 LinearGradient · 17 处 rounded · 20 处 shadow</span>
+    </div>
+    <p class="sec-sub">收掉彩色糖果渐变与厚阴影；纪念日改为「纸面印记 + 衬线大倒数」，长廊结合已落地的宋体刊头与旧记忆泛黄，让时间真正有质感。</p>
+
+    <div class="row">
+      <!-- 现状 -->
+      <div class="col">
+        <div class="col-h"><span>现状 · 糖果渐变纪念卡</span><span class="badge old">BEFORE</span></div>
+        <div class="phone old-bg">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr old-pad">
+            <div class="old-title"><span>纪念日</span></div>
+            <div style="background:linear-gradient(135deg,#F43F5E,#FB7185);color:#FFF;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 8px 20px rgba(244,63,94,.25)">
+              <div style="font-size:12px;opacity:.9">❤️ 在一起纪念日</div>
+              <div class="rounded" style="font-size:38px;font-weight:800;margin:4px 0">1,024 <span style="font-size:14px">天</span></div>
+              <div style="font-size:11px;opacity:.85">起始于 2024-02-05</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#3B82F6,#60A5FA);color:#FFF;border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 8px 20px rgba(59,130,246,.22)">
+              <div style="font-size:12px;opacity:.9">🎂 妈妈生日</div>
+              <div class="rounded" style="font-size:38px;font-weight:800;margin:4px 0">18 <span style="font-size:14px">天后</span></div>
+              <div style="font-size:11px;opacity:.85">目标日期 2026-12-12</div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>痛点：</b>高饱和粉/蓝渐变铺满整张卡 + 圆体数字 + 彩色弥散阴影，和首页的温润纸本气质完全割裂。</div>
+      </div>
+
+      <!-- 新方案 -->
+      <div class="col">
+        <div class="col-h"><span>新方案 · 纸感印记实体卡</span><span class="badge new">AFTER</span></div>
+        <div class="phone new-ui grain">
+          <div class="sb"><span>9:41</span><span>5G 100%</span></div>
+          <div class="scr new-pad">
+            <div class="new-head">
+              <div>
+                <div class="kicker">DAYS THAT MATTER</div>
+                <div class="new-title serif" style="margin-top:2px">纪念日</div>
+              </div>
+              <span class="ink-outline-btn">新增</span>
+            </div>
+
+            <div class="new-entity-card" style="background:var(--paper-aged);margin-bottom:14px;padding:18px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="kicker">SINCE 2024.02.05</span>
+                <span style="width:7px;height:7px;border-radius:50%;background:var(--seal)"></span>
+              </div>
+              <div class="serif" style="font-size:18px;font-weight:700;margin-top:6px">在一起纪念日</div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:14px">
+                <span class="hero-num" style="font-size:44px;font-weight:600;line-height:1">1,024</span>
+                <span class="muted" style="font-size:13px">天 · 已相伴</span>
+              </div>
+            </div>
+
+            <div class="new-entity-card" style="padding:18px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="kicker">2026.12.12 · 农历冬月初四</span>
+                <span style="width:7px;height:7px;border-radius:50%;background:var(--vermilion)"></span>
+              </div>
+              <div class="serif" style="font-size:18px;font-weight:700;margin-top:6px">妈妈生日</div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:14px">
+                <span class="hero-num accent" style="font-size:44px;font-weight:600;line-height:1">18</span>
+                <span class="muted" style="font-size:13px">天后到来</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cap"><b>升维点：</b>旧纪念日用轻微泛黄纸底承载时间感，临近倒数用衬线大数字 + 一点朱砂，色彩只浓缩成右上角一颗 7pt 色点。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 公共组件底座 ================= -->
+  <section class="sec" id="s6">
+    <div class="sec-head">
+      <h2><span class="idx">06</span>公共组件底座「底层换血」（Components/）</h2>
+      <span class="kicker">改一处，全 App 自动受益 · 解决 21 处 shadow / 11 处渐变 / 19 处 sparkles</span>
+    </div>
+    <p class="sec-sub">比起逐页手调，先把以下 5 组公共组件封死，全 App 80% 的「工具味」会自动消失。</p>
+
+    <div class="comp-grid">
+      <!-- 组件 1：底栏 -->
+      <div class="comp-box">
+        <div class="comp-box-head"><h3>1. 底部导航栏</h3><code>BottomNavBar.swift</code></div>
+        <div class="split-2">
+          <div class="stage old-s">
+            <div class="stage-lbl"><span class="badge old">现状</span><span style="color:#888">厚毛玻璃 + 凸起发光星</span></div>
+            <div style="background:#FFF;border-radius:26px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.1);position:relative;margin-top:14px">
+              <div style="text-align:center;font-size:10px;color:#888"><div>👤</div>个人</div>
+              <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#FB923C,#EA580C);color:#FFF;display:flex;align-items:center;justify-content:center;font-size:18px;margin-top:-24px;box-shadow:0 8px 18px rgba(234,88,12,.45)">✦</div>
+              <div style="text-align:center;font-size:10px;color:#888"><div>🗂️</div>长廊</div>
+            </div>
+          </div>
+          <div class="stage new-s">
+            <div class="stage-lbl"><span class="badge new">新方案</span><span class="muted">极薄纸感 + 一点朱砂</span></div>
+            <div style="border-top:.5px solid var(--rule);padding:12px 16px 4px;display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+              <div style="font-size:12px" class="serif muted">个人</div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                <div style="width:28px;height:28px;border-radius:50%;border:1.4px solid var(--ink-deep);display:flex;align-items:center;justify-content:center">
+                  <span style="width:6px;height:6px;border-radius:50%;background:var(--vermilion)"></span>
+                </div>
+              </div>
+              <div style="font-size:12px" class="serif muted">记忆长廊</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 组件 2：区块头与按钮 -->
+      <div class="comp-box">
+        <div class="comp-box-head"><h3>2. 区块头与主/次按钮</h3><code>HoloPrimaryButtonStyle</code></div>
+        <div class="split-2">
+          <div class="stage old-s">
+            <div class="stage-lbl"><span class="badge old">现状</span><span style="color:#888">图标汤 + 处处实心橙</span></div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700"><span class="old-ico" style="width:22px;height:22px;background:#FFF3EB;color:#EA580C;font-size:11px">📊</span>本月统计</div>
+            <div style="display:flex;gap:8px">
+              <button class="old-btn" style="flex:1">导出</button>
+              <button class="old-btn" style="flex:1">保存</button>
+            </div>
+          </div>
+          <div class="stage new-s">
+            <div class="stage-lbl"><span class="badge new">新方案</span><span class="muted">纯排印头 + 一页一橙</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:.5px solid var(--rule);padding-bottom:6px">
+              <span class="kicker">本月统计</span><span style="font-size:11px" class="muted">11 月</span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="ink-outline-btn" style="flex:1">导出</button>
+              <button class="vermilion-cta" style="flex:1;padding:7px 14px;font-size:12px">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 组件 3：空状态 -->
+      <div class="comp-box">
+        <div class="comp-box-head"><h3>3. 空状态组件</h3><code>HoloQuietEmptyState</code></div>
+        <div class="split-2">
+          <div class="stage old-s" style="text-align:center;align-items:center;padding:18px 14px">
+            <div class="stage-lbl" style="width:100%"><span class="badge old">现状</span><span style="color:#888">大灰图标 + 三行 + 橙胶囊</span></div>
+            <div style="font-size:28px;opacity:.35">📭</div>
+            <div style="font-size:13px;font-weight:700">暂无记录</div>
+            <div style="font-size:11px;color:#888">点击下方按钮开始记录你的第一条内容吧</div>
+            <button class="old-btn" style="border-radius:99px;padding:6px 16px;font-size:11.5px">立即添加</button>
+          </div>
+          <div class="stage new-s" style="text-align:center;align-items:center;justify-content:center;padding:24px 14px">
+            <div class="stage-lbl" style="width:100%;position:absolute;top:14px;left:14px;right:14px;width:auto"><span class="badge new">新方案</span><span class="muted">一句话留白</span></div>
+            <div class="serif muted" style="font-size:14.5px;margin-top:22px">这里还空着，想记的时候再来。</div>
+            <div style="font-size:12px;margin-top:8px" class="accent">写下第一条 →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 组件 4：弹层脚手架与 AI 标识 -->
+      <div class="comp-box">
+        <div class="comp-box-head"><h3>4. 弹层与 AI 语义标识</h3><code>HoloSheetScaffold · holoAI</code></div>
+        <div class="split-2">
+          <div class="stage old-s">
+            <div class="stage-lbl"><span class="badge old">现状</span><span style="color:#888">居中堆放 + 紫光星星</span></div>
+            <div style="text-align:center;padding:6px 0">
+              <div style="font-size:13px;font-weight:700;color:#7C3AED">✨ AI 智能整理</div>
+              <div style="font-size:11px;color:#666;margin-top:4px;line-height:1.5">系统将为您自动识别这段文字中的日期、金额和分类信息并生成草稿</div>
+              <button class="old-btn" style="margin-top:10px;background:linear-gradient(90deg,#7C3AED,#A855F7);box-shadow:none">开始整理</button>
+            </div>
+          </div>
+          <div class="stage new-s">
+            <div class="stage-lbl"><span class="badge new">新方案</span><span class="muted">左对齐三区 + 靛灰标识</span></div>
+            <div>
+              <div style="font-size:13.5px;font-weight:700">整理为结构记录</div>
+              <div style="font-size:11.5px;margin-top:4px;line-height:1.55" class="muted">提取其中的日期、金额与分类，先给你看草稿，确认后再保存。</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:.5px solid var(--rule);padding-top:10px">
+              <span style="font-size:11px" class="ai-ink">Holo 理解</span>
+              <button class="vermilion-cta" style="padding:6px 14px;font-size:12px">生成草稿</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 出圈级分享资产 ================= -->
+  <section class="sec" id="s7">
+    <div class="sec-head">
+      <h2><span class="idx">07</span>出圈级分享资产（年鉴 / 周报 / 纪念日）</h2>
+      <span class="kicker">让用户因为「好看」而主动发朋友圈</span>
+    </div>
+    <p class="sec-sub">统一加入纸面微噪点、节气/日期刊头、衬线大数字与极简朱砂印章，把普通截图变成可收藏的个人印记。</p>
+
+    <div class="row">
+      <div class="col" style="width:310px">
+        <div class="col-h"><span>现状 · 普通截图白卡</span><span class="badge old">BEFORE</span></div>
+        <div class="share-card share-old">
+          <div>
+            <div style="font-size:12px;color:#888">我的 Holo 周报</div>
+            <div class="rounded" style="font-size:24px;font-weight:800;margin-top:8px">本周完成 85% 🎉</div>
+            <div style="background:#F5F5F7;border-radius:12px;padding:14px;margin-top:16px;font-size:13px;color:#444;line-height:1.6">
+              记录 26 条 · 习惯 18 次 · 支出 ¥1,240
+            </div>
+          </div>
+          <div style="font-size:11px;color:#AAA;text-align:center;border-top:1px solid #EEE;padding-top:12px">来自 Holo App</div>
+        </div>
+      </div>
+
+      <div class="col" style="width:310px">
+        <div class="col-h"><span>新方案 · 周报小报分享卡</span><span class="badge new">AFTER · 浅纸</span></div>
+        <div class="share-card share-new-paper grain">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid var(--rule);padding-bottom:10px">
+              <span class="kicker">HOLO · NO.47</span>
+              <span class="seal-stamp">小雪</span>
+            </div>
+            <div class="serif" style="font-size:24px;font-weight:700;line-height:1.4;margin-top:26px">
+              节奏放慢的一周，<br>但早睡稳住了。
+            </div>
+            <div style="display:flex;gap:22px;margin-top:34px">
+              <div><div class="kicker">点亮</div><div class="hero-num" style="font-size:28px;font-weight:600">18</div></div>
+              <div><div class="kicker">划掉</div><div class="hero-num" style="font-size:28px;font-weight:600">14</div></div>
+              <div><div class="kicker">想法</div><div class="hero-num" style="font-size:28px;font-weight:600">6</div></div>
+            </div>
+          </div>
+          <div style="border-top:.5px solid var(--rule);padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-mid)">
+            <span class="serif">2026 年 11 月 24 日</span>
+            <span class="kicker" style="color:var(--ink-deep)">HOLO</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col" style="width:310px">
+        <div class="col-h"><span>新方案 · 纪念日夜纸卡</span><span class="badge new">AFTER · 夜纸</span></div>
+        <div class="share-card share-new-dark grain">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:.5px solid rgba(242,238,230,.14);padding-bottom:10px">
+              <span class="kicker" style="color:#9B9488">SINCE 2024.02.05</span>
+              <span style="width:7px;height:7px;border-radius:50%;background:#FF8A5C"></span>
+            </div>
+            <div style="margin-top:52px">
+              <div class="hero-num" style="font-size:58px;font-weight:600;line-height:1;color:#F2EEE6">1,024</div>
+              <div class="serif" style="font-size:18px;margin-top:12px;color:#D6CFC2">在一起的第 1,024 天</div>
+            </div>
+          </div>
+          <div style="border-top:.5px solid rgba(242,238,230,.14);padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#9B9488">
+            <span>日常如常，便很好</span>
+            <span class="kicker" style="color:#F2EEE6">HOLO</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+document.querySelectorAll('#themeToggle button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#themeToggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.body.classList.toggle('dark-preview', btn.dataset.mode==='dark');
+  });
+});
+</script>
+</body>
+</html>

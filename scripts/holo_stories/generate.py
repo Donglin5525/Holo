@@ -1027,10 +1027,13 @@ def bindings(text, d, when):
         expense(d, (when.hour - 1, when.minute), "超市", ZFB, price(10, 22), "全家 关东煮")
         return
     if text.startswith("离职的同事今天最后一天"):
-        nxt = d + timedelta(days=1)
-        if recordable(nxt) and at_home(nxt):
-            add_thought("同事离职了，她工位上的绿植没人要，我搬回来了。一盆绿萝一盆不知道是什么，希望别在我手里死掉，上一盆就是浇水浇死的",
-                        at(nxt, 20, R.randint(0, 59)), "life")
+        plant = "同事离职了，她工位上的绿植没人要，我搬回来了。一盆绿萝一盆不知道是什么，希望别在我手里死掉，上一盆就是浇水浇死的"
+        # 先试第二天晚上；第二天是周末/假日（「工位」只能写在上班日）就改在她最后一天的当晚
+        for day_ in (d + timedelta(days=1), d):
+            w_ = at(day_, 20, R.randint(0, 59))
+            if recordable(day_) and at_home(day_) and w_ > when and w_ < NOW and fact_ok(plant, day_, w_):
+                add_thought(plant, w_, "life")
+                break
         return
     if text.startswith("今天加班到九点半"):
         expense(d, hm(when.hour * 60 + when.minute - R.randint(50, 70)), "超市", WX, price(12, 24), "全家 关东煮")
@@ -1048,7 +1051,11 @@ def bindings(text, d, when):
         else:
             expense(d, (19, R.randint(5, 55)), "外卖", WX, price(20, 38), "麻辣烫 不要香菜")
     elif text.startswith("把洋葱当大蒜"):
-        expense(d, (18, R.randint(5, 50)), "买菜", WX, price(18, 46), "菜市场，买了一圈")
+        existing = [x for x in TX if x.get("date", "")[:10] == d.isoformat() and x.get("category") == "买菜"]
+        if existing:        # 当天本来就买过菜：就是这一趟，不再多逛一次菜市场
+            existing[0]["note"] = "菜市场，买了一圈"
+        else:
+            expense(d, (18, R.randint(5, 50)), "买菜", WX, price(18, 46), "菜市场，买了一圈")
     elif text.startswith("楼下面包店"):
         expense(d, (20, R.randint(31, 59)), "零食", WX, price(9.9, 22), "面包店 半价")
     elif text.startswith("良渚那边的草坪"):

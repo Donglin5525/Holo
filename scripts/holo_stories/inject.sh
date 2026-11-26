@@ -15,6 +15,8 @@
 # 默认灌进专用模拟器「Holo-Seed」（没有就退回共用的 iPhone 17）。新建专用模拟器：
 #   xcrun simctl create "Holo-Seed" "com.apple.CoreSimulator.SimDeviceType.iPhone-17" "com.apple.CoreSimulator.SimRuntime.iOS-26-3"
 set -euo pipefail
+# 剧本钉在北京时间：模拟器按北京时间显示，生成器的「现在」也必须是北京时间（这台 Mac 系统时区可能不是东八区，2026-11-26 实发：今天的会议被当成未发生、首页显示已过期）
+export TZ=Asia/Shanghai
 
 # 默认灌进专用模拟器「Holo-Seed」（和别的会话共用的那台分开，免得被并行跑的测试顶掉）；
 # 拍摄流水线要用哪台就 UDID=<那台的 UDID> ./inject.sh
@@ -26,7 +28,7 @@ UDID="${UDID:-${DEFAULT_UDID:-F9F5EDDE-EB22-4951-A876-532BC5C53687}}"
 BUNDLE="com.holo.Holo"
 IDB=/opt/homebrew/bin/idb
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$HERE/../../../Holo/Holo APP/Holo"            # → Holo.xcodeproj 所在目录
+REPO_ROOT="$HERE/../../Holo/Holo APP/Holo"            # → Holo.xcodeproj 所在目录
 APP="/tmp/holo_dd_wrap/Build/Products/Debug-iphonesimulator/Holo.app"
 CLAIMS_MD="$HOME/Desktop/Claude/商业化/自媒体/Holo小红书/seed/口径锁定表.md"
 
