@@ -215,8 +215,10 @@ extension View {
         modifier(HoloHoverModifier(style: style))
     }
     #else
-    /// macOS：hoverEffect 体系不可用，恒等透传
-    func holoHover(_ style: AnyObject? = nil) -> some View { self }
+    /// macOS：指针悬停微高亮反馈（克制暖墨 5% 叠层 + HoloAnimation.quick，尊重减少动态效果）
+    func holoHover(_ style: AnyObject? = nil) -> some View {
+        modifier(HoloMacHoverModifier())
+    }
     #endif
 }
 
@@ -271,6 +273,24 @@ struct HoloHoverModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+#else
+struct HoloMacHoverModifier: ViewModifier {
+    @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                    .fill(Color.holoAlmanacInk.opacity(isHovering ? 0.05 : 0))
+                    .allowsHitTesting(false)
+            }
+            .animation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion), value: isHovering)
+            .onHover { hovering in
+                isHovering = hovering
+            }
     }
 }
 #endif

@@ -70,6 +70,9 @@ struct ThoughtsView: View {
         }
         .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && !showAddThought)
         .task {
+            // 避开模块进场转场帧，避免幂等清理与首帧渲染抢主线程
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
             // P1.5.7: 进入想法页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
             // 冷启动新心智的存量切换：撤掉创建超 7 天仍无想法的空预设主题（幂等，

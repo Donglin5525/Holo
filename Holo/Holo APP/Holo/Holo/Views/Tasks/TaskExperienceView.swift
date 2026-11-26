@@ -38,6 +38,10 @@ struct TaskExperienceView: View {
     @State private var showSearchView = false
     /// 待确认侧栏（浮岛与全屏遮罩在主列 overlay 层渲染，见 sidebarOverlay）
     @State private var showsTaskSidebar = false
+    /// 懒挂载标记：首帧只挂载当前可见视图模式（日历/四象限/列表），切到其他模式后常驻保活，
+    /// 避免首帧同时构造四棵重型视图树阻塞主线程 1–2 秒。
+    @State private var mountedModes: Set<TaskViewMode> = []
+    @State private var hasMountedSidebar = false
     /// 侧栏/格内长按拖拽的共享状态（板视图上报格 frame，宿主提交落格）
     @StateObject private var taskDragContext = TaskQuadrantDragContext()
     @State private var showNotificationSettings = false
@@ -162,24 +166,45 @@ struct TaskExperienceView: View {
 
     // MARK: - 主列
 
+    private var viewLayersStack: some View {
+        ZStack {
+            if mountedModes.contains(.list) || effectiveViewMode == .list {
+                listLayer
+            }
+            if mountedModes.contains(.matrix) || effectiveViewMode == .matrix {
+                matrixLayer
+            }
+            if mountedModes.contains(.calendar) || effectiveViewMode == .calendar {
+                calendarLayer
+            }
+        }
+        .opacity(model.isLoading ? 0 : 1)
+        .animation(HoloAnimation.quick, value: model.isLoading)
+        .clipped()
+        .onAppear {
+            mountedModes.insert(effectiveViewMode)
+        }
+        .onChange(of: effectiveViewMode) { _, mode in
+            mountedModes.insert(mode)
+        }
+        .onChange(of: showsTaskSidebar) { _, shown in
+            if shown { hasMountedSidebar = true }
+        }
+        .overlay(alignment: .bottom) {
+            undoBannerIfVisible
+                .animation(HoloAnimation.snappy, value: showsCompletionUndoBanner)
+        }
+    }
+
     private var masterColumn: some View {
         VStack(spacing: 0) {
             headerView
             if model.loadFailed {
                 failBanner
             }
-            ZStack {
-                listLayer
-                matrixLayer
-                calendarLayer
-            }
-            .clipped()
-            .overlay(alignment: .bottom) {
-                undoBannerIfVisible
-                    .animation(HoloAnimation.snappy, value: showsCompletionUndoBanner)
-            }
+            viewLayersStack
         }
-        // 待确认侧栏浮层盖全屏（含顶栏；原型 inset:0 遮罩）
+        // 待确认侧栏浮层盖全屏（含顶栏；原型 inset:0 遮罩），首次打开时懒挂载
         .overlay {
             sidebarOverlay
         }
@@ -355,22 +380,25 @@ struct TaskExperienceView: View {
     }
 
     /// 待确认侧栏浮层：全屏遮罩连顶栏一起盖住（原型 inset:0）；
-    /// 常驻挂载，开/关由 showsSidebar 驱动（浮岛滑入 + 遮罩淡入）
+    /// 首次打开时懒挂载，之后常驻保活（避免首帧同时构造第四棵重型视图树）
+    @ViewBuilder
     private var sidebarOverlay: some View {
-        TaskQuadrantSidebarOverlay(
-            model: model,
-            dragContext: taskDragContext,
-            repository: repository,
-            showsSidebar: showsTaskSidebar,
-            onOpenDetail: { detailSelection = $0 },
-            onClose: {
-                taskDragContext.clearHover()
-                taskDragContext.endDrag()
-                withAnimation(TaskQuadrantMetrics.sidebarAnimation) {
-                    showsTaskSidebar = false
+        if showsTaskSidebar || hasMountedSidebar {
+            TaskQuadrantSidebarOverlay(
+                model: model,
+                dragContext: taskDragContext,
+                repository: repository,
+                showsSidebar: showsTaskSidebar,
+                onOpenDetail: { detailSelection = $0 },
+                onClose: {
+                    taskDragContext.clearHover()
+                    taskDragContext.endDrag()
+                    withAnimation(TaskQuadrantMetrics.sidebarAnimation) {
+                        showsTaskSidebar = false
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     private var calendarLayer: some View {

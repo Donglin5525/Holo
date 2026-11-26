@@ -63,6 +63,7 @@ struct FinanceView: View {
     @Environment(\.holoDismiss) private var holoDismiss
     /// 当前窗口宽度（v2 断点判断用）
     @Environment(\.holoContentWidth) private var holoContentWidth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
@@ -200,8 +201,10 @@ struct FinanceView: View {
             if evidenceReviewDeepLink == nil,
                selectedTab == .ledger || selectedTab == .accounts {
                 addTransactionFAB
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.86).combined(with: .opacity))
             }
         }
+        .animation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion), value: selectedTab)
         .sheet(isPresented: $showAddTransaction) {
             // 账本页正在看哪天就预填哪天（选中昨天即记昨天）；
             // 账户页无日期语境，保持默认今天，避免把残留选中日带进新账
@@ -428,7 +431,8 @@ struct FinanceView: View {
                 .clipShape(Circle())
                 .shadow(color: Color.holoPrimary.opacity(0.4), radius: 10, x: 0, y: 4)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(HoloPressStyle())
+        .holoHover()
         .accessibilityIdentifier(selectedTab == .accounts ? "finance.fab.addAccount" : "finance.fab.addTransaction")
         .accessibilityLabel(selectedTab == .accounts ? Text("添加账户") : Text("记一笔"))
         .padding(.trailing, 20)
@@ -442,14 +446,14 @@ struct FinanceView: View {
         HStack(spacing: 8) {
             ForEach(FinanceTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(HoloAnimation.quick) {
+                    withAnimation(HoloAnimation.resolved(HoloAnimation.snappy, reduceMotion: reduceMotion)) {
                         selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12, weight: .medium))
-                            .symbolEffect(.bounce, value: selectedTab == tab)
+                            .symbolEffect(.bounce, value: reduceMotion ? false : selectedTab == tab)
                         Text(tab.displayName)
                             .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
@@ -465,7 +469,7 @@ struct FinanceView: View {
                     }
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(HoloPressStyle())
                 .holoHover()
             }
             Spacer()
@@ -477,28 +481,32 @@ struct FinanceView: View {
 
     /// 单个 Tab 按钮
     private func financeTabButton(_ tab: FinanceTab) -> some View {
-        Button {
-            withAnimation(HoloAnimation.quick) {
+        let isSelected = selectedTab == tab
+        return Button {
+            withAnimation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion)) {
                 selectedTab = tab
             }
         } label: {
             VStack(spacing: 4) {
                 Circle()
-                    .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
+                    .fill(Color.holoPrimary)
                     .frame(width: 4, height: 4)
+                    .scaleEffect(isSelected ? 1 : 0.01)
+                    .opacity(isSelected ? 1 : 0)
 
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
 
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
-                    .fontWeight(selectedTab == tab ? .bold : .medium)
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
+                    .fontWeight(isSelected ? .bold : .medium)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(HoloPressStyle())
         // UI 测试定位用 identifier（rawValue 不随语言变化）
         .accessibilityIdentifier("finance.bottomTab.\(tab.rawValue)")
     }

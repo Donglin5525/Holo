@@ -91,14 +91,8 @@ struct FinanceLedgerView: View {
         self.onBack = onBack
         self._showAddTransaction = showAddTransaction
         self.searchTrigger = searchTrigger
-        // 首帧渲染即带上预算数据：若在入场转场中途才由 .task 写入，
-        // 预算卡会作为「转场期间的新插入视图」跳过共享动画，提前以全透明度弹出
-        _globalBudgetSummary = State(
-            initialValue: BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
-        )
-        _categoryWarnings = State(
-            initialValue: BudgetRepository.shared.getWarningCategoryBudgets(period: .month)
-        )
+        // 预算与日历数据统一在 .task 中备齐后随 isInitialContentReady 原子揭示，
+        // 避免在 init() 阶段同步执行两次 Core Data 预算聚合阻塞首帧进场动画。
     }
 
     /// 操作完成提示
@@ -321,7 +315,7 @@ struct FinanceLedgerView: View {
             await calendarState.initialLoad()
             guard !Task.isCancelled else { return }
             // 数据全部就绪后，内容区一次性淡入（原子化揭示，避免分批弹入）
-            withAnimation(.easeIn(duration: 0.18)) {
+            withAnimation(HoloAnimation.quick) {
                 isInitialContentReady = true
             }
         }

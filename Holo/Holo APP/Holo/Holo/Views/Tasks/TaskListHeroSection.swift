@@ -17,6 +17,7 @@ struct TaskListHeroSection: View {
 
     /// 完成协调层（G1 完成契约：撤回窗口 / confirm / 撤回统一走它）
     @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 正在完成中的任务 ID（来自完成协调层的全局撤回状态）
     private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
@@ -37,9 +38,9 @@ struct TaskListHeroSection: View {
             }
         }
         .opacity(heroAppeared ? 1 : 0)
-        .offset(y: heroAppeared ? 0 : 14)
+        .offset(y: heroAppeared ? 0 : (reduceMotion ? 0 : 14))
         .padding(.top, HoloSpacing.md)
-        .animation(HoloAnimation.grounded, value: isHeroAllDone)
+        .animation(HoloAnimation.resolved(HoloAnimation.grounded, reduceMotion: reduceMotion), value: isHeroAllDone)
     }
 
     /// 撤回窗口期间乐观计数：正在完成中的今日任务直接计入完成数
@@ -109,14 +110,19 @@ struct TaskListHeroSection: View {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(heroProgress.completed)")
                             .font(.holoHeroNumber(size: 40))
+                            .monospacedDigit()
+                            .contentTransition(reduceMotion ? .identity : .numericText(value: Double(heroProgress.completed)))
                             .foregroundColor(.holoPrimary)
                         Text("/")
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(.holoTextSecondary)
                         Text("\(heroProgress.total)")
                             .font(.system(size: 17, weight: .semibold))
+                            .monospacedDigit()
+                            .contentTransition(reduceMotion ? .identity : .numericText(value: Double(heroProgress.total)))
                             .foregroundColor(.holoTextSecondary)
                     }
+                    .animation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion), value: heroProgress.completed)
 
                     HStack(spacing: 10) {
                         if heroProgress.total > 0 {
@@ -184,10 +190,12 @@ struct TaskListHeroSection: View {
 
             Text("\(Int((ratio * 100).rounded()))%")
                 .font(.system(size: 14, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(reduceMotion ? .identity : .numericText(value: Double((ratio * 100).rounded())))
                 .foregroundColor(.holoPrimary)
         }
         .frame(width: 72, height: 72)
-        .animation(.easeOut(duration: 0.5), value: ratio)
+        .animation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion), value: ratio)
     }
 
     private func heroProgressBar(ratio: CGFloat) -> some View {
@@ -209,13 +217,17 @@ struct TaskListHeroSection: View {
         }
         .frame(height: 6)
         .padding(.top, 14)
-        .animation(.easeOut(duration: 0.5), value: ratio)
+        .animation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion), value: ratio)
     }
 
-    private var heroDateString: String {
+    private static let heroDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
-        return formatter.string(from: Date()) + " · " + String(localized: "今天")
+        return formatter
+    }()
+
+    private var heroDateString: String {
+        Self.heroDateFormatter.string(from: Date()) + " · " + String(localized: "今天")
     }
 
     /// 庆祝态：今日清零，整块变品牌橙渐变（与习惯页「今天全部点亮」同一语言）

@@ -35,6 +35,7 @@ struct CategoryPicker: View {
     
     /// 是否显示分类管理页面
     @State private var showCategoryManagement = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     /// 4 列网格布局
     private let gridColumns = Array(
@@ -103,20 +104,20 @@ struct CategoryPicker: View {
             // --- 分类网格区域 ---
             if drillDownParent != nil {
                 drillDownView
-                    .transition(.asymmetric(
+                    .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
             } else {
                 topLevelGridView
-                    .transition(.asymmetric(
+                    .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: .leading).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
         }
         .padding(HoloSpacing.md)
-        .animation(HoloAnimation.smooth, value: drillDownParent?.objectID)
+        .animation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion), value: drillDownParent?.objectID)
         .sheet(isPresented: $showCategoryManagement) {
             // 分类管理页内含 NavigationLink，必须自带导航栈容器，否则页内跳转全部失效
             NavigationStack { CategoryManagementView(showsDoneButton: true) }
@@ -168,7 +169,7 @@ struct CategoryPicker: View {
                             category: category,
                             isSelected: selectedCategory?.objectID == category.objectID
                         ) {
-                            withAnimation {
+                            withAnimation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion)) {
                                 selectedCategory = category
                                 // 自动下钻到该二级分类所属的一级分类
                                 drillDownParent = categories.first { $0.id == category.parentId }
@@ -195,7 +196,7 @@ struct CategoryPicker: View {
                         // 已选二级分类时高亮其所属一级分类，让"当前选了什么"在总览视图可见
                         isSelected: selectedCategory?.parentId == category.id
                     ) {
-                        withAnimation {
+                        withAnimation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion)) {
                             drillDownParent = category
                         }
                     }
@@ -209,7 +210,7 @@ struct CategoryPicker: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 返回按钮 + 当前一级分类名称
             Button {
-                withAnimation {
+                withAnimation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion)) {
                     drillDownParent = nil
                 }
             } label: {
@@ -241,7 +242,7 @@ struct CategoryPicker: View {
     /// 切换收入/支出类型，同时重置下钻和选中状态
     private func switchType(to newType: TransactionType) {
         guard transactionType != newType else { return }
-        withAnimation(HoloAnimation.standard) {
+        withAnimation(HoloAnimation.resolved(HoloAnimation.standard, reduceMotion: reduceMotion)) {
             transactionType = newType
             drillDownParent = nil
             selectedCategory = nil
@@ -304,6 +305,7 @@ private struct TypeTabButton: View {
                     in: Capsule()
                 )
         }
+        .buttonStyle(HoloPressStyle())
     }
 }
 
@@ -330,8 +332,8 @@ private struct PickerCategoryButton: View {
             }
             .holoRowHitArea(alignment: .center)
         }
-        // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
-        .buttonStyle(.plain)
+        // Form/List 环境里用自定义 ButtonStyle 避免行级手势吞点击，同时保留按压缩放反馈
+        .buttonStyle(HoloPressStyle())
     }
 }
 

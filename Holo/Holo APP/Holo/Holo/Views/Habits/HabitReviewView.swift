@@ -68,11 +68,22 @@ struct HabitReviewView: View {
 
     private var canGoNextMonth: Bool { !isCurrentMonth }
 
-    private var monthTitle: String {
+    private static let yearMonthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
-        return formatter.string(from: model.overviewMonth)
+        return formatter
+    }()
+
+    private static let monthDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        return formatter
+    }()
+
+    private var monthTitle: String {
+        Self.yearMonthFormatter.string(from: model.overviewMonth)
     }
 
     private var monthNav: some View {
@@ -156,10 +167,7 @@ struct HabitReviewView: View {
     /// 本月截止今天；过去月是完整月份
     private var cutoffText: String {
         if isCurrentMonth {
-            let formatter = DateFormatter()
-            formatter.locale = Locale.current
-            formatter.setLocalizedDateFormatFromTemplate("M月d日")
-            return String(localized: "截至\(formatter.string(from: Date()))")
+            return String(localized: "截至\(Self.monthDayFormatter.string(from: Date()))")
         }
         return String(localized: "完整月份")
     }
@@ -423,11 +431,15 @@ struct HabitReviewView: View {
         }
     }
 
-    private func monthText(_ month: Date) -> String {
+    private static let monthPickerFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
-        return formatter.string(from: month)
+        return formatter
+    }()
+
+    private func monthText(_ month: Date) -> String {
+        Self.monthPickerFormatter.string(from: month)
     }
 
     // MARK: 口径说明弹层

@@ -102,44 +102,23 @@ extension EnvironmentValues {
     }
 }
 
-/// 无布局位移的按压反馈，不添加手势，也不改变系统按钮的可访问性。
-struct HoloPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.isEnabled) private var isEnabled
-    @AppStorage(HoloMotionRollout.interactionKey) private var enabled = true
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
-            .scaleEffect(configuration.isPressed && enabled && !reduceMotion ? HoloAnimation.pressScale : 1)
-            .animation(enabled && !reduceMotion ? HoloAnimation.quick : nil, value: configuration.isPressed)
-    }
-}
-
 /// 所有暖光都是无命中的局部装饰；正文与金额从始至终显示真实结果。
+/// 使用状态动画驱动而非 KeyframeAnimator（视图插入即播场景下 KeyframeAnimator 会停在初值 0，见设计规范 §7）。
 private struct HoloLightResponse: View {
     let completion: Bool
+    @State private var progress: CGFloat = 0
 
     var body: some View {
-        KeyframeAnimator(initialValue: CGFloat.zero, repeating: false) { progress in
-            light(progress: progress)
-        } keyframes: { _ in
-            KeyframeTrack {
-                LinearKeyframe(CGFloat(1), duration: completion ? HoloAnimation.completionGlowDuration : HoloAnimation.recordSettleDuration)
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private func light(progress: CGFloat) -> some View {
-        // 2026-10-08：删去左缘 3×24pt 橙色竖条——观感与渲染残留无异（东林反馈
-        // 「创建笔记时闪一个橙色竖条，像交互 BUG」），保存反馈只保留描边光晕淡出。
         RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
             .strokeBorder(Color.holoPrimary.opacity(Double(1 - progress) * 0.38), lineWidth: 1.5)
             .scaleEffect(completion ? 1 + progress * HoloAnimation.completionGlowExpansion : 1)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            .onAppear {
+                withAnimation(completion ? HoloAnimation.completionGlow : HoloAnimation.recordSettle) {
+                    progress = 1
+                }
+            }
     }
 }
 

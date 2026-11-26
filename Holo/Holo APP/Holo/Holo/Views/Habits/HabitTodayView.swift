@@ -398,11 +398,15 @@ struct HabitTodayView: View {
         .accessibilityLabel(Text("今天点亮了 \(lit) / \(lights.count)"))
     }
 
-    private var dateLineText: String {
+    private static let dateLineFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("MMMMd EEEE")
-        return formatter.string(from: model.projectionNow)
+        return formatter
+    }()
+
+    private var dateLineText: String {
+        Self.dateLineFormatter.string(from: model.projectionNow)
     }
 
     // MARK: 分节列表（今天的打卡主角 → 记数字 → 每周每月 → 想减少的事）

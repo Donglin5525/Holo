@@ -16,6 +16,7 @@ import os.log
 struct DailyKanbanView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var todoRepo = TodoRepository.shared
     @ObservedObject private var habitRepo = HabitRepository.shared
     @ObservedObject private var healthRepo = HealthRepository.shared
@@ -153,17 +154,28 @@ struct DailyKanbanView: View {
     /// iPad 同样保持先目标、后少量安排，不把模块摘要并排堆满。
     private var todaySectionsWide: some View { todaySections }
 
+    private var isTodaySnapshotReady: Bool {
+        if case .ready = todayViewModel?.state { return true }
+        return false
+    }
+
     /// 今天只汇总事实并定位原模块，不承接记录、打卡或任务完成。
     @ViewBuilder
     private var todaySections: some View {
-        if case .ready(let snapshot) = todayViewModel?.state {
-            TodayReadOnlySection(snapshot: snapshot, onItem: { dispatcher.perform($0.action) }, onRefresh: refreshToday)
-            if let error = dispatcher.localErrorMessage {
-                Text(error).goalJourneyText(.supporting).foregroundStyle(Color.holoToolError)
+        Group {
+            if case .ready(let snapshot) = todayViewModel?.state {
+                TodayReadOnlySection(snapshot: snapshot, onItem: { dispatcher.perform($0.action) }, onRefresh: refreshToday)
+                    .transition(.opacity)
+                if let error = dispatcher.localErrorMessage {
+                    Text(error).goalJourneyText(.supporting).foregroundStyle(Color.holoToolError)
+                }
+            } else {
+                ProgressView("正在读取今天")
+                    .frame(maxWidth: .infinity, minHeight: 120)
+                    .transition(.opacity)
             }
-        } else {
-            ProgressView("正在读取今天").frame(maxWidth: .infinity, minHeight: 120)
         }
+        .animation(HoloAnimation.resolved(HoloAnimation.standard, reduceMotion: reduceMotion), value: isTodaySnapshotReady)
     }
 
     private func refreshToday() {

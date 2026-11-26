@@ -170,20 +170,52 @@ final class TaskExperienceViewModel: ObservableObject {
         schedulePresentationRefresh()
     }
 
+    private var reloadGeneration: Int = 0
+
     private func schedulePresentationRefresh() {
         guard canRefreshPresentation, needsSnapshotRefresh || needsTodayPlanRefresh,
               presentationRefreshTask == nil else { return }
+        let isInitialLoad = isLoading
         presentationRefreshTask = Task { [weak self] in
-            // 多条通知共用一次刷新，首次请求决定执行时间。
-            try? await Task.sleep(for: .milliseconds(40))
+            // 首次进入立即后台取数不空等 40ms；后续通知合并沿用 40ms 防抖。
+            if !isInitialLoad {
+                try? await Task.sleep(for: .milliseconds(40))
+            }
             guard let self else { return }
             presentationRefreshTask = nil
             guard canRefreshPresentation else { return }
             if needsSnapshotRefresh {
-                reload()
+                await reloadAsync()
             } else if needsTodayPlanRefresh {
                 refreshTodayEntries()
             }
+        }
+    }
+
+    /// 异步后台取数：避免打开任务页时在主线程同步扫全库导致 1–2 秒卡顿。
+    func reloadAsync() async {
+        guard canRefreshPresentation else {
+            requestSnapshotRefresh()
+            return
+        }
+        needsSnapshotRefresh = false
+        reloadGeneration += 1
+        let gen = reloadGeneration
+        let interval = refreshSignposter.beginInterval("Task presentation refresh")
+        defer { refreshSignposter.endInterval("Task presentation refresh", interval) }
+        do {
+            let loaded = try await TaskSnapshotReader.readAllSnapshotsInBackground()
+            guard gen == reloadGeneration else { return }
+            snapshots = loaded
+            isLoading = false
+            loadFailed = false
+            validatePersistedScope()
+            refreshTodayEntries()
+        } catch {
+            guard gen == reloadGeneration else { return }
+            isLoading = false
+            loadFailed = true
+            if needsTodayPlanRefresh { refreshTodayEntries() }
         }
     }
 

@@ -82,19 +82,31 @@ enum HoloScreenTransitionMetrics {
 extension Animation {
     static var holoScreenTransition: Animation {
         HoloScreenTransitionMetrics.allowsMovement
-            ? .easeInOut(duration: HoloScreenTransitionMetrics.duration)
-            : HoloAnimation.quick
+            ? .spring(duration: 0.26, bounce: 0.0)
+            : .easeOut(duration: 0.16)
     }
 }
 
-/// 全屏模块过渡样式：从下往上滑入 + 淡入；退出反向。
-/// 用 `.combined(with:)` 让两个效果同时生效。
+/// 整页容器级轻量上浮 + 淡入修饰符。
+/// 相比 `.move(edge: .bottom)`（整屏 850pt 爬升且转场中途新插入的子视图会脱离位移提前定格在 y=0），
+/// 容器级几何 `offset(y: 24)` 让整页与中途异步到达的子内容共享同一坐标系变换，零错层、更跟手轻快。
+private struct HoloScreenDeckTransitionModifier: ViewModifier {
+    let isHidden: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: isHidden ? 24 : 0)
+            .opacity(isHidden ? 0 : 1)
+    }
+}
+
+/// 全屏模块过渡样式：容器级 24pt 轻上浮 + 淡入；退出反向。
 extension AnyTransition {
     static var holoScreenTransition: AnyTransition {
         guard HoloScreenTransitionMetrics.allowsMovement else { return .opacity }
-        return .asymmetric(
-            insertion: .move(edge: .bottom).combined(with: .opacity),
-            removal: .move(edge: .bottom).combined(with: .opacity)
+        return .modifier(
+            active: HoloScreenDeckTransitionModifier(isHidden: true),
+            identity: HoloScreenDeckTransitionModifier(isHidden: false)
         )
     }
 }

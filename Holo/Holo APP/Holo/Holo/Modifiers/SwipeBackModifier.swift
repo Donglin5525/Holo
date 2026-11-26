@@ -43,6 +43,8 @@ struct SwipeBackModifier: ViewModifier {
 
     /// 右滑关闭标记（由 HomeView 注入，见 isResidentScreenRoot）
     @Environment(\.holoSwipeCloseMarker) private var swipeCloseMarker
+    @Environment(\.holoContentWidth) private var contentWidth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: - Init
 
@@ -76,18 +78,16 @@ struct SwipeBackModifier: ViewModifier {
                     isEnabled: isEnabled,
                     ignoreNavigationStack: ignoreNavigationStack,
                     onTranslate: { rawTranslation in
-                        // 阻尼效果：超过 40% 屏宽后逐渐减速，模拟物理手感
-                        let threshold = screenWidth * 0.4
-                        if rawTranslation <= threshold {
-                            offset = rawTranslation
-                        } else {
-                            let excess = rawTranslation - threshold
-                            offset = threshold + excess * 0.3
+                        // 1:1 跟手（与 iOS 原生侧滑返回一致），无动画事务保证中途重新抓起立刻跟手不滞后
+                        var tx = SwiftUI.Transaction(animation: nil)
+                        tx.disablesAnimations = true
+                        withTransaction(tx) {
+                            offset = min(rawTranslation, containerWidth)
                         }
                     },
                     onEnd: { velocity in
-                        // 阈值：滑动超过 35% 屏宽 或 速度足够快
-                        let shouldDismiss = offset > screenWidth * 0.35 || velocity > 500
+                        // 阈值：滑动超过 32% 容器宽 或 速度足够快
+                        let shouldDismiss = offset > containerWidth * 0.32 || velocity > 480
 
                         if shouldDismiss {
                             dismissWithVelocity(velocity)
@@ -99,23 +99,29 @@ struct SwipeBackModifier: ViewModifier {
             )
     }
 
-    // MARK: - 屏幕宽度
+    // MARK: - 容器宽度
 
-    private var screenWidth: CGFloat {
-        UIScreen.main.bounds.width
+    private var containerWidth: CGFloat {
+        if let contentWidth, contentWidth > 0 { return contentWidth }
+        return UIScreen.main.bounds.width
     }
 
-    // MARK: - 关闭动画（速度自适应）
+    private var screenWidth: CGFloat {
+        containerWidth
+    }
+
+    // MARK: - 关闭动画（速度自适应临界阻尼弹簧）
 
     private func dismissWithVelocity(_ velocity: CGFloat) {
-        let remaining = screenWidth - offset
-        let safeVelocity = max(velocity, 300)
-        let duration = min(0.3, Double(remaining / safeVelocity))
+        let remaining = max(0, containerWidth - offset)
+        let safeVelocity = max(velocity, 360)
+        let duration = min(0.28, max(0.16, Double(remaining / safeVelocity)))
 
-        withAnimation(.easeOut(duration: max(0.15, duration))) {
-            offset = screenWidth
+        withAnimation(HoloAnimation.resolved(.spring(duration: duration, bounce: 0.0), reduceMotion: reduceMotion)) {
+            offset = containerWidth
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.15, duration) + 0.02) {
+        let completionDelay = reduceMotion ? 0.02 : duration + 0.02
+        DispatchQueue.main.asyncAfter(deadline: .now() + completionDelay) {
             // 常驻模块根视图：先标记"本次关闭来自右滑"，再走正常关闭回调
             if isResidentScreenRoot {
                 swipeCloseMarker?()
@@ -124,10 +130,13 @@ struct SwipeBackModifier: ViewModifier {
             // 常驻栈（2026-10 重构）关闭=隐藏不卸载，模块视图与本 @State offset 跨
             // 关闭存活。不复位则 offset 永久停在整屏宽——模块重开时内容整层停在
             // 屏外，页面黑屏只剩底部标签栏（2026-10-07 真机+模拟器双实锤，
-            // 八个常驻模块同坑）。延迟到模块淡出结束（holoScreenTransition 0.28s）
-            // 之后在隐藏态静默复位，用户不可见。
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                offset = 0
+            // 八个常驻模块同坑）。延迟到模块淡出结束之后在隐藏态静默复位，用户不可见。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+                var tx = SwiftUI.Transaction(animation: nil)
+                tx.disablesAnimations = true
+                withTransaction(tx) {
+                    offset = 0
+                }
             }
         }
     }
@@ -135,7 +144,7 @@ struct SwipeBackModifier: ViewModifier {
     // MARK: - 回弹动画（柔和弹簧）
 
     private func snapBack() {
-        withAnimation(HoloAnimation.grounded) {
+        withAnimation(HoloAnimation.resolved(HoloAnimation.grounded, reduceMotion: reduceMotion)) {
             offset = 0
         }
     }

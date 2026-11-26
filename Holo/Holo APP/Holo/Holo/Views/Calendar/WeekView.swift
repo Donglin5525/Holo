@@ -72,7 +72,7 @@ struct WeekView: View {
                         } else if v.translation.width > threshold {
                             performWeekSwipe(forward: false)
                         } else {
-                            withAnimation(.spring(response: 0.3)) { swipeOffset = 0 }
+                            withAnimation(HoloAnimation.snappy) { swipeOffset = 0 }
                         }
                         horizontalGestureLock.reset()
                     }
@@ -82,15 +82,21 @@ struct WeekView: View {
         .padding(.bottom, 2)
     }
     
-    /// 两阶段动画：快速滑出 → 更新数据 → 弹入
+    /// 两阶段动画：快速滑出 → 更新数据 → 弹入（减少动态效果时直接切换周）
     private func performWeekSwipe(forward: Bool) {
+        if !HoloScreenTransitionMetrics.allowsMovement {
+            if forward { calendarState.goToNextWeek() }
+            else { calendarState.goToPreviousWeek() }
+            swipeOffset = 0
+            return
+        }
         let slideOut: CGFloat = forward ? -holoScreenWidth() * 0.3 : holoScreenWidth() * 0.3
         withAnimation(HoloAnimation.enter) { swipeOffset = slideOut }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
             if forward { calendarState.goToNextWeek() }
             else { calendarState.goToPreviousWeek() }
             swipeOffset = -slideOut
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
+            withAnimation(HoloAnimation.snappy) { swipeOffset = 0 }
         }
     }
 }

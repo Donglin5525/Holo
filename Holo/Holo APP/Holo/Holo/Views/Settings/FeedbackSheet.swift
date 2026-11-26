@@ -132,7 +132,7 @@ struct FeedbackSheet: View {
     private func categoryCard(_ item: FeedbackCategory) -> some View {
         let isSelected = category == item
         return Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+            withAnimation(HoloAnimation.quick) {
                 category = item
             }
         } label: {

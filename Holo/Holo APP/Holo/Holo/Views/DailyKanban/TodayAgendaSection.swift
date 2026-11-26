@@ -356,28 +356,43 @@ struct TodayAgendaSection: View {
         }
     }
 
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale.current
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private static let monthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale.current
+        f.dateFormat = "M/d"
+        return f
+    }()
+
+    private static let monthDayTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale.current
+        f.dateFormat = "M/d HH:mm"
+        return f
+    }()
+
     private func constraintText(_ kind: HoloTodayPlanConstraintRow.Kind) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
         switch kind {
         case .schedule(let start, let end, let isAllDay):
             if isAllDay { return String(localized: "全天日程") }
-            formatter.dateFormat = "HH:mm"
-            return "\(formatter.string(from: start))–\(formatter.string(from: end))"
+            return "\(Self.timeFormatter.string(from: start))–\(Self.timeFormatter.string(from: end))"
         case .plannedSegment(let start, let end):
-            formatter.dateFormat = "HH:mm"
-            return "\(formatter.string(from: start))–\(formatter.string(from: end)) \(String(localized: "已安排时段"))"
+            return "\(Self.timeFormatter.string(from: start))–\(Self.timeFormatter.string(from: end)) \(String(localized: "已安排时段"))"
         case .deadline(let dueAt, let isAllDay, let isOverdue):
             if isAllDay {
-                formatter.dateFormat = "M/d"
                 return isOverdue
-                    ? String(localized: "已过期 · \(formatter.string(from: dueAt))")
+                    ? String(localized: "已过期 · \(Self.monthDayFormatter.string(from: dueAt))")
                     : String(localized: "今天截止")
             }
-            formatter.dateFormat = "M/d HH:mm"
             return isOverdue
-                ? String(localized: "已过截止 · \(formatter.string(from: dueAt))")
-                : String(localized: "今天 \(formatter.string(from: dueAt)) 截止")
+                ? String(localized: "已过截止 · \(Self.monthDayTimeFormatter.string(from: dueAt))")
+                : String(localized: "今天 \(Self.monthDayTimeFormatter.string(from: dueAt)) 截止")
         }
     }
 
@@ -390,18 +405,13 @@ struct TodayAgendaSection: View {
 
     private func deadlineTag(_ dueAt: Date?, isAllDay: Bool) -> String? {
         guard let dueAt else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateFormat = isAllDay ? "M/d" : "M/d HH:mm"
+        let formatter = isAllDay ? Self.monthDayFormatter : Self.monthDayTimeFormatter
         return String(localized: "截止 \(formatter.string(from: dueAt))")
     }
 
     private func resolveCandidateLabel(_ candidate: HoloTodayPlanConflictCandidate) -> String {
         let count = candidate.payload.entries.count
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale.current
-        timeFormatter.dateFormat = "HH:mm"
-        return String(localized: "保留 \(count) 件事的安排（\(timeFormatter.string(from: candidate.createdAt))）")
+        return String(localized: "保留 \(count) 件事的安排（\(Self.timeFormatter.string(from: candidate.createdAt))）")
     }
 
     // MARK: - 旧基础渲染（未启用显式计划）
@@ -538,22 +548,17 @@ struct TodayAgendaSection: View {
 
     private func timeText(_ item: HoloTodayAgendaItem) -> String? {
         guard let date = item.timeAt else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
         switch item.kind {
         case .scheduleOngoing, .scheduleUpcoming:
-            formatter.dateFormat = "HH:mm"
-            return formatter.string(from: date)
+            return Self.timeFormatter.string(from: date)
         case .taskOverdue:
-            formatter.dateFormat = "M/d"
-            return String(localized: "逾期 · \(formatter.string(from: date))")
+            return String(localized: "逾期 · \(Self.monthDayFormatter.string(from: date))")
         case .taskDueToday:
             return String(localized: "今天")
         case .taskPlannedToday:
             return nil
         case .taskRecent:
-            formatter.dateFormat = "M/d"
-            return formatter.string(from: date)
+            return Self.monthDayFormatter.string(from: date)
         }
     }
 

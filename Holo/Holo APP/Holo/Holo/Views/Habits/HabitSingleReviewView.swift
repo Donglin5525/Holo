@@ -483,11 +483,15 @@ struct HabitSingleReviewView: View {
         return "\(calendar.component(.month, from: date))月\(calendar.component(.day, from: date))日"
     }
 
-    private func monthText(_ month: Date) -> String {
+    private static let yearMonthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
-        return formatter.string(from: month)
+        return formatter
+    }()
+
+    private func monthText(_ month: Date) -> String {
+        Self.yearMonthFormatter.string(from: month)
     }
 
     private var summarySeparator: some View {
@@ -1221,25 +1225,37 @@ struct HabitSingleReviewView: View {
         return days
     }
 
-    private func shortDate(_ date: Date) -> String {
+    private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("M月d日")
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 
-    private func fullDate(_ date: Date) -> String {
+    private static let fullDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateStyle = .long
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 
-    private func monthTitle(_ month: Date) -> String {
+    private static let monthTitleFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
-        return formatter.string(from: month)
+        return formatter
+    }()
+
+    private func shortDate(_ date: Date) -> String {
+        Self.shortDateFormatter.string(from: date)
+    }
+
+    private func fullDate(_ date: Date) -> String {
+        Self.fullDateFormatter.string(from: date)
+    }
+
+    private func monthTitle(_ month: Date) -> String {
+        Self.monthTitleFormatter.string(from: month)
     }
 }
 
@@ -1307,15 +1323,26 @@ struct HabitTrendBarChart: View {
         return bar.days > 0 ? Double(bar.recordedDays) : nil
     }
 
+    private static let trendMonthAxisFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("M月")
+        return formatter
+    }()
+
+    private static let trendYearMonthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("y年M月")
+        return formatter
+    }()
+
     private func axisLabel(_ date: Date) -> String {
         switch trend.granularity {
         case .day, .week:
             return HoloChartFormat.date(date)
         case .month:
-            let formatter = DateFormatter()
-            formatter.locale = Locale.current
-            formatter.setLocalizedDateFormatFromTemplate("M月")
-            return formatter.string(from: date)
+            return Self.trendMonthAxisFormatter.string(from: date)
         }
     }
 
@@ -1329,10 +1356,7 @@ struct HabitTrendBarChart: View {
             let last = calendar.date(byAdding: .day, value: -1, to: bar.end) ?? bar.start
             return "\(HoloChartFormat.date(bar.start)) – \(HoloChartFormat.date(last)) · \(bar.recordedDays)/\(bar.days) \(String(localized: "天"))"
         case .month:
-            let formatter = DateFormatter()
-            formatter.locale = Locale.current
-            formatter.setLocalizedDateFormatFromTemplate("y年M月")
-            return "\(formatter.string(from: bar.start)) · \(bar.recordedDays)/\(bar.days) \(String(localized: "天"))"
+            return "\(Self.trendYearMonthFormatter.string(from: bar.start)) · \(bar.recordedDays)/\(bar.days) \(String(localized: "天"))"
         }
     }
 
@@ -1636,11 +1660,15 @@ struct ReviewCalendarGrid: View {
         return String(localized: "无记录")
     }
 
-    private func fullDate(_ day: Date) -> String {
+    private static let detailFullDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateStyle = .long
-        return formatter.string(from: day)
+        return formatter
+    }()
+
+    private func fullDate(_ day: Date) -> String {
+        Self.detailFullDateFormatter.string(from: day)
     }
 }
 

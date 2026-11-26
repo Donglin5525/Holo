@@ -162,6 +162,17 @@ private final class OverlayWindowController {
 private struct ToastOverlayView: View {
 
     @ObservedObject private var center = HoloToastCenter.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var toastTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .scale(scale: 0.94, anchor: .top)
+                .combined(with: .move(edge: .top))
+                .combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -174,14 +185,22 @@ private struct ToastOverlayView: View {
 
             if let message = center.current {
                 toastView(message)
+                    .id(message.id)
                     .padding(.top, HoloSpacing.xl)
                     .padding(.horizontal, HoloSpacing.lg)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(toastTransition)
                     .allowsHitTesting(false)
             }
         }
         .allowsHitTesting(false)
-        .animation(HoloAnimation.standard, value: center.current)
+        .animation(
+            HoloAnimation.resolved(
+                HoloAnimation.snappy,
+                reduceMotion: reduceMotion,
+                fallback: HoloAnimation.reducedFade
+            ),
+            value: center.current
+        )
     }
 
     private func toastView(_ message: ToastMessage) -> some View {

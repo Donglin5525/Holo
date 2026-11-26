@@ -103,12 +103,16 @@ struct AnniversaryCardView: View {
         }
     }
 
-    private var infoLine: String {
+    private static let cardDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        let baseDate = anniversary.repeatYearly ? anniversary.nextOccurrenceDate() : anniversary.date
         formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        return formatter
+    }()
 
-        var parts: [String] = [formatter.string(from: baseDate)]
+    private var infoLine: String {
+        let baseDate = anniversary.repeatYearly ? anniversary.nextOccurrenceDate() : anniversary.date
+
+        var parts: [String] = [Self.cardDateFormatter.string(from: baseDate)]
         if anniversary.repeatYearly { parts.append(String(localized: "每年")) }
         if anniversary.reminderEnabled {
             if let preset = AnniversaryReminderPreset(rawValue: anniversary.reminderDaysBefore) {
@@ -364,11 +368,15 @@ struct AnniversaryHeroCard: View {
         return parts.joined(separator: " · ")
     }
 
-    private var heroDateText: String {
+    private static let heroDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        let baseDate = anniversary.repeatYearly ? anniversary.nextOccurrenceDate() : anniversary.date
         formatter.setLocalizedDateFormatFromTemplate("M月d日EEEE")
-        return formatter.string(from: baseDate)
+        return formatter
+    }()
+
+    private var heroDateText: String {
+        let baseDate = anniversary.repeatYearly ? anniversary.nextOccurrenceDate() : anniversary.date
+        return Self.heroDateFormatter.string(from: baseDate)
     }
 }
 

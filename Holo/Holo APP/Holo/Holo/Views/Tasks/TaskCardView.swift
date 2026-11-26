@@ -253,7 +253,7 @@ struct TaskCardView: View {
                             // 更多项指示 / 展开按钮
                             if checkItems.count > 5 {
                                 Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    withAnimation(HoloAnimation.standard) {
                                         isChecklistExpanded.toggle()
                                     }
                                 } label: {
@@ -265,7 +265,7 @@ struct TaskCardView: View {
                                     }
                                     .foregroundColor(.holoPrimary)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(HoloPressStyle())
                                 .fixedSize()
                             } else {
                                 Spacer(minLength: 0)

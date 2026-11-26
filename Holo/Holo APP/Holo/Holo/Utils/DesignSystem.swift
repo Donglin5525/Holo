@@ -549,21 +549,31 @@ enum HoloAnimation {
     static func replayDelay(order: Int) -> TimeInterval {
         Double(min(max(order, 0), 3)) * 0.1
     }
-    // MARK: 时长动画（easeInOut）
-    /// 微交互——开关切换、高亮、按压反馈
-    static let quick: Animation = .easeInOut(duration: 0.15)
-    /// 常规切换——展开/收起、淡入淡出、状态变化（默认首选）
-    static let standard: Animation = .easeInOut(duration: 0.2)
-    /// 较慢切换——导航高亮、板块过渡
-    static let smooth: Animation = .easeInOut(duration: 0.25)
-    /// 入场减速——列表行/卡片淡入出现（easeOut 曲线：起快收缓，出现不拖沓）
-    static let enter: Animation = .easeOut(duration: 0.2)
+    // MARK: 核心状态曲线（Apple 临界阻尼弹簧：跟手、可打断、继承初速、不回弹抢戏）
+    /// 微交互——按压反馈、开关切换、高亮、悬停、计数微跳（最快最轻，高频操作不拖沓）
+    static let quick: Animation = .spring(duration: 0.2, bounce: 0.0)
+    /// 常规切换——展开/收起、淡入淡出、内容状态切换（默认首选）
+    static let standard: Animation = .spring(duration: 0.28, bounce: 0.0)
+    /// 较慢切换——导航高亮、侧栏展开/收起、板块过渡
+    static let smooth: Animation = .spring(duration: 0.34, bounce: 0.0)
+    /// 入场减速——列表行/卡片出现（起快收缓，可打断）
+    static let enter: Animation = .spring(duration: 0.3, bounce: 0.0)
 
-    // MARK: 弹簧动画（spring）
-    /// 弹性交互（最常用）——拖拽、卡片弹入、选中态回弹
-    static let snappy: Animation = .spring(response: 0.3, dampingFraction: 0.7)
-    /// 沉稳弹性——滑动返回、大块视图位移
-    static let grounded: Animation = .spring(response: 0.45, dampingFraction: 0.82)
+    // MARK: 弹性交互（轻微回弹，仅用于需要物理落定感的空间交互）
+    /// 弹性交互——胶囊滑块、拖拽落位、卡片回弹
+    static let snappy: Animation = .spring(duration: 0.32, bounce: 0.12)
+    /// 沉稳弹性——滑动返回回弹、大块视图位移
+    static let grounded: Animation = .spring(duration: 0.42, bounce: 0.05)
+
+    // MARK: Reduce Motion 统一收口
+    /// 尊重系统「减少动态效果」：开启时降级为指定兜底动画（默认 nil 直接切态，不产生位移）。
+    static func resolved(
+        _ animation: Animation,
+        reduceMotion: Bool,
+        fallback: Animation? = nil
+    ) -> Animation? {
+        reduceMotion ? fallback : animation
+    }
 
     // MARK: B 活页归档（动效融合 G2）
     /// 收页回执整段时长：一次「升起微弹 → 上浮淡出」的自播关键帧，播完即隐
@@ -774,11 +784,13 @@ enum HoloTaskPaperTheme {
 /// 任何计数展示一律用它；禁止再自造橙数字、白字胶囊、方块徽章等旁支形态。
 struct HoloCountBadge: View {
     let count: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Text(verbatim: "\(count)")
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
+            .contentTransition(reduceMotion ? .identity : .numericText(value: Double(count)))
             .foregroundColor(.holoToolTextSecondary)
             .padding(.horizontal, 6)
             .frame(minWidth: 20, minHeight: 20)
@@ -786,6 +798,22 @@ struct HoloCountBadge: View {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Color.holoNestedCardBackground)
             )
+            .animation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion), value: count)
+    }
+}
+
+/// 无布局位移的按压反馈，不添加手势，也不改变系统按钮的可访问性。
+/// 定义在 DesignSystem.swift 以兼容主 App 与 Widget Extension 双 target。
+struct HoloPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
+    @AppStorage(HoloMotionRollout.interactionKey) private var enabled = true
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
+            .scaleEffect(configuration.isPressed && enabled && !reduceMotion ? HoloAnimation.pressScale : 1)
+            .animation(enabled && !reduceMotion ? HoloAnimation.quick : nil, value: configuration.isPressed)
     }
 }
 
@@ -804,7 +832,7 @@ struct HoloHeaderIconBtn<Content: View>: View {
         Group {
             if let action {
                 Button(action: action) { label }
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoloPressStyle())
             } else {
                 label
             }
@@ -1122,17 +1150,22 @@ struct HoloInlineState: View {
     let message: String
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                if kind == .loading {
-                    ProgressView().tint(Color.holoToolAction)
-                } else {
-                    Image(systemName: kind == .failure ? "exclamationmark.circle" : "tray")
-                        .foregroundStyle(kind == .failure ? Color.holoToolError : Color.holoToolTextSecondary)
-                        .accessibilityHidden(true)
+                Group {
+                    if kind == .loading {
+                        ProgressView().tint(Color.holoToolAction)
+                    } else {
+                        Image(systemName: kind == .failure ? "exclamationmark.circle" : "tray")
+                            .foregroundStyle(kind == .failure ? Color.holoToolError : Color.holoToolTextSecondary)
+                            .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                            .accessibilityHidden(true)
+                    }
                 }
+                .transition(.opacity)
                 Text(message)
                     .holoText(.supporting)
                     .foregroundStyle(Color.holoToolTextSecondary)
@@ -1141,9 +1174,11 @@ struct HoloInlineState: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(HoloActionStyle(role: .secondary))
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(HoloAnimation.resolved(HoloAnimation.standard, reduceMotion: reduceMotion), value: kind)
         .accessibilityElement(children: .contain)
     }
 }

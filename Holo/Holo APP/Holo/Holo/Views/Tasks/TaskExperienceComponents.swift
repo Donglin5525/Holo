@@ -285,6 +285,20 @@ struct TaskExperienceRow: View {
         return formatter
     }()
 
+    private static let naturalMonthDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        return formatter
+    }()
+
+    private static let naturalTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
     /// 自然语言截止（今天/明天/后天；具体时刻附时间，§4.4）
     static func formatNatural(_ due: Date, member: TaskRecordSnapshot, calendar: Calendar) -> String {
         let base: String
@@ -295,16 +309,10 @@ struct TaskExperienceRow: View {
         } else if calendar.isDate(due, inSameDayAs: calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: Date())) ?? due) {
             base = String(localized: "后天")
         } else {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.setLocalizedDateFormatFromTemplate("M月d日")
-            base = formatter.string(from: due)
+            base = naturalMonthDayFormatter.string(from: due)
         }
         if member.isAllDay { return base }
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "zh_CN")
-        timeFormatter.dateFormat = "HH:mm"
-        return base + " " + timeFormatter.string(from: due)
+        return base + " " + naturalTimeFormatter.string(from: due)
     }
 
     // MARK: 长按菜单（原「⋯」的继任者：低频操作收进长按，不占常驻视觉）
@@ -565,13 +573,25 @@ struct TaskPlannedRangeQuickSheet: View {
         )
     }
 
+    private static let dueDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        return formatter
+    }()
+
+    private static let dueDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日 HH:mm")
+        return formatter
+    }()
+
     private var dueSummary: String {
         guard let due = snapshot.effectiveDue(calendar: calendar) else {
             return String(localized: "未设截止")
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate(snapshot.isAllDay ? "M月d日" : "M月d日 HH:mm")
+        let formatter = snapshot.isAllDay ? Self.dueDayFormatter : Self.dueDateTimeFormatter
         return formatter.string(from: due)
     }
 

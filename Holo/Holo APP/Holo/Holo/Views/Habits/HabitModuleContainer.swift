@@ -15,6 +15,7 @@ struct HabitModuleContainer: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.holoDismiss) private var holoDismiss
     @Environment(\.holoContentWidth) private var holoContentWidth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
@@ -207,10 +208,17 @@ struct HabitModuleContainer: View {
                         model.selectedTab = .today
                     }
                 )
-                .transition(.opacity)
+                .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.18), value: model.reviewRoute)
+        .animation(
+            HoloAnimation.resolved(
+                HoloAnimation.smooth,
+                reduceMotion: reduceMotion,
+                fallback: HoloAnimation.reducedFade
+            ),
+            value: model.reviewRoute
+        )
     }
 
     // MARK: 头部（按当前页面切换标题与动作）
@@ -226,7 +234,10 @@ struct HabitModuleContainer: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.holoToolText)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(HoloPressStyle())
+                    .holoHover()
                     .accessibilityIdentifier("habit.single.back")
                     .accessibilityLabel(Text(String(localized: "返回回顾整体")))
                 } else {
@@ -237,7 +248,10 @@ struct HabitModuleContainer: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.holoToolText)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(HoloPressStyle())
+                    .holoHover()
                     .accessibilityIdentifier("habit.back")
                 }
 
@@ -253,7 +267,10 @@ struct HabitModuleContainer: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.holoToolText)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(HoloPressStyle())
+                    .holoHover()
                     .accessibilityLabel(Text(String(localized: "习惯设置")))
                 } else if model.selectedTab == .today {
                     Button {
@@ -266,7 +283,8 @@ struct HabitModuleContainer: View {
                             .background(Circle().fill(Color.holoToolAction))
                     }
                     .frame(width: 44, height: 44)
-                    .buttonStyle(.plain)
+                    .buttonStyle(HoloPressStyle())
+                    .holoHover()
                     .accessibilityIdentifier("habit.add")
                     .accessibilityLabel(Text(String(localized: "新增习惯")))
 
@@ -280,6 +298,8 @@ struct HabitModuleContainer: View {
             Text(headerTitle)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.holoToolText)
+                .contentTransition(.opacity)
+                .animation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion), value: headerTitle)
                 .accessibilityIdentifier("habit.title")
         }
         .padding(.horizontal, HoloSpacing.md)
@@ -302,7 +322,10 @@ struct HabitModuleContainer: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.holoToolText)
                 .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(HoloPressStyle())
+        .holoHover()
         .accessibilityIdentifier("habit.more")
         .accessibilityLabel(Text(String(localized: "更多选项")))
     }
@@ -336,7 +359,9 @@ struct HabitModuleContainer: View {
         HStack(spacing: 8) {
             ForEach(HabitModuleViewModel.Tab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(HoloAnimation.quick) { model.selectedTab = tab }
+                    withAnimation(HoloAnimation.resolved(HoloAnimation.snappy, reduceMotion: reduceMotion)) {
+                        model.selectedTab = tab
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
@@ -356,7 +381,7 @@ struct HabitModuleContainer: View {
                     }
                     .foregroundColor(model.selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(HoloPressStyle())
                 .holoHover()
             }
             Spacer()
@@ -367,22 +392,29 @@ struct HabitModuleContainer: View {
     }
 
     private func tabButton(_ tab: HabitModuleViewModel.Tab) -> some View {
-        Button {
-            withAnimation(HoloAnimation.quick) { model.selectedTab = tab }
+        let isSelected = model.selectedTab == tab
+        return Button {
+            withAnimation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion)) {
+                model.selectedTab = tab
+            }
         } label: {
             VStack(spacing: 4) {
                 Circle()
-                    .fill(model.selectedTab == tab ? Color.holoPrimary : Color.clear)
+                    .fill(Color.holoPrimary)
                     .frame(width: 4, height: 4)
+                    .scaleEffect(isSelected ? 1 : 0.01)
+                    .opacity(isSelected ? 1 : 0)
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(model.selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
-                    .foregroundColor(model.selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(HoloPressStyle())
         .accessibilityIdentifier("habit.tab.\(tab.rawValue)")
     }
 

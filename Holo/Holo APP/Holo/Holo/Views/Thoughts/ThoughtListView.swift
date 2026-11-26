@@ -1328,13 +1328,18 @@ struct ThoughtListView: View {
         return filters.startDate != nil || filters.endDate != nil || filters.organizationState != nil
     }
 
+    private static let panelDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+
     /// 面板日期条件的摘要文案：「3月1日 起」「截至 3月5日」「3月1日 – 3月5日」
     private var panelDateRangeText: String? {
         guard let filters = currentFilters,
               filters.startDate != nil || filters.endDate != nil else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
+        let formatter = Self.panelDateFormatter
         switch (filters.startDate, filters.endDate) {
         case let (start?, end?):
             return "\(formatter.string(from: start)) – \(formatter.string(from: end))"

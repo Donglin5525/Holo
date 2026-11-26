@@ -55,6 +55,7 @@ struct TasksView: View {
     @Namespace private var todoTabNamespace
     /// 当前窗口宽度（v2 断点判断用）
     @Environment(\.holoContentWidth) private var holoContentWidth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
@@ -228,14 +229,14 @@ struct TasksView: View {
         HStack(spacing: 8) {
             ForEach(TodoTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(HoloAnimation.quick) {
+                    withAnimation(HoloAnimation.resolved(HoloAnimation.snappy, reduceMotion: reduceMotion)) {
                         selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12, weight: .medium))
-                            .symbolEffect(.bounce, value: selectedTab == tab)
+                            .symbolEffect(.bounce, value: reduceMotion ? false : selectedTab == tab)
                         Text(tab.displayName)
                             .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
@@ -251,7 +252,7 @@ struct TasksView: View {
                     }
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(HoloPressStyle())
                 .holoHover()
             }
             Spacer()
@@ -264,7 +265,7 @@ struct TasksView: View {
     /// 统一的 Tab 按钮（原型：图标 22 / 文字 11，选中橙 #E85D2B）
     private func todoTabButton(_ tab: TodoTab) -> some View {
         Button {
-            withAnimation(HoloAnimation.quick) {
+            withAnimation(HoloAnimation.resolved(HoloAnimation.quick, reduceMotion: reduceMotion)) {
                 selectedTab = tab
             }
         } label: {
@@ -278,7 +279,9 @@ struct TasksView: View {
                     .foregroundColor(selectedTab == tab ? TaskQuadrantPalette.accent : TaskQuadrantPalette.inkSecondary)
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(HoloPressStyle())
     }
 
     /// 新增 FAB：模块内唯一橙色主行动。纪念日 Tab 下转发给纪念日页自带的新增 sheet
@@ -302,7 +305,8 @@ struct TasksView: View {
                 .background(Circle().fill(TaskQuadrantPalette.accent))
                 .shadow(color: TaskQuadrantPalette.accent.opacity(0.30), radius: 14, y: 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
+        .holoHover()
         .accessibilityIdentifier("todoAddFAB")
         .accessibilityLabel(Text("新增"))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)

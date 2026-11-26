@@ -63,7 +63,6 @@ nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
     /// 已链接事项（entityID=本任务、linked 且未删；同一事项多行链接由读取端去重）
     var matterLinks: [TaskMatterLinkFact] = []
 
-    @MainActor
     static func make(
         from task: TodoTask,
         matterLinks: [TaskMatterLinkFact] = []
@@ -193,7 +192,6 @@ nonisolated enum TaskSnapshotReader {
     /// 读取全部任务（含已完成/归档/已删除——统计与搜索需要），完成：
     /// 同 id 唯一副本选择（先选规范行再过滤，方案 §7.3）→ 纯值化。
     /// fetch 失败原样抛出，不返回空数组伪装无数据（方案 §9.4）。
-    @MainActor
     static func readAllSnapshots(in context: NSManagedObjectContext) throws -> [TaskRecordSnapshot] {
         let request = TodoTask.fetchRequest()
         let rows = try context.fetch(request)
@@ -204,9 +202,16 @@ nonisolated enum TaskSnapshotReader {
         }
     }
 
+    /// 后台上下文读取全部任务快照：零主线程 SQLite 阻塞，结果均为纯值类型。
+    static func readAllSnapshotsInBackground() async throws -> [TaskRecordSnapshot] {
+        let bgContext = CoreDataStack.shared.newBackgroundContext()
+        return try await bgContext.perform {
+            try readAllSnapshots(in: bgContext)
+        }
+    }
+
     /// 已链接事项事实：entityType=todoTask、linked 且未删的 link 行，
     /// 带事项当前标题；同一任务的同一事项多行链接去重（首见为准）。
-    @MainActor
     private static func readLinkedMatters(in context: NSManagedObjectContext) throws -> [String: [TaskMatterLinkFact]] {
         let linkRequest = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
         linkRequest.predicate = NSPredicate(

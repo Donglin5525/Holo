@@ -26,6 +26,8 @@ struct QuickTagBar: View {
     /// 点击标签回调
     let onTagTap: (_ value: String, _ kind: QuickTagKind) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // MARK: - Body
 
     var body: some View {
@@ -52,7 +54,7 @@ struct QuickTagBar: View {
                     .fill(Color.black.opacity(0.08))
                     .frame(height: 0.5)
             }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))
         }
     }
 }
@@ -116,7 +118,8 @@ struct QuickTagChip: View {
             // 标签内容来自用户数据，横向滚动时按内容取宽，避免首字符被压缩裁掉
             .fixedSize(horizontal: true, vertical: false)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(HoloPressStyle())
+        .holoHover()
     }
 }
 

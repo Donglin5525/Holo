@@ -208,21 +208,27 @@ struct PopupCalendarSheet: View {
                     }
                     if v.translation.width < -40 { performSwipe(forward: true) }
                     else if v.translation.width > 40 { performSwipe(forward: false) }
-                    else { withAnimation(.spring(response: 0.3)) { swipeOffset = 0 } }
+                    else { withAnimation(HoloAnimation.snappy) { swipeOffset = 0 } }
                     horizontalGestureLock.reset()
                 }
         )
     }
     
-    /// 月切换动画
+    /// 月切换动画（减少动态效果时直接切换月）
     private func performSwipe(forward: Bool) {
+        if !HoloScreenTransitionMetrics.allowsMovement {
+            if forward { calendarState.goToNextMonth() }
+            else { calendarState.goToPreviousMonth() }
+            swipeOffset = 0
+            return
+        }
         let slide: CGFloat = forward ? -holoScreenWidth() * 0.3 : holoScreenWidth() * 0.3
         withAnimation(HoloAnimation.enter) { swipeOffset = slide }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
             if forward { calendarState.goToNextMonth() }
             else { calendarState.goToPreviousMonth() }
             swipeOffset = -slide
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipeOffset = 0 }
+            withAnimation(HoloAnimation.snappy) { swipeOffset = 0 }
         }
     }
 }

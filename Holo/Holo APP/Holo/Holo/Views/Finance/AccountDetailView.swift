@@ -879,13 +879,17 @@ struct AccountDetailView: View {
         return BillingCycleCalculator.currentCycleRange(startDay: billingDay, reference: Date())
     }
 
-    /// 账单周期文字描述
-    private func cycleRangeText(_ range: (start: Date, end: Date)) -> String {
+    private static let cycleDayFormatter: DateFormatter = {
         let fmt = DateFormatter()
         fmt.dateFormat = "M/d"
+        return fmt
+    }()
+
+    /// 账单周期文字描述
+    private func cycleRangeText(_ range: (start: Date, end: Date)) -> String {
         // end 是半开区间（次周期起始日），显示前一天作为周期末尾
         let lastDay = Calendar.current.date(byAdding: .second, value: -1, to: range.end) ?? range.end
-        return "\(fmt.string(from: range.start)) - \(fmt.string(from: lastDay))"
+        return "\(Self.cycleDayFormatter.string(from: range.start)) - \(Self.cycleDayFormatter.string(from: lastDay))"
     }
 
     /// 距还款日天数（负数=已逾期）
@@ -1084,12 +1088,16 @@ struct AccountDetailView: View {
         }
     }
 
-    private func formatAmount(_ amount: Decimal) -> String {
+    private static let currencyFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
+        return formatter
+    }()
+
+    private func formatAmount(_ amount: Decimal) -> String {
+        Self.currencyFormatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
     }
 
     /// 带符号金额：净变动、账户余额这类「方向即信息」的数值必须保留负号，

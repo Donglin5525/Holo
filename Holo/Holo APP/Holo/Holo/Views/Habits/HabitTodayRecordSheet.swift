@@ -248,11 +248,15 @@ struct HabitTodayRecordSheet: View {
 
     // MARK: 导航日期胶囊
 
-    private var navDateBadgeText: String {
+    private static let navDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("M月d日 EEE")
-        let dateText = formatter.string(from: habitToday)
+        return formatter
+    }()
+
+    private var navDateBadgeText: String {
+        let dateText = Self.navDateFormatter.string(from: habitToday)
         guard detailMeta.dayEndMinutes != 0 else { return dateText }
         let cutoff = HabitDayAttribution.displayText(
             hour: detailMeta.dayEndMinutes / 60,
@@ -1020,10 +1024,14 @@ struct HabitTodayRecordSheet: View {
         return try? HabitRepository.shared.context.fetch(request).first
     }
 
-    private func shortDate(_ date: Date) -> String {
+    private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.setLocalizedDateFormatFromTemplate("M月d日")
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    private func shortDate(_ date: Date) -> String {
+        Self.shortDateFormatter.string(from: date)
     }
 }

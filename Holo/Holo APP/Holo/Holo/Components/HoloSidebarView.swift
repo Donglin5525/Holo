@@ -105,6 +105,9 @@ struct HoloSidebarView: View {
     /// 底部「快速记录」动作（⌘N 同款语义）
     let onQuickCapture: () -> Void
 
+    @Namespace private var sidebarSelectionNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var isRail: Bool { visibility == .rail }
 
     var body: some View {
@@ -154,7 +157,7 @@ struct HoloSidebarView: View {
         .frame(width: isRail ? HoloLayoutPolicy.sidebarRailWidth : HoloAdaptiveLayout.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Self.sidebarBackground.ignoresSafeArea())
-        .animation(HoloAnimation.standard, value: visibility)
+        .animation(HoloAnimation.resolved(HoloAnimation.smooth, reduceMotion: reduceMotion), value: visibility)
     }
 
     // MARK: - 子视图
@@ -195,7 +198,9 @@ struct HoloSidebarView: View {
         let isSelected = selection == item
         return Button {
             guard selection != item else { return }
-            selection = item
+            withAnimation(HoloAnimation.resolved(HoloAnimation.snappy, reduceMotion: reduceMotion)) {
+                selection = item
+            }
         } label: {
             Group {
                 if isRail {
@@ -226,15 +231,18 @@ struct HoloSidebarView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(isSelected ? Color.holoPrimary.opacity(0.14) : Color.clear)
-            )
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                        .fill(Color.holoPrimary.opacity(0.14))
+                        .matchedGeometryEffect(id: "sidebarSelection", in: sidebarSelectionNamespace)
+                }
+            }
             // 整行可点：Mac（为 iPad 设计）上 Spacer 撑开的空白与透明背景不参与
             // 点击判定，必须显式声明内容形状（contentShape 须挂在 label 内部才生效）
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .holoHover()
         .accessibilityLabel(item.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -278,7 +286,7 @@ struct HoloSidebarView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .holoHover()
         .accessibilityLabel(String(localized: "快速记录"))
     }
@@ -303,7 +311,7 @@ struct HoloSidebarView: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .holoHover()
         .accessibilityLabel(String(localized: "收起边栏"))
     }
@@ -323,7 +331,7 @@ struct HoloSidebarView: View {
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .holoHover()
         .accessibilityLabel(String(localized: "展开边栏"))
     }

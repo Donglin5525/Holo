@@ -59,7 +59,13 @@ final class HabitModuleViewModel: ObservableObject {
 
     // MARK: 发布状态
 
-    @Published var selectedTab: Tab = .today
+    @Published var selectedTab: Tab = .today {
+        didSet {
+            if selectedTab == .review, needsReviewRebuild {
+                rebuildReviewOverviewNow()
+            }
+        }
+    }
     @Published private(set) var todayRows: [HabitRowSnapshot] = []
     @Published private(set) var folders: [HabitFolderSummary] = []
     @Published private(set) var pausedRows: [HabitRowSnapshot] = []
@@ -118,16 +124,15 @@ final class HabitModuleViewModel: ObservableObject {
 
     // MARK: 初始化
 
+    private var hasLoadedOnce = false
+    private var needsReviewRebuild = true
+
     init(repository: HabitRepository = .shared,
          coordinator: HabitActionCoordinator = .shared) {
         self.repository = repository
         self.coordinator = coordinator
         bindDataChangeNotifications()
-        // 仅在存储已就绪时同步投影；未就绪一律走 warmUp 异步初始化，
-        // 绝不在主线程等待数据库（真机冷启动阻塞 = 打开黑屏，2026-10-06 实测）
-        if repository.isReady {
-            refresh()
-        }
+        // 不在 init() 同步扫全库，避免点击习惯模块首帧阻塞主线程 1–2 秒；统一交 warmUp() 执行一次。
     }
 
     /// 异步等待存储就绪后首次刷新（容器 onAppear 调用）。
@@ -136,6 +141,7 @@ final class HabitModuleViewModel: ObservableObject {
     /// （旧写法 `_ = persistentContainer` 拿到的只是容器对象，store 仍在后台加载，
     /// 随后主线程 setup()/refresh() 撞上未就绪的库会阻塞主线程——开发规范 §10）
     func warmUp() {
+        if hasLoadedOnce { return }
         if repository.isReady {
             refresh()
             return
@@ -214,17 +220,27 @@ final class HabitModuleViewModel: ObservableObject {
         recordedTodayCount = todayRows.filter { $0.today.isRecorded }.count
         rebuildTodayLights()
 
-        // V2 回顾：全量未删除习惯（历史不随生命周期隐去，§6.2）
+        lastProjectionData = data
+        needsReviewRebuild = true
+        if selectedTab == .review {
+            rebuildReviewOverviewNow()
+        }
+
+        recomputeFilteredRows()
+        hasLoadedOnce = true
+        isLoading = false
+    }
+
+    /// 仅在回顾页可见时才拉取回顾用习惯清单并计算月度回顾快照，避免打开「今天」页白做重算。
+    private func rebuildReviewOverviewNow() {
+        guard repository.isReady else { return }
         let reviewHabits = repository.fetchAllHabitsForReview().map { habit -> HabitReviewHabitInfo in
             let lifecycle: HabitLifecycle = habit.isArchived ? .archived : (habit.isPaused ? .paused : .active)
             return HabitReviewHabitInfo(habit: habit, lifecycle: lifecycle)
         }
         lastReviewHabits = reviewHabits
-        lastProjectionData = data
+        needsReviewRebuild = false
         rebuildReviewOverview()
-
-        recomputeFilteredRows()
-        isLoading = false
     }
 
     /// 重建页头「今日的灯」：好习惯一盏，顺序对齐今天页分节显示顺序

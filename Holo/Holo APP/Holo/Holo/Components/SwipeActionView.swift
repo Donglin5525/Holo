@@ -18,7 +18,7 @@ private enum SwipeConstants {
     static let actionWidth: CGFloat = 70
 }
 
-private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.85)
+private let snapAnimation = HoloAnimation.snappy
 
 // MARK: - SwipeActionView
 
@@ -40,10 +40,16 @@ struct SwipeActionView<Content: View>: View {
 
     @State private var offset: CGFloat = 0
     @State private var showDeleteConfirmation = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 按钮数量决定展开宽度：延期(可选) + 归档 + 删除
     private var snapOpenOffset: CGFloat {
         SwipeConstants.actionWidth * (onPostpone != nil ? 3 : 2)
+    }
+
+    /// 拉出进度（0...1），驱动操作按钮随手指自然浮现而非在 -0.5pt 硬切
+    private var revealProgress: CGFloat {
+        min(1, max(0, -offset / max(1, snapOpenOffset)))
     }
 
     // MARK: - Initialization
@@ -71,8 +77,9 @@ struct SwipeActionView<Content: View>: View {
             actionButtons
                 // 操作层常驻在内容背后；任务完成时卡片会换形成更矮的记录行，
                 // 若闭合态仍参与绘制，换形中间帧会短暂露出最右侧的删除按钮。
-                // 只有用户真正开始左滑后才显示操作层，避免状态动画泄露危险操作。
-                .opacity(offset < -0.5 ? 1 : 0)
+                // 只有用户真正开始左滑后才随拉出进度浮现，避免状态动画泄露危险操作。
+                .opacity(offset < -0.5 ? Double(min(1, revealProgress * 1.4)) : 0)
+                .scaleEffect(reduceMotion ? 1 : (0.94 + 0.06 * revealProgress), anchor: .trailing)
                 .allowsHitTesting(offset < -0.5)
                 // 闭合态必须同步从无障碍树摘除（2026-09-26 R1 实锤）：opacity(0) 不摘 AX，
                 // 7 张卡的归档/删除幽灵按钮常驻 AX 且 isHittable=true——VoiceOver 可聚焦
@@ -95,7 +102,7 @@ struct SwipeActionView<Content: View>: View {
             close()
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
-            withAnimation(snapAnimation) {
+            withAnimation(HoloAnimation.resolved(snapAnimation, reduceMotion: reduceMotion)) {
                 offset = newValue ? -snapOpenOffset : 0
             }
         }
@@ -190,7 +197,7 @@ struct SwipeActionView<Content: View>: View {
     // MARK: - Helpers
 
     private func close() {
-        withAnimation(snapAnimation) {
+        withAnimation(HoloAnimation.resolved(snapAnimation, reduceMotion: reduceMotion)) {
             offset = 0
             isRevealed.wrappedValue = false
         }
@@ -301,22 +308,32 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
                 }
 
                 let h = translation.x
-                if h < 0 {
-                    let maxOffset = snap + 20
-                    let raw = max(-maxOffset, h)
-                    parent.offset = parent.isRevealed.wrappedValue
-                        ? raw - snap
-                        : raw
-                } else if parent.isRevealed.wrappedValue {
-                    parent.offset = -snap + min(h, snap)
+                let baseOffset: CGFloat = parent.isRevealed.wrappedValue ? -snap : 0
+                let raw = baseOffset + h
+                let clamped: CGFloat
+                if raw < -snap {
+                    // 超出展开宽后柔顺橡皮筋阻尼（渐近最多多拉 32pt，不撞硬墙）
+                    let excess = -snap - raw
+                    clamped = -snap - (excess * 32) / (excess + 32)
+                } else if raw > 0 {
+                    clamped = 0
+                } else {
+                    clamped = raw
+                }
+                var tx = SwiftUI.Transaction(animation: nil)
+                tx.disablesAnimations = true
+                withTransaction(tx) {
+                    parent.offset = clamped
                 }
 
             case .ended, .cancelled:
                 enableScrollView()
 
+                let anim = UIAccessibility.isReduceMotionEnabled ? nil : snapAnimation
+
                 // 未锁定为水平时不处理速度，避免垂直滚动结束时误开操作按钮
                 if gestureLock.axis != .horizontal {
-                    withAnimation(snapAnimation) {
+                    withAnimation(anim) {
                         parent.offset = parent.isRevealed.wrappedValue ? -snap : 0
                     }
                     gestureLock.reset()
@@ -324,19 +341,19 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
                 }
 
                 let velocity = gesture.velocity(in: gesture.view)
-                let predicted = velocity.x * 0.3
-
+                // 结合当前拖出位移 + 惯性预测：慢拖过半和快甩都能自然落位
+                let projected = parent.offset + velocity.x * 0.22
                 let shouldOpen: Bool
                 if parent.isRevealed.wrappedValue {
-                    shouldOpen = predicted < -HorizontalGestureTuning.global.horizontalConfirmDistance
+                    shouldOpen = projected < -(snap - HorizontalGestureTuning.global.horizontalConfirmDistance)
                 } else {
-                    shouldOpen = predicted < -snap / 2
+                    shouldOpen = projected < -snap * 0.45
                 }
 
                 if shouldOpen != parent.isRevealed.wrappedValue {
                     parent.isRevealed.wrappedValue = shouldOpen
                 } else {
-                    withAnimation(snapAnimation) {
+                    withAnimation(anim) {
                         parent.offset = shouldOpen ? -snap : 0
                     }
                 }

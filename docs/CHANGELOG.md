@@ -13,6 +13,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 全局动效体系升级（Apple 临界阻尼弹簧语言）与模块打开 1–2 秒卡顿 / 转场文字抢跑根治（2026-11-26，纯客户端免后端发版）
+  - 统一动效物理语言：`HoloAnimation.quick / standard / smooth / enter / snappy / grounded` 与 `Animation.holoScreenTransition` 全面收敛为临界阻尼弹簧并新增 `HoloAnimation.resolved(_:reduceMotion:fallback:)` 统一 Reduce Motion 收口，同步更新《设计规范》§7；全库清理 `CategoryPicker` / `WeekView` / `ExpandedCalendarView` / `PopupCalendarSheet` / `FeedbackSheet` / `TaskCardView` 散落裸动画
+  - 状态变化细腻度：`HoloCountBadge` 与任务进度数字接入等宽数字滚动过渡，`HoloHeaderIconBtn` / `QuickTagChip` / 模块 Tab / FAB 补齐 `HoloPressStyle` 按压反馈，macOS 补齐 `holoHover` 悬停高亮；修复 `HoloLightResponse` 新插入视图 `KeyframeAnimator` 卡初值问题；全局 `HoloToast` 升级非对称弹性进出与替换态隔离；`HoloInlineState` 与今日看板加载→就绪补齐平滑过渡；侧边栏与顶栏胶囊采用 `matchedGeometryEffect` 滑动，习惯单页回顾改为方向性推入
+  - 跟手与可打断手势：`SwipeBackModifier` 改容器实宽 1:1 跟手、无动画事务实时追踪与速度自适应弹簧收尾；`SwipeActionView` 改渐近橡皮筋超拉、按进度浮现操作钮并修复慢拖过半误回弹
+  - 转场错层与 1–2 秒主线程卡顿根治：`AnyTransition.holoScreenTransition` 改为容器级 24pt 轻上浮 + 淡入，消除任务等内容先于模块底板出现的问题；任务页首帧改按需懒挂载可见视图模式与侧栏，并将 `TaskSnapshotReader.readAllSnapshotsInBackground()` 移至后台上下文读取；习惯页消除 `init` + `warmUp` 双倍全库同步刷新并延后回顾快照计算；财务账本去除 `init` 重复预算聚合；想法页幂等清理延后 500ms 避开进场帧；全局静态缓存 11 个高频视图内 30+ 处渲染期 `DateFormatter` / `NumberFormatter`
+  - 验证：独立干净 worktree 下 `holo_build.py build` 真绿，View Weight / ForEach / Banned API / Coupling 守门零新增违例
 - **iOS**: 财务「固定支出」升级（订阅 / 分期 / 大件重构 + 到期提醒 + 36 个品牌图标 + 四合一外观选择器）& CoreData 纯增量安全自动升级（2026-11-26，纯客户端免后端发版）
   - 信息架构与视觉重构：保持底部第 4 个 Tab「固定支出」，页内拆分为「订阅与周期」与「大件持有」双分段；遵循 Holo 无卡纸本高审美规范（衬线主角大数字、7 天内即将到期朱砂橙提示、即将到期 / 订阅中 / 分期中发丝进度条 / 折叠已停订），新建表单精简为「订阅 | 分期 | 大件」三段
   - 多周期与仅提醒模式：周期扩展支持每周 / 每月 / 每季 / 每年；开放「到期自动写入账本」与扣款账户选择，仅提醒模式自动推进下次续费日且不重复灌入账本流水
