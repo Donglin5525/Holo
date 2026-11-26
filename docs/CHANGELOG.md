@@ -20,18 +20,18 @@
   - 类别页精简与月度堆叠柱图：`CategoryTabView` 去掉厚重橙色大通栏，将轻量「支出/收入」与「项目筛选」合并单行；`HoloStackedAreaChart`「近 6 月」升级为 2 列紧凑可点击图例（点击高亮单类走势）+ 月度堆叠柱状图，并修复横轴月份整体右偏半格问题；`ProjectTabView` / `AccountTabView` 同步清理圆体并统一周期天数副标
   - 统计口径与图表 Bug 修复：`FinanceAnalysisState` 新增 `effectiveChartEnd`（进行中周期趋势图横轴截断至今天，不再留未来空槽）与 `elapsedDayCount`（日均按已过天数计算，标示「已过 X/Y 天」）；`HoloCartesianChart` 横轴刻度优先对齐柱中心并修复双轴下退款净负柱戳穿 0 线压进横轴问题
   - 原型与验证：`docs/design/2026-11-26-财务统计报表高审美改版原型.html`；`aesthetic_guard.py` 0 新增违例、`holo_build.py build` 真绿、图表几何 11,077 项断言 + `FinanceChartScaleTests` 20/20 + `HoloChartEnhancementTests` 13/13 + `HoloChartRenderSmokeTests` 1/1 全绿 + 无头模拟器逐屏实拍验收通过
-- **iOS + 后端**: Holo Plus 付费墙编辑感重构、场景化门禁直达、权益表对齐与免费深度洞察调整为 1 次/天（2026-11-26，客户端重构+B 方案 StoreKit 配置；后端配额 2→1 改动待新版 iOS 上架后再发版）
-  - 付费墙结构与审美升级（`HoloPlusPaywallView`）：改为纸底无卡 + `HoloNoteSerif` 衬线主标题 + 一页一橙（去深褐发光黑卡、去白卡列表与按钮外发光）；底部固定吸底双卡（年/月左右并排 + 唯一主按钮），打开第一眼即见价格与开通按钮；完整 App Store 3.1.2 续费披露保留在滚动区底部，无障碍大字体自动取消吸底防死锁，弱网/商品拉取失败展示温和兜底与重试
-  - 场景化动态置顶与路径直达：新增 `HoloPlusGateContext.deepAnalysis` / `.lifePlan` 独立场景枚举，付费墙按触发来源把用户刚被拦的能力置顶高亮，其余 3 条从单一核心卖点池去重拼装；聊天流额度耗尽卡（`ChatMessageListPane`）与报告内追问 Dock（`ReportFollowUpDock`）点击升级改为按场景直达付费墙并支持购买后自动续跑，不再绕路通用会员中心丢上下文
-  - 权益对比表 1:1 对齐门禁（`HoloPlusBenefitComparisonTable` / `HoloMembershipCenterView`）：补齐全部 6 项实际拦截能力（账单智能导入、预算管理、财务分期、自定义账单周期、信用卡还款提醒、习惯补签），按三大类分组并去掉 `sparkles`；底部承诺同步修正为「日常记账、待办、想法与习惯打卡永久免费，你的个人记录始终归你所有。」
-  - 配额与 B 方案配置：普通用户深度洞察免费额度由 2 次/天调整为 1 次/天（同步改后端 `quotaPolicy.js`、`subscription-acceptance.test.js` 与客户端 `HoloEntitlementState` / 会员中心 / 权益表 / 付费墙）；`HoloPlus.storekit` 对齐 App Store Connect B 方案（¥98/年 + 7 天免费试用，¥12/月）
-  - 验证：后端配额单测 13/13、iOS `HoloPlusGateTests` 10/10 真绿、`aesthetic_guard.py` 0 新增违例、`coupling_guard.py` 本次涉及模块零新增耦合
 - **iOS**: 全局动效体系升级（Apple 临界阻尼弹簧语言）与模块打开 1–2 秒卡顿 / 转场文字抢跑根治（2026-11-26，纯客户端免后端发版）
   - 统一动效物理语言：`HoloAnimation.quick / standard / smooth / enter / snappy / grounded` 与 `Animation.holoScreenTransition` 全面收敛为临界阻尼弹簧并新增 `HoloAnimation.resolved(_:reduceMotion:fallback:)` 统一 Reduce Motion 收口，同步更新《设计规范》§7；全库清理 `CategoryPicker` / `WeekView` / `ExpandedCalendarView` / `PopupCalendarSheet` / `FeedbackSheet` / `TaskCardView` 散落裸动画
   - 状态变化细腻度：`HoloCountBadge` 与任务进度数字接入等宽数字滚动过渡，`HoloHeaderIconBtn` / `QuickTagChip` / 模块 Tab / FAB 补齐 `HoloPressStyle` 按压反馈，macOS 补齐 `holoHover` 悬停高亮；修复 `HoloLightResponse` 新插入视图 `KeyframeAnimator` 卡初值问题；全局 `HoloToast` 升级非对称弹性进出与替换态隔离；`HoloInlineState` 与今日看板加载→就绪补齐平滑过渡；侧边栏与顶栏胶囊采用 `matchedGeometryEffect` 滑动，习惯单页回顾改为方向性推入
   - 跟手与可打断手势：`SwipeBackModifier` 改容器实宽 1:1 跟手、无动画事务实时追踪与速度自适应弹簧收尾；`SwipeActionView` 改渐近橡皮筋超拉、按进度浮现操作钮并修复慢拖过半误回弹
   - 转场错层与 1–2 秒主线程卡顿根治：`AnyTransition.holoScreenTransition` 改为容器级 24pt 轻上浮 + 淡入，消除任务等内容先于模块底板出现的问题；任务页首帧改按需懒挂载可见视图模式与侧栏，并将 `TaskSnapshotReader.readAllSnapshotsInBackground()` 移至后台上下文读取；习惯页消除 `init` + `warmUp` 双倍全库同步刷新并延后回顾快照计算；财务账本去除 `init` 重复预算聚合；想法页幂等清理延后 500ms 避开进场帧；全局静态缓存 11 个高频视图内 30+ 处渲染期 `DateFormatter` / `NumberFormatter`
   - 验证：独立干净 worktree 下 `holo_build.py build` 真绿，View Weight / ForEach / Banned API / Coupling 守门零新增违例
+- **iOS + 后端**: Holo Plus 付费墙编辑感重构、场景化门禁直达、权益表对齐与免费深度洞察调整为 1 次/天（2026-11-26，客户端重构+B 方案 StoreKit 配置；后端配额 2→1 改动待新版 iOS 上架后再发版）
+  - 付费墙结构与审美升级（`HoloPlusPaywallView`）：改为纸底无卡 + `HoloNoteSerif` 衬线主标题 + 一页一橙（去深褐发光黑卡、去白卡列表与按钮外发光）；底部固定吸底双卡（年/月左右并排 + 唯一主按钮），打开第一眼即见价格与开通按钮；完整 App Store 3.1.2 续费披露保留在滚动区底部，无障碍大字体自动取消吸底防死锁，弱网/商品拉取失败展示温和兜底与重试
+  - 场景化动态置顶与路径直达：新增 `HoloPlusGateContext.deepAnalysis` / `.lifePlan` 独立场景枚举，付费墙按触发来源把用户刚被拦的能力置顶高亮，其余 3 条从单一核心卖点池去重拼装；聊天流额度耗尽卡（`ChatMessageListPane`）与报告内追问 Dock（`ReportFollowUpDock`）点击升级改为按场景直达付费墙并支持购买后自动续跑，不再绕路通用会员中心丢上下文
+  - 权益对比表 1:1 对齐门禁（`HoloPlusBenefitComparisonTable` / `HoloMembershipCenterView`）：补齐全部 6 项实际拦截能力（账单智能导入、预算管理、财务分期、自定义账单周期、信用卡还款提醒、习惯补签），按三大类分组并去掉 `sparkles`；底部承诺同步修正为「日常记账、待办、想法与习惯打卡永久免费，你的个人记录始终归你所有。」
+  - 配额与 B 方案配置：普通用户深度洞察免费额度由 2 次/天调整为 1 次/天（同步改后端 `quotaPolicy.js`、`subscription-acceptance.test.js` 与客户端 `HoloEntitlementState` / 会员中心 / 权益表 / 付费墙）；`HoloPlus.storekit` 对齐 App Store Connect B 方案（¥98/年 + 7 天免费试用，¥12/月）
+  - 验证：后端配额单测 13/13、iOS `HoloPlusGateTests` 10/10 真绿、`aesthetic_guard.py` 0 新增违例、`coupling_guard.py` 本次涉及模块零新增耦合
 - **iOS**: 财务「固定支出」升级（订阅 / 分期 / 大件重构 + 到期提醒 + 36 个品牌图标 + 四合一外观选择器）& CoreData 纯增量安全自动升级（2026-11-26，纯客户端免后端发版）
   - 信息架构与视觉重构：保持底部第 4 个 Tab「固定支出」，页内拆分为「订阅与周期」与「大件持有」双分段；遵循 Holo 无卡纸本高审美规范（衬线主角大数字、7 天内即将到期朱砂橙提示、即将到期 / 订阅中 / 分期中发丝进度条 / 折叠已停订），新建表单精简为「订阅 | 分期 | 大件」三段
   - 多周期与仅提醒模式：周期扩展支持每周 / 每月 / 每季 / 每年；开放「到期自动写入账本」与扣款账户选择，仅提醒模式自动推进下次续费日且不重复灌入账本流水
@@ -288,6 +288,10 @@
   - 清理死代码（旧 SwiftUI 版工具栏 / 未接入的颜色选择器 / 快速记录工具栏）
 
 ### Bug Fixes
+- **iOS**: 每周回顾「确认过的理解」重复/错周拉取与推送打开中央竖条根治（2026-11-26，纯客户端免后端发版）
+  - 确认理解重复与旧理解混入：`HoloResolvedKnowledge` 新增真实确认时间 `confirmedAt`（取用户 `.confirm` 操作 `issuedAt`，不受后台证据刷新或迁移 `aliasImport` 污染）；新增 `WeeklyReviewMath.selectConfirmedInsights` 纯函数，统一按周一 00:00 + `confirmedAt` 过滤、按确认时间倒序稳定排序并按文案去重，修复同一文案重复出现 3 次及旧理解误入本周问题
+  - 推送打开中央竖条根治：根因是加载态纵向 `ScrollView` 未设宽、收缩成约 20pt 宽（仅包裹 `ProgressView`）再涂 `holoPaper` 背景，与导航容器 `holoBackground` 形成中央竖带；给 `ScrollView` 与加载态 `ProgressView` 补满 `.frame(maxWidth: .infinity)`、`background(Color.holoPaper.ignoresSafeArea())`，`WeekReviewNavContainerBackground` 统一为 `Color.holoPaper`，且 `.task` 先同步渲染四项足迹快照再异步补查确认理解，首帧直出内容
+  - 验证：`WeeklyReviewAggregatorTests` 9/9 真绿、`aesthetic_guard.py` 0 新增违例
 - **iOS**: 环形图引导线标签叠字修复（东林 11-08 真机截图：任务统计「本期完成来自哪些清单」看不清写的是什么）
   - 根因：环形图组件（财务分类页与任务统计共用唯一实现 HoloDonutChart）判断「名字画进彩色环带」只看扇区角度不看名字宽度——财务两字分类名（餐饮/交通）恰好塞得进约 25pt 宽的环带，任务清单「Holo 开发任务」这类长名硬塞进去后横穿环带，与引导线、行末占比挤在同一水平线上糊成一团（50/50 两扇区时名字正落在左右两侧，最坏情形）
   - 修复：环带内名称加几何准入——名字文本框须整个落在环带内（按扇区所在角度真实计算：环顶/环底环带是横的放得下四个字，左右两侧环带是竖的只容两个字），塞不下并入行末「名字+占比」；行末放不下保名字弃占比、纯名字仍放不下按宽截断加省略号（全名在图例行），不再画出界压到环上；按加粗宽度测量，选中时名字不跳位。财务短分类名的环带内观感不变
