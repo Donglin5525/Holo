@@ -217,6 +217,12 @@ export function injectServerPrompt(purpose, messages, options = {}) {
   if (languageDirective && LANGUAGE_ALLOWED_PURPOSES.has(purpose)) {
     finalSystemContent += languageDirective;
   }
+  if (purpose === "intent" && options.intentQuantityVersion === "1") {
+    const timeIndex = finalSystemContent.lastIndexOf("\n\n[HOLO_INTENT_TIME_V29]");
+    const index = timeIndex < 0 ? finalSystemContent.length : timeIndex;
+    finalSystemContent = finalSystemContent.slice(0, index)
+      + defaultPrompts._intent_quantity_v37_contract + finalSystemContent.slice(index);
+  }
 
   // 个人档案通道：紧跟主 system prompt 之后注入（purpose 任务指令先框定任务，
   // 档案作为「用户本人说明」的第二条 system 消息参与表达与建议取舍）。

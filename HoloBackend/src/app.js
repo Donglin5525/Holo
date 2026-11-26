@@ -952,6 +952,7 @@ export function createApp(overrides = {}) {
 
       const serverPrompt = injectServerPrompt(purpose, request.messages, {
         language: context.req.header("x-holo-language"),
+        intentQuantityVersion: context.req.header("x-holo-intent-quantity"),
         // 个人档案通道：用户亲写档案原文随请求上行，服务端统一注入（详见 serverPromptPolicy）
         profileBrief: request.profileBrief,
         profileChannelEnabled: config.profileChannel?.enabled,
@@ -1705,12 +1706,13 @@ export function createApp(overrides = {}) {
           mimeType: audio.type,
           locale: formData.get("locale")?.toString() ?? null,
         });
-        // 中文数字归一化（"一个"→"1个"）只服务 HoloAI 对话输入（LLM 解析量词/时间更稳）；
-        // 想法/任务是记录原文的场景，保留用户口述原样。未携带 source 的旧客户端维持全量转换。
+        // 新版聊天用用户确认的原文校验数量。旧聊天沿用中文数字归一化。
         const asrSource = formData.get("source")?.toString() ?? null;
+        const preservesQuantityInput = asrSource === "chat" && context.req.header("x-holo-intent-quantity") === "1";
         if (
           config.asr.chineseNumberConversionEnabled &&
           (asrSource === null || asrSource === "chat") &&
+          !preservesQuantityInput &&
           typeof result.text === "string"
         ) {
           result.text = normalizeChineseNumbers(result.text);

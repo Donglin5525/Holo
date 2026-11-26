@@ -14,14 +14,15 @@ const UNIT_SET = new Set(UNIT_CHARS.replace(/\|/g, "").split(""));
 
 // 多字量词——「公斤/公里/厘米」等，单位判断时按前缀匹配。
 const MULTI_CHAR_UNITS = [
-  "公斤", "公里", "厘米", "毫米", "分米", "千克", "兆赫", "赫兹",
+  "公斤", "公里", "千米", "厘米", "毫米", "分米", "千克", "兆赫", "赫兹",
   "加仑", "英镑", "盎司", "英寸", "英尺", "华氏", "摄氏", "千瓦",
   "兆瓦", "毫升", "公升", "平方", "立方", "周岁", "虚岁",
 ];
 
 // 连续中文数字（含大写、两、十百千万亿、〇）。长度 ≥ 1。
 const NUMERAL_CHARS = "零〇一二三四五六七八九两十百千万亿壹贰叁肆伍陆柒捌玖拾佰仟万亿两";
-const NUMERAL_PATTERN = new RegExp(`[${escapeCharClass(NUMERAL_CHARS)}]+`, "g");
+const NUMERAL_UNIT_PREFIXES = MULTI_CHAR_UNITS.filter((unit) => NUMERAL_CHARS.includes(unit[0])).join("|");
+const NUMERAL_PATTERN = new RegExp(`(?:(?!${NUMERAL_UNIT_PREFIXES})[${escapeCharClass(NUMERAL_CHARS)}])+`, "g");
 
 // 时间单位后缀——「年/月/日/号/点/分/秒」单独成一类，因为常见于日期时刻。
 const TIME_SUFFIX_PATTERN = /[年月日号点分秒]$/;

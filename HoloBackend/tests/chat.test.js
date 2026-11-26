@@ -822,9 +822,57 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  // intents v8（2026-11-02 遵从强化）→ intent_recognition 基线 V35
-  assert.equal(json.version, 35);
+  assert.equal(json.version, 37);
   assert.match(json.content, /短意图 Router/);
+  assert.match(json.content, /\[HOLO_INTENT_WEIGHT_RECORD_V36\]/);
+});
+
+test("intent quantity contract is negotiated per request and preserves the legacy response", async () => {
+  const received = [];
+  const provider = {
+    async complete(request) {
+      const system = request.messages[0].content;
+      received.push(system);
+      const extractedData = { weight: "83", unit: "kg" };
+      if (system.includes("[HOLO_INTENT_QUANTITY_V37]")) {
+        extractedData.quantityQuote = "八十三公斤";
+        extractedData.quantityScope = "体重八十三公斤";
+      }
+      return {
+        choices: [{
+          message: { role: "assistant", content: JSON.stringify({
+            mode: "single_action",
+            items: [{ id: "weight", intent: "record_weight", confidence: 0.99, extractedData }],
+            needsClarification: false,
+          }) },
+        }],
+      };
+    },
+  };
+  const app = createTestApp({
+    routes: { intent: { provider: "quantity-fixture", model: "intent-fixture", maxTokens: 512 } },
+    providerOverrides: new Map([["quantity-fixture", provider]]),
+  });
+  for (const version of [undefined, "1", "2"]) {
+    const response = await app.request("/v1/ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-holo-device-id": `intent-quantity-${version}`,
+        ...(version === undefined ? {} : { "x-holo-intent-quantity": version }),
+      },
+      body: JSON.stringify({ purpose: "intent", stream: false, messages: [{ role: "user", content: "体重八十三公斤" }] }),
+    });
+    assert.equal(response.status, 200);
+    const json = await response.json();
+    const data = JSON.parse(json.choices[0].message.content).items[0].extractedData;
+    assert.deepEqual(data, version === "1"
+      ? { weight: "83", unit: "kg", quantityQuote: "八十三公斤", quantityScope: "体重八十三公斤" }
+      : { weight: "83", unit: "kg" });
+  }
+  assert.doesNotMatch(received[0], /HOLO_INTENT_QUANTITY_V37/);
+  assert.match(received[1], /HOLO_INTENT_QUANTITY_V37[\s\S]*HOLO_INTENT_TIME_V29/);
+  assert.doesNotMatch(received[2], /HOLO_INTENT_QUANTITY_V37/);
 });
 
 test("GET /v1/prompts/:type rejects unsupported prompt types", async () => {

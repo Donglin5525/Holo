@@ -129,8 +129,7 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v35: accountCandidate 遵从强化（硬性列举+微信支付示例）；v34: 记账账户识别 accountCandidate 槽位；v33: 长段陈述建任务+时段词未来下限；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
-  assert.equal(prompt.version, 35);
+  assert.equal(prompt.version, 37);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -155,7 +154,10 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 账户示例句直接取自用户实报原话，是小模型点名账户命中的关键，不裁。
   // 红线 9500（2026-11-02 v35 遵从强化：硬性列举规则句+「微信支付」结尾式示例后 ~9368，真机两测一中实报驱动）：
   // qwen 对新槽位遵从弱，规则句与示例句都是命中率关键，不裁。
-  assert.ok(prompt.content.length < 9500, `prompt 长度 ${prompt.content.length} 超过 9500`);
+  // v36 实测体重补混合记录示例和非写入边界，保留既有意图例句。
+  assert.ok(prompt.content.length < 9800, `prompt 长度 ${prompt.content.length} 超过 9800`);
+  assert.match(prompt.content, /\[HOLO_INTENT_WEIGHT_RECORD_V36\]/);
+  assert.match(prompt.content, /multi_action，items 为 record_weight.*check_in.*check_in/);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红

@@ -41,6 +41,8 @@ const v23Appendix = `
 “最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”及同批次数/总额/平均每笔/每次/每顿→flexible_data_query；“吨”按顿。必须输出 single_action，items 仅 1 项，保留 categoryCandidate/periodLabel；不要拆成 multi_action。`;
 // V24 appendix（defaultPrompts._intent_personal_state_v24_contract）
 const v24Appendix = defaultPrompts._intent_personal_state_v24_contract;
+const weightRecordAppendix = defaultPrompts._intent_weight_record_v36_contract;
+const quantityAppendix = defaultPrompts._intent_quantity_v37_contract;
 
 function swiftString(value) {
   // JSON.stringify 的转义集（\" \\ \n \t）与 Swift 字符串字面量兼容；中文与中文引号原样输出
@@ -142,9 +144,15 @@ ${descriptorLines}
     /// V24 个人状态路由契约（同上）
     static let personalStateContractV24: String = ${swiftString(v24Appendix)}
 
-    /// DEBUG 兜底意图 prompt 全文 = 后端骨架渲染 + V23 + V24
+    /// 实测体重与混合记录契约（与后端默认提示词同步）
+    static let weightRecordContractV36: String = ${swiftString(weightRecordAppendix)}
+
+    /// V37 数量原文契约，后端通过客户端能力协商开启。
+    static let quantityContractV37: String = ${swiftString(quantityAppendix)}
+
+    /// DEBUG 兜底意图 prompt 全文
     static var intentRecognitionTemplate: String {
-        backendSkeleton + aggregateContractV23 + personalStateContractV24
+        backendSkeleton + aggregateContractV23 + personalStateContractV24 + weightRecordContractV36 + quantityContractV37
     }
 }
 `;

@@ -21,6 +21,7 @@ test("量词触发转换", () => {
 
 test("多字量词触发转换", () => {
   assert.equal(normalizeChineseNumbers("体重七十公斤"), "体重70公斤");
+  assert.equal(normalizeChineseNumbers("体重八十三千克，跑了三千米"), "体重83千克，跑了3千米");
   assert.equal(normalizeChineseNumbers("跑了三公里"), "跑了3公里");
   assert.equal(normalizeChineseNumbers("长五厘米"), "长5厘米");
 });
@@ -96,15 +97,17 @@ function createAsrTestApp(transcript, overrides = {}) {
   });
 }
 
-async function postTranscript(app, source = null) {
+async function postTranscript(app, source = null, quantityVersion = null) {
   const body = new FormData();
   body.set("audio", new Blob(["voice-bytes"], { type: "audio/wav" }), "voice.wav");
   if (source) {
     body.set("source", source);
   }
+  const headers = { "x-holo-device-id": "device-number-conv" };
+  if (quantityVersion) headers["x-holo-intent-quantity"] = quantityVersion;
   const response = await app.request("/v1/asr/transcriptions", {
     method: "POST",
-    headers: { "x-holo-device-id": "device-number-conv" },
+    headers,
     body,
   });
   assert.equal(response.status, 200);
@@ -129,6 +132,14 @@ test("HoloAI 对话入口（source=chat）维持中文数字归一化", async ()
   const app = createAsrTestApp("买了一个杯子");
   const json = await postTranscript(app, "chat");
   assert.equal(json.text, "买了1个杯子");
+});
+
+test("支持数量原文的 HoloAI 聊天保留转写里的小数和单位", async () => {
+  const original = "今天体重八十三点五千克，做了五十个俯卧撑";
+  const json = await postTranscript(createAsrTestApp(original), "chat", "1");
+  assert.equal(json.text, original);
+  const legacy = await postTranscript(createAsrTestApp("体重八十三千克"), "chat", "2");
+  assert.equal(legacy.text, "体重83千克");
 });
 
 test("想法入口（source=thought）保留口述原文", async () => {

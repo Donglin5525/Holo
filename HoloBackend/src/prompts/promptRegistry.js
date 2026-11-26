@@ -10,7 +10,7 @@ const PROMPT_VERSIONS = {
   deep_report_writer: 5,            // v5: 百分比/差额统一一位小数（11-21 东林实报模型自写 4 位小数）
   deep_report_checker: 4,
   system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
-  intent_recognition: 35,           // v35: accountCandidate 遵从强化（东林真机实报「停车费20，微信支付」两测一中——qwen 对新槽位遵从弱，规则句升硬性列举「微信支付/支付宝/花呗/刷卡/现金付」全部算点名账户+补「XX支付」结尾式示例句）；v34: 记账账户识别——record_expense/record_income 增 accountCandidate 槽位（用户原话点名支付/收款账户时照抄原词，未点名不填，禁止凭商户猜账户），客户端按账户名匹配落账；v33: 长段陈述"提醒我…"一律 create_task（title 提炼+description 备注，举例话术不算嵌套任务）+ 时段词未来下限（无钟点时 dueDate/reminderDate 不早于当前+1h）
+  intent_recognition: 37,           // v37: 新客户端协商数量原文契约
   memory_insight_generation: 11,    // v11: 健康域入回顾（health 卡片类型+健康语义口径：分期缺失不当 0 解读/就寝时刻分钟编码/环比差额表达/上期对比字段）；v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -122,6 +122,7 @@ const PROMPT_CONTRACT_APPENDICES = {
 [HOLO_QUERY_AGGREGATE_V23]
 “最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”及同批次数/总额/平均每笔/每次/每顿→flexible_data_query；“吨”按顿。必须输出 single_action，items 仅 1 项，保留 categoryCandidate/periodLabel；不要拆成 multi_action。`,
     defaultPrompts._intent_personal_state_v24_contract,
+    defaultPrompts._intent_weight_record_v36_contract,
     // §prompt-cache（2026-09-04 成本治理）：{{currentTime}} 精确到分钟，放在提示词开头
     // 会让分钟级变化打断 DeepSeek 前缀缓存（生产实测命中率仅 20%，恰好只命中人设前导段）。
     // 时间语境对意图解析（今天/今晚/相对时段换算）仍是必需的，移到全提示词最末尾：
