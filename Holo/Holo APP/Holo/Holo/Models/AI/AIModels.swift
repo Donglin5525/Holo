@@ -302,6 +302,17 @@ nonisolated struct AIExecutionItem: Codable, Identifiable, Equatable {
     let linkedEntityType: String?
     let linkedEntityId: String?
     let errorText: String?
+
+    var didExecute: Bool {
+        guard status == .success else { return false }
+        switch intent {
+        case .checkIn, .recordWeight:
+            // 旧批次有把「请补充信息」也标为成功的记录；这两类写入成功必有关联实体。
+            return linkedEntityId != nil || renderData?["entityId"] != nil || renderData?["habitId"] != nil
+        default:
+            return true
+        }
+    }
 }
 
 /// 批量执行结果

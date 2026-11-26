@@ -358,6 +358,7 @@ class HabitRepository: ObservableObject {
     /// 更新习惯
     func updateHabit(_ habit: Habit, updates: HabitUpdates) throws {
         if !isReady { setup() }
+        if let unit = updates.unit { try validateStorageUnitChange(for: habit, to: unit) }
         if let type = updates.type, type.rawValue != habit.type {
             habit.cumulativeStartDay = nil
             habit.type = type.rawValue
@@ -587,6 +588,18 @@ class HabitRepository: ObservableObject {
         guard habit.isNumericType, habit.configuredAggregationType == .latest else { return false }
         return getAllRecords(for: habit).contains { $0.valueDouble?.isFinite == true }
     }
+
+    func validateStorageUnitChange(for habit: Habit, to unit: String?) throws {
+        let implicitUnit = habit.isCountType ? String(localized: "次") : nil
+        let oldUnit = HoloQuantityUnit.label(habit.unit) ?? implicitUnit
+        let newUnit = HoloQuantityUnit.label(unit) ?? implicitUnit
+        guard !HoloQuantityUnit.sameStorageUnit(oldUnit, newUnit) else { return }
+        // 回收站中的原值也可能恢复，所以同一序列需要沿用原口径。
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId == %@ AND value != nil", habit.id as CVarArg)
+        request.fetchLimit = 1
+        guard try context.count(for: request) == 0 else { throw HabitError.unitChangeRequiresNewSeries }
+    }
     
     /// 打卡（打卡型习惯）- 切换今日完成状态
     /// - Parameters:
@@ -643,10 +656,24 @@ class HabitRepository: ObservableObject {
     ///   - note: 备注
     /// - Returns: 新建的记录
     @discardableResult
-    func addNumericRecord(for habit: Habit, value: Double, note: String? = nil, analyticsSource: String = "manual") throws -> HabitRecord {
+    func addNumericRecord(
+        for habit: Habit, value: Double, note: String? = nil, analyticsSource: String = "manual", recordID: UUID? = nil
+    ) throws -> HabitRecord {
         // 暂停期不记数，与打卡型同一道闸
         guard !habit.isPaused else { throw HabitError.habitIsPaused }
+        if let recordID {
+            let request = HabitRecord.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", recordID as CVarArg)
+            request.fetchLimit = 1
+            if let existing = try context.fetch(request).first {
+                guard existing.habitId == habit.id, existing.deletedAt == nil, existing.valueDouble != nil else {
+                    throw HabitError.invalidData
+                }
+                return existing
+            }
+        }
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
+        if let recordID { record.id = recordID }
 
         do { try context.save() }
         catch { context.delete(record); throw error }
@@ -1733,6 +1760,7 @@ enum HabitError: LocalizedError {
     case notFound
     case saveFailed
     case habitIsPaused
+    case unitChangeRequiresNewSeries
 
     var errorDescription: String? {
         switch self {
@@ -1740,6 +1768,7 @@ enum HabitError: LocalizedError {
         case .notFound: return String(localized: "习惯不存在")
         case .saveFailed: return String(localized: "保存失败")
         case .habitIsPaused: return String(localized: "习惯已暂停，恢复后即可继续记录")
+        case .unitChangeRequiresNewSeries: return String(localized: "这项习惯已有数值记录。请沿用原单位，或用新单位另建习惯。")
         }
     }
 }

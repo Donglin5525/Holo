@@ -584,14 +584,18 @@ final class HoloBackendAIProvider: AIProvider {
         let profileBrief: String? = purpose.carriesProfileBrief
             ? HoloProfileService.shared.loadProfile().notEmpty
             : nil
+        var headers = [
+            "Content-Type": "application/json",
+            "X-Holo-Device-Id": deviceIdProvider(),
+        ]
+        if purpose == .intent {
+            headers[AIQuantityInput.capabilityHeader] = AIQuantityInput.capabilityVersion
+        }
         return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
             method: .post,
-            headers: [
-                "Content-Type": "application/json",
-                "X-Holo-Device-Id": deviceIdProvider()
-            ],
+            headers: headers,
             body: HoloBackendChatCompletionRequest(
                 purpose: purpose.rawValue,
                 messages: messages,

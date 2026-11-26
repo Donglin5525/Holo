@@ -12,21 +12,9 @@ struct WeightChatCard: View {
     let data: WeightCardData
 
     var body: some View {
-        ChatCardView {
-            CardHeaderView(
-                icon: "scalemass.fill",
-                title: String(localized: "体重记录"),
-                subtitle: String(localized: "刚刚记录")
-            )
-
-            HoloAIHeroMetric(
-                label: String(localized: "当前体重"),
-                value: "\(data.weight) \(data.unit)",
-                tint: .holoToolText
-            )
-
-            CardFooterView(timeText: String(localized: "刚刚"), showsChevron: false)
-        }
-        .accessibilityLabel(String(localized: "体重卡片：\(data.weight) \(data.unit)"))
+        ChatRecordReceiptRow(
+            title: String(localized: "体重记录"),
+            value: "\(data.weight) \(data.unit)"
+        )
     }
 }

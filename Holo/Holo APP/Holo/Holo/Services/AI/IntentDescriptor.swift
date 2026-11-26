@@ -49,7 +49,9 @@ nonisolated enum IntentDescriptorRegistry {
         IntentDescriptor(ids: ["toggle_goal_visibility"], summary: "切换目标AI可见性。填 goalTitle、enable。", requiredFields: ["goalTitle","enable"], examples: []),
         IntentDescriptor(ids: ["create_anniversary"], summary: "新建纪念日/生日/倒数日。填 anniversaryTitle、anniversaryDate（YYYY-MM-DD）；类型明显时填 typeCandidate（birthday/anniversary/countdown/milestone）。", requiredFields: ["anniversaryTitle","anniversaryDate"], examples: ["\"10月3号是爸妈结婚纪念日\" → intent: \"create_anniversary\", extractedData: { anniversaryTitle: \"爸妈结婚纪念日\", anniversaryDate: \"2026-10-03\" }"]),
         IntentDescriptor(ids: ["update_anniversary"], summary: "改已有纪念日/生日的日期或名称。必填 anniversaryKeyword；改日期填 anniversaryDate，改名称填 anniversaryTitle。", requiredFields: ["anniversaryKeyword"], examples: []),
-        IntentDescriptor(ids: ["create_note","record_mood","record_weight"], summary: "记录笔记、心情、体重。", requiredFields: ["noteContent","weight"], examples: []),
+        IntentDescriptor(ids: ["create_note"], summary: "记录笔记，填 noteContent，可选 tags。", requiredFields: ["noteContent"], examples: []),
+        IntentDescriptor(ids: ["record_mood"], summary: "记录心情，填 content，可选 mood。", requiredFields: ["content"], examples: []),
+        IntentDescriptor(ids: ["record_weight"], summary: "记录实测体重，填 weight / unit。", requiredFields: ["weight"], examples: []),
         IntentDescriptor(ids: ["query_tasks","query_habits"], summary: "查询任务或习惯状态。", examples: []),
         IntentDescriptor(ids: ["flexible_data_query"], summary: "查一个确定的单值——总金额、次数、最近一笔、距今多久、最大/最小一笔、超过N元、关键词花了多少，以及同一批记录的平均每笔/每次/每顿。需要跨时间折算或统计规律的（频率趋势、日均、单位时间花销）不属于本意图。", examples: []),
         IntentDescriptor(ids: ["query_analysis"], summary: "分析、复盘、趋势、结构、占比、总结，以及需要折算/统计规律的——频率、平均每天/每周花多少、日均、单位时间花销。", examples: ["\"帮我分析最近花销\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"finance\", periodLabel: \"最近\" }", "\"最近状态不好，看看睡眠咋样\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"health\", subDomain: \"sleep\", periodLabel: \"最近\" }"]),
@@ -99,8 +101,14 @@ nonisolated enum IntentDescriptorRegistry {
     /// V24 个人状态路由契约（同上）
     static let personalStateContractV24: String = "\n\n[HOLO_PERSONAL_STATE_ROUTING_V24]\n- 个人近期整体状态问法，如‘我最近状态怎么样/如何’‘最近我咋样’‘帮我看看我近期整体情况’‘我最近过得好不好’，必须输出 mode=query、intent=query_analysis、needsClarification=false；不得追问领域，也不得降级为普通 query。extractedData 填 analysisDomain=\"cross_domain\"、analysisScope=\"holistic\"、periodLabel=\"最近\"。\n- 明确单领域的近期状态/趋势问法仍为 query_analysis，analysisDomain 填 finance/health/habit/task/goal/thought；同时涉及两个及以上领域时填 cross_domain。睡眠问法加 subDomain=\"sleep\"。\n- ‘你最近怎么样’‘今天天气怎么样’‘Holo 服务状态怎么样’属于普通 query；查询与执行混合仍走 clarification。"
 
-    /// DEBUG 兜底意图 prompt 全文 = 后端骨架渲染 + V23 + V24
+    /// 实测体重与混合记录契约（与后端默认提示词同步）
+    static let weightRecordContractV36: String = "\n\n[HOLO_INTENT_WEIGHT_RECORD_V36]\n- 用户报本人实测体重，即使省略「记录」，也输出 record_weight。weight 填数值字符串，公斤/千克/kg 写 unit=\"kg\"（无单位默认 kg）。目标、计划、查询、举例和他人体重不作实测记录。\n- 同句有体重和其他习惯时，按原话顺序各记一项。例「今天体重72.5公斤，做了15个俯卧撑，20个深蹲」→ mode=multi_action，items 为 record_weight {weight:\"72.5\",unit:\"kg\"}、check_in {habitName:\"俯卧撑\",habitValue:\"15\"}、check_in {habitName:\"深蹲\",habitValue:\"20\"}。"
+
+    /// V37 数量原文契约，后端通过客户端能力协商开启。
+    static let quantityContractV37: String = "\n\n[HOLO_INTENT_QUANTITY_V37]\n数值习惯、实测体重和目标记录（check_in、record_weight、log_metric_value）逐项保留原文证据。在对应 extractedData 中加字符串 quantityQuote（完整的数值和单位原话，如「500米」「八十三公斤」「1小时30分钟」）和 quantityScope（含它的连续原话，尽量包含该项动作/对象，如「今天跑了500米」）。按原字逐字复制，单位缺省时只抄数字，中文数字和多段时长也照抄。按动作分开引用，别用目标值、日期、其他动作、否定、计划或举例里的数字。现有 weight / habitValue / value 字段口径保持兼容；原话可以核对时，端侧负责换算。某项数量不清晰时保留该项和对象，其他明确动作照常输出，勿为单项缺失设置整批 needsClarification。\n例「体重八十三公斤，做了五十个俯卧撑」分别输出 record_weight 的 {quantityQuote:\"八十三公斤\",quantityScope:\"体重八十三公斤\"} 和 check_in 的 {habitName:\"俯卧撑\",quantityQuote:\"五十个\",quantityScope:\"做了五十个俯卧撑\"}。"
+
+    /// DEBUG 兜底意图 prompt 全文
     static var intentRecognitionTemplate: String {
-        backendSkeleton + aggregateContractV23 + personalStateContractV24
+        backendSkeleton + aggregateContractV23 + personalStateContractV24 + weightRecordContractV36 + quantityContractV37
     }
 }

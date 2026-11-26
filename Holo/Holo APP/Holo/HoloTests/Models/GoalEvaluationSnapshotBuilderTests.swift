@@ -206,6 +206,202 @@ final class GoalEvaluationSnapshotBuilderTests: XCTestCase {
         XCTAssertNil(payload["comparison"])
     }
 
+    func testConversationWeightRecordsOnceAndUpdatesLinkedGoalObservation() throws {
+        let weight = makeHabit(name: "晨测", type: .numeric, aggregation: .latest, unit: "KG")
+        let other = makeHabit(name: "体重备忘", type: .numeric, aggregation: .latest, unit: "公斤")
+        let goal = makeGoal(title: "体重到 70 公斤", kind: .target, source: .habit, target: 70, sourceHabitId: weight.id)
+        goal.metricUnit = "kg"
+        let manualGoal = makeGoal(title: "减重手动目标", kind: .target, target: 70)
+        manualGoal.metricUnit = "kg"
+        try context.save()
+
+        let goals = GoalRepository(context: context)
+        CoreDataTestSupport.retain(goals)
+        let result = AIParseItem(intent: .recordWeight, confidence: 0.99,
+                                 extractedData: ["weight": "78.6", "unit": "kg"]).asParsedResult
+        let receipt = try IntentRouter.shared.recordWeight(
+            result, originalInput: "今天体重78.6公斤，做了15个俯卧撑，20个深蹲", habitRepo: habits, goalRepo: goals
+        )
+
+        XCTAssertEqual(receipt.status, .success)
+        XCTAssertEqual(receipt.habitId, weight.id)
+        XCTAssertEqual(habits.getAllRecords(for: weight).compactMap(\.valueDouble), [78.6])
+        XCTAssertTrue(habits.getAllRecords(for: other).isEmpty)
+        XCTAssertTrue(goals.getMetricLogs(for: manualGoal).isEmpty)
+        let config = GoalPlanResolver.resultConfiguration(goal: goal, in: context)
+        let observation = builder.resultObservation(goal: goal, source: try XCTUnwrap(config.source),
+                                                    reviewDays: config.reviewDays, now: Date())
+        XCTAssertEqual(observation.value, 78.6)
+    }
+
+    func testConversationCheckInDoesNotWriteExerciseCountIntoOnlyWeightHabit() throws {
+        let weight = makeHabit(name: "体重", type: .numeric, aggregation: .latest, unit: "公斤")
+        try context.save()
+        let result = AIParseItem(intent: .checkIn, confidence: 0.99,
+                                 extractedData: ["habitName": "俯卧撑", "habitValue": "15"]).asParsedResult
+
+        let receipt = try IntentRouter.shared.recordHabitCheckIn(result, originalInput: "做了15个俯卧撑", habitRepo: habits)
+
+        XCTAssertEqual(receipt.status, .failed)
+        XCTAssertTrue(habits.getAllRecords(for: weight).isEmpty)
+    }
+
+    func testConversationCheckInReceiptUsesSavedRepetitions() throws {
+        let exercise = makeHabit(name: "深蹲", type: .numeric, aggregation: .sum, unit: "个")
+        try context.save()
+        let result = AIParseItem(intent: .checkIn, confidence: 0.99,
+                                 extractedData: ["habitName": "深蹲", "habitValue": "20"]).asParsedResult
+
+        let receipt = try IntentRouter.shared.recordHabitCheckIn(result, originalInput: "做了20个深蹲", habitRepo: habits)
+
+        XCTAssertEqual(habits.getAllRecords(for: exercise).compactMap(\.valueDouble), [20])
+        XCTAssertEqual(receipt.habitCheckIn?.recordedValue, "20个")
+    }
+
+    func testQuantityBatchCommitsValidSiblingAndResumesOnlyWaitingActionOnce() async throws {
+        let water = makeHabit(name: "喝水", type: .numeric, aggregation: .sum, unit: "杯")
+        let squat = makeHabit(name: "深蹲", type: .numeric, aggregation: .sum, unit: "次")
+        try context.save()
+        let goals = GoalRepository(context: context)
+        CoreDataTestSupport.retain(goals)
+        let text = "喝水500毫升，做了二十个深蹲"
+        let batch = AIParseBatch(mode: .multiAction, items: [
+            AIParseItem(intent: .checkIn, confidence: 0.99,
+                        extractedData: ["habitName": "喝水", "quantityQuote": "500毫升", "quantityScope": "喝水500毫升"]),
+            AIParseItem(intent: .checkIn, confidence: 0.99,
+                        extractedData: ["habitName": "深蹲", "quantityQuote": "二十个", "quantityScope": "做了二十个深蹲"]),
+        ])
+        let coordinator = ConversationCoordinator(intentRouter: QuantityHabitRouter(repo: habits))
+        let result = try await coordinator.process(text: text, userContext: .empty, provider: QuantityBatchProvider(batch: batch))
+        let items = try XCTUnwrap(result.executionBatch?.items)
+        XCTAssertEqual(items.map(\.status), [.skipped, .success])
+        XCTAssertEqual(items.last?.renderData?["recordedValue"], "20次")
+        XCTAssertTrue(habits.getAllRecords(for: water).isEmpty)
+
+        let pending = try XCTUnwrap(items.first)
+        let target = try XCTUnwrap(IntentRouter.QuantityTarget(renderData: pending.renderData))
+        let recordID = try XCTUnwrap(UUID(uuidString: pending.id))
+        for reply in ["两杯", "三杯"] {
+            let saved = try IntentRouter.shared.resumeQuantity(
+                reply, intent: pending.intent, target: target, recordID: recordID, habitRepo: habits, goalRepo: goals
+            )
+            XCTAssertEqual(saved?.savedQuantity?.value, 2)
+        }
+        XCTAssertEqual(habits.getAllRecords(for: water).compactMap(\.valueDouble), [2])
+        XCTAssertEqual(habits.getAllRecords(for: squat).compactMap(\.valueDouble), [20])
+    }
+
+    func testConversationProcessesWeightAndBothExerciseCountsInOneMessage() async throws {
+        let weight = makeHabit(name: "晨测", type: .numeric, aggregation: .latest, unit: "KG")
+        let pushUp = makeHabit(name: "俯卧撑", type: .numeric, aggregation: .sum, unit: "个")
+        let squat = makeHabit(name: "深蹲", type: .numeric, aggregation: .sum, unit: "个")
+        let goal = makeGoal(title: "体重到70公斤", kind: .target, source: .habit, target: 70, sourceHabitId: weight.id)
+        goal.metricUnit = "kg"
+        try context.save()
+        let goals = GoalRepository(context: context)
+        CoreDataTestSupport.retain(goals)
+
+        let batch = AIParseBatch(mode: .multiAction, items: [
+            AIParseItem(intent: .recordWeight, confidence: 0.99,
+                        extractedData: ["quantityQuote": "83公斤", "quantityScope": "今天体重83公斤"]),
+            AIParseItem(intent: .checkIn, confidence: 0.99,
+                        extractedData: ["habitName": "俯卧撑", "quantityQuote": "50个", "quantityScope": "做了50个俯卧撑"]),
+            AIParseItem(intent: .checkIn, confidence: 0.99,
+                        extractedData: ["habitName": "深蹲", "quantityQuote": "30个", "quantityScope": "30个深蹲"]),
+        ])
+        let response = try await ConversationCoordinator(intentRouter: QuantityHabitRouter(repo: habits, goals: goals))
+            .process(text: "今天体重83公斤，做了50个俯卧撑，30个深蹲。",
+                     userContext: .empty, provider: QuantityBatchProvider(batch: batch))
+        XCTAssertEqual(response.executionBatch?.items.map(\.status), [.success, .success, .success])
+        XCTAssertEqual(habits.getAllRecords(for: weight).compactMap(\.valueDouble), [83])
+        XCTAssertEqual(habits.getAllRecords(for: pushUp).compactMap(\.valueDouble), [50])
+        XCTAssertEqual(habits.getAllRecords(for: squat).compactMap(\.valueDouble), [30])
+        XCTAssertTrue(goals.getMetricLogs(for: goal).isEmpty)
+        let configuration = GoalPlanResolver.resultConfiguration(goal: goal, in: context)
+        let observation = builder.resultObservation(goal: goal, source: try XCTUnwrap(configuration.source),
+                                                    reviewDays: configuration.reviewDays, now: Date())
+        XCTAssertEqual(observation.value, 83)
+    }
+
+    func testQuantityConfirmationReloadsTheBatchForTheRemainingItem() throws {
+        let pending = IntentRouter.QuantityTarget(entity: .init(type: .habit, id: UUID()), storageUnit: "页",
+                                                 defaultUnit: "页", title: "阅读")
+        let recordID = UUID()
+        let item = AIExecutionItem(id: recordID.uuidString, parseItemId: UUID().uuidString, intent: .checkIn,
+                                   status: .skipped, summaryText: "请补充阅读页数", renderData: pending.renderData,
+                                   linkedEntityType: nil, linkedEntityId: nil, errorText: nil)
+        let origin = ChatMessageViewData(id: UUID(), role: "assistant", content: item.summaryText, timestamp: Date(),
+                                         intent: AIIntent.checkIn.rawValue, extractedDataJSON: nil,
+                                         isStreaming: false, parentMessageId: nil,
+                                         executionBatch: .init(mode: .multiAction, items: [item], finalText: item.summaryText))
+        let data = try JSONEncoder().encode([ChatViewModel.quantityOriginMessageKey: origin.id.uuidString])
+        let confirmation = ChatMessageViewData(id: UUID(), role: "assistant", content: "喝水已记录", timestamp: Date(),
+                                               intent: nil, extractedDataJSON: String(decoding: data, as: UTF8.self),
+                                               isStreaming: false, parentMessageId: UUID())
+        let reloaded = ChatViewModel.pendingQuantitySource(after: confirmation) { id in
+            id == origin.id ? origin : nil
+        }
+        XCTAssertEqual(reloaded?.executionBatch?.items.first?.id, recordID.uuidString)
+        XCTAssertEqual(IntentRouter.QuantityTarget(renderData: reloaded?.executionBatch?.items.first?.renderData)?.title, "阅读")
+    }
+
+    func testGoalRoutesToHabitStorageAndConvertsProgressToComparisonUnit() throws {
+        let run = makeHabit(name: "跑步", type: .numeric, aggregation: .sum, unit: "公里")
+        let goal = makeGoal(title: "跑量目标", kind: .cumulative, source: .habit, target: 1000, sourceHabitId: run.id)
+        goal.metricUnit = "米"
+        try context.save()
+        let goals = GoalRepository(context: context)
+        CoreDataTestSupport.retain(goals)
+        let text = "跑量目标 今天跑了500米"
+        let item = AIParseItem(intent: .logMetricValue, confidence: 0.99,
+                               extractedData: ["targetHint": "跑量目标", "quantityQuote": "500米", "quantityScope": text])
+        let receipt = try IntentRouter.shared.recordMetricValue(
+            item.asParsedResult, originalInput: text, habitRepo: habits, goalRepo: goals
+        )
+        XCTAssertEqual(receipt.status, .success)
+        XCTAssertEqual(receipt.savedQuantity?.value, 0.5)
+        XCTAssertEqual(habits.getAllRecords(for: run).compactMap(\.valueDouble), [0.5])
+        XCTAssertTrue(goals.getMetricLogs(for: goal).isEmpty)
+        let configuration = GoalPlanResolver.resultConfiguration(goal: goal, in: context)
+        let observation = builder.resultObservation(goal: goal, source: try XCTUnwrap(configuration.source),
+                                                    reviewDays: configuration.reviewDays, now: Date())
+        XCTAssertEqual(observation.value, 500)
+        XCTAssertEqual(observation.progressFraction, 0.5)
+    }
+
+    func testManualGoalStoresConvertedDurationAndReturnsActualSavedValue() throws {
+        let goal = makeGoal(title: "练琴时间", kind: .cumulative, target: 180)
+        goal.metricUnit = "分钟"
+        try context.save()
+        let goals = GoalRepository(context: context)
+        CoreDataTestSupport.retain(goals)
+        let text = "练琴时间，练了1小时30分钟"
+        let item = AIParseItem(intent: .logMetricValue, confidence: 0.99,
+                               extractedData: ["targetHint": "练琴时间", "value": "90"])
+        let receipt = try IntentRouter.shared.recordMetricValue(
+            item.asParsedResult, originalInput: text, habitRepo: habits, goalRepo: goals
+        )
+        XCTAssertEqual(goals.getMetricLogs(for: goal).map(\.value), [90])
+        XCTAssertEqual(receipt.savedQuantity?.displayText, "90分钟")
+        XCTAssertThrowsError(try goals.updateFields(goal, metricUnit: "小时"))
+        try goals.updateFields(goal, metricUnit: "min")
+        XCTAssertEqual(goals.getMetricLogs(for: goal).map(\.value), [90])
+    }
+
+    func testExistingHabitNumbersKeepTheirStorageUnit() throws {
+        let weight = makeHabit(name: "体重", type: .numeric, aggregation: .latest, unit: "KG")
+        _ = record(weight, daysAgo: 1, value: 83)
+        try context.save()
+        try habits.updateHabit(weight, updates: HabitUpdates(unit: "公斤"))
+
+        var edit = HabitEditPayload(name: weight.name, icon: weight.icon, color: weight.color,
+                                    type: .numeric, aggregationType: .latest)
+        edit.unit = .set("市斤")
+        XCTAssertThrowsError(try habits.applyHabitEdits(habitId: weight.id, payload: edit))
+        XCTAssertEqual(weight.unit, "公斤")
+        XCTAssertEqual(habits.getAllRecords(for: weight).compactMap(\.valueDouble), [83])
+    }
+
     // MARK: - 夹具
 
     private var now: Date { Date() }
@@ -681,5 +877,41 @@ final class GoalEvaluationSnapshotBuilderTests: XCTestCase {
         try context.save()
         let c = builder.build(goal: goal, plan: resolved, window: window())
         XCTAssertNotEqual(a.sourceDigest, c.sourceDigest, "新观测改变依据")
+    }
+}
+
+@MainActor
+private struct QuantityHabitRouter: IntentRouting {
+    let repo: HabitRepository
+    var goals: GoalRepository? = nil
+
+    func route(_ result: ParsedResult, originalInput: String?) async throws -> IntentRouter.RouteResult {
+        if result.intent == .recordWeight, let goals {
+            return try IntentRouter.shared.recordWeight(result, originalInput: originalInput, habitRepo: repo, goalRepo: goals)
+        }
+        return try IntentRouter.shared.recordHabitCheckIn(result, originalInput: originalInput, habitRepo: repo)
+    }
+
+    func previewCategoryMatch(extractedData: [String: String]?, type: TransactionType) async throws -> (primary: String?, sub: String?) {
+        (nil, nil)
+    }
+}
+
+@MainActor
+private struct QuantityBatchProvider: AIProvider {
+    let batch: AIParseBatch
+    var lastCallLog: LLMCallLog? { nil }
+
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch { batch }
+
+    func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        try XCTUnwrap(batch.first).asParsedResult
+    }
+
+    func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String { "" }
+
+    func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext,
+                       systemContextOverride: String?, promptType: PromptManager.PromptType) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { $0.finish() }
     }
 }

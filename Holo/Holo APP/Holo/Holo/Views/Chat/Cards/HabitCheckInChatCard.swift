@@ -12,29 +12,10 @@ struct HabitCheckInChatCard: View {
     let data: HabitCheckInCardData
 
     var body: some View {
-        ChatCardView {
-            CardHeaderView(
-                icon: "flame.fill",
-                title: data.habitName,
-                badge: data.completed
-                    ? CardBadge(text: String(localized: "已完成"), color: .holoSuccess)
-                    : nil,
-                subtitle: String(localized: "习惯打卡")
-            )
-
-            if let streak = data.streak {
-                HoloAIHeroMetric(
-                    label: String(localized: "连续打卡"),
-                    value: String(localized: "\(streak) 天"),
-                    note: data.completed ? String(localized: "今天已完成") : nil,
-                    tint: .holoSuccess
-                )
-            } else if data.completed {
-                HoloAIFactItem(kicker: String(localized: "今日状态"), bodyText: String(localized: "已完成今天的打卡。"), tint: .holoSuccess)
-            }
-
-            CardFooterView(timeText: String(localized: "今天"), showsChevron: false)
-        }
-        .accessibilityLabel(String(localized: "打卡卡片：\(data.habitName)\(data.completed ? "，已完成" : "")"))
+        ChatRecordReceiptRow(
+            title: data.habitName,
+            value: data.recordedValue ?? (data.completed ? String(localized: "已打卡") : String(localized: "已取消")),
+            isStatus: data.recordedValue == nil
+        )
     }
 }

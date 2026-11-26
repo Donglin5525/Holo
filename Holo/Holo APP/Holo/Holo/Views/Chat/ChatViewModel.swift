@@ -1133,6 +1133,8 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             inputText = text
             return
         case .regular:
+            if continuationDraft == nil, insightFollowUpDraft == nil,
+               handlePendingQuantityReply(text, chatRepo: chatRepo) { return }
             break
         }
 
@@ -2173,6 +2175,82 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         }
     }
 
+    static let quantityOriginMessageKey = "quantityOriginMessageID"
+
+    static func pendingQuantitySource(
+        after latest: ChatMessageViewData, load: (UUID) -> ChatMessageViewData?
+    ) -> ChatMessageViewData? {
+        guard latest.role == "assistant", !latest.isStreaming else { return nil }
+        if let originID = latest.extractedDataDictionary?[quantityOriginMessageKey].flatMap(UUID.init(uuidString:)) {
+            return load(originID)
+        }
+        if latest.metadataState == .unloaded || latest.metadataState == .loading { return load(latest.id) }
+        return latest
+    }
+
+    /// 补数始终回到原回复更新对应记录，保存用原动作 ID 防重。
+    private func handlePendingQuantityReply(_ text: String, chatRepo: ChatMessageRepository) -> Bool {
+        guard let latest = chatRepo.messages.last,
+              let message = Self.pendingQuantitySource(after: latest, load: { id in
+                  if let cached = chatRepo.messages.first(where: { $0.id == id }), cached.metadataState == .loaded {
+                      return cached
+                  }
+                  return chatRepo.loadMessageViewData(id: id)
+              }),
+              let batch = message.executionBatch else { return false }
+        let candidates = batch.items.compactMap { item -> (AIExecutionItem, IntentRouter.QuantityTarget)? in
+            guard item.status == .skipped,
+                  let target = IntentRouter.QuantityTarget(renderData: item.renderData) else { return nil }
+            return (item, target)
+        }
+        let named = candidates.filter { text.hasPrefix($0.1.title) }
+        let matches = named.isEmpty ? candidates : named
+        guard matches.count == 1, let (pending, target) = matches.first,
+              let recordID = UUID(uuidString: pending.id) else { return false }
+        let quantity = named.isEmpty ? text : String(text.dropFirst(target.title.count))
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":：")))
+        let result: IntentRouter.RouteResult
+        do {
+            guard let resumed = try IntentRouter.shared.resumeQuantity(
+                quantity, intent: pending.intent, target: target, recordID: recordID, habitRepo: .shared, goalRepo: .shared
+            ) else { return false }
+            result = resumed
+        } catch {
+            let notice = String(localized: "「\(target.title)」暂时保存失败，可以再补发这一项。")
+            result = IntentRouter.RouteResult(text: notice, status: .skipped, pendingQuantity: target)
+        }
+        trackOutgoingMessage(kind: "text")
+        let userID = chatRepo.addMessage(role: "user", content: text)
+        lastSentUserText = text
+        let renderData = ConversationCoordinator.buildRenderData(intent: pending.intent, parsedData: nil, routeResult: result)
+        let next = AIExecutionItem(
+            id: pending.id, parseItemId: pending.parseItemId, intent: pending.intent, status: result.status,
+            summaryText: result.text,
+            renderData: renderData,
+            linkedEntityType: result.linkedEntity?.type.rawValue, linkedEntityId: result.linkedEntity?.id.uuidString,
+            errorText: nil
+        )
+        replaceQuantityItem(next, in: message, batch: batch, chatRepo: chatRepo)
+        let hasMorePending = result.pendingQuantity != nil || candidates.contains { $0.0.id != pending.id }
+        let followUp = hasMorePending ? Self.encodeExtractedData([Self.quantityOriginMessageKey: message.id.uuidString]) : nil
+        chatRepo.addMessage(role: "assistant", content: result.text, extractedDataJSON: followUp, parentMessageId: userID)
+        return true
+    }
+
+    private func replaceQuantityItem(
+        _ next: AIExecutionItem, in message: ChatMessageViewData, batch: AIExecutionBatch, chatRepo: ChatMessageRepository
+    ) {
+        guard let index = batch.items.firstIndex(where: { $0.id == next.id && $0.status == .skipped }) else { return }
+        var items = batch.items
+        items[index] = next
+        let updated = AIExecutionBatch(mode: batch.mode, items: items, finalText: ConversationCoordinator.buildFinalText(from: items))
+        chatRepo.updateMessage(message.id, content: updated.finalText)
+        chatRepo.updateMessageMetadata(
+            message.id, intent: message.intent, extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch), executionBatchJSON: Self.encodeExecutionBatch(updated)
+        )
+    }
+
     // MARK: - Retry
 
     /// 重试发送：找到该错误消息对应的用户消息，重新发送
@@ -2742,6 +2820,9 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
     }
 
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
+        if items.contains(where: { $0.renderData?["pendingKind"] == "quantity" }) {
+            return ConversationCoordinator.buildFinalText(from: items)
+        }
         guard !items.isEmpty else { return String(localized: "已处理") }
         if items.count == 1 { return items[0].summaryText }
         // 与真实状态对齐：还有未确认项时不说「已处理」。
@@ -2822,10 +2903,24 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                     clarificationQuestion: nil,
                     responseText: nil
                 )
-                let routeResult = try await IntentRouter.shared.route(result)
-                GoalNotificationService.broadcastGoalDataChange()
-
-                confirmedRenderData["confirmationStatus"] = "confirmed"
+                let routeResult: IntentRouter.RouteResult
+                if currentItems.intent == .logMetricValue {
+                    let original = currentRenderData["originalInput"] ?? self.messages
+                        .first(where: { $0.id == message.parentMessageId })?.content
+                    routeResult = try IntentRouter.shared.recordMetricValue(
+                        result, originalInput: original, habitRepo: .shared, goalRepo: .shared,
+                        recordID: UUID(uuidString: itemId)
+                    )
+                } else {
+                    routeResult = try await IntentRouter.shared.route(result)
+                    GoalNotificationService.broadcastGoalDataChange()
+                }
+                if let pendingQuantity = routeResult.pendingQuantity {
+                    confirmedRenderData = pendingQuantity.renderData
+                } else {
+                    confirmedRenderData["confirmationStatus"] = routeResult.status == .success ? "confirmed" : "failed"
+                    confirmedRenderData["errorText"] = routeResult.status == .failed ? routeResult.text : nil
+                }
                 if let entity = routeResult.linkedEntity {
                     confirmedRenderData["entityType"] = entity.type.rawValue
                     confirmedRenderData["entityId"] = entity.id.uuidString
@@ -2845,7 +2940,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                     id: pending.id,
                     parseItemId: pending.parseItemId,
                     intent: pending.intent,
-                    status: .success,
+                    status: routeResult.status == .failed ? .skipped : routeResult.status,
                     summaryText: routeResult.text,
                     renderData: confirmedRenderData,
                     linkedEntityType: routeResult.linkedEntity?.type.rawValue,
@@ -2973,13 +3068,14 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         let itemId = batch.items[pendingIndex].id
         guard !confirmingItemIds.contains(itemId) else { return }
 
-        // 分期入账为 Plus 权益：非 Plus 先弹付费墙，购买成功后自动续上本次确认
+        // 分期入账为 Plus 权益：非 Plus 先弹付费墙，购买成功后自动续上本次确认；
+        // 直接关闭 = 放弃本次确认
         if batch.items[pendingIndex].renderData?["installmentEnabled"] == "true",
            !HoloEntitlementState.shared.isPlusActive {
             HoloPlusActionCoordinator.shared.requirePlus(
                 context: .financeInstallment,
-                onDismiss: { [weak self] in
-                    self?.confirmPendingTransaction(from: message, itemID: itemID)
+                resume: { [weak self] in
+                    await self?.confirmPendingTransaction(from: message, itemID: itemID)
                 }
             )
             return

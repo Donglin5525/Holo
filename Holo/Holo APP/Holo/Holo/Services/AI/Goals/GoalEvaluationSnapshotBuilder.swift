@@ -250,13 +250,21 @@ struct GoalEvaluationSnapshotBuilder {
                                          unavailableReason: String(localized: "习惯已删除或不存在，请重新选择来源"))
         }
         let label = habit.name
-        let unit = source.unit ?? habit.unit
+        let habitUnit = HoloQuantityUnit.label(habit.unit)
+        let unit = HoloQuantityUnit.label(source.unit) ?? habitUnit ?? HoloQuantityUnit.label(habit.unitText)
         if habit.isArchived {
             unknown.append(String(localized: "「\(label)」已归档"))
             return GoalResultObservation(status: .unavailable, sourceKind: .habit, sourceLabel: label, unit: unit,
                                          targetValue: source.targetValue, baselineValue: source.baselineValue,
                                          baselineObservedAt: source.baselineObservedAt,
                                          unavailableReason: String(localized: "习惯已归档"))
+        }
+        guard let unitFactor = HoloQuantityUnit.storedFactor(from: habitUnit ?? unit, to: unit) else {
+            let reason = String(localized: "目标与来源习惯的单位不一致，请核对目标的进度来源。")
+            unknown.append(reason)
+            return GoalResultObservation(status: .unavailable, sourceKind: .habit, sourceLabel: label,
+                                         unit: unit, targetValue: source.targetValue, baselineValue: source.baselineValue,
+                                         baselineObservedAt: source.baselineObservedAt, unavailableReason: reason)
         }
 
         switch source.aggregation ?? .latest {
@@ -271,14 +279,15 @@ struct GoalEvaluationSnapshotBuilder {
             var measurement = source
             if measurement.baselineValue == nil, let since = source.baselineObservedAt,
                let first = Self.valuedHabitRecord(habitID: habit.id, in: context, before: window.cutoff, firstRecordedAfter: since) {
-                measurement.baselineValue = first.value
+                measurement.baselineValue = first.value * unitFactor
             }
+            let value = record.value * unitFactor
             var observation = GoalResultObservation(status: .observed, sourceKind: .habit, sourceLabel: label,
-                                                    value: record.value, unit: unit, observedAt: record.date,
+                                                    value: value, unit: unit, observedAt: record.date,
                                                     targetValue: source.targetValue, baselineValue: measurement.baselineValue,
                                                     baselineObservedAt: source.baselineObservedAt)
             applyStaleness(&observation, source: source, cutoff: window.cutoff)
-            observation.progressFraction = Self.progressFraction(value: record.value, source: measurement)
+            observation.progressFraction = Self.progressFraction(value: value, source: measurement)
             known.append(String(localized: "「\(label)」最新观测 \(Self.dayText(record.date))"))
             return observation
         case .sum:
@@ -293,7 +302,7 @@ struct GoalEvaluationSnapshotBuilder {
                                              targetValue: source.targetValue, baselineValue: source.baselineValue,
                                              baselineObservedAt: source.baselineObservedAt)
             }
-            let sum = valued.reduce(0, +)
+            let sum = valued.reduce(0, +) * unitFactor
             let latestAt = records.map(\.date).max()
             var observation = GoalResultObservation(status: .observed, sourceKind: .habit, sourceLabel: label,
                                                     value: sum, unit: unit, observedAt: latestAt,

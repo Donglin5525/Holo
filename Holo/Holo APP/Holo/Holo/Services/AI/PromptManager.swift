@@ -189,7 +189,7 @@ final class PromptManager {
         .thoughtTopicName: 2,
         .personaPreamble: 1,            // v1: 人格层首版（Persona Preamble 唯一真源见 PROMPT_GUIDELINES.md）
         .systemPrompt: 4,               // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
-        .intentRecognition: 26,         // v26: P3 瘦身（删重复 few-shot+对齐 V23）；意图清单源同 v25
+        .intentRecognition: 37,         // v37: 数量原文与单位的通用契约
         .memoryInsightGeneration: 10,   // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
         .analysisPrompt: 5,             // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
         .annualReview: 2,               // v2: 年度回放升级为完整阅读长度

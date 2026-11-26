@@ -6,6 +6,7 @@
 //  将 AI 解析的意图映射到对应的 Repository 操作
 //
 
+import CoreData
 import Foundation
 import os.log
 
@@ -17,6 +18,52 @@ final class IntentRouter {
     private let logger = Logger(subsystem: "com.holo.app", category: "IntentRouter")
 
     private init() {}
+
+    struct HabitCheckInReceipt {
+        let name: String
+        let completed: Bool
+        var recordedValue: String? = nil
+    }
+
+    struct QuantityTarget {
+        let entity: LinkedEntity
+        let storageUnit: String?
+        let defaultUnit: String?
+        let title: String
+        let bindingGoalID: UUID?
+
+        var renderData: [String: String] {
+            var data = [
+                "pendingKind": "quantity",
+                "quantityTargetType": entity.type.rawValue,
+                "quantityTargetID": entity.id.uuidString,
+                "quantityTargetTitle": title,
+            ]
+            data["quantityStorageUnit"] = storageUnit
+            data["quantityDefaultUnit"] = defaultUnit
+            data["quantityBindingGoalID"] = bindingGoalID?.uuidString
+            return data
+        }
+
+        init(entity: LinkedEntity, storageUnit: String?, defaultUnit: String?, title: String, bindingGoalID: UUID? = nil) {
+            self.entity = entity
+            self.storageUnit = storageUnit
+            self.defaultUnit = defaultUnit
+            self.title = title
+            self.bindingGoalID = bindingGoalID
+        }
+
+        init?(renderData: [String: String]?) {
+            guard let data = renderData, data["pendingKind"] == "quantity",
+                  let type = data["quantityTargetType"].flatMap(LinkedEntityType.init(rawValue:)),
+                  type == .habit || type == .goal,
+                  let id = data["quantityTargetID"].flatMap(UUID.init(uuidString:)),
+                  let title = data["quantityTargetTitle"] else { return nil }
+            self.init(entity: LinkedEntity(type: type, id: id), storageUnit: data["quantityStorageUnit"],
+                      defaultUnit: data["quantityDefaultUnit"], title: title,
+                      bindingGoalID: data["quantityBindingGoalID"].flatMap(UUID.init(uuidString:)))
+        }
+    }
 
     /// 路由结果
     struct RouteResult {
@@ -31,6 +78,10 @@ final class IntentRouter {
         /// 匹配成功后的真实科目名（来自 Core Data）
         let matchedPrimaryCategory: String?
         let matchedSubCategory: String?
+        let status: AIExecutionStatus
+        let habitCheckIn: HabitCheckInReceipt?
+        let savedQuantity: AIQuantityInput.SavedValue?
+        let pendingQuantity: QuantityTarget?
 
         init(
             text: String,
@@ -41,7 +92,11 @@ final class IntentRouter {
             linkedEntity: LinkedEntity? = nil,
             categoryUnmatched: Bool = false,
             matchedPrimaryCategory: String? = nil,
-            matchedSubCategory: String? = nil
+            matchedSubCategory: String? = nil,
+            status: AIExecutionStatus = .success,
+            habitCheckIn: HabitCheckInReceipt? = nil,
+            savedQuantity: AIQuantityInput.SavedValue? = nil,
+            pendingQuantity: QuantityTarget? = nil
         ) {
             self.text = text
             self.transactionId = transactionId
@@ -52,6 +107,10 @@ final class IntentRouter {
             self.categoryUnmatched = categoryUnmatched
             self.matchedPrimaryCategory = matchedPrimaryCategory
             self.matchedSubCategory = matchedSubCategory
+            self.status = status
+            self.habitCheckIn = habitCheckIn
+            self.savedQuantity = savedQuantity
+            self.pendingQuantity = pendingQuantity
         }
     }
 
@@ -111,9 +170,9 @@ final class IntentRouter {
         case .recordMood:
             return try handleRecordMood(result)
         case .recordWeight:
-            return try handleRecordWeight(result, originalInput: originalInput)
+            return try recordWeight(result, originalInput: originalInput, habitRepo: .shared, goalRepo: .shared)
         case .checkIn:
-            return try handleCheckIn(result, originalInput: originalInput)
+            return try recordHabitCheckIn(result, originalInput: originalInput, habitRepo: .shared)
         case .updateGoalField:
             return try handleUpdateGoalField(result)
         case .linkTaskToGoal:
@@ -121,7 +180,7 @@ final class IntentRouter {
         case .linkHabitToGoal:
             return try handleLinkHabitToGoal(result)
         case .logMetricValue:
-            return try handleLogMetricValue(result, originalInput: originalInput)
+            return try recordMetricValue(result, originalInput: originalInput, habitRepo: .shared, goalRepo: .shared)
         case .toggleGoalVisibility:
             return try handleToggleGoalVisibility(result)
         case .createNote:
@@ -757,98 +816,111 @@ final class IntentRouter {
 
     // MARK: - Record Weight
 
-    private func handleRecordWeight(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
-        // 体重记录复用习惯模块的数值记录功能
-        guard let data = result.extractedData,
-              let weightStr = data["weight"],
-              let weight = Double(weightStr) else {
-            return RouteResult(text: "请告诉我体重数值")
+    func recordWeight(
+        _ result: ParsedResult,
+        originalInput: String?,
+        habitRepo: HabitRepository,
+        goalRepo: GoalRepository
+    ) throws -> RouteResult {
+        let weightGoals = goalRepo.activeGoals().compactMap { goal -> (Goal, GoalPlanResultSourceV2)? in
+            guard goal.goalKindEnum == .target,
+                  Self.isWeightMeasurementName(goal.title) || goal.title.contains("减重") || goal.title.contains("減重"),
+                  let context = goal.managedObjectContext,
+                  let source = GoalPlanResolver.resultConfiguration(goal: goal, in: context).source,
+                  !source.isPending, source.aggregation != .sum else { return nil }
+            return (goal, source)
+        }
+        let sourceHabitIDs = Set(weightGoals.compactMap { _, source in
+            source.sourceType == .habit ? source.sourceID : nil
+        })
+        habitRepo.setup()
+        let weightHabits = habitRepo.activeHabits.compactMap { habit -> (habit: Habit, unit: String)? in
+            guard habit.isNumericType, !habit.isArchived,
+                  sourceHabitIDs.contains(habit.id) || Self.isWeightMeasurementName(habit.name) else { return nil }
+            let boundUnits = weightGoals.compactMap { _, source in
+                source.sourceType == .habit && source.sourceID == habit.id ? HoloQuantityUnit.label(source.unit) : nil
+            }
+            let fallbackUnit = boundUnits.first.flatMap { first in
+                boundUnits.allSatisfy { HoloQuantityUnit.sameStorageUnit(first, $0) } ? first : nil
+            }
+            guard let unit = HoloQuantityUnit.label(habit.unit) ?? fallbackUnit, HoloQuantityUnit.isMass(unit) else { return nil }
+            return (habit, unit)
+        }
+        let sourceHabits = weightHabits.filter { sourceHabitIDs.contains($0.habit.id) }
+        let candidates = sourceHabits.isEmpty ? weightHabits : sourceHabits
+
+        if candidates.count > 1 {
+            return RouteResult(text: String(localized: "未记录体重，找到了多个体重习惯，请告诉我要记到哪个。"), status: .failed)
+        }
+        if let candidate = candidates.first {
+            let boundGoal = HoloQuantityUnit.label(candidate.habit.unit) == nil
+                ? weightGoals.first(where: { $0.1.sourceType == .habit && $0.1.sourceID == candidate.habit.id })?.0
+                : nil
+            return try recordNumericHabit(candidate.habit, result: result, originalInput: originalInput,
+                                          habitRepo: habitRepo, storageUnit: candidate.unit, bindingGoal: boundGoal)
         }
 
-        // 查找体重习惯或创建
-        let habitRepo = HabitRepository.shared
-        let habits = habitRepo.activeHabits.filter { !$0.isArchived }
-        let weightHabit = habits.first { $0.unit == "kg" && $0.name.contains("体重") }
-
-        if let habit = weightHabit {
-            let note = Self.habitRecordNote(
-                originalInput: originalInput,
-                habitNames: [habit.name, "体重"],
-                removableTokens: [weightStr, "\(weight)kg", "\(weight) kg", "kg", "公斤"]
-            )
-            try habitRepo.addNumericRecord(for: habit, value: weight, note: note, analyticsSource: "ai")
-            logger.info("体重已记录：\(weight) kg")
-            let syncedGoal = syncWeightToActiveManualGoal(weight)
-            let suffix = syncedGoal.map { "，并已同步更新目标「\($0.title)」进度" } ?? ""
-            return RouteResult(
-                text: "已记录体重：\(weight) kg\(suffix)",
-                habitId: habit.id,
-                linkedEntity: LinkedEntity(type: .habit, id: habit.id)
-            )
-        } else if let syncedGoal = syncWeightToActiveManualGoal(weight) {
-            return RouteResult(
-                text: "已更新目标「\(syncedGoal.title)」当前体重：\(GoalMetricEvaluator.formatValue(weight)) kg",
-                linkedEntity: LinkedEntity(type: .goal, id: syncedGoal.id)
-            )
-        } else {
-            return RouteResult(text: "未找到体重记录习惯，请先在习惯模块创建")
+        // 旧目标只有手动来源时，仍可直接记到唯一匹配的体重目标。
+        let manualGoals = weightGoals.filter { _, source in
+            source.sourceType == .manual && (HoloQuantityUnit.label(source.unit) == nil || HoloQuantityUnit.isMass(source.unit))
         }
+        if sourceHabitIDs.isEmpty, manualGoals.count == 1, let (goal, source) = manualGoals.first {
+            return try recordManualGoalQuantity(goal, result: result, originalInput: originalInput,
+                                                storageUnit: HoloQuantityUnit.label(source.unit) ?? "kg", goalRepo: goalRepo)
+        }
+        let message = manualGoals.count > 1 && sourceHabitIDs.isEmpty
+            ? String(localized: "未记录体重，找到了多个体重目标，请告诉我要记到哪个。")
+            : String(localized: "未记录体重，没有找到可用的体重习惯。")
+        return RouteResult(text: message, status: .failed)
     }
 
-    private func syncWeightToActiveManualGoal(_ weight: Double) -> Goal? {
-        let candidates = GoalRepository.shared.activeGoals().filter { goal in
-            goal.goalKindEnum == .target
-                && goal.metricSourceEnum == .manual
-                && (goal.metricUnitText.lowercased() == "kg"
-                    || goal.title.contains("减重")
-                    || goal.title.contains("体重"))
-        }
-        guard let targetGoal = candidates.first else { return nil }
-        try? GoalRepository.shared.addMetricLog(for: targetGoal, value: weight, note: "对话记录体重")
-        GoalNotificationService.broadcastGoalDataChange()
-        return targetGoal
+    private static func isWeightMeasurementName(_ name: String) -> Bool {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "weight"
+            || ["体重", "體重", "称重", "秤重", "body weight", "weigh-in"].contains { normalized.contains($0) }
     }
 
     // MARK: - Check In
 
-    private func handleCheckIn(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
-        let habitName = result.extractedData?["habitName"]
-        let habitRepo = HabitRepository.shared
+    func recordHabitCheckIn(_ result: ParsedResult, originalInput: String?, habitRepo: HabitRepository) throws -> RouteResult {
+        let habitName = result.extractedData?["habitName"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        habitRepo.setup()
         let habits = habitRepo.activeHabits.filter { !$0.isArchived }
 
-        if let name = habitName {
-            if let habit = habits.first(where: { $0.name.contains(name) || name.contains($0.name) }) {
-                if habit.isNumericType {
-                    return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
-                }
-                let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
-                let completed = try habitRepo.toggleCheckIn(for: habit, note: note, analyticsSource: "ai")
-                return RouteResult(
-                    text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
-                    habitId: habit.id,
-                    linkedEntity: LinkedEntity(type: .habit, id: habit.id)
-                )
-            }
+        let matchedHabit: Habit?
+        if let habitName, !habitName.isEmpty {
+            let exact = habits.filter { $0.name == habitName }
+            let matches = exact.isEmpty ? habits.filter { $0.name.contains(habitName) || habitName.contains($0.name) } : exact
+            // 句中点名的习惯没有可核对的唯一去向，不能改记到另一个习惯。
+            matchedHabit = matches.count == 1 ? matches.first : nil
+        } else {
+            let input = originalInput?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            matchedHabit = habits.count == 1 && ["打卡", "打卡了", "签到", "签到啦", "check in"].contains(input.lowercased())
+                ? habits.first : nil
         }
-
-        // 如果只有一个活跃习惯，直接打卡
-        if habits.count == 1 {
-            let habit = habits[0]
+        if let habit = matchedHabit {
             if habit.isNumericType {
-                return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
+                return try recordNumericHabit(habit, result: result, originalInput: originalInput, habitRepo: habitRepo)
             }
             let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
             let completed = try habitRepo.toggleCheckIn(for: habit, note: note, analyticsSource: "ai")
             return RouteResult(
                 text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
                 habitId: habit.id,
-                linkedEntity: LinkedEntity(type: .habit, id: habit.id)
+                linkedEntity: LinkedEntity(type: .habit, id: habit.id),
+                habitCheckIn: HabitCheckInReceipt(name: habit.name, completed: completed)
             )
         }
 
+        if let habitName, !habitName.isEmpty {
+            return RouteResult(
+                text: String(localized: "未记录「\(habitName)」，没有找到唯一匹配的习惯。"),
+                status: .failed
+            )
+        }
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
-        return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
+        return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)", status: .failed)
     }
 
     /// 从用户原话提取记录备注：去掉习惯名、数值和纯指令词后，剩余的上下文才有记录价值
@@ -1069,106 +1141,97 @@ final class IntentRouter {
         }
     }
 
-    // MARK: - Log Metric Value（量化目标/数值习惯记一笔，handleRecordWeight 的通用化）
+    // MARK: - Log Metric Value
 
-    private func handleLogMetricValue(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
-        guard let value = parseHabitValue(from: result.extractedData) else {
-            return RouteResult(text: "请告诉我要记录的数值，比如「今天跑了 5 公里」「体重 72.4」")
-        }
+    func recordMetricValue(
+        _ result: ParsedResult, originalInput: String?, habitRepo: HabitRepository, goalRepo: GoalRepository,
+        recordID: UUID? = nil
+    ) throws -> RouteResult {
         let targetHint = result.extractedData?["targetHint"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         // 1. 指名了量化目标：goalId 精确（goalChoice 重放注入）→ targetHint 模糊
-        switch matchGoalStrict(from: result.extractedData) {
+        switch matchGoalStrict(from: result.extractedData, repo: goalRepo) {
         case .single(let goal) where goal.isQuantitative:
-            return try recordMetricToGoal(goal, value: value, originalInput: originalInput)
+            return try recordMetricToGoal(goal, result: result, originalInput: originalInput,
+                                          habitRepo: habitRepo, goalRepo: goalRepo, recordID: recordID)
         case .ambiguous(let goals):
-            return goalDisambiguationResult(goals, action: "记录数值到")
+            let notice = goalDisambiguationResult(goals, action: "记录数值到")
+            return RouteResult(text: notice.text, status: .failed)
         case .single(let goal):
             // 命中过程型目标：数值对它无意义，转而按习惯名匹配（目标与习惯同名的场景兜底）
-            if let habit = matchNumericHabit(named: targetHint) {
-                return try recordMetricToHabit(habit, value: value, originalInput: originalInput)
+            if let habit = matchNumericHabit(named: targetHint, in: habitRepo) {
+                return try recordNumericHabit(habit, result: result, originalInput: originalInput,
+                                              habitRepo: habitRepo, recordID: recordID)
             }
             return RouteResult(
                 text: "「\(goal.title)」是过程型目标，不记录数值。要记到某个数值习惯的话，告诉我习惯名。",
-                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                status: .failed
             )
         case .none:
             // 2. 没指名目标（或没匹配上）：targetHint 像习惯名 → 匹配数值习惯
-            if let habit = matchNumericHabit(named: targetHint) {
-                return try recordMetricToHabit(habit, value: value, originalInput: originalInput)
+            if let habit = matchNumericHabit(named: targetHint, in: habitRepo) {
+                return try recordNumericHabit(habit, result: result, originalInput: originalInput,
+                                              habitRepo: habitRepo, recordID: recordID)
             }
-            return RouteResult(text: "没找到对应的量化目标或数值习惯。可以说「跑向300公里 今天跑了5公里」，或先到习惯模块创建数值习惯。")
+            return RouteResult(text: "请告诉我要记到哪个量化目标或数值习惯。", status: .failed)
         }
     }
 
-    /// 命中量化目标后按数据源落库（单一事实来源：habit 源记习惯、manual 源记 GoalMetricLog、ledger 源引导记账）
-    private func recordMetricToGoal(_ goal: Goal, value: Double, originalInput: String?) throws -> RouteResult {
-        switch goal.metricSourceEnum {
+    private func recordMetricToGoal(
+        _ goal: Goal, result: ParsedResult, originalInput: String?,
+        habitRepo: HabitRepository, goalRepo: GoalRepository, recordID: UUID?
+    ) throws -> RouteResult {
+        guard goal.status == GoalStatus.active.rawValue, let context = goal.managedObjectContext,
+              let source = GoalPlanResolver.resultConfiguration(goal: goal, in: context).source,
+              !source.isPending else {
+            return RouteResult(text: String(localized: "「\(goal.title)」还没有可用的进度来源。"), status: .failed)
+        }
+        switch source.sourceType {
         case .habit:
-            guard let habit = GoalMetricEvaluator.sourceHabit(for: goal) else {
+            guard let id = source.sourceID, let habit = habitRepo.findHabit(by: id),
+                  habit.isNumericType, !habit.isArchived else {
                 return RouteResult(
                     text: "「\(goal.title)」的数据源习惯已删除或归档，请到目标详情页重新选择数据源。",
-                    linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                    status: .failed
                 )
             }
-            let habitResult = try recordMetricToHabit(habit, value: value, originalInput: originalInput)
-            return RouteResult(
-                text: "\(habitResult.text)（已计入目标「\(goal.title)」）",
-                habitId: habitResult.habitId,
-                linkedEntity: habitResult.linkedEntity
-            )
+            let goalUnit = HoloQuantityUnit.label(source.unit)
+            let habitUnit = HoloQuantityUnit.label(habit.unit) ?? goalUnit ?? HoloQuantityUnit.label(habit.unitText)
+            guard goalUnit == nil || HoloQuantityUnit.storedFactor(from: habitUnit, to: goalUnit) != nil else {
+                return RouteResult(text: String(localized: "「\(goal.title)」与来源习惯的单位不一致，请先核对资料。"), status: .failed)
+            }
+            return try recordNumericHabit(habit, result: result, originalInput: originalInput,
+                                          habitRepo: habitRepo, storageUnit: habitUnit, defaultUnit: goalUnit,
+                                          bindingGoal: goal, recordID: recordID)
         case .manual:
-            let note = Self.habitRecordNote(
-                originalInput: originalInput,
-                habitNames: [goal.title],
-                removableTokens: []
-            )
-            try GoalRepository.shared.addMetricLog(for: goal, value: value, note: note)
-            let unit = goal.metricUnitText.isEmpty ? "" : " \(goal.metricUnitText)"
-            return RouteResult(
-                text: "已记录「\(goal.title)」\(GoalMetricEvaluator.formatValue(value))\(unit)",
-                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
-            )
+            return try recordManualGoalQuantity(goal, result: result, originalInput: originalInput,
+                                                storageUnit: source.unit, goalRepo: goalRepo, recordID: recordID)
         case .ledger:
             return RouteResult(
                 text: "「\(goal.title)」是存钱目标，进度按账本自动计算。记账请直接记一笔账，比如「发工资了 8000」。",
-                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                status: .failed
             )
         case .healthKit:
             return RouteResult(
                 text: "「\(goal.title)」会自动从苹果健康同步，无需手动录入。",
-                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+                status: .failed
             )
         }
     }
 
-    /// 记到数值习惯（与详情页「数据来自」同源，进度自动跟随）
-    private func recordMetricToHabit(_ habit: Habit, value: Double, originalInput: String?) throws -> RouteResult {
-        let note = Self.habitRecordNote(
-            originalInput: originalInput,
-            habitNames: [habit.name],
-            removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
-        )
-        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note, analyticsSource: "ai")
-        return RouteResult(
-            text: "已记录「\(habit.name)」\(habit.formatValue(value))\(habit.unitText)",
-            habitId: habit.id,
-            linkedEntity: LinkedEntity(type: .habit, id: record.habitId)
-        )
-    }
-
     /// 按名称匹配活跃数值习惯（先精确等值再双向包含；打卡型习惯不参与）
-    private func matchNumericHabit(named name: String?) -> Habit? {
+    private func matchNumericHabit(named name: String?, in repository: HabitRepository) -> Habit? {
         guard let name, !name.isEmpty else { return nil }
-        let numericHabits = HabitRepository.shared.activeHabits.filter { !$0.isArchived && $0.isNumericType }
-        return numericHabits.first { $0.name == name }
-            ?? numericHabits.first { $0.name.contains(name) || name.contains($0.name) }
+        repository.setup()
+        let numericHabits = repository.activeHabits.filter { !$0.isArchived && $0.isNumericType }
+        let exact = numericHabits.filter { $0.name == name }
+        let matches = exact.isEmpty ? numericHabits.filter { $0.name.contains(name) || name.contains($0.name) } : exact
+        return matches.count == 1 ? matches.first : nil
     }
 
     /// 严格目标匹配（log_metric_value 专用）：goalId 精确 / targetHint 模糊，
     /// 不做「唯一活跃目标」兜底——用户没指名目标时优先按习惯名匹配
-    private func matchGoalStrict(from data: [String: String]?) -> GoalMatchResult {
-        let repo = GoalRepository.shared
+    private func matchGoalStrict(from data: [String: String]?, repo: GoalRepository = .shared) -> GoalMatchResult {
         let activeGoals = repo.activeGoals()
 
         if let idStr = data?["goalId"], let uuid = UUID(uuidString: idStr),
@@ -1221,43 +1284,148 @@ final class IntentRouter {
         }
     }
 
-    private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
-        guard let value = parseHabitValue(from: result.extractedData) else {
-            let unitText = habit.unitText.isEmpty ? "" : "（\(habit.unitText)）"
-            return RouteResult(text: "请告诉我要记录的数值\(unitText)，比如「\(habit.name) 5\(habit.unitText)」")
+    private func recordNumericHabit(
+        _ habit: Habit, result: ParsedResult, originalInput: String?, habitRepo: HabitRepository,
+        storageUnit: String? = nil, defaultUnit: String? = nil, bindingGoal: Goal? = nil, recordID: UUID? = nil
+    ) throws -> RouteResult {
+        let unit = storageUnit ?? HoloQuantityUnit.label(habit.unitText)
+        let target = QuantityTarget(entity: LinkedEntity(type: .habit, id: habit.id), storageUnit: unit,
+                                    defaultUnit: defaultUnit ?? unit, title: habit.name, bindingGoalID: bindingGoal?.id)
+        return try withQuantity(result, originalInput: originalInput, target: target) { quantity in
+            try saveHabitQuantity(quantity, habit: habit, intent: result.intent, originalInput: originalInput,
+                                  goalTitle: bindingGoal?.title, habitRepo: habitRepo, recordID: recordID)
         }
+    }
 
-        let note = Self.habitRecordNote(
-            originalInput: originalInput,
-            habitNames: [habit.name],
-            removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
+    private func recordManualGoalQuantity(
+        _ goal: Goal, result: ParsedResult, originalInput: String?, storageUnit: String?,
+        goalRepo: GoalRepository, recordID: UUID? = nil
+    ) throws -> RouteResult {
+        let target = QuantityTarget(entity: LinkedEntity(type: .goal, id: goal.id), storageUnit: storageUnit,
+                                    defaultUnit: storageUnit, title: goal.title)
+        return try withQuantity(result, originalInput: originalInput, target: target) { quantity in
+            try saveGoalQuantity(quantity, goal: goal, originalInput: originalInput, goalRepo: goalRepo, recordID: recordID)
+        }
+    }
+
+    private func withQuantity(
+        _ result: ParsedResult, originalInput: String?, target: QuantityTarget,
+        save: (AIQuantityInput.SavedValue) throws -> RouteResult
+    ) throws -> RouteResult {
+        let weight = result.intent == .recordWeight
+        let relatedNames = [result.extractedData?["habitName"], result.extractedData?["targetHint"], target.title]
+            .compactMap(HoloQuantityUnit.label)
+        let names = weight ? relatedNames + ["体重", "體重", "称重", "秤重", "刚称", "剛稱"] : relatedNames
+        let quantity = AIQuantityInput.resolve(
+            data: result.extractedData, valueKeys: weight ? ["weight"] : ["habitValue", "value", "amount"],
+            originalInput: originalInput, storageUnit: target.storageUnit, defaultUnit: target.defaultUnit, names: names
         )
-        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note, analyticsSource: "ai")
-        let formattedValue = habit.formatValue(value)
-        let unit = habit.unitText
-        let verb = habit.isBadHabit ? "已记录" : "已更新"
+        return try completeQuantity(quantity, intent: result.intent, target: target, save: save)
+    }
+
+    private func completeQuantity(
+        _ result: Result<AIQuantityInput.SavedValue, AIQuantityInput.Issue>, intent: AIIntent,
+        target: QuantityTarget, save: (AIQuantityInput.SavedValue) throws -> RouteResult
+    ) throws -> RouteResult {
+        if case .success(let quantity) = result, intent != .recordWeight || quantity.value > 0 {
+            return try save(quantity)
+        }
+        let text: String
+        if let unit = target.storageUnit, case .failure(.incompatibleUnit) = result {
+            text = String(localized: "「\(target.title)」按\(unit)记录。请补充这一项的数值和单位。")
+        } else {
+            text = String(localized: "请补充「\(target.title)」这一项的数值和单位。")
+        }
+        return RouteResult(text: text, status: .skipped, pendingQuantity: target)
+    }
+
+    /// 补充输入直接交给上次已经确定的来源，沿用该动作身份。
+    func resumeQuantity(
+        _ text: String, intent: AIIntent, target: QuantityTarget, recordID: UUID,
+        habitRepo: HabitRepository, goalRepo: GoalRepository
+    ) throws -> RouteResult? {
+        guard let quantity = AIQuantityInput.resolveReply(text, storageUnit: target.storageUnit, defaultUnit: target.defaultUnit) else {
+            return nil
+        }
+        let changed = RouteResult(
+            text: String(localized: "「\(target.title)」的来源或单位已变更，请重新说这一项的名称、数值和单位。"),
+            status: .failed
+        )
+        switch target.entity.type {
+        case .habit:
+            guard let habit = habitRepo.findHabit(by: target.entity.id),
+                  habit.isNumericType, !habit.isArchived, !habit.isPaused else { return changed }
+            var bindingUnit: String?
+            var goalTitle: String?
+            if let id = target.bindingGoalID {
+                guard let goal = goalRepo.findGoal(by: id), goal.status == GoalStatus.active.rawValue,
+                      let context = goal.managedObjectContext,
+                      let source = GoalPlanResolver.resultConfiguration(goal: goal, in: context).source,
+                      source.sourceType == .habit, source.sourceID == habit.id, !source.isPending else { return changed }
+                bindingUnit = HoloQuantityUnit.label(source.unit)
+                goalTitle = goal.title
+            }
+            let currentUnit = HoloQuantityUnit.label(habit.unit) ?? bindingUnit ?? HoloQuantityUnit.label(habit.unitText)
+            guard HoloQuantityUnit.sameStorageUnit(currentUnit, target.storageUnit),
+                  HoloQuantityUnit.sameStorageUnit(bindingUnit ?? currentUnit, target.defaultUnit) else { return changed }
+            return try completeQuantity(quantity, intent: intent, target: target) { value in
+                try saveHabitQuantity(value, habit: habit, intent: intent, originalInput: nil,
+                                      goalTitle: goalTitle, habitRepo: habitRepo, recordID: recordID)
+            }
+        case .goal:
+            guard let goal = goalRepo.findGoal(by: target.entity.id),
+                  goal.status == GoalStatus.active.rawValue, let context = goal.managedObjectContext,
+                  let source = GoalPlanResolver.resultConfiguration(goal: goal, in: context).source,
+                  source.sourceType == .manual, !source.isPending,
+                  HoloQuantityUnit.sameStorageUnit(source.unit ?? (intent == .recordWeight ? "kg" : nil), target.storageUnit)
+            else { return changed }
+            return try completeQuantity(quantity, intent: intent, target: target) { value in
+                try saveGoalQuantity(value, goal: goal, originalInput: nil, goalRepo: goalRepo, recordID: recordID)
+            }
+        default:
+            return changed
+        }
+    }
+
+    private func saveHabitQuantity(
+        _ quantity: AIQuantityInput.SavedValue, habit: Habit, intent: AIIntent, originalInput: String?,
+        goalTitle: String?, habitRepo: HabitRepository, recordID: UUID?
+    ) throws -> RouteResult {
+        let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name],
+                                        removableTokens: [quantity.observedText].compactMap { $0 })
+        let record = try habitRepo.addNumericRecord(for: habit, value: quantity.value, note: note,
+                                                   analyticsSource: "ai", recordID: recordID)
+        guard let persisted = record.valueDouble, persisted.isFinite else { throw HabitError.invalidData }
+        let saved = AIQuantityInput.SavedValue(value: persisted, unit: quantity.unit)
+        let text: String
+        if intent == .recordWeight {
+            text = String(localized: "已记录体重 \(saved.displayText)")
+        } else if let goalTitle {
+            text = String(localized: "已记录「\(habit.name)」\(saved.displayText)，计入目标「\(goalTitle)」")
+        } else {
+            let verb = habit.isBadHabit || intent == .logMetricValue ? "已记录" : "已更新"
+            text = "\(verb)「\(habit.name)」\(saved.displayText)"
+        }
         return RouteResult(
-            text: "\(verb)「\(habit.name)」\(formattedValue)\(unit)",
-            habitId: habit.id,
-            linkedEntity: LinkedEntity(type: .habit, id: record.habitId)
+            text: text, habitId: habit.id, linkedEntity: LinkedEntity(type: .habit, id: habit.id),
+            habitCheckIn: HabitCheckInReceipt(name: habit.name, completed: true, recordedValue: saved.displayText),
+            savedQuantity: saved
         )
     }
 
-    private func parseHabitValue(from data: [String: String]?) -> Double? {
-        guard let data else { return nil }
-        let candidates = [
-            data["habitValue"],
-            data["value"],
-            data["amount"]
-        ]
-        for candidate in candidates {
-            guard let raw = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { continue }
-            let numeric = raw.filter { $0.isNumber || $0 == "." || $0 == "-" }
-            if let value = Double(numeric) {
-                return value
-            }
-        }
-        return nil
+    private func saveGoalQuantity(
+        _ quantity: AIQuantityInput.SavedValue, goal: Goal, originalInput: String?,
+        goalRepo: GoalRepository, recordID: UUID?
+    ) throws -> RouteResult {
+        let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [goal.title],
+                                        removableTokens: [quantity.observedText].compactMap { $0 })
+        let record = try goalRepo.addMetricLog(for: goal, value: quantity.value, note: note, recordID: recordID)
+        let saved = AIQuantityInput.SavedValue(value: record.value, unit: quantity.unit)
+        GoalNotificationService.broadcastGoalDataChange()
+        return RouteResult(
+            text: String(localized: "已记录「\(goal.title)」\(saved.displayText)"),
+            linkedEntity: LinkedEntity(type: .goal, id: goal.id), savedQuantity: saved
+        )
     }
 
     // MARK: - Complete Task

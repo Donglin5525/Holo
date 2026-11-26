@@ -67,8 +67,7 @@ enum GoalResultComparison: String, Codable, Equatable, Sendable {
         if title.contains("不低于") { return .trendUp }
         if title.contains("不高于") || downward.contains(where: title.contains) { return .trendDown }
         if upward.contains(where: title.contains) { return .trendUp }
-        let isWeight = healthMetric == .bodyMass || ["kg", "公斤", "千克", "斤", "lb", "lbs", "磅"]
-            .contains(unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "")
+        let isWeight = healthMetric == .bodyMass || HoloQuantityUnit.isMass(unit)
         if (isWeight || healthMetric == .bodyFatPercentage)
             && ["减肥", "减重", "瘦身", "减脂"].contains(where: title.contains) { return .trendDown }
         if isWeight && ["增重", "增肥"].contains(where: title.contains) { return .trendUp }

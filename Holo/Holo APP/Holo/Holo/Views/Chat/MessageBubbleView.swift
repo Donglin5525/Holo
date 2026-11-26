@@ -405,8 +405,8 @@ struct MessageBubbleView: View {
                     }
                 }
             } else if hasCards {
-                if cards.count > 1 {
-                    multiCardView(cards: cards)
+                if cards.count + message.executionTextItems.count > 1 {
+                    multiCardView(cards: cards, textItems: message.executionTextItems)
                 } else {
                     cardView(for: cards[0])
                 }
@@ -542,33 +542,55 @@ struct MessageBubbleView: View {
 
     /// 多卡片渲染（带汇总标题）
     @ViewBuilder
-    private func multiCardView(cards: [ChatCardData]) -> some View {
-        let pendingCount = cards.filter(\.isPendingConfirmation).count
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: pendingCount == cards.count ? "checklist" : "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(pendingCount == cards.count ? .holoPrimary : .holoSuccess)
-                Text(summaryHeaderText(cardCount: cards.count, pendingCount: pendingCount))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolText)
+    private func multiCardView(cards: [ChatCardData], textItems: [AIExecutionItem]) -> some View {
+        let pendingCards = cards.filter(\.isPendingConfirmation).count
+        let pendingCount = pendingCards + textItems.filter { $0.status == .skipped }.count
+        let handledCount = cards.count - pendingCards + textItems.filter(\.didExecute).count
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            Text(summaryHeaderText(handledCount: handledCount, pendingCount: pendingCount))
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(cards.enumerated()), id: \.offset) { index, card in
+                    if isRecordReceipt(card) {
+                        if index > 0, isRecordReceipt(cards[index - 1]) {
+                            HoloHairlineDivider()
+                        }
+                        cardView(for: card)
+                    } else {
+                        cardView(for: card)
+                            .padding(.vertical, HoloSpacing.xs)
+                    }
+                }
             }
 
-            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                cardView(for: card)
+            ForEach(textItems) { item in
+                Text(item.summaryText)
+                    .holoText(.supporting)
+                    .foregroundStyle(Color.holoToolText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, HoloSpacing.xs)
             }
         }
     }
 
+    private func isRecordReceipt(_ card: ChatCardData) -> Bool {
+        switch card {
+        case .habitCheckIn, .weight: return true
+        default: return false
+        }
+    }
+
     /// 汇总话术与真实状态对齐：没执行完的不说「已处理」。
-    private func summaryHeaderText(cardCount: Int, pendingCount: Int) -> String {
-        if pendingCount == cardCount {
-            return String(localized: "识别到 \(cardCount) 项，待你确认")
+    private func summaryHeaderText(handledCount: Int, pendingCount: Int) -> String {
+        if handledCount == 0 {
+            return String(localized: "识别到 \(pendingCount) 项，待你确认")
         }
         if pendingCount > 0 {
-            return String(localized: "已处理 \(cardCount - pendingCount) 项，\(pendingCount) 项待确认")
+            return String(localized: "已处理 \(handledCount) 项，\(pendingCount) 项待确认")
         }
-        return String(localized: "已为你处理 \(cardCount) 件事")
+        return String(localized: "已为你处理 \(handledCount) 件事")
     }
 
     /// 根据卡片数据渲染对应领域的卡片视图

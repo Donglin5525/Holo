@@ -108,6 +108,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     private var cachedFlexibleQueryResult: FlexibleQueryResult?
     private var cachedFlexibleQueryCard: ChatCardData?
     private var cachedExecutionCards: [ChatCardData] = []
+    private var cachedExecutionTextItems: [AIExecutionItem] = []
     private var cachedSingleCard: ChatCardData?
     private var cachedSavedGoalCard: GoalSavedChatCardData?
     /// 是否在该消息上方显示时间分隔条（由 ChatViewModel 按相邻消息间隔预计算）。
@@ -363,6 +364,11 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         cachedExecutionCards
     }
 
+    /// 无专属卡片的执行结果仍保留在同一条消息里，包括需要说明的失败和追问。
+    var executionTextItems: [AIExecutionItem] {
+        cachedExecutionTextItems
+    }
+
     /// 旧路径单卡片数据（读预算缓存）
     var singleCard: ChatCardData? {
         cachedSingleCard
@@ -439,7 +445,15 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         cachedAnalysisCards = analysisContext.map { ChatCardData.fromAnalysisContext($0) } ?? []
         cachedFlexibleQueryResult = decodeFlexibleQueryResult()
         cachedFlexibleQueryCard = ChatCardData.fromFlexibleQueryResult(cachedFlexibleQueryResult)
-        cachedExecutionCards = ChatCardData.multiple(from: executionBatch)
+        cachedExecutionCards = []
+        cachedExecutionTextItems = []
+        for item in executionBatch?.items ?? [] {
+            if let card = ChatCardData.from(executionItem: item) {
+                cachedExecutionCards.append(card)
+            } else {
+                cachedExecutionTextItems.append(item)
+            }
+        }
         cachedSingleCard = derivedSingleCard()
         cachedSavedGoalCard = derivedSavedGoalCard()
     }
@@ -457,6 +471,9 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
               let intentStr = intent,
               let intentValue = AIIntent(rawValue: intentStr),
               !isStreaming else {
+            return nil
+        }
+        if executionBatch != nil && (intentValue == .checkIn || intentValue == .recordWeight) {
             return nil
         }
         return ChatCardData.from(intent: intentValue, data: cachedExtractedDataDictionary)

@@ -143,6 +143,11 @@ extension HabitRepository {
 
         let trimmedName = payload.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw HabitError.invalidData }
+        switch payload.unit {
+        case .keep: break
+        case .set(let unit): try validateStorageUnitChange(for: habit, to: unit)
+        case .clear: try validateStorageUnitChange(for: habit, to: nil)
+        }
         if case .set(let id) = payload.folderID { try validateHabitFolder(id) }
         let requestedGoal: Goal?
         if case .set(let goalID?) = payload.goalId {

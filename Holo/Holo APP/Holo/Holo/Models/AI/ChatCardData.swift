@@ -224,7 +224,8 @@ nonisolated enum ChatCardData: Equatable {
             return .habitCheckIn(HabitCheckInCardData(
                 habitName: habitName,
                 streak: data["streak"].flatMap { Int($0) },
-                completed: data["completed"] != "false"
+                completed: data["completed"] != "false",
+                recordedValue: data["recordedValue"]
             ))
 
         case .recordMood:
@@ -307,6 +308,9 @@ nonisolated enum ChatCardData: Equatable {
 
     /// 从 AIExecutionItem 构建卡片数据
     nonisolated static func from(executionItem: AIExecutionItem) -> ChatCardData? {
+        if executionItem.intent == .checkIn || executionItem.intent == .recordWeight {
+            guard executionItem.didExecute else { return nil }
+        }
         return from(intent: executionItem.intent, data: executionItem.renderData, itemID: executionItem.id)
     }
 
@@ -768,6 +772,7 @@ nonisolated struct HabitCheckInCardData: Equatable {
     let habitName: String
     let streak: Int?
     let completed: Bool
+    let recordedValue: String?
 }
 
 // MARK: - 心情卡片数据

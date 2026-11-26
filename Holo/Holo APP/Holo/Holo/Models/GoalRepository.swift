@@ -206,6 +206,16 @@ final class GoalRepository: ObservableObject {
         let previousHealthKind = goal.healthMetricKindEnum
         let previousPlanSource = priorRow?.planPayloadV2?.resultSource
         let previousLedgerScope = goal.ledgerScopePayload ?? previousPlanSource?.ledgerScope
+        let nextUnit = metricUnit ?? goal.metricUnit
+        if (goalKind ?? previousKind) != .process, (metricSource ?? previousSource) == .manual,
+           previousSource != .manual || !HoloQuantityUnit.sameStorageUnit(previousPlanSource?.unit ?? goal.metricUnit, nextUnit) {
+            let logs = GoalMetricLog.fetchRequest()
+            logs.predicate = NSPredicate(format: "goalId == %@", goal.id as CVarArg)
+            logs.fetchLimit = 1
+            guard try context.count(for: logs) == 0 else {
+                throw GoalAdjustmentCommitError.validation(String(localized: "这个目标已有手动数值记录。请沿用原单位，或用新单位另建目标。"))
+            }
+        }
         if let title { goal.title = title }
         if let summary { goal.summary = summary }
         if let domain { goal.goalDomain = domain }
@@ -591,16 +601,35 @@ extension GoalRepository {
     /// 记一笔。写完后 touch goal.updatedAt 触发详情页 ObservedObject 刷新，
     /// 进度每次展示时实时重算，无需任何缓存同步
     @discardableResult
-    func addMetricLog(for goal: Goal, value: Double, date: Date = Date(), note: String? = nil) throws -> GoalMetricLog {
+    func addMetricLog(
+        for goal: Goal, value: Double, date: Date = Date(), note: String? = nil, recordID: UUID? = nil
+    ) throws -> GoalMetricLog {
+        if let recordID {
+            let request = GoalMetricLog.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", recordID as CVarArg)
+            request.fetchLimit = 1
+            if let existing = try context.fetch(request).first {
+                guard existing.goalId == goal.id, existing.deletedAt == nil else {
+                    throw GoalAdjustmentCommitError.validation(String(localized: "这项记录的状态已变化，请重新核对目标。"))
+                }
+                return existing
+            }
+        }
         let log = GoalMetricLog(context: context)
-        log.id = UUID()
+        log.id = recordID ?? UUID()
         log.goalId = goal.id
         log.date = date
         log.value = value
         log.note = note
         log.createdAt = Date()
+        let previousUpdatedAt = goal.updatedAt
         goal.updatedAt = Date()
-        try context.save()
+        do { try context.save() }
+        catch {
+            context.delete(log)
+            goal.updatedAt = previousUpdatedAt
+            throw error
+        }
         loadGoals()
         return log
     }

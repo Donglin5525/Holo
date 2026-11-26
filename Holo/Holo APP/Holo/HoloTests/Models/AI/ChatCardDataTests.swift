@@ -5,10 +5,66 @@
 //  测试 ChatCardData 枚举和数据模型
 //
 
+import SwiftUI
 import XCTest
 @testable import Holo
 
 final class ChatCardDataTests: XCTestCase {
+
+    @MainActor
+    func testRecordReceiptRendersCompactAndWrapsLongAccessibleText() throws {
+        let normal = ImageRenderer(content:
+            ChatRecordReceiptRow(title: "体重记录", value: "78.6 kg")
+                .frame(width: 340)
+                .dynamicTypeSize(.large)
+        )
+        XCTAssertEqual(try XCTUnwrap(normal.uiImage).size.height, 44, accuracy: 1)
+
+        let largeText = ImageRenderer(content:
+            ChatRecordReceiptRow(title: "每天晨练结束以后记录今天的深蹲总数", value: "20个")
+                .frame(width: 300)
+                .dynamicTypeSize(.accessibility3)
+        )
+        XCTAssertGreaterThan(try XCTUnwrap(largeText.uiImage).size.height, 44)
+    }
+
+    func testMixedBatchShowsActualHabitValueAndKeepsWeightFailure() {
+        let weightFailure = AIExecutionItem(
+            id: "weight", parseItemId: "parse-weight", intent: .recordWeight, status: .failed,
+            summaryText: "未记录体重", renderData: ["weight": "78.6", "unit": "kg"],
+            linkedEntityType: nil, linkedEntityId: nil, errorText: nil
+        )
+        let habitSuccess = AIExecutionItem(
+            id: "habit", parseItemId: "parse-habit", intent: .checkIn, status: .success,
+            summaryText: "已记录深蹲", renderData: ["habitName": "深蹲", "habitValue": "22", "recordedValue": "20个"],
+            linkedEntityType: "habit", linkedEntityId: UUID().uuidString, errorText: nil
+        )
+        let message = ChatMessageViewData(
+            id: UUID(), role: "assistant", content: "已处理一项", timestamp: Date(),
+            intent: AIIntent.recordWeight.rawValue,
+            extractedDataJSON: #"{"weight":"78.6","unit":"kg"}"#,
+            isStreaming: false, parentMessageId: nil,
+            executionBatch: AIExecutionBatch(mode: .multiAction, items: [weightFailure, habitSuccess], finalText: "已处理一项")
+        )
+
+        XCTAssertNil(message.singleCard)
+        XCTAssertEqual(message.executionTextItems, [weightFailure])
+        XCTAssertEqual(message.executionCards.count, 1)
+        guard case .habitCheckIn(let data)? = message.executionCards.first else {
+            return XCTFail("应展示真实习惯回执")
+        }
+        XCTAssertEqual(data.recordedValue, "20个")
+    }
+
+    func testLegacyBatchWithoutLinkedWeightDoesNotShowSuccessReceipt() {
+        let result = AIExecutionItem(
+            id: "weight", parseItemId: "parse-weight", intent: .recordWeight, status: .success,
+            summaryText: "未找到体重记录习惯", renderData: ["weight": "78.6"],
+            linkedEntityType: nil, linkedEntityId: nil, errorText: nil
+        )
+        XCTAssertFalse(result.didExecute)
+        XCTAssertNil(ChatCardData.from(executionItem: result))
+    }
 
     func testLightweightMessageKeepsExecutionRenderDataAndRawLogForFirstFrameCards() throws {
         let executionBatch = AIExecutionBatch(

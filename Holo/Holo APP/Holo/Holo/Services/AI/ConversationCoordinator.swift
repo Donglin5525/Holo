@@ -506,7 +506,7 @@ final class ConversationCoordinator {
 
         // 低置信度检查
         let hasLowConfidence = parseBatch.items.contains {
-            !$0.isHighConfidence && !$0.intent.isQuery
+            !$0.isHighConfidence && !$0.intent.isQuery && !AIQuantityInput.accepts($0.intent)
         }
         if hasLowConfidence {
             return ConversationProcessResult(
@@ -534,6 +534,7 @@ final class ConversationCoordinator {
         // 顺序执行每个动作
         var executionItems: [AIExecutionItem] = []
         var actionParserLog: LLMCallLog?
+        var quantitySpans: [NSRange] = []
 
         // 同一句话识别出的多条待办：日期相容（都无日期或同一天）时是同一个场景，
         // 合并为一个主任务 + 子条目，避免拆成一堆碎片任务；日期各异保持独立。
@@ -546,6 +547,23 @@ final class ConversationCoordinator {
 
         for (itemIndex, item) in parseBatch.items.enumerated() {
             try Task.checkCancellation()
+
+            var quantitySpan: NSRange?
+            if AIQuantityInput.accepts(item.intent) {
+                if !item.isHighConfidence {
+                    executionItems.append(AIExecutionItem(
+                        id: UUID().uuidString, parseItemId: item.id, intent: item.intent, status: .failed,
+                        summaryText: String(localized: "这项\(item.intent.chatDisplayLabel)还需要核对，请单独补充。"),
+                        renderData: nil, linkedEntityType: nil, linkedEntityId: nil, errorText: nil
+                    ))
+                    continue
+                }
+                if let evidence = AIQuantityInput.evidenceRange(in: text, data: item.extractedData) {
+                    let span = NSRange(evidence, in: text)
+                    if quantitySpans.contains(where: { NSIntersectionRange($0, span).length > 0 }) { continue }
+                    quantitySpan = span
+                }
+            }
 
             // 删除任务必须经用户确认（删除是破坏性操作）：唯一命中时生成「删除确认卡」，
             // 无命中/多命中仍走 IntentRouter 的文本追问
@@ -839,6 +857,7 @@ final class ConversationCoordinator {
                     renderData["confirmationStatus"] = "pending"
                     renderData["pendingKind"] = "goalChoice"
                     renderData["goalChoiceCandidates"] = Self.encodeGoalChoiceCandidates(goals)
+                    if item.intent == .logMetricValue { renderData["originalInput"] = text }
                     executionItems.append(
                         AIExecutionItem(
                             id: UUID().uuidString,
@@ -860,9 +879,11 @@ final class ConversationCoordinator {
                 // 透传原始输入文本：LLM 偶尔漏填任务的时间/日期，
                 // IntentRouter 会用 NLDateParser 对原文兜底解析
                 let routeResult = try await intentRouter.route(item.asParsedResult, originalInput: text)
-                let renderData = Self.buildRenderData(from: item, routeResult: routeResult)
+                if routeResult.status == .success, let quantitySpan { quantitySpans.append(quantitySpan) }
+                let renderData = Self.buildRenderData(intent: item.intent, parsedData: item.extractedData, routeResult: routeResult)
 
-                if Self.isGoalWriteIntent(item.intent) || item.intent == .toggleGoalVisibility {
+                if routeResult.status == .success,
+                   (Self.isGoalWriteIntent(item.intent) && item.intent != .logMetricValue) || item.intent == .toggleGoalVisibility {
                     GoalNotificationService.broadcastGoalDataChange()
                 }
 
@@ -873,7 +894,7 @@ final class ConversationCoordinator {
                         id: UUID().uuidString,
                         parseItemId: item.id,
                         intent: item.intent,
-                        status: .success,
+                        status: routeResult.status,
                         summaryText: routeResult.text,
                         renderData: renderData,
                         linkedEntityType: routeResult.linkedEntity?.type.rawValue,
@@ -889,7 +910,7 @@ final class ConversationCoordinator {
                         parseItemId: item.id,
                         intent: item.intent,
                         status: .failed,
-                        summaryText: "\(item.intent.rawValue) 执行失败",
+                        summaryText: String(localized: "\(item.intent.chatDisplayLabel)未完成"),
                         renderData: item.extractedData,
                         linkedEntityType: nil,
                         linkedEntityId: nil,
@@ -1004,11 +1025,11 @@ final class ConversationCoordinator {
         return (data, provider.lastCallLog)
     }
 
-    private static func buildRenderData(
-        from item: AIParseItem,
+    static func buildRenderData(
+        intent: AIIntent, parsedData: [String: String]?,
         routeResult: IntentRouter.RouteResult
     ) -> [String: String]? {
-        var data = item.extractedData ?? [:]
+        var data = parsedData ?? [:]
 
         if let entity = routeResult.linkedEntity {
             data["entityType"] = entity.type.rawValue
@@ -1022,11 +1043,18 @@ final class ConversationCoordinator {
         }
         if let habitId = routeResult.habitId {
             data["habitId"] = habitId.uuidString
-            // 打卡是 toggle 语义：取消打卡时必须写 completed=false，
-            // 否则卡片「已取消打卡」文案与「已完成」徽章自相矛盾
-            if routeResult.text.contains("已取消打卡") {
-                data["completed"] = "false"
-            }
+        }
+        if let checkIn = routeResult.habitCheckIn {
+            data["habitName"] = checkIn.name
+            data["completed"] = String(checkIn.completed)
+            data["recordedValue"] = checkIn.recordedValue
+        }
+        if intent == .recordWeight, let saved = routeResult.savedQuantity {
+            data["weight"] = saved.numberText
+            data["unit"] = saved.unit
+        }
+        if let pending = routeResult.pendingQuantity {
+            data.merge(pending.renderData) { _, value in value }
         }
         if let thoughtId = routeResult.thoughtId {
             data["thoughtId"] = thoughtId.uuidString
@@ -1049,28 +1077,33 @@ final class ConversationCoordinator {
         return data.isEmpty ? nil : data
     }
 
-    private static func buildFinalText(from items: [AIExecutionItem]) -> String {
+    static func buildFinalText(from items: [AIExecutionItem]) -> String {
         guard !items.isEmpty else { return "我没能识别出可执行操作，请拆开重试。" }
         if items.count == 1 { return items[0].summaryText }
 
         let lines = items.enumerated().map { index, item in
             let prefix = "\(index + 1). "
-            if item.status == .failed {
-                return prefix + "\(item.summaryText)：\(item.errorText ?? "未知错误")"
+            if item.status == .failed, let errorText = item.errorText {
+                return prefix + "\(item.summaryText)：\(errorText)"
             }
             return prefix + item.summaryText
         }
 
         // 话术与真实状态对齐：没执行完就不说「已处理」
         let failedCount = items.filter { $0.status == .failed }.count
-        let pendingCount = items.filter { $0.status == .skipped }.count
+        let pendingCount = items.filter { $0.status == .skipped && $0.renderData?["confirmationStatus"] != "cancelled" }.count
+        let successCount = items.filter(\.didExecute).count
         var header: String
-        if pendingCount == items.count {
+        if pendingCount == items.count, items.contains(where: { $0.renderData?["pendingKind"] == "quantity" }) {
+            header = String(localized: "有 \(pendingCount) 项待补充或确认\n")
+        } else if pendingCount == items.count {
             header = "识别到 \(items.count) 项待办，待你确认后创建：\n"
         } else if pendingCount > 0 {
-            header = "已处理 \(items.count - pendingCount) 项，\(pendingCount) 项待你确认：\n"
+            header = "已处理 \(successCount) 项，\(pendingCount) 项待你确认：\n"
+        } else if successCount == 0 {
+            header = "未完成这些操作：\n"
         } else {
-            header = "已为你处理 \(items.count) 件事：\n"
+            header = "已为你处理 \(successCount) 件事：\n"
         }
         var result = header + lines.joined(separator: "\n")
         if failedCount > 0 {

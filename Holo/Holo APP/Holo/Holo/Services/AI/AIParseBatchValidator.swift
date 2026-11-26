@@ -66,6 +66,9 @@ enum AIParseBatchValidator {
         guard !fields.isEmpty else { return }
 
         for field in fields {
+            if AIQuantityInput.accepts(item.intent), ["weight", "value"].contains(field),
+               HoloQuantityUnit.label(item.extractedData?[AIQuantityInput.quoteKey]) != nil,
+               HoloQuantityUnit.label(item.extractedData?[AIQuantityInput.scopeKey]) != nil { continue }
             let value = item.extractedData?[field]
             if value == nil || value?.isEmpty == true {
                 issues.append(ValidationIssue(
