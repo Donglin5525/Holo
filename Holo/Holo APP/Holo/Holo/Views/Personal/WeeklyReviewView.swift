@@ -14,6 +14,7 @@ import SwiftUI
 
 struct WeeklyReviewView: View {
     @State private var snapshot: WeeklyReviewSnapshot?
+    @State private var hasAppeared = false
 
     private let aggregator: WeeklyReviewAggregator
     private let calendar: Calendar
@@ -29,195 +30,347 @@ struct WeeklyReviewView: View {
                 if snapshot.current.hasAnyActivity {
                     reviewContent(snapshot)
                 } else {
-                    emptyState
+                    emptyState(snapshot)
                 }
             } else {
                 ProgressView()
+                    .frame(maxWidth: .infinity)
                     .padding(.top, 120)
             }
         }
-        .background(Color.holoBackground)
-        // 加载态首帧导航容器底色（iOS 26 Liquid Glass）：未声明时系统垫白底，
-        // 中央为 spinner 挖的竖槽露出 holoBackground，视觉上成了一条「竖粗线」
-        // ——真机数据多、加载约一秒时肉眼可见（2026-11-17 东林实报，冻结复现定谳）。
-        // placement .navigation 需 iOS 18+；白色快照行为仅 iOS 26 存在，低版本空实现即可
+        // 纵向 ScrollView 默认按子视图收缩宽度：加载态仅含 20pt 宽 ProgressView 时，
+        // ScrollView 自身只有 20pt 宽，挂在其上的 .background(Color.holoPaper) 会画成
+        // 屏幕正中的一条竖带（2026-11-26 根因定谳，之前只补了 containerBackground 未修宽，
+        // 底色换成 holoPaper 后再次露出）。此处撑满容器 + 导航容器底色统一 holoPaper 彻底根治。
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoPaper.ignoresSafeArea())
         .modifier(WeekReviewNavContainerBackground())
         .navigationTitle(String(localized: "每周回顾"))
         .navigationBarTitleDisplayMode(.inline)
         .task {
             guard snapshot == nil else { return }
-            let insights = await Self.confirmedInsightsThisWeek(calendar: calendar)
-            let made = aggregator.makeSnapshot(calendar: calendar, confirmedInsights: insights)
-            snapshot = made
+            let now = Date()
+            // 先同步出四项足迹快照，首帧直出内容、不等异步知识库查询
+            let base = aggregator.makeSnapshot(now: now, calendar: calendar)
+            snapshot = base
+            withAnimation(HoloAnimation.smooth) {
+                hasAppeared = true
+            }
             HoloProductAnalytics.shared.track(
                 .weeklyReviewViewed,
-                ["weekStart": Self.analyticsDayKey(made.weekStart, calendar: calendar)]
+                ["weekStart": Self.analyticsDayKey(base.weekStart, calendar: calendar)]
             )
+            let insights = await Self.confirmedInsightsThisWeek(now: now, calendar: calendar)
+            if !insights.isEmpty {
+                snapshot = WeeklyReviewSnapshot(
+                    weekStart: base.weekStart,
+                    referenceDate: base.referenceDate,
+                    current: base.current,
+                    previous: base.previous,
+                    confirmedInsights: insights
+                )
+            }
         }
         .accessibilityIdentifier("weeklyReview.page")
     }
 
-    // MARK: - 有数据
+    // MARK: - 刊头双线（个人周刊小报）
+
+    private func masthead(_ snapshot: WeeklyReviewSnapshot) -> some View {
+        let weekOfYear = calendar.component(.weekOfYear, from: snapshot.weekStart)
+        let year = calendar.component(.year, from: snapshot.weekStart)
+        return VStack(spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("HOLO WEEKLY")
+                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                    .kerning(2.2)
+                    .foregroundStyle(Color.holoAlmanacInk)
+                Spacer()
+                Text(String(format: "NO. %02d · %d", weekOfYear, year))
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .kerning(1.2)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
+            .padding(.bottom, 5)
+
+            Rectangle()
+                .fill(Color.holoAlmanacInk)
+                .frame(height: 1.5)
+            Rectangle()
+                .fill(Color.holoAlmanacInk.opacity(0.65))
+                .frame(height: 0.5)
+        }
+    }
+
+    // MARK: - 有数据（个人周刊小报：无白卡编排 + 衬线排印 + 细线目录）
 
     private func reviewContent(_ snapshot: WeeklyReviewSnapshot) -> some View {
-        VStack(spacing: 14) {
-            heroCard(snapshot)
-            footprintsCard(snapshot)
-            confirmedInsightsSection
-            Text(closingText(snapshot))
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 0) {
+            masthead(snapshot)
+                .padding(.bottom, 22)
+
+            // 日期区间 + 衬线大刊题
+            Text(weekRangeText(snapshot))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .kerning(1.8)
+                .foregroundStyle(Color.holoToolTextSecondary)
+
+            Text(editorialHeadline(snapshot))
+                .font(.holoEditorialSerif(size: 27, bold: true))
+                .kerning(0.6)
+                .foregroundStyle(Color.holoAlmanacInk)
+                .lineSpacing(6)
                 .padding(.top, 6)
                 .padding(.bottom, 16)
-                .padding(.horizontal, 24)
+
+            // 朱砂竖线引言（同期比 / 首周）
+            editorialLeadQuote(snapshot)
+                .padding(.bottom, 26)
+
+            // 无卡主角大数字区
+            heroMetricBand(snapshot)
+                .padding(.bottom, 24)
+
+            // 纸本目录式四项足迹（零白卡、零 SF Symbol 堆砌）
+            footprintsEditorialList(snapshot)
+
+            // 确认过的理解（编者按）
+            confirmedInsightsSection
+                .padding(.top, 26)
+
+            // 底部收束：朱砂圆印 + 结语
+            editorialFooter(snapshot)
+                .padding(.top, 32)
+                .padding(.bottom, 28)
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 8)
     }
 
-    /// 主角卡：总量数字 + 同期比副句（或首周条幅）
-    private func heroCard(_ snapshot: WeeklyReviewSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(String(format: String(localized: "本周足迹 · %@"), weekRangeText(snapshot)))
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(snapshot.current.recordTotal)")
-                    .font(.holoHeroNumber(size: 42))
-                    .foregroundColor(.holoTextPrimary)
-                Text(String(localized: "条"))
-                    .font(.system(size: 15))
-                    .foregroundColor(.holoTextSecondary)
+    /// 根据本周活跃度与是否首周给出克制、无感叹号的周刊标题
+    private func editorialHeadline(_ snapshot: WeeklyReviewSnapshot) -> String {
+        if snapshot.previous == nil {
+            return String(localized: "你的第一份个人周刊")
+        }
+        let total = snapshot.current.recordTotal
+        if total <= 3 {
+            return String(localized: "安静而克制的一周")
+        }
+        if let prev = snapshot.previous, total > prev.recordTotal {
+            return String(localized: "比上周多留下一些痕迹")
+        }
+        return String(localized: "平稳推进的一周")
+    }
+
+    /// 朱砂竖线引言
+    private func editorialLeadQuote(_ snapshot: WeeklyReviewSnapshot) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Rectangle()
+                .fill(Color.holoPrimary)
+                .frame(width: 2)
+                .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(leadSentence(snapshot))
+                    .font(.holoEditorialSerif(size: 14.5, bold: false))
+                    .foregroundStyle(Color.holoAlmanacInk.opacity(0.86))
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            heroDeltaLine(snapshot)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
-        .holoSurface()
     }
 
-    @ViewBuilder
-    private func heroDeltaLine(_ snapshot: WeeklyReviewSnapshot) -> some View {
-        if let previous = snapshot.previous {
-            let current = snapshot.current.recordTotal
-            let last = previous.recordTotal
-            if current > last {
-                HStack(spacing: 6) {
-                    Text(String(localized: "记账·想法·任务合计，比上周多"))
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoTextSecondary)
-                    DeltaPill(diff: current - last, direction: .up)
-                }
-            } else if current < last {
-                Text(String(localized: "记账·想法·任务合计，比上周少 \(last - current) 条"))
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
-            } else {
-                Text(String(localized: "记账·想法·任务合计，与上周持平"))
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
-            }
+    private func leadSentence(_ snapshot: WeeklyReviewSnapshot) -> String {
+        guard let previous = snapshot.previous else {
+            return String(localized: "记账、想法与任务都会汇入这里。这是你的第一份周回顾，以后每周都会留下一页。")
+        }
+        let current = snapshot.current.recordTotal
+        let last = previous.recordTotal
+        if current > last {
+            return String(format: String(localized: "本周共留下 %d 条记录，比上周多 %d 条。散落在一周里的碎片，都安静归档了。"), current, current - last)
+        } else if current < last {
+            return String(format: String(localized: "本周共留下 %d 条记录，比上周少 %d 条。慢一点的节奏，同样值得被记住。"), current, last - current)
         } else {
-            // 首周：没有上周同期数据，不显示对比，换首周条幅
-            // 图标用 SF Symbol "leaf"（原型 🌱 的落地映射，与个人页「我的积累」同符号、
-            // 存在性有生产实证）——Text(verbatim:) emoji 在染色上下文会退化为单色替代字形
-            HStack(spacing: 8) {
-                Image(systemName: "leaf")
-                    .font(.system(size: 12, weight: .medium))
-                Text(String(localized: "这是你的第一份周回顾"))
-            }
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundColor(.holoPrimary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.holoPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-            .padding(.top, 4)
+            return String(format: String(localized: "本周共留下 %d 条记录，与上周恰好持平。稳定的节奏本身就是一种积累。"), current)
         }
     }
 
-    /// 四项足迹列表卡：涨跌胶囊直接跟在数字后（融合版）
-    private func footprintsCard(_ snapshot: WeeklyReviewSnapshot) -> some View {
+    /// 无卡主角大数字带（上下 0.5pt 细线分隔）
+    private func heroMetricBand(_ snapshot: WeeklyReviewSnapshot) -> some View {
         VStack(spacing: 0) {
+            hairline
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TOTAL FOOTPRINTS")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .kerning(1.8)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(snapshot.current.recordTotal)")
+                            .font(.holoHeroNumber(size: 46))
+                            .foregroundStyle(Color.holoAlmanacInk)
+                            .monospacedDigit()
+                        Text(String(localized: "条足迹"))
+                            .font(.holoEditorialSerif(size: 14, bold: false))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                    }
+                }
+
+                Spacer()
+
+                if let previous = snapshot.previous {
+                    let current = snapshot.current.recordTotal
+                    let last = previous.recordTotal
+                    if current > last {
+                        DeltaPill(diff: current - last, direction: .up)
+                    } else if current < last {
+                        DeltaPill(diff: last - current, direction: .flat)
+                    } else {
+                        DeltaPill(diff: 0, direction: .flat)
+                    }
+                } else {
+                    Text(String(localized: "首期"))
+                        .font(.holoEditorialSerif(size: 12, bold: false))
+                        .foregroundStyle(Color.holoPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(Color.holoPrimary.opacity(0.65), lineWidth: 0.7)
+                        )
+                }
+            }
+            .padding(.vertical, 18)
+            hairline
+        }
+    }
+
+    /// 纸本目录式四项足迹（零白卡、零 SF Symbol 堆砌，01-04 等宽编号 + 衬线名 + 等宽大数字）
+    private func footprintsEditorialList(_ snapshot: WeeklyReviewSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("EDITION INDEX")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .kerning(1.8)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .padding(.bottom, 10)
+
             footRow(
-                icon: "banknote",
+                index: "01",
                 title: String(localized: "记账"),
                 subtitle: String(localized: "本周新增流水 · 含识图"),
                 value: snapshot.current.transactionCount,
                 unit: String(localized: "笔"),
                 delta: deltaPill(current: snapshot.current.transactionCount, previous: snapshot.previous?.transactionCount)
             )
-            SettingsRowDivider()
+            hairline
             footRow(
-                icon: "lightbulb",
+                index: "02",
                 title: String(localized: "想法"),
                 subtitle: String(localized: "本周新建"),
                 value: snapshot.current.thoughtCount,
                 unit: String(localized: "条"),
                 delta: deltaPill(current: snapshot.current.thoughtCount, previous: snapshot.previous?.thoughtCount)
             )
-            SettingsRowDivider()
+            hairline
             footRow(
-                icon: "checkmark.circle",
+                index: "03",
                 title: String(localized: "完成任务"),
                 subtitle: String(localized: "本周完成"),
                 value: snapshot.current.completedTaskCount,
                 unit: String(localized: "个"),
                 delta: deltaPill(current: snapshot.current.completedTaskCount, previous: snapshot.previous?.completedTaskCount)
             )
-            SettingsRowDivider()
+            hairline
             footRow(
-                icon: "flame",
+                index: "04",
                 title: String(localized: "习惯打卡"),
                 subtitle: String(localized: "本周打卡天数"),
                 value: snapshot.current.habitDays,
                 unit: String(localized: "天"),
                 delta: deltaPill(current: snapshot.current.habitDays, previous: snapshot.previous?.habitDays)
             )
+            hairline
         }
-        .holoSurface()
     }
 
     private func footRow(
-        icon: String,
+        index: String,
         title: String,
         subtitle: String,
         value: Int,
         unit: String,
         delta: DeltaPill?
     ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.holoPrimary)
-                .frame(width: 38, height: 38)
-                .background(Color.holoPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
-            VStack(alignment: .leading, spacing: 1) {
+        HStack(alignment: .center, spacing: 12) {
+            Text(index)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.holoChartStone)
+                .frame(width: 22, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .font(.holoEditorialSerif(size: 16, bold: true))
+                    .foregroundStyle(Color.holoAlmanacInk)
                 Text(subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
+
             Spacer(minLength: 8)
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
+
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("\(value)")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .font(.holoHeroNumber(size: 24))
+                    .monospacedDigit()
+                    .foregroundStyle(value == 0 ? Color.holoChartStone : Color.holoAlmanacInk)
                 Text(unit)
                     .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
+
             if let delta {
                 delta
-                    .frame(minWidth: 36)
+                    .frame(minWidth: 38, alignment: .trailing)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        .padding(.vertical, 15)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) \(value) \(unit)\(delta?.accessibilityText ?? "")")
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(Color.holoAlmanacInk.opacity(0.14))
+            .frame(height: 0.5)
+    }
+
+    /// 底部朱砂小印 + 结语
+    private func editorialFooter(_ snapshot: WeeklyReviewSnapshot) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            ZStack {
+                Circle()
+                    .strokeBorder(Color.holoPrimary.opacity(0.82), lineWidth: 1.1)
+                    .frame(width: 36, height: 36)
+                Text(snapshot.previous == nil ? String(localized: "初印") : String(localized: "已阅"))
+                    .font(.holoEditorialSerif(size: 10.5, bold: true))
+                    .foregroundStyle(Color.holoPrimary)
+                    .kerning(0.8)
+            }
+            .rotationEffect(.degrees(-10))
+            .accessibilityHidden(true)
+
+            Text(closingText(snapshot))
+                .font(.holoEditorialSerif(size: 13, bold: false))
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
     }
 
     /// 首周用「下一页」期待感文案；其余周用留存向收尾
@@ -234,32 +387,53 @@ struct WeeklyReviewView: View {
         return DeltaPill(diff: 0, direction: .flat)
     }
 
-    // MARK: - 空态（召唤页，无行动按钮）
+    // MARK: - 空态（召唤页，无行动按钮；像诗集扉页般优雅留白）
 
-    private var emptyState: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .strokeBorder(Color.holoToolBorder, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                    .frame(width: 110, height: 110)
+    private func emptyState(_ snapshot: WeeklyReviewSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            masthead(snapshot)
+                .padding(.bottom, 44)
+
+            Text(weekRangeText(snapshot))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .kerning(1.8)
+                .foregroundStyle(Color.holoToolTextSecondary)
+
+            Text(String(localized: "本周还没有足迹"))
+                .font(.holoEditorialSerif(size: 28, bold: true))
+                .foregroundStyle(Color.holoAlmanacInk)
+                .padding(.top, 8)
+
+            HStack(alignment: .top, spacing: 12) {
+                Rectangle()
+                    .fill(Color.holoPrimary)
+                    .frame(width: 2)
+                    .padding(.vertical, 2)
+
+                Text(String(localized: "现在开始记录，积攒属于你的人生数据库。\n本周一以来的记录，都会出现在这里。"))
+                    .font(.holoEditorialSerif(size: 14.5, bold: false))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .lineSpacing(6)
+            }
+            .padding(.top, 18)
+
+            // 极简线描留白装饰（不放行动按钮，保留召唤页产品约定）
+            HStack(spacing: 12) {
+                Rectangle()
+                    .fill(Color.holoAlmanacInk.opacity(0.16))
+                    .frame(height: 0.6)
                 Circle()
                     .fill(Color.holoPrimary)
-                    .frame(width: 10, height: 10)
-                    .shadow(color: Color.holoPrimary.opacity(0.45), radius: 9)
+                    .frame(width: 5, height: 5)
+                Rectangle()
+                    .fill(Color.holoAlmanacInk.opacity(0.16))
+                    .frame(height: 0.6)
             }
-            .padding(.top, 52)
-            .padding(.bottom, 22)
-            Text(String(localized: "本周还没有足迹"))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
-            Text(String(localized: "现在开始记录，积攒属于你的人生数据库。\n本周一以来的记录，都会出现在这里。"))
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.top, 8)
-                .padding(.horizontal, 30)
+            .padding(.top, 64)
+            .padding(.horizontal, 44)
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
     }
 
     // MARK: - 格式化
@@ -273,7 +447,7 @@ struct WeeklyReviewView: View {
         let end = formatter.string(
             from: calendar.date(byAdding: .day, value: 6, to: snapshot.weekStart) ?? snapshot.weekStart
         )
-        return "\(start) – \(end)"
+        return "\(start) — \(end)"
     }
 
     /// 埋点参数：周一日期 yyyy-MM-dd（与后端白名单约定一致）
@@ -281,42 +455,40 @@ struct WeeklyReviewView: View {
     private var confirmedInsightsSection: some View {
         // 本周你确认过的理解（东林 2026-11-08 拍板接入）：一个发现的确认结果进入周报
         if let snapshot, !snapshot.confirmedInsights.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("这段时间你确认过的理解")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                ForEach(snapshot.confirmedInsights, id: \.self) { text in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(Color.holoSuccess)
-                        Text(text)
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("EDITOR'S NOTES · 确认过的理解")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .kerning(1.6)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(snapshot.confirmedInsights, id: \.self) { text in
+                        HStack(alignment: .top, spacing: 10) {
+                            Circle()
+                                .fill(Color.holoSuccess)
+                                .frame(width: 5, height: 5)
+                                .padding(.top, 7)
+                            Text(text)
+                                .font(.holoEditorialSerif(size: 14.5, bold: false))
+                                .foregroundStyle(Color.holoAlmanacInk.opacity(0.9))
+                                .lineSpacing(4)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(Color.holoCardBackground, in: RoundedRectangle(cornerRadius: 16))
+            .padding(.vertical, 16)
+            .overlay(alignment: .bottom) { hairline }
             .accessibilityIdentifier("weeklyReview.confirmedInsights")
         }
     }
 
     /// 本周（周一零点起）在「一个发现」确认的理解；空数组=本周无确认。
-    private static func confirmedInsightsThisWeek(calendar: Calendar) async -> [String] {
+    private static func confirmedInsightsThisWeek(now: Date, calendar: Calendar) async -> [String] {
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return [] }
-        let resolved = (try? await repository.resolvedKnowledgeAll(now: Date())) ?? []
-        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else { return [] }
-        var texts: [String] = []
-        for knowledge in resolved where knowledge.decision == .confirmedValid {
-            if knowledge.lastUpdatedAt >= weekStart {
-                texts.append(knowledge.displayText)
-                if texts.count >= 5 { break }
-            }
-        }
-        return texts
+        let resolved = (try? await repository.resolvedKnowledgeAll(now: now)) ?? []
+        return WeeklyReviewMath.selectConfirmedInsights(from: resolved, now: now, calendar: calendar)
     }
 
     private static func analyticsDayKey(_ date: Date, calendar: Calendar) -> String {
@@ -330,11 +502,11 @@ struct WeeklyReviewView: View {
 
 // MARK: - 导航容器底色（iOS 18+ 条件修饰）
 
-/// 见 body 内注释：防止加载态首帧被系统垫白底、中央竖槽露出背景色成「粗线」
+/// 见 body 内注释：导航容器底色与页面底色统一为 holoPaper，杜绝转场/加载首帧双色伪影
 private struct WeekReviewNavContainerBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content.containerBackground(Color.holoBackground, for: .navigation)
+            content.containerBackground(Color.holoPaper, for: .navigation)
         } else {
             content
         }

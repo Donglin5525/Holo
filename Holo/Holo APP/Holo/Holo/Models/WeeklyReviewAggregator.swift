@@ -64,6 +64,42 @@ enum WeeklyReviewMath {
             previous: DateInterval(start: previousStart, end: previousEnd)
         )
     }
+
+    /// 筛选本周「确认过的理解」文案（纯函数，可单测）：
+    /// - 以周一 00:00（`weekStart`）为起点，不依赖系统 `firstWeekday`
+    /// - 优先按实际确认时间 `confirmedAt` 过滤（后台证据刷新/迁移不会把旧理解误拉入本周）
+    /// - 按确认时间倒序确定性排序，并按去首尾空白后的文案去重（避免多命题同文案重复展示）
+    static func selectConfirmedInsights(
+        from resolved: [HoloResolvedKnowledge],
+        now: Date,
+        calendar: Calendar,
+        limit: Int = 5
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+        let start = weekStart(containing: now, calendar: calendar)
+        let eligible = resolved
+            .filter { knowledge in
+                guard knowledge.decision == .confirmedValid else { return false }
+                let effectiveDate = knowledge.confirmedAt ?? knowledge.lastUpdatedAt
+                return effectiveDate >= start && effectiveDate <= now
+            }
+            .sorted { lhs, rhs in
+                let lhsDate = lhs.confirmedAt ?? lhs.lastUpdatedAt
+                let rhsDate = rhs.confirmedAt ?? rhs.lastUpdatedAt
+                if lhsDate != rhsDate { return lhsDate > rhsDate }
+                return lhs.propositionID < rhs.propositionID
+            }
+
+        var seen: Set<String> = []
+        var texts: [String] = []
+        for knowledge in eligible {
+            let trimmed = knowledge.displayText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+            texts.append(trimmed)
+            if texts.count >= limit { break }
+        }
+        return texts
+    }
 }
 
 // MARK: - 聚合器

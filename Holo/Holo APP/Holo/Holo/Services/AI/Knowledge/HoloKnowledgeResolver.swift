@@ -144,6 +144,7 @@ nonisolated enum HoloKnowledgeResolver {
         //    且确认绑定的语义指纹必须仍有对应修订。
         let effectiveConfirms = effectiveOperations.filter { $0.kind == .confirm }
         var confirmedDigest: String?
+        var confirmedAt: Date?
         for confirm in effectiveConfirms.reversed() {
             guard canLift(confirm, restrictions: activeRestrictions) else { continue }
             let digest = confirm.targetSemanticDigest
@@ -154,6 +155,7 @@ nonisolated enum HoloKnowledgeResolver {
             guard let digest,
                   snapshot.revisions.contains(where: { $0.semanticDigest == digest }) else { continue }
             confirmedDigest = digest
+            confirmedAt = confirm.issuedAt
             break
         }
 
@@ -188,6 +190,7 @@ nonisolated enum HoloKnowledgeResolver {
             latest: latest,
             proposed: proposed,
             confirmedDigest: confirmedDigest,
+            confirmedAt: confirmedAt,
             decision: .internalAccumulating,
             reasons: [],
             uses: [],
@@ -387,6 +390,7 @@ nonisolated enum HoloKnowledgeResolver {
         latest: HoloKnowledgeRevision?,
         proposed: HoloKnowledgeRevision?,
         confirmedDigest: String?,
+        confirmedAt: Date? = nil,
         decision: HoloKnowledgeDecisionState,
         reasons: [String],
         uses: Set<HoloKnowledgeAllowedUse>,
@@ -414,6 +418,7 @@ nonisolated enum HoloKnowledgeResolver {
             restrictingOperationIDs: restrictionIDs,
             cooldownUntil: nil,
             formation: formation,
+            confirmedAt: confirmedAt,
             lastUpdatedAt: anchor.map { max($0.createdAt, snapshot.operations.last?.issuedAt ?? $0.createdAt) } ?? snapshot.now,
             legacyAliases: anchor?.sourceAliases ?? [],
             isLegacyRestricted: false,

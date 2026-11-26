@@ -165,7 +165,111 @@ final class WeeklyReviewAggregatorTests: XCTestCase {
         XCTAssertEqual(snapshot.current.recordTotal, 0)
     }
 
+    // MARK: - 确认过的理解筛选（去重 / 确认时间口径 / 周一锚定）
+
+    func testSelectConfirmedInsightsDeduplicatesAndUsesConfirmedAt() {
+        var sundayFirstCalendar = utcCalendar
+        sundayFirstCalendar.firstWeekday = 1 // 模拟系统周日为一周起点
+
+        let dup1 = makeResolvedKnowledge(
+            propositionID: "prop-1",
+            displayText: "居家力量训练出现短期爆发式增长，深蹲和俯卧撑数据近期明显提升。",
+            confirmedAt: utcDate(2026, 11, 3, 10, 0),
+            lastUpdatedAt: utcDate(2026, 11, 5, 19, 0)
+        )
+        let dup2 = makeResolvedKnowledge(
+            propositionID: "prop-2",
+            displayText: "  居家力量训练出现短期爆发式增长，深蹲和俯卧撑数据近期明显提升。 ",
+            confirmedAt: utcDate(2026, 11, 4, 9, 0),
+            lastUpdatedAt: utcDate(2026, 11, 5, 19, 0)
+        )
+        let newer = makeResolvedKnowledge(
+            propositionID: "prop-3",
+            displayText: "近期高强度加班与晚睡叠加，导致运动量显著回落。",
+            confirmedAt: utcDate(2026, 11, 5, 18, 0),
+            lastUpdatedAt: utcDate(2026, 11, 5, 18, 0)
+        )
+        // 旧理解：上周周日确认，但本周被后台证据刷新把 lastUpdatedAt 推到了本周 → 必须排除
+        let refreshedOld = makeResolvedKnowledge(
+            propositionID: "prop-old",
+            displayText: "上周确认但本周被后台刷新的旧理解",
+            confirmedAt: utcDate(2026, 11, 1, 22, 0),
+            lastUpdatedAt: utcDate(2026, 11, 5, 19, 30)
+        )
+
+        let result = WeeklyReviewMath.selectConfirmedInsights(
+            from: [dup1, refreshedOld, dup2, newer],
+            now: now,
+            calendar: sundayFirstCalendar
+        )
+
+        XCTAssertEqual(result, [
+            "近期高强度加班与晚睡叠加，导致运动量显著回落。",
+            "居家力量训练出现短期爆发式增长，深蹲和俯卧撑数据近期明显提升。"
+        ])
+    }
+
     // MARK: - 造数
+
+    private func makeResolvedKnowledge(
+        propositionID: String,
+        displayText: String,
+        decision: HoloKnowledgeDecisionState = .confirmedValid,
+        confirmedAt: Date?,
+        lastUpdatedAt: Date
+    ) -> HoloResolvedKnowledge {
+        let semantic = HoloKnowledgeSemantic(
+            subjectRef: "self",
+            objectRef: propositionID,
+            relation: "trend",
+            polarity: true,
+            objectValue: nil,
+            dimension: "habit",
+            qualifiers: [],
+            applicability: HoloKnowledgeApplicability(windowRule: .ongoing, conditionText: nil, exceptions: []),
+            allowedUses: [.backgroundUnderstanding],
+            formation: .behavioralInference,
+            evidenceForm: .independentEventSet,
+            displayText: displayText,
+            aiUseText: displayText,
+            prohibitedInferences: []
+        )
+        let revision = HoloKnowledgeRevision.make(
+            semantic: semantic,
+            topicLabel: displayText,
+            domains: [.habit],
+            sensitivity: .normal,
+            partition: .normal,
+            evidenceSnapshot: HoloKnowledgeEvidenceSnapshot(capturedAt: lastUpdatedAt),
+            sourceAliases: [],
+            origin: HoloKnowledgeOrigin(kind: .producer, producer: "test"),
+            createdAt: lastUpdatedAt
+        )
+        return HoloResolvedKnowledge(
+            propositionID: propositionID,
+            topicID: revision.topicID,
+            topicLabel: displayText,
+            domains: [.habit],
+            partition: .normal,
+            sensitivity: .normal,
+            currentRevision: revision,
+            proposedRevision: nil,
+            confirmedSemanticDigest: revision.semanticDigest,
+            latestEvidenceSnapshot: revision.initialEvidenceSnapshot,
+            decision: decision,
+            decisionReasons: ["confirmed"],
+            sourceStatus: .verified,
+            allowedUses: [.backgroundUnderstanding],
+            controlGeneration: 1,
+            restrictingOperationIDs: [],
+            cooldownUntil: nil,
+            formation: .behavioralInference,
+            confirmedAt: confirmedAt,
+            lastUpdatedAt: lastUpdatedAt,
+            legacyAliases: [],
+            isLegacyRestricted: false
+        )
+    }
 
     private func seedTransaction(date: Date, deletedAt: Date? = nil) throws {
         let transaction = Transaction(context: context)

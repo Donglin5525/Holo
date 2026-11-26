@@ -75,6 +75,8 @@ nonisolated struct HoloResolvedKnowledge: Codable, Equatable, Identifiable, Send
     /// 暂不处理的冷却截止
     var cooldownUntil: Date?
     var formation: HoloKnowledgeFormation
+    /// 用户最近一次有效确认操作的时间（nil = 未确认；与 lastUpdatedAt 区分，避免后台刷新/迁移覆盖确认时间）
+    var confirmedAt: Date?
     var lastUpdatedAt: Date
     /// 旧 HoloMemoryRecord.id 别名（旧 ID 深链经别名解释）
     var legacyAliases: [String]
@@ -102,6 +104,7 @@ nonisolated struct HoloResolvedKnowledge: Codable, Equatable, Identifiable, Send
         restrictingOperationIDs: Set<String>,
         cooldownUntil: Date?,
         formation: HoloKnowledgeFormation,
+        confirmedAt: Date? = nil,
         lastUpdatedAt: Date,
         legacyAliases: [String],
         isLegacyRestricted: Bool,
@@ -125,6 +128,7 @@ nonisolated struct HoloResolvedKnowledge: Codable, Equatable, Identifiable, Send
         self.restrictingOperationIDs = restrictingOperationIDs
         self.cooldownUntil = cooldownUntil
         self.formation = formation
+        self.confirmedAt = confirmedAt
         self.lastUpdatedAt = lastUpdatedAt
         self.legacyAliases = legacyAliases
         self.isLegacyRestricted = isLegacyRestricted
