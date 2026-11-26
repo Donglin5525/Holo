@@ -88,14 +88,23 @@ struct ReceiptReviewDetailView: View {
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, HoloSpacing.xl)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(
             Color.holoSecondaryGroupedBackground
                 .ignoresSafeArea()
         )
-        .onTapGesture(perform: dismissKeyboard)
         .navigationTitle(itemStates.count > 1 ? Text("确认这几笔账") : Text("确认这笔账"))
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") {
+                    dismissKeyboard()
+                }
+                .fontWeight(.semibold)
+            }
+        }
         #endif
         .safeAreaInset(edge: .bottom) {
             actionButtons
@@ -357,7 +366,7 @@ struct ReceiptReviewDetailView: View {
                     // 缩进仅作层级暗示：35pt 会挤掉宫格值宽（「不挂项目」被截，判读 P0），收窄到 12
                     .padding(.leading, 12)
                     .padding(.top, 4)
-                    .padding(.bottom, 2)
+                    .padding(.bottom, 12)
             }
         }
     }
@@ -429,6 +438,12 @@ struct ReceiptReviewDetailView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 10) {
+            if let commitDisabledHint {
+                Text(commitDisabledHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
             Button {
                 confirm()
             } label: {
@@ -504,8 +519,12 @@ struct ReceiptReviewDetailView: View {
 
     private var commitButtonTitle: String {
         let count = includedStates.count
-        // 全剔除（2026-11-11 拍板）：不再是「确认记 0 笔」怪文案，明确指向勾选动作
-        if count == 0 { return String(localized: "先勾选要记的账") }
+        // 全剔除（2026-11-11 拍板）：不再是「确认记 0 笔」怪文案，单笔/多笔措辞分别对应开关/勾选
+        if count == 0 {
+            return itemStates.count == 1
+                ? String(localized: "先打开「记这笔」")
+                : String(localized: "先勾选要记的账")
+        }
         let total = uniformTotalText
         if count == 1 {
             return total.map { String(localized: "确认记账 ¥\($0)") } ?? String(localized: "确认记账")
@@ -515,6 +534,25 @@ struct ReceiptReviewDetailView: View {
             return String(localized: "确认记 1 笔 · ¥\(total)")
         }
         return total.map { String(localized: "确认记 \(count) 笔 · ¥\($0)") } ?? String(localized: "确认记 \(count) 笔")
+    }
+
+    private var commitDisabledHint: String? {
+        let included = includedStates
+        guard !included.isEmpty else { return nil }
+        let amountsValid = included.allSatisfy { state in
+            (ReceiptBookingCoordinator.decimal(fromText: state.amountText) ?? 0) > 0
+        }
+        if !amountsValid {
+            return String(localized: "请填写大于 0 的金额")
+        }
+        if mergeMode {
+            if mergedState.selectedAccountID == nil {
+                return String(localized: "请先选择账户")
+            }
+        } else if included.contains(where: { $0.selectedAccountID == nil }) {
+            return String(localized: "请先为每笔选择账户")
+        }
+        return nil
     }
 
     private var canCommit: Bool {

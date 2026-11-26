@@ -165,9 +165,14 @@ struct ReceiptReviewMergedCard: View {
             Menu {
                 let categories = directionIsIncome ? incomeCategories : expenseCategories
                 ForEach(ReceiptReviewItemEditorBlock.topLevelCategories(in: categories), id: \.id) { top in
-                    Menu(top.name) {
-                        ForEach(ReceiptReviewItemEditorBlock.subCategories(of: top, in: categories), id: \.id) { sub in
-                            Button(sub.name) { state.selectedCategoryID = sub.id }
+                    let subs = ReceiptReviewItemEditorBlock.subCategories(of: top, in: categories)
+                    if subs.isEmpty {
+                        Button(top.name) { state.selectedCategoryID = top.id }
+                    } else {
+                        Menu(top.name) {
+                            ForEach(subs, id: \.id) { sub in
+                                Button(sub.name) { state.selectedCategoryID = sub.id }
+                            }
                         }
                     }
                 }

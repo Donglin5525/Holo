@@ -21,11 +21,11 @@ struct ReceiptReviewChipField: View {
     var dimmed: Bool = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             // 四个图标统一灰色线性样式（原型契约）；Menu label 会把模板色染成主题橙，
             // foregroundColor 才钉得住（foregroundStyle 会被 Menu tint 覆盖，判读实测）
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .font(.system(size: 12))
                 .foregroundColor(.holoTextSecondary)
             Text(label)
                 .font(.caption2)
@@ -35,8 +35,9 @@ struct ReceiptReviewChipField: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundColor(.holoTextPrimary)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(.tail)
                 .minimumScaleFactor(0.8)
+                .layoutPriority(1)
             Spacer(minLength: 0)
             if !dimmed {
                 Image(systemName: "chevron.up.chevron.down")
@@ -44,7 +45,7 @@ struct ReceiptReviewChipField: View {
                     .foregroundColor(Color.holoTextPlaceholder)
             }
         }
-        .padding(.horizontal, 11)
+        .padding(.horizontal, 10)
         .frame(height: 44)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(

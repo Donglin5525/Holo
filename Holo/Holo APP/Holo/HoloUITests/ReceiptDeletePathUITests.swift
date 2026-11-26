@@ -68,4 +68,16 @@ final class ReceiptDeletePathUITests: XCTestCase {
         XCTAssertFalse(sevenRow.waitForExistence(timeout: 3), "左滑后该草案应直接删除，不弹确认框")
         XCTAssertTrue(samRow.exists, "另一条草案不受影响")
     }
+
+    /// 冷启动必达（2026-11-24）：场景在首帧之前就已经是 active 时 `onChange(of: scenePhase)`
+    /// 不触发，整段「回到前台」逻辑被跳过，确认页冷启动约一半不弹。修复后每次冷启动都必须
+    /// 弹出并直达详情。本用例每次冷启动只会落到两种时序之一，需多跑几次覆盖两种。
+    func testColdLaunchAlwaysPresentsReview() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECEIPT_DRAFTS"]
+        app.launch()
+
+        let deleteButton = app.buttons["删除草稿"].firstMatch
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 20), "冷启动后确认页应自动弹出并直达详情")
+    }
 }

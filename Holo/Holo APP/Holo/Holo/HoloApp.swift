@@ -19,6 +19,8 @@ struct HoloApp: App {
     /// 深色模式管理器
     @StateObject private var darkModeManager = DarkModeManager.shared
     @StateObject private var plusActionCoordinator = HoloPlusActionCoordinator.shared
+    /// 识图记账落点页（待复核 / 最近结果）：置顶弹层，见 ReceiptBookingPagePresenter
+    @ObservedObject private var receiptBookingPresenter = ReceiptBookingPagePresenter.shared
 
     /// 应用锁：isLocked 在冷启动首帧前同步确定，根部闸门层防内容闪现（方案 §5.3）
     @ObservedObject private var appLock = AppLockManager.shared
@@ -215,9 +217,42 @@ struct HoloApp: App {
                 }
                 .holoContentColumn()
             }
-            .fullScreenCover(isPresented: $plusActionCoordinator.isPaywallPresented) {
-                HoloPlusPaywallView(context: plusActionCoordinator.context)
+            // 付费墙走置顶弹层（2026-11-24）：挂在根视图的 fullScreenCover 会被任何开着的
+            // sheet 挡住——在打卡页 / 记账页里点 Plus 功能「按钮点击无响应」，或要关掉当前
+            // 页面才弹。收起动画落定后才回调，购买后的续接动作届时再执行。
+            .holoTopSheet(
+                item: paywallRequest,
+                style: .fullScreen,
+                onDismiss: { plusActionCoordinator.paywallDidDismiss() }
+            ) { request in
+                HoloPlusPaywallView(context: request.context)
                     .holoContentColumn()
+            }
+            // 识图记账落点页同样置顶：截图后不管开着什么页面，确认页立刻盖在最上面
+            .holoTopSheet(
+                item: receiptBookingPage,
+                onDismiss: {
+                    // 复核弹层整体关闭后兜底广播：确保账本/账户汇总与最新入账一致
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+            ) { page in
+                switch page {
+                case .review(let draftID):
+                    ReceiptReviewListView(initialDraftID: draftID)
+                        .holoSheetWidth(.form)
+                        // 换草案时重建视图：直达路由与去重标记都跟着新草案走
+                        .id(draftID)
+                        .onAppear {
+                            // 确认页真正到达才落「已自动弹出」去重标记（2026-10-14）：
+                            // 没弹成就不落，下次回前台仍会重试
+                            ReceiptBookingForegroundPresenter.acknowledge(draftID: draftID)
+                        }
+                case .bookingSettings:
+                    NavigationStack {
+                        ReceiptBookingSettingsView()
+                    }
+                    .holoSheetWidth(.form)
+                }
             }
             #if DEBUG
             .fullScreenCover(isPresented: $isDebugMembershipPresented) {
@@ -237,6 +272,9 @@ struct HoloApp: App {
             }
             #endif
             .task {
+                // 会员权益最先取（2026-11-24）：门禁、付费墙、小组件快照都读它，点小组件
+                // 冷启动的深链更是首帧就要判权益——排在迁移等 await 之后会拉长空窗期
+                let entitlementRefresh = Task { await HoloSubscriptionService.shared.refreshStatus() }
                 // Debug / Release 均在库真正可用后装配服务，失败态不挂载此 task。
                 startStoreDependentServices()
                 // 产品埋点：首启事件 + 上次会话积压补报（独立于 Agent 能力，置于长 await 前）
@@ -244,7 +282,7 @@ struct HoloApp: App {
                 Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
 
                 await SensitiveDebugDataMigration.runIfNeeded()
-                await HoloSubscriptionService.shared.refreshStatus()
+                await entitlementRefresh.value
                 #if DEBUG
                 // Plus 功能验收通道：HOLO_DEBUG_PLUS=1 本地按 Plus 展示（不落盘、不与服务端同步权益）。
                 // 放服务端刷新之后：后端免费态先落、本地覆盖最后写，测试机无网/有网都成立。
@@ -409,94 +447,129 @@ struct HoloApp: App {
                 }
             }
             .onChange(of: scenePhase) { _, phase in
-                #if DEBUG
-                guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
-                guard !HoloAppStoreScreenshotSeeder.isRequested else { return }
-                #endif
-                switch phase {
-                case .background:
-                    // 产品埋点：会话终点（与 .active 的 trackSessionStart 对称）+
-                    // 停前台定时上报 + 退后台兜底冲刷一次
-                    HoloProductAnalytics.shared.trackSessionEndIfNeeded()
-                    HoloProductAnalytics.shared.endForegroundFlushLoop()
-                    Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
-                    Task {
-                        await HoloMemoryObservationScheduler.shared.lightweightCheck(
-                            trigger: .enteredBackground
-                        )
-                    }
-                    if HoloAIFeatureFlags.agentRuntimeEnabled {
-                        HoloBackgroundContinuationManager.shared.appDidEnterBackground()
-                    }
-                case .active:
-                    // 产品埋点：冷启动首激活记 cold 会话；inactive 抖动（拉下通知中心等）不重复记
-                    if !hasLoggedSession || lastScenePhase == .background {
-                        HoloProductAnalytics.shared.trackSessionStart(cold: !hasLoggedSession)
-                        hasLoggedSession = true
-                    }
-                    HoloProductAnalytics.shared.beginForegroundFlushLoop()
-                    Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
-                    HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
-                    #if DEBUG
-                    // 删除链路 UITest 冒烟播种：须在兜底弹出之前落盘，弹出检查才能看到草案
-                    ReceiptBookingResultStore.shared.seedDraftsForUITestsIfRequested()
-                    #endif
-                    // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
-                    // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
-                    // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
-                    // 2026-10-14 结果播报必达：确认页没弹（无待复核草案/非刚识别）时，
-                    // 拒识/失败等结果改由悬浮 toast 交代「这笔没入账」，不再只依赖通知权限。
-                    if !ReceiptBookingForegroundPresenter.presentIfNeeded() {
-                        ReceiptBookingResultSurfacer.surfaceIfNeeded()
-                    }
-                    // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
-                    ThoughtOrganizationQueue.shared.appWillEnterForeground()
-                    // 健康洞察旧生成触发已退出（2026-11-17 健康分析方案第三步）：
-                    // 健康页改用端上作息回顾，「回前台后台生成」与「健康页出现生成」
-                    // 两个旧触发不再调用；回前台刷新由 HealthRepository 重新读取承担。
-                Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
-                    // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
-                    Task { await HoloSubscriptionService.shared.refreshStatus() }
-                    Task {
-                        // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
-                        await DailyBriefScheduler.shared.handleAppActivity()
-                        await HabitReminderScheduler.shared.handleAppActivity()
-                        await WeeklyBriefScheduler.shared.handleAppActivity()
-                        await WeeklyReviewScheduler.shared.handleAppActivity()
-                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
-                        await BillDueReminderScheduler.shared.handleAppActivity()
-                        await BudgetOverrunNotificationService.shared.handleAppActivity()
-                        await BudgetCarryoverNotificationService.shared.handleAppActivity()
-                        // 信用卡还款提醒：权益可能在后台变化（续费恢复超额卡 / 过期降级到前 3 张）
-                        await CreditCardDueReminderScheduler.shared.handleAppActivity()
-                        await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                        await HoloReplayDigestService.shared.backfillIfNeeded(
-                            historyRepo: MemoryInsightRepository()
-                        )
-                        await HoloMemoryObservationScheduler.shared.lightweightCheck(
-                            trigger: .becameActive
-                        )
-                        // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
-                        Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
-                        // 影子理解引擎与全局画像洞察：回前台跨天补偿（单飞+智能节流）。
-                        Task.detached(priority: .utility) {
-                            await UnderstandingShadowScheduler.runIfDue()
-                            _ = await HoloPortraitSynthesisRuntime.runIfDue()
-                        }
-                    }
-                    if HoloAIFeatureFlags.agentRuntimeEnabled {
-                        HoloBackgroundContinuationManager.shared.appWillEnterForeground()
-                        // 前台化遥测增量上报（含恢复哨兵刚标记的停滞事件）
-                        Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
-                        // 云端分析：锁屏期间轮询暂停、云端持续执行，回前台恢复领取
-                        HoloCloudAnalysisService.shared.resumePolling()
-                    }
-                default:
-                    break
+                handleScenePhaseChange(phase)
+            }
+            // 冷启动兜底（2026-11-24）：场景在首帧之前就已经是 active 时，上面的 onChange 不会
+            // 触发，整段「回到前台」逻辑被整段跳过——截图记账确认页冷启动约一半不弹的根因
+            //（专用模拟器实测 8 次只弹 3 次，日志坐实 onChange 从未执行）；同批被跳过的还有
+            // 会话埋点、权益回前台刷新、各类提醒重排。首帧已是 active 就补跑一次。
+            // 与推送深链冷启动时序是同一类坑（docs/_common/notes/push-deeplink-fix.md）。
+            .onAppear {
+                if scenePhase == .active, !hasLoggedSession {
+                    handleScenePhaseChange(.active)
                 }
-                lastScenePhase = phase
             }
             .modifier(StoreConflictRecoveryGate())
+    }
+
+    /// 付费墙置顶呈现的 item：协调器仍是唯一状态源，这里只做 Bool → item 的桥接
+    private var paywallRequest: Binding<HoloPlusPaywallRequest?> {
+        Binding(
+            get: {
+                plusActionCoordinator.isPaywallPresented
+                    ? HoloPlusPaywallRequest(context: plusActionCoordinator.context)
+                    : nil
+            },
+            set: { plusActionCoordinator.isPaywallPresented = $0 != nil }
+        )
+    }
+
+    private var receiptBookingPage: Binding<ReceiptBookingPage?> {
+        Binding(
+            get: { receiptBookingPresenter.page },
+            set: { if $0 == nil { receiptBookingPresenter.dismiss() } }
+        )
+    }
+
+    /// 场景阶段变化处理：回到前台 / 退后台的统一入口（onChange 与冷启动首帧兜底共用）。
+    /// hasLoggedSession 只在 .active 分支置位，因此「尚未处理过 active」可以用它判定。
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        #if DEBUG
+        guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+        guard !HoloAppStoreScreenshotSeeder.isRequested else { return }
+        #endif
+        switch phase {
+        case .background:
+            // 产品埋点：会话终点（与 .active 的 trackSessionStart 对称）+
+            // 停前台定时上报 + 退后台兜底冲刷一次
+            HoloProductAnalytics.shared.trackSessionEndIfNeeded()
+            HoloProductAnalytics.shared.endForegroundFlushLoop()
+            Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
+            Task {
+                await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                    trigger: .enteredBackground
+                )
+            }
+            if HoloAIFeatureFlags.agentRuntimeEnabled {
+                HoloBackgroundContinuationManager.shared.appDidEnterBackground()
+            }
+        case .active:
+            // 产品埋点：冷启动首激活记 cold 会话；inactive 抖动（拉下通知中心等）不重复记
+            if !hasLoggedSession || lastScenePhase == .background {
+                HoloProductAnalytics.shared.trackSessionStart(cold: !hasLoggedSession)
+                hasLoggedSession = true
+            }
+            HoloProductAnalytics.shared.beginForegroundFlushLoop()
+            Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
+            HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+            #if DEBUG
+            // 删除链路 UITest 冒烟播种：须在兜底弹出之前落盘，弹出检查才能看到草案
+            ReceiptBookingResultStore.shared.seedDraftsForUITestsIfRequested()
+            #endif
+            // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
+            // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
+            // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
+            // 2026-10-14 结果播报必达：确认页没弹（无待复核草案/非刚识别）时，
+            // 拒识/失败等结果改由悬浮 toast 交代「这笔没入账」，不再只依赖通知权限。
+            if !ReceiptBookingForegroundPresenter.presentIfNeeded() {
+                ReceiptBookingResultSurfacer.surfaceIfNeeded()
+            }
+            // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
+            ThoughtOrganizationQueue.shared.appWillEnterForeground()
+            // 健康洞察旧生成触发已退出（2026-11-17 健康分析方案第三步）：
+            // 健康页改用端上作息回顾，「回前台后台生成」与「健康页出现生成」
+            // 两个旧触发不再调用；回前台刷新由 HealthRepository 重新读取承担。
+        Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
+            // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
+            Task { await HoloSubscriptionService.shared.refreshStatus() }
+            Task {
+                // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
+                await DailyBriefScheduler.shared.handleAppActivity()
+                await HabitReminderScheduler.shared.handleAppActivity()
+                await WeeklyBriefScheduler.shared.handleAppActivity()
+                await WeeklyReviewScheduler.shared.handleAppActivity()
+                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
+                await BillDueReminderScheduler.shared.handleAppActivity()
+                await BudgetOverrunNotificationService.shared.handleAppActivity()
+                await BudgetCarryoverNotificationService.shared.handleAppActivity()
+                // 信用卡还款提醒：权益可能在后台变化（续费恢复超额卡 / 过期降级到前 3 张）
+                await CreditCardDueReminderScheduler.shared.handleAppActivity()
+                await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                await HoloReplayDigestService.shared.backfillIfNeeded(
+                    historyRepo: MemoryInsightRepository()
+                )
+                await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                    trigger: .becameActive
+                )
+                // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
+                Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
+                // 影子理解引擎与全局画像洞察：回前台跨天补偿（单飞+智能节流）。
+                Task.detached(priority: .utility) {
+                    await UnderstandingShadowScheduler.runIfDue()
+                    _ = await HoloPortraitSynthesisRuntime.runIfDue()
+                }
+            }
+            if HoloAIFeatureFlags.agentRuntimeEnabled {
+                HoloBackgroundContinuationManager.shared.appWillEnterForeground()
+                // 前台化遥测增量上报（含恢复哨兵刚标记的停滞事件）
+                Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
+                // 云端分析：锁屏期间轮询暂停、云端持续执行，回前台恢复领取
+                HoloCloudAnalysisService.shared.resumePolling()
+            }
+        default:
+            break
+        }
+        lastScenePhase = phase
     }
 }
 

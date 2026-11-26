@@ -24,45 +24,62 @@ struct ReceiptReviewCompactRow: View {
     var onToggleExpanded: () -> Void
 
     var body: some View {
-        Button(action: onToggleExpanded) {
-            HStack(alignment: .center, spacing: 10) {
-                checkCircle
-                VStack(alignment: .leading, spacing: 4) {
-                    // L1：名称（弹性宽，行标题）… 金额（固定宽右对齐，多笔自然成列）
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(state.note)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.holoTextPrimary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                        Text(verbatim: "¥\(state.amountText)")
-                            .font(.body.weight(.bold))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .fixedSize()
-                            .layoutPriority(1)
-                    }
-                    // L2：方向胶囊 + 「科目 · 账户」副注（合并态收起：细改由「这一笔」卡承载）
-                    if !mergeMode {
-                        HStack(spacing: 6) {
-                            directionPill
-                            subNote
+        HStack(alignment: .center, spacing: 0) {
+            // 勾选圆视觉 24×24、保留 44×44 热区，左移 10pt 使视觉左边缘与上方卡头「N 笔待确认」齐平
+            checkCircle
+                .padding(.leading, -10)
+            Button(action: onToggleExpanded) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // L1：名称（弹性宽，空时回退占位防行头空白）… 金额（固定宽右对齐，多笔自然成列）
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(displayTitle)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(hasTitle ? Color.holoTextPrimary : Color.holoTextPlaceholder)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            Text(verbatim: "¥\(state.amountText)")
+                                .font(.body.weight(.bold))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .fixedSize()
+                                .layoutPriority(1)
+                        }
+                        // L2：方向胶囊 + 「科目 · 账户」副注（合并态收起：细改由「这一笔」卡承载）
+                        if !mergeMode {
+                            HStack(spacing: 6) {
+                                directionPill
+                                subNote
+                            }
                         }
                     }
+                    if !mergeMode {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
                 }
-                if !mergeMode {
-                    Image(systemName: "chevron.right")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                }
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-            .opacity(state.included ? 1 : 0.45)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .opacity(state.included ? 1 : 0.45)
+    }
+
+    private var hasTitle: Bool {
+        !state.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var displayTitle: String {
+        let trimmed = state.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        let category = ReceiptReviewItemEditorBlock.categoryTitle(
+            for: state, expense: expenseCategories, income: incomeCategories
+        )
+        return category.isEmpty ? String(localized: "未命名") : category
     }
 
     // MARK: 勾选圆（视觉 24×24、命中区 44×44，独立 Button）

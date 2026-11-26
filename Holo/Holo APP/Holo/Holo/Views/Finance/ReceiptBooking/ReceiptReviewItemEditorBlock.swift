@@ -174,9 +174,14 @@ struct ReceiptReviewItemEditorBlock: View {
             Menu {
                 let categories = state.typeIsIncome ? incomeCategories : expenseCategories
                 ForEach(Self.topLevelCategories(in: categories), id: \.id) { top in
-                    Menu(top.name) {
-                        ForEach(Self.subCategories(of: top, in: categories), id: \.id) { sub in
-                            Button(sub.name) { state.selectedCategoryID = sub.id }
+                    let subs = Self.subCategories(of: top, in: categories)
+                    if subs.isEmpty {
+                        Button(top.name) { state.selectedCategoryID = top.id }
+                    } else {
+                        Menu(top.name) {
+                            ForEach(subs, id: \.id) { sub in
+                                Button(sub.name) { state.selectedCategoryID = sub.id }
+                            }
                         }
                     }
                 }

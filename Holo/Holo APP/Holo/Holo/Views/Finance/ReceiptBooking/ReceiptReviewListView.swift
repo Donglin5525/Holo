@@ -13,6 +13,7 @@ struct ReceiptReviewListView: View {
     var initialDraftID: UUID? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.holoTopSheetClose) private var closeTopSheet
     @State private var drafts: [ReceiptBookingResultStore.StoredDraft] = []
     @State private var path = NavigationPath()
     @State private var didRouteInitialDraft = false
@@ -46,6 +47,7 @@ struct ReceiptReviewListView: View {
                                     // 2026-09-19 一图多笔：行摘要展示首笔金额 + 笔数徽标
                                     Text(draft.amountText.isEmpty ? "—" : "¥\(draft.amountText)")
                                         .font(.headline)
+                                        .monospacedDigit()
                                     Text(draft.typeIsIncome ? "收入" : "支出")
                                         .font(.caption)
                                         .padding(.horizontal, 6)
@@ -95,13 +97,21 @@ struct ReceiptReviewListView: View {
         }
         .navigationTitle(Text("待复核"))
         .toolbar {
-            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button {
-                    dismiss()
+                    // 本页由置顶弹层呈现（不是 SwiftUI 的 sheet，dismiss() 管不到），
+                    // 用注入的关闭动作；预览等其它宿主退回 dismiss()
+                    if let closeTopSheet {
+                        closeTopSheet()
+                    } else {
+                        dismiss()
+                    }
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
                 }
+                .accessibilityLabel(Text("关闭"))
             }
         }
         .navigationDestination(for: ReceiptBookingResultStore.StoredDraft.self) { draft in

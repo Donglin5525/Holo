@@ -145,7 +145,7 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
         .accessibilityLabel(Text(String(localized: "关闭")))
     }
 
-    /// 右上主操作：行动色文字按钮，44pt 热区
+    /// 右上主操作：行动色文字按钮，44pt 热区 + 水平留白避免紧贴边缘
     private func trailingButton(title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
@@ -153,7 +153,8 @@ struct HoloSheetScaffold<Content: View, PrimaryAccessory: View>: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolAction)
                 .lineLimit(1)
-                .frame(minHeight: 44)
+                .padding(.horizontal, HoloSpacing.xs)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())

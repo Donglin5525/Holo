@@ -27,11 +27,6 @@ struct FinanceEvidenceReviewDeepLink: Equatable {
     var sourceEvidenceID: String?
 }
 
-/// 图片自动记账复核深链的 sheet(item:) 包装（UUID 不满足 Identifiable）
-struct ReceiptReviewDeepLinkID: Equatable, Identifiable {
-    var id: UUID
-}
-
 extension DeepLinkState {
     /// 报告证据「点按核对」→ 账单复核页的统一跳转入口。
     /// 聊天页 / 收藏夹等所有报告入口共用，避免 DeepLink 构造漂移。

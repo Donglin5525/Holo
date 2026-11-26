@@ -83,11 +83,14 @@ struct ReceiptBookingSettingsView: View {
                 } label: {
                     HStack(alignment: .top, spacing: 8) {
                         setupStep(number: 3, title: "绑定系统入口", detail: "在系统设置中把这条指令绑定到操作按钮或轻点背面。点这行看图文步骤。")
+                        Spacer(minLength: 4)
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
                             .padding(.top, 3)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
