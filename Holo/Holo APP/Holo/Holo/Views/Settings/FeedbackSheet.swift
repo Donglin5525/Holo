@@ -259,7 +259,7 @@ struct FeedbackSheet: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 16))
                     .foregroundColor(.holoTextPrimary)
-                    .background(Circle().fill(Color.white))
+                    .background(Circle().fill(Color.holoCardBackground))
             }
             .offset(x: 6, y: -6)
         }

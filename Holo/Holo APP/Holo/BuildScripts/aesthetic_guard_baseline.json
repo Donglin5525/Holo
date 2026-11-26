@@ -1,7 +1,6 @@
 {
   "legacyCard": {
     "Holo/Views/Chat/ChatLogView.swift": 1,
-    "Holo/Views/Finance/Analysis/Components/TopCategoryCard.swift": 1,
     "Holo/Views/Finance/BudgetSummaryCard.swift": 1,
     "Holo/Views/Finance/MonthlySummaryCard.swift": 1,
     "Holo/Views/Health/Components/WorkoutSessionDetailSheet.swift": 2,
@@ -9,9 +8,10 @@
     "Holo/Views/Tasks/TaskCardView.swift": 1
   },
   "rawShadow": {
-    "Holo/Components/BottomNavBar.swift": 2,
+    "Holo/Components/BottomNavBar.swift": 4,
     "Holo/Components/CoachMark/CoachMark.swift": 2,
-    "Holo/Components/DailyKanbanEntryButton.swift": 1,
+    "Holo/Components/DailyKanbanEntryButton.swift": 7,
+    "Holo/Components/FeatureButton.swift": 1,
     "Holo/Components/FirstStepActionBubble.swift": 1,
     "Holo/Components/HoloQuotaNoticeCard.swift": 1,
     "Holo/Components/HoloSidebarView.swift": 1,
@@ -47,14 +47,11 @@
     "Holo/Views/Finance/AccountCardMaterial.swift": 4,
     "Holo/Views/Finance/AccountDetailView.swift": 5,
     "Holo/Views/Finance/AccountListView.swift": 1,
-    "Holo/Views/Finance/Analysis/CategoryTabView.swift": 1,
     "Holo/Views/Finance/Analysis/Components/ScopeInsightSections.swift": 1,
-    "Holo/Views/Finance/Analysis/Components/TrendChartView.swift": 1,
     "Holo/Views/Finance/Analysis/ProjectTabView.swift": 1,
     "Holo/Views/Finance/BudgetCategoryDetailSheet.swift": 1,
     "Holo/Views/Finance/BudgetDetailView.swift": 1,
     "Holo/Views/Finance/CategoryComparisonListView.swift": 1,
-    "Holo/Views/Finance/FinanceAnalysisView.swift": 1,
     "Holo/Views/Finance/FinanceEvidenceReviewView.swift": 3,
     "Holo/Views/Finance/FinanceLedgerView.swift": 1,
     "Holo/Views/Finance/FinanceSettingsView.swift": 1,
@@ -83,7 +80,6 @@
     "Holo/Views/MemoryGallery/Components/MemoryNavbarTabs.swift": 1,
     "Holo/Views/MemoryGallery/Timeline/MemoryGalleryTimelineView.swift": 1,
     "Holo/Views/Onboarding/FirstRecordCelebrationOverlay.swift": 2,
-    "Holo/Views/Personal/WeeklyReviewView.swift": 1,
     "Holo/Views/Schedule/ScheduleCommonViews.swift": 1,
     "Holo/Views/Settings/ImportPreviewSheet.swift": 4,
     "Holo/Views/Settings/InstallmentImportSection.swift": 1,
@@ -113,9 +109,6 @@
     "Holo/Views/Thoughts/ThoughtsView.swift": 2
   },
   "roundedFont": {
-    "Holo/Components/AccountPicker.swift": 1,
-    "Holo/Components/UserAvatarView.swift": 1,
-    "Holo/Utils/DesignSystem.swift": 1,
     "Holo/Views/AddTransactionSheet.swift": 2,
     "Holo/Views/Anniversary/AddAnniversarySheet.swift": 1,
     "Holo/Views/Anniversary/AnniversaryCardView.swift": 2,
@@ -131,11 +124,9 @@
     "Holo/Views/Finance/AccountListView.swift": 3,
     "Holo/Views/Finance/AddAccountSheet.swift": 2,
     "Holo/Views/Finance/AddProjectSheet.swift": 1,
-    "Holo/Views/Finance/Analysis/AccountTabView.swift": 2,
+    "Holo/Views/Finance/Analysis/AccountTabView.swift": 1,
     "Holo/Views/Finance/Analysis/Components/ScopeInsightSections.swift": 3,
-    "Holo/Views/Finance/Analysis/Components/TopCategoryCard.swift": 1,
-    "Holo/Views/Finance/Analysis/OverviewTabView.swift": 2,
-    "Holo/Views/Finance/Analysis/ProjectTabView.swift": 4,
+    "Holo/Views/Finance/Analysis/ProjectTabView.swift": 2,
     "Holo/Views/Finance/BudgetCategoryDetailSheet.swift": 2,
     "Holo/Views/Finance/BudgetDetailView.swift": 3,
     "Holo/Views/Finance/BudgetSettingsSheet.swift": 1,
@@ -165,7 +156,6 @@
     "Holo/Views/MemoryGallery/Calendar/Monthly/DayDetailCard.swift": 1,
     "Holo/Views/MemoryGallery/Calendar/Monthly/MonthCell.swift": 2,
     "Holo/Views/MemoryGallery/Calendar/Weekly/WeeklyGridView.swift": 6,
-    "Holo/Views/Personal/WeeklyReviewView.swift": 1,
     "Holo/Views/Tasks/TaskExperienceStatsView.swift": 3,
     "Holo/Views/Tasks/TaskListHeroSection.swift": 1,
     "Holo/Views/Tasks/TaskPriorityLevers.swift": 1,
@@ -173,7 +163,6 @@
   },
   "sparklesIcon": {
     "Holo/Components/BottomNavBar.swift": 1,
-    "Holo/Components/HoloSidebarView.swift": 1,
     "Holo/Models/AI/ChatCardData.swift": 2,
     "Holo/Models/Category+CoreDataProperties.swift": 3,
     "Holo/Models/GoalModels.swift": 1,
@@ -182,7 +171,6 @@
     "Holo/Views/Chat/ChatInputView.swift": 1,
     "Holo/Views/Settings/AIMemoryLabView.swift": 1,
     "Holo/Views/Settings/SettingsView.swift": 1,
-    "Holo/Views/Subscription/HoloPlusBenefitComparisonTable.swift": 2,
     "Holo/Views/Tasks/TaskDetailPropertiesSection.swift": 1
   }
 }

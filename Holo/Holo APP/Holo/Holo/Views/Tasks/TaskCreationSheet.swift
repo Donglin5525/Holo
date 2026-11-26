@@ -86,6 +86,7 @@ struct TaskCreationSheet: View {
                 set: { draft.title = $0; draft.markEdited() }
             ))
             .font(.system(size: 15))
+            .foregroundColor(TaskQuadrantPalette.ink)
             .padding(.horizontal, 14)
             .frame(height: 44)
             .background(
@@ -363,7 +364,7 @@ private struct TaskCreationTwoWaySegment<T: Equatable>: View {
                 .frame(maxWidth: .infinity, minHeight: 32)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(isSelected ? Color.holoCardBackground : Color.clear)
+                        .fill(isSelected ? TaskQuadrantPalette.segmentThumb : Color.clear)
                         .shadow(color: isSelected ? Color.black.opacity(0.12) : .clear, radius: 2, y: 1)
                 )
                 .contentShape(Rectangle())

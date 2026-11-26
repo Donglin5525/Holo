@@ -51,7 +51,7 @@ struct QuickTagBar: View {
             }
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.black.opacity(0.08))
+                    .fill(Color.holoBorder.opacity(0.55))
                     .frame(height: 0.5)
             }
             .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .bottom)))

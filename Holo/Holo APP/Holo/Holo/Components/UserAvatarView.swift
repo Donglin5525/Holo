@@ -53,7 +53,7 @@ struct UserAvatarView: View {
             ZStack {
                 Circle().fill(Color.holoPrimary.opacity(0.12))
                 Text(initial)
-                    .font(.system(size: size * 0.42, weight: .semibold, design: .rounded))
+                    .font(.system(size: size * 0.42, weight: .semibold))
                     .foregroundColor(.holoPrimary)
             }
         } else {

@@ -55,7 +55,7 @@ enum HoloSidebarDestination: String, CaseIterable, Identifiable, Equatable {
         case .habits: return "arrow.2.squarepath"
         case .memoryGallery: return "book.fill"
         case .health: return "heart.fill"
-        case .ai: return "sparkles"
+        case .ai: return "smallcircle.filled.circle"
         case .profile: return "person.fill"
         case .settings: return "gearshape.fill"
         }

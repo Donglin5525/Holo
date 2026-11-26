@@ -377,11 +377,11 @@ struct TaskCardView: View {
         } else if task.isOverdue {
             pill(text: overdueText, bg: Color.holoError.opacity(0.09), fg: .holoError)
         } else if task.isDueToday {
-            pill(text: nearText(prefix: String(localized: "今天")), bg: Color.holoPrimary.opacity(0.10), fg: .holoPrimaryDark)
+            pill(text: nearText(prefix: String(localized: "今天")), bg: Color.holoPrimary.opacity(0.12), fg: .holoChart2)
         } else if task.isDueTomorrow {
             pill(text: nearText(prefix: String(localized: "明天")),
-                 bg: Color(red: 0.23, green: 0.51, blue: 0.96).opacity(0.09),
-                 fg: Color(red: 0.23, green: 0.37, blue: 0.84))
+                 bg: Color.holoFollowUpTint.opacity(0.12),
+                 fg: .holoFollowUpTint)
         }
     }
 

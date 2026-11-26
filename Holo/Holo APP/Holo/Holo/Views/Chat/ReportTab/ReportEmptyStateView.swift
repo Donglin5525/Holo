@@ -48,7 +48,7 @@ struct ReportEmptyStateView: View {
 
                     Text("「连续三周晚间支出上扬，与加班周期高度吻合；运动日夜间外卖频次是非运动日的 2.4 倍。」")
                         .font(.system(size: 12.5))
-                        .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.35))
+                        .foregroundColor(.holoTextPrimary.opacity(0.82))
                         .lineSpacing(4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

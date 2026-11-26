@@ -87,7 +87,7 @@ struct ReportArchiveCard: View {
 
                         Text(entry.summary ?? entry.title ?? String(localized: "本周期完成了一次报告。"))
                             .font(.system(size: 12.5))
-                            .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.35))
+                            .foregroundColor(.holoTextPrimary.opacity(0.82))
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -182,10 +182,10 @@ struct ReportInProgressCard: View {
 
                 Text("生成中")
                     .font(.system(size: 10.5, weight: .bold))
-                    .foregroundColor(Color(red: 0.63, green: 0.38, blue: 0.03))
+                    .foregroundColor(Color.holoStarTint)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2.5)
-                    .background(Color(red: 1.0, green: 0.93, blue: 0.68), in: Capsule())
+                    .background(Color.holoStarTint.opacity(0.14), in: Capsule())
 
                 Text(status.title)
                     .font(.system(size: 13, weight: .bold))

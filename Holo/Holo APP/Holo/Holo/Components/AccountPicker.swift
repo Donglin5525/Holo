@@ -103,7 +103,8 @@ struct AccountRow: View {
 
                     let balance = FinanceRepository.shared.getAccountBalance(account)
                     Text(formatBalance(balance))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .medium))
+                        .monospacedDigit()
                         .foregroundColor(balance >= 0 ? .holoTextSecondary : .holoError)
                 }
                 

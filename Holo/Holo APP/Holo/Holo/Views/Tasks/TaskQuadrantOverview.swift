@@ -14,32 +14,45 @@ import AppKit
 
 // MARK: - 象限语义色（§10.1 原型色值，Light/Dark 双值；hex 不散写进各 View）
 
-private func quadrantDynamicColor(light: UInt32, dark: UInt32) -> Color {
+private func quadrantDynamicColor(light: UInt32, dark: UInt32, lightAlpha: CGFloat = 1, darkAlpha: CGFloat = 1) -> Color {
     #if canImport(UIKit)
     Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(rgb: dark)
-            : UIColor(rgb: light)
+            ? UIColor(rgb: dark, alpha: darkAlpha)
+            : UIColor(rgb: light, alpha: lightAlpha)
     })
     #else
     Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
-            ? NSColor(rgb: dark)
-            : NSColor(rgb: light)
+            ? NSColor(rgb: dark, alpha: darkAlpha)
+            : NSColor(rgb: light, alpha: lightAlpha)
     })
     #endif
 }
 
+#if canImport(UIKit)
 private extension UIColor {
-    convenience init(rgb: UInt32) {
+    convenience init(rgb: UInt32, alpha: CGFloat = 1) {
         self.init(
             red: CGFloat((rgb >> 16) & 0xFF) / 255,
             green: CGFloat((rgb >> 8) & 0xFF) / 255,
             blue: CGFloat(rgb & 0xFF) / 255,
-            alpha: 1
+            alpha: alpha
         )
     }
 }
+#else
+private extension NSColor {
+    convenience init(rgb: UInt32, alpha: CGFloat = 1) {
+        self.init(
+            srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255,
+            blue: CGFloat(rgb & 0xFF) / 255,
+            alpha: alpha
+        )
+    }
+}
+#endif
 
 extension TaskQuadrant {
     /// 象限主文字色（2026-11-05 原型 task-quadrant-redesign 拍板值；Dark 沿用旧浅色待适配）
@@ -65,44 +78,48 @@ extension TaskQuadrant {
     }
 }
 
-// MARK: - 四象限页调色板（2026-11-05 原型 CSS 值集中定义；深色适配后续一处改）
+// MARK: - 四象限页调色板（明暗双模式集中定义）
 
-/// 原型 task-quadrant-redesign 的页面级颜色。深色模式本次不验收，
-/// 全部浅色值集中在此，后续适配只动这一个定义点。
+/// 四象限页与新建任务弹层的页面级语义色（Light / Dark 双模式）。
 enum TaskQuadrantPalette {
-    /// 主文字 #26241F
-    static let ink = Color(red: 0x26 / 255, green: 0x24 / 255, blue: 0x1F / 255)
-    /// 次级文字 #8A867C
-    static let inkSecondary = Color(red: 0x8A / 255, green: 0x86 / 255, blue: 0x7C / 255)
-    /// 弱文字 #B8B2A5
-    static let inkTertiary = Color(red: 0xB8 / 255, green: 0xB2 / 255, blue: 0xA5 / 255)
-    /// 任务行 meta #7C776B
-    static let meta = Color(red: 0x7C / 255, green: 0x77 / 255, blue: 0x6B / 255)
-    /// 逾期红 #C03A28
-    static let late = Color(red: 0xC0 / 255, green: 0x3A / 255, blue: 0x28 / 255)
-    /// 勾选圈描边 #C9C5BA
-    static let ringBorder = Color(red: 0xC9 / 255, green: 0xC5 / 255, blue: 0xBA / 255)
-    /// 勾选圈描边取色（唯一源）：逾期 rgba(192,58,40,.45)，常态 #C9C5BA——
-    /// 格内/侧栏/浮卡共用，保证三处视觉一致
+    /// 主文字：浅 #26241F / 深 #F3F1EC
+    static let ink = quadrantDynamicColor(light: 0x26241F, dark: 0xF3F1EC)
+    /// 次级文字：浅 #8A867C / 深 #A39E93
+    static let inkSecondary = quadrantDynamicColor(light: 0x8A867C, dark: 0xA39E93)
+    /// 弱文字：浅 #B8B2A5 / 深 #757168
+    static let inkTertiary = quadrantDynamicColor(light: 0xB8B2A5, dark: 0x757168)
+    /// 任务行 meta：浅 #7C776B / 深 #9E998E
+    static let meta = quadrantDynamicColor(light: 0x7C776B, dark: 0x9E998E)
+    /// 逾期红：浅 #C03A28 / 深 #F27B6B
+    static let late = quadrantDynamicColor(light: 0xC03A28, dark: 0xF27B6B)
+    /// 勾选圈常态描边：浅 #C9C5BA / 深 #63605A
+    static let ringBorder = quadrantDynamicColor(light: 0xC9C5BA, dark: 0x63605A)
+    /// 勾选圈逾期描边：浅 rgba(192,58,40,.45) / 深 rgba(242,123,107,.65)
+    private static let ringOverdueBorder = quadrantDynamicColor(
+        light: 0xC03A28, dark: 0xF27B6B, lightAlpha: 0.45, darkAlpha: 0.65
+    )
+    /// 勾选圈描边取色（唯一源）：格内/侧栏/浮卡共用，保证三处视觉一致
     static func ringStroke(isOverdue: Bool) -> Color {
-        isOverdue ? late.opacity(0.45) : ringBorder
+        isOverdue ? ringOverdueBorder : ringBorder
     }
-    /// 分隔线 #ECEAE3
-    static let line = Color(red: 0xEC / 255, green: 0xEA / 255, blue: 0xE3 / 255)
-    /// 填充底 #F1EFE9（输入框 / 分段轨道 / 徽章底）
-    static let fill = Color(red: 0xF1 / 255, green: 0xEF / 255, blue: 0xE9 / 255)
-    /// 品牌橙 #E85D2B（FAB / 选中 tab / 把手底）
-    static let accent = Color(red: 0xE8 / 255, green: 0x5D / 255, blue: 0x2B / 255)
-    /// 新建主按钮默认绿 #22764A（原型与绿格深色同值）
-    static let addGreen = Color(red: 0x22 / 255, green: 0x76 / 255, blue: 0x4A / 255)
-    /// 把手与徽章文字 #C24E22
-    static let handleText = Color(red: 0xC2 / 255, green: 0x4E / 255, blue: 0x22 / 255)
-    /// 侧栏奶油底 #FCFBF7（叠在毛玻璃上）
-    static let sidebarTint = Color(red: 0xFC / 255, green: 0xFB / 255, blue: 0xF7 / 255)
-    /// 拖拽落点胶囊深底 #2A2823
-    static let capsule = Color(red: 0x2A / 255, green: 0x28 / 255, blue: 0x23 / 255)
-    /// 占位虚线 #D6D2C6
-    static let dash = Color(red: 0xD6 / 255, green: 0xD2 / 255, blue: 0xC6 / 255)
+    /// 分隔线：浅 #ECEAE3 / 深 #3A3A3D
+    static let line = quadrantDynamicColor(light: 0xECEAE3, dark: 0x3A3A3D)
+    /// 填充底（输入框 / 分段轨道 / 关闭圆底 / 日期胶囊底）：浅 #F1EFE9 / 深 #38383B
+    static let fill = quadrantDynamicColor(light: 0xF1EFE9, dark: 0x38383B)
+    /// 分段控件选中滑块底：浅 #FFFFFF / 深 #4E4E52（与 fill 轨道自然分层）
+    static let segmentThumb = quadrantDynamicColor(light: 0xFFFFFF, dark: 0x4E4E52)
+    /// 品牌橙（FAB / 选中 tab / 把手底）：浅 #E85D2B / 深 #F27344
+    static let accent = quadrantDynamicColor(light: 0xE85D2B, dark: 0xF27344)
+    /// 新建主按钮默认绿：浅 #22764A / 深 #2F8F5C
+    static let addGreen = quadrantDynamicColor(light: 0x22764A, dark: 0x2F8F5C)
+    /// 把手与待确认徽章文字：浅 #C24E22 / 深 #F5956B
+    static let handleText = quadrantDynamicColor(light: 0xC24E22, dark: 0xF5956B)
+    /// 侧栏叠底（叠在毛玻璃上）：浅 #FCFBF7 / 深 #1E1E20
+    static let sidebarTint = quadrantDynamicColor(light: 0xFCFBF7, dark: 0x1E1E20)
+    /// 拖拽落点胶囊深底：浅 #2A2823 / 深 #3C3A36
+    static let capsule = quadrantDynamicColor(light: 0x2A2823, dark: 0x3C3A36)
+    /// 拖拽条与占位虚线：浅 #D6D2C6 / 深 #54524D
+    static let dash = quadrantDynamicColor(light: 0xD6D2C6, dark: 0x54524D)
     /// 遮罩暖黑 rgba(22,20,15,x)
     static func scrim(_ opacity: Double) -> Color {
         Color(red: 22 / 255, green: 20 / 255, blue: 15 / 255).opacity(opacity)

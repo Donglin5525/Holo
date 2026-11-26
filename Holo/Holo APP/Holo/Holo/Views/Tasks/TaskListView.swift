@@ -606,7 +606,7 @@ struct TaskListView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(white: 0.77))
+                    .foregroundColor(.holoTextPlaceholder)
                     .rotationEffect(.degrees(isCollapsed ? 0 : 90))
             }
             .contentShape(Rectangle())

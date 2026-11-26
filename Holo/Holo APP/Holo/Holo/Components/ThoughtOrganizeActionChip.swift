@@ -35,9 +35,9 @@ struct ThoughtOrganizeActionChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                // sparkles 图标（项目 AI 统一图标）
+                // 靛灰小圆点（Holo AI 统一克制标识，禁用 sparkles）
                 Image(systemName: "smallcircle.filled.circle")
-                    .font(.system(size: 12, weight: .medium))
+                    .holoIconSize(.xs, weight: .medium)
                     .foregroundColor(.holoAI)
 
                 // 文案

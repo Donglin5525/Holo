@@ -66,15 +66,39 @@ enum ThoughtMoodType: String, CaseIterable, Codable {
         }
     }
 
-    /// 浅色背景
+    /// 浅色背景（明暗双模式：浅色柔和粉彩，深色低透明同色系底）
     var backgroundColor: Color {
         switch self {
-        case .happy: return Color(red: 254/255, green: 243/255, blue: 199/255)
-        case .sad: return Color(red: 219/255, green: 234/255, blue: 254/255)
-        case .angry: return Color(red: 254/255, green: 226/255, blue: 226/255)
-        case .calm: return Color(red: 209/255, green: 250/255, blue: 229/255)
-        case .thinking: return Color(red: 237/255, green: 233/255, blue: 254/255)
-        case .inspired: return Color(red: 254/255, green: 243/255, blue: 199/255)
+        case .happy:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 254/255, green: 243/255, blue: 199/255, alpha: 1),
+                dark: HoloDynamicColor(red: 245/255, green: 158/255, blue: 11/255, alpha: 0.18)
+            )
+        case .sad:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 219/255, green: 234/255, blue: 254/255, alpha: 1),
+                dark: HoloDynamicColor(red: 59/255, green: 130/255, blue: 246/255, alpha: 0.18)
+            )
+        case .angry:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 254/255, green: 226/255, blue: 226/255, alpha: 1),
+                dark: HoloDynamicColor(red: 239/255, green: 68/255, blue: 68/255, alpha: 0.18)
+            )
+        case .calm:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 209/255, green: 250/255, blue: 229/255, alpha: 1),
+                dark: HoloDynamicColor(red: 16/255, green: 185/255, blue: 129/255, alpha: 0.18)
+            )
+        case .thinking:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 237/255, green: 233/255, blue: 254/255, alpha: 1),
+                dark: HoloDynamicColor(red: 139/255, green: 92/255, blue: 246/255, alpha: 0.18)
+            )
+        case .inspired:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 254/255, green: 243/255, blue: 199/255, alpha: 1),
+                dark: HoloDynamicColor(red: 251/255, green: 191/255, blue: 36/255, alpha: 0.18)
+            )
         }
     }
 }

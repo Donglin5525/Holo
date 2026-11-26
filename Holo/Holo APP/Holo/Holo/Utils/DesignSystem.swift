@@ -788,7 +788,7 @@ struct HoloCountBadge: View {
 
     var body: some View {
         Text(verbatim: "\(count)")
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .font(.system(size: 12, weight: .semibold))
             .monospacedDigit()
             .contentTransition(reduceMotion ? .identity : .numericText(value: Double(count)))
             .foregroundColor(.holoToolTextSecondary)
@@ -891,12 +891,12 @@ struct HoloNestedCardStyle: ViewModifier {
 }
 
 extension View {
-    /// 应用 Holo 标准卡片外观
+    /// 兼容存量页面的旧卡片外观（2026-11-24 起禁止新增；新页面默认无卡用 `HoloCardlessRow` + `HoloHairlineDivider`，仅独立实体用 `.holoSurface(.independent)`）
     func holoCard() -> some View {
         modifier(HoloCardStyle())
     }
 
-    /// 应用卡片容器内的次级卡片外观
+    /// 兼容存量页面的嵌套卡片外观（2026-11-24 起禁止新增；由 `BuildScripts/aesthetic_guard.py` 冻结存量）
     func holoNestedCard(cornerRadius: CGFloat = HoloRadius.lg) -> some View {
         modifier(HoloNestedCardStyle(cornerRadius: cornerRadius))
     }

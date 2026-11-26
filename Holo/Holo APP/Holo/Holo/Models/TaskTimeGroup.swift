@@ -32,10 +32,21 @@ enum TaskTimeGroup: String, CaseIterable, Hashable {
         switch self {
         case .overdue: return .holoError
         case .today: return .holoPrimary
-        case .tomorrow: return Color(red: 0.23, green: 0.51, blue: 0.96)
-        case .thisWeek: return Color(red: 0.77, green: 0.77, blue: 0.77)
-        case .later: return Color(red: 0.89, green: 0.89, blue: 0.89)
-        case .unscheduled: return Color(red: 0.89, green: 0.89, blue: 0.89)
+        case .tomorrow:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 0.23, green: 0.51, blue: 0.96, alpha: 1),
+                dark: HoloDynamicColor(red: 0.38, green: 0.65, blue: 0.98, alpha: 1)
+            )
+        case .thisWeek:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 0.77, green: 0.77, blue: 0.77, alpha: 1),
+                dark: HoloDynamicColor(red: 0.43, green: 0.43, blue: 0.45, alpha: 1)
+            )
+        case .later, .unscheduled:
+            return Color.holoDynamic(
+                light: HoloDynamicColor(red: 0.89, green: 0.89, blue: 0.89, alpha: 1),
+                dark: HoloDynamicColor(red: 0.30, green: 0.30, blue: 0.32, alpha: 1)
+            )
         }
     }
 

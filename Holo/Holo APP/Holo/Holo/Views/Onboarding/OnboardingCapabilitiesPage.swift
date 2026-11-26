@@ -71,7 +71,7 @@ struct OnboardingCapabilitiesPage: View {
                 .font(.system(size: 17, weight: .medium))
                 .foregroundColor(.holoPrimary)
                 .frame(width: 32, height: 32)
-                .background(Color.holoPrimaryLight.opacity(0.5))
+                .background(Color.holoPrimary.opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
 
             Text(text)
