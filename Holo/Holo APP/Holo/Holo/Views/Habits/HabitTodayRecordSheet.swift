@@ -7,7 +7,8 @@
 //  身份区（图标 + 名称 + 今日状态 + 规则胶囊 + 描述）→ 3 列核心 KPI 卡片
 //  → 交互式本月日历/近30天/数值走势卡片（点按日期查看明细与内联补录，复用 HoloBarChart/HoloMiniTrendChart）
 //  → 纯本地节律观察（稀疏态自动降级为温和里程碑提示）
-//  → 今天的记录 / 最近记录（支持行内快速写备注）→ 贴底主操作栏（打卡后主区转写备注，撤销退居侧边；计数型支持底栏直加直减）。
+    //  → 今天的记录 / 最近记录 → 贴底主操作栏（打卡后主区转写备注，撤销退居侧边；计数型支持底栏直加直减；
+    //    写备注时该栏切换为备注输入条）。
 //
 
 import SwiftUI
@@ -155,7 +156,11 @@ struct HabitTodayRecordSheet: View {
             .background(Color.holoToolBackground)
             .safeAreaInset(edge: .bottom) {
                 if let row {
-                    primaryAction(row)
+                    if isEditingInlineNote {
+                        inlineNoteComposer(accent: Color(hex: row.colorHex))
+                    } else {
+                        primaryAction(row)
+                    }
                 }
             }
             .navigationTitle("")
@@ -403,10 +408,6 @@ struct HabitTodayRecordSheet: View {
                         recordRow(record, row: row, showsDate: showsRecent, showDivider: index < renderable.count - 1)
                     }
                 }
-
-                if isEditingInlineNote {
-                    inlineNoteComposer(accent: accent)
-                }
             }
             .holoSurface(.independent)
         }
@@ -504,12 +505,12 @@ struct HabitTodayRecordSheet: View {
         }
     }
 
+    /// 备注输入条：贴底，与主操作栏互斥占位（编辑时顶替它），一出现即聚焦。
+    /// 2026-11-23 东林实报：微信输入法下首次按键的拼音组词被打断、首字母直接上屏。
+    /// 原写法是滚动区末尾行内插入（半截压在主操作栏下）+ 0.1s 延迟聚焦（插入动画 0.15s 未结束）；
+    /// 全 App 自动聚焦输入框都是「位置固定 + onAppear 落焦」，此处对齐，同时「取消/保存」不再被主操作栏盖住。
     private func inlineNoteComposer(accent: Color) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Rectangle()
-                .fill(Color.holoToolBorder.opacity(0.65))
-                .frame(height: 0.5)
-
             TextField(String(localized: "记录一点此刻的感受或细节…"), text: $inlineNoteDraft, axis: .vertical)
                 .font(.system(size: 13.5))
                 .foregroundStyle(Color.holoToolText)
@@ -549,19 +550,16 @@ struct HabitTodayRecordSheet: View {
                 .background(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous).fill(accent))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 12)
-        .background(Color.holoToolInset.opacity(0.5))
+        .padding(.top, HoloSpacing.sm)
+        .padding(.bottom, HoloSpacing.sm)
+        .padding(.horizontal, HoloSpacing.page)
+        .background(.ultraThinMaterial)
+        .onAppear { inlineNoteFocused = true }
     }
 
     private func openInlineNoteComposer() {
         inlineNoteDraft = dayRecords.renderable.first?.note ?? ""
-        withAnimation(HoloAnimation.quick) {
-            isEditingInlineNote = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            inlineNoteFocused = true
-        }
+        isEditingInlineNote = true
     }
 
     private func saveInlineNote() {

@@ -14,7 +14,7 @@ import SwiftUI
 struct MarkdownRenderer {
 
     /// 想法正文统一阅读基线：与编辑器、结构化详情和卡片保持一致。
-    private static let bodyLineSpacing: CGFloat = 6
+    static let bodyLineSpacing: CGFloat = 6
 
     // MARK: - 公共接口
 
@@ -24,10 +24,13 @@ struct MarkdownRenderer {
         return renderDocument(document)
     }
 
-    /// 渲染纯文本预览（去除格式，截取前 N 字符）；原文更长时以省略号收尾，
-    /// 让「内容没显示完」在卡片上可被感知——长廊卡据此同步给出「轻点查看全文」提示。
+    /// 紧凑预览：去除格式和换行，原文超过 N 字符时以省略号收尾。
     static func previewText(_ markdown: String, maxLength: Int = 80) -> String {
-        let stripped = MarkdownParser.stripFormatting(markdown)
+        previewText(plainText: MarkdownParser.stripFormatting(markdown), maxLength: maxLength)
+    }
+
+    static func previewText(plainText: String, maxLength: Int = 80) -> String {
+        let stripped = plainText
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespaces)
         guard stripped.count > maxLength else { return stripped }

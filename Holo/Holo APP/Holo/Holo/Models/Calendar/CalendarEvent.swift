@@ -22,6 +22,9 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     /// 列表/详情主标题
     let title: String
 
+    /// 保留原文换行的想法节选，供长廊时间线阅读。
+    let thoughtExcerpt: String?
+
     /// 金额 / 数值 / 摘要等副信息
     let detail: String?
 
@@ -65,6 +68,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
          module: CalendarModule,
          date: Date,
          title: String,
+         thoughtExcerpt: String? = nil,
          detail: String? = nil,
          context: String? = nil,
          numericValue: Decimal? = nil,
@@ -82,6 +86,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
         self.module = module
         self.date = date
         self.title = title
+        self.thoughtExcerpt = thoughtExcerpt
         self.detail = detail
         self.context = context
         self.numericValue = numericValue

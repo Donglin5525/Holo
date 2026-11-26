@@ -144,12 +144,16 @@ final class CalendarEventProviderTests: XCTestCase {
         let thought = try XCTUnwrap(context.fetch(Thought.fetchRequest()).first)
         let firstEvent = try XCTUnwrap(first.events.first)
         XCTAssertEqual(firstEvent.id, thought.id)
-        thought.content = "修改后的想法"
+        let editedContent = "修改后的**想法**\n第二行\n\n下一段"
+        thought.content = editedContent
         try context.save()
         let updated = await provider.fetchEvents(in: range)
         XCTAssertEqual(updated.events.first?.id, firstEvent.id, "刷新不能重置卡片身份与照片翻片状态")
-        XCTAssertEqual(updated.events.first?.title, "修改后的想法")
+        XCTAssertEqual(updated.events.first?.title, "修改后的想法 第二行  下一段")
+        XCTAssertEqual(updated.events.first?.thoughtExcerpt, "修改后的想法\n第二行\n\n下一段")
         XCTAssertEqual(updated.events.first?.originID, thought.objectID)
+        XCTAssertEqual(try context.existingObject(with: thought.objectID).value(forKey: "content") as? String,
+                       editedContent)
     }
 
     func test_snapshot日周月与筛选复用同一份事实() {

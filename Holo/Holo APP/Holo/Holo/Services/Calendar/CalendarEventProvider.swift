@@ -214,8 +214,16 @@ struct CalendarEventProvider {
             let thumbnailsByThought = try thoughtRepo.fetchAttachmentThumbnails(
                 from: range.start, to: range.end
             )
+            // 后台生成有界节选，时间线再按实际排版行数截断。
+            let excerptLimit = 240
             let events: [CalendarEvent] = thoughts.map { thought in
-                let title = thought.previewText.isEmpty ? String(localized: "未命名想法") : thought.previewText
+                let plainText = MarkdownParser.stripFormatting(thought.content)
+                let title = MarkdownRenderer.previewText(plainText: plainText)
+                let excerptPrefix = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(excerptLimit + 1)
+                let excerpt = excerptPrefix.count > excerptLimit
+                    ? excerptPrefix.prefix(excerptLimit).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+                    : String(excerptPrefix)
                 // P3：观点的主题标题（读源统一 P0-A：link 投影，与卡片徽章同口径）
                 let effectiveTopics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
                     .filter(\.isVisibleTopic)
@@ -241,7 +249,8 @@ struct CalendarEventProvider {
                     id: thought.id,
                     module: .thought,
                     date: thought.createdAt,
-                    title: title,
+                    title: title.isEmpty ? String(localized: "未命名想法") : title,
+                    thoughtExcerpt: excerpt.isEmpty ? nil : excerpt,
                     detail: thought.moodType?.displayName,
                     relatedTopics: topics.isEmpty ? nil : topics,
                     topicBadges: topicBadges.isEmpty ? nil : topicBadges,

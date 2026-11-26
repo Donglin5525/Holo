@@ -42,20 +42,12 @@ struct MacTaskSection: Identifiable {
     }
 
     private static func timeSections(_ tasks: [TodoTask]) -> [MacTaskSection] {
-        let order: [(TaskTimeGroup, String, Color?, Bool)] = [
-            (.overdue, "已过期", .holoError, false),
-            (.today, "今天", .holoPrimary, false),
-            (.tomorrow, "明天", Color(red: 0.23, green: 0.51, blue: 0.96), false),
-            (.thisWeek, "本周", Color(red: 0.77, green: 0.77, blue: 0.77), true),
-            (.later, "稍后", Color(red: 0.89, green: 0.89, blue: 0.89), true),
-            (.unscheduled, "未安排", Color(red: 0.89, green: 0.89, blue: 0.89), true),
-        ]
-        return order.compactMap { group, title, color, folds in
+        return TaskTimeGroup.allCases.compactMap { group in
             let members = tasks.filter { TaskTimeGroup.group(for: $0) == group }
             guard !members.isEmpty else { return nil }
             return MacTaskSection(
-                id: group.rawValue, title: title, dotColor: color,
-                tasks: members, isOverdueGroup: group == .overdue, foldsByDefault: folds)
+                id: group.rawValue, title: group.title, dotColor: group.dotColor,
+                tasks: members, isOverdueGroup: group == .overdue, foldsByDefault: group.foldsByDefault)
         }
     }
 
@@ -63,8 +55,8 @@ struct MacTaskSection: Identifiable {
         let order: [(TaskPriority, String, Color)] = [
             (.urgent, "十分紧急", .holoError),
             (.high, "高", .holoPrimary),
-            (.medium, "中", Color(red: 0.77, green: 0.77, blue: 0.77)),
-            (.low, "低", Color(red: 0.89, green: 0.89, blue: 0.89)),
+            (.medium, "中", TaskTimeGroup.thisWeek.dotColor),
+            (.low, "低", TaskTimeGroup.later.dotColor),
         ]
         return order.compactMap { level, title, color in
             let members = tasks.filter { $0.taskPriority == level }
