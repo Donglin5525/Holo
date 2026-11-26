@@ -692,6 +692,11 @@ extension CoreDataStack {
             projectAttribute("lastUsedDate", .dateAttributeType, optional: true),
             projectAttribute("categoryId", .UUIDAttributeType, optional: true),
             projectAttribute("accountId", .UUIDAttributeType, optional: true),
+            // 订阅到期提醒（2026-11-26 增量字段，兼容 CloudKit 开发库）
+            projectAttribute("reminderEnabled", .booleanAttributeType, defaultValue: false),
+            projectAttribute("reminderLeadDays", .integer32AttributeType, defaultValue: 3),
+            // 融合外观图标：支持 Emoji / Holo 经典图标名 / 品牌图标 key（如 sub_netflix）
+            projectAttribute("icon", .stringAttributeType, optional: true),
             projectAttribute("createdAt", .dateAttributeType, defaultValue: Date()),
             projectAttribute("updatedAt", .dateAttributeType, defaultValue: Date())
         ]

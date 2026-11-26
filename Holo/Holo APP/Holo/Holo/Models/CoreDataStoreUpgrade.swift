@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 import SQLite3
 
 /// 只认可「库形态 = 当前模型的某个已发版前身」的向前升级；不放开旧版覆盖新版、删表或未登记的实体变更。
@@ -71,6 +72,9 @@ nonisolated enum CoreDataStoreUpgrade {
         ]),
         PropertyBatch(release: "习惯文件夹外观", additions: [
             "HabitFolder": ["emoji"]
+        ]),
+        PropertyBatch(release: "固定支出订阅提醒与自定义外观", additions: [
+            "SpendingProject": ["reminderEnabled", "reminderLeadDays", "icon"]
         ])
     ]
 
@@ -92,7 +96,9 @@ nonisolated enum CoreDataStoreUpgrade {
         case additiveTables
         /// 库是登记簿里某个已发版形态（可再叠加之后的加表）
         case registered(release: String)
-        /// 未知差异、降级、改表——拒开
+        /// 未在手工登记簿中，但经 SQLite 真实表/列只读核验确认为严格纯增量加字段升级（2026-11-26 根治「漏登记卡死用户」）
+        case additiveColumns
+        /// 未知差异、降级、删表、删列或改类型——拒开
         case rejected
     }
 
@@ -122,6 +128,153 @@ nonisolated enum CoreDataStoreUpgrade {
         return !additions.isEmpty
             && Set(store.keys).isSubset(of: Set(model.keys))
             && store.allSatisfy { model[$0.key] == $0.value }
+    }
+
+    // MARK: - SQLite 真实列级纯增量核验（2026-11-26：不因漏填手工白名单卡死用户，仍严格拦删表/删列/改类型/降级）
+
+    /// 只读核验 SQLite 实际列结构：老库所有表和列都完整存在于新模型且存储亲和类型兼容，
+    /// 且新模型多出的属性/关系全部为可选或带默认值，才判定为安全的向前纯增量升级。
+    static func isSQLiteAdditiveSchemaUpgrade(
+        at storeURL: URL,
+        storeHashes: [String: Data],
+        model: NSManagedObjectModel
+    ) -> Bool {
+        let modelEntities = model.entitiesByName
+        // 1. 禁止删表：老库中每一个实体必须在新模型中存在
+        guard Set(storeHashes.keys).isSubset(of: Set(modelEntities.keys)) else { return false }
+
+        let modelHashes = model.entityVersionHashesByName
+        let changedEntityNames = storeHashes.keys.filter { modelHashes[$0] != storeHashes[$0] }
+        guard !changedEntityNames.isEmpty else { return false }
+
+        guard let database = openReadOnlySQLite(at: storeURL) else { return false }
+        defer { sqlite3_close(database) }
+
+        for entityName in changedEntityNames {
+            guard let entity = modelEntities[entityName] else { return false }
+            let tableName = "Z" + entityName.uppercased()
+            guard let existingColumns = readSQLiteTableColumns(tableName: tableName, from: database),
+                  !existingColumns.isEmpty else {
+                return false
+            }
+
+            let expected = expectedSQLiteColumns(for: entity)
+
+            // 2. 无删列、无降级、无改类型：老表每一个业务列（非 Z_ 系统列）必须在新模型列集合中且类型兼容
+            for (colName, existingAffinity) in existingColumns {
+                if colName.hasPrefix("Z_") { continue }
+                guard let expectedSpec = expected[colName] else {
+                    // 老库多出新模型没有的列 = 删字段或旧版 App 降级打开新版库 → 严格拒绝
+                    return false
+                }
+                if existingAffinity != expectedSpec.affinity {
+                    // 列存储类型变化（如 TEXT ↔ INTEGER）→ 严格拒绝
+                    return false
+                }
+            }
+
+            // 3. 新增字段必须全部满足轻量迁移与 CloudKit 安全条件（可选或带默认值）
+            for (colName, expectedSpec) in expected where existingColumns[colName] == nil {
+                if !expectedSpec.isAdditiveSafe {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private struct ExpectedColumnSpec {
+        let affinity: SQLiteAffinity
+        let isAdditiveSafe: Bool
+    }
+
+    private enum SQLiteAffinity: Equatable {
+        case integer
+        case real
+        case text
+        case blob
+    }
+
+    private static func normalizeAffinity(_ rawType: String) -> SQLiteAffinity {
+        let upper = rawType.uppercased()
+        if upper.contains("INT") { return .integer }
+        if upper.contains("CHAR") || upper.contains("CLOB") || upper.contains("TEXT") || upper.contains("VARCHAR") {
+            return .text
+        }
+        if upper.contains("BLOB") || upper.isEmpty { return .blob }
+        // REAL / FLOA / DOUB / DECIMAL / NUMERIC / TIMESTAMP
+        return .real
+    }
+
+    private static func expectedSQLiteColumns(for entity: NSEntityDescription) -> [String: ExpectedColumnSpec] {
+        var result: [String: ExpectedColumnSpec] = [:]
+        // 含父实体的全部持久化属性
+        for (_, attr) in entity.attributesByName where !attr.isTransient {
+            let colName = "Z" + attr.name.uppercased()
+            let affinity: SQLiteAffinity
+            switch attr.attributeType {
+            case .integer16AttributeType, .integer32AttributeType, .integer64AttributeType, .booleanAttributeType:
+                affinity = .integer
+            case .doubleAttributeType, .floatAttributeType, .dateAttributeType, .decimalAttributeType:
+                affinity = .real
+            case .stringAttributeType:
+                affinity = .text
+            case .binaryDataAttributeType, .UUIDAttributeType, .URIAttributeType, .transformableAttributeType, .objectIDAttributeType:
+                affinity = .blob
+            default:
+                affinity = .blob
+            }
+            let safe = attr.isOptional || attr.defaultValue != nil
+            result[colName] = ExpectedColumnSpec(affinity: affinity, isAdditiveSafe: safe)
+        }
+        // to-one 关系对应外键列（INTEGER）
+        for (_, rel) in entity.relationshipsByName where !rel.isTransient && !rel.isToMany {
+            let colName = "Z" + rel.name.uppercased()
+            result[colName] = ExpectedColumnSpec(affinity: .integer, isAdditiveSafe: rel.isOptional)
+        }
+        return result
+    }
+
+    private static func openReadOnlySQLite(at url: URL) -> OpaquePointer? {
+        var db: OpaquePointer?
+        if sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let db {
+            sqlite3_busy_timeout(db, 1_500)
+            return db
+        }
+        sqlite3_close(db)
+
+        // 干净关闭、无待合并 WAL 时允许 immutable 只读打开
+        let walPath = url.path + "-wal"
+        if FileManager.default.fileExists(atPath: walPath),
+           let attrs = try? FileManager.default.attributesOfItem(atPath: walPath),
+           let size = attrs[.size] as? NSNumber, size.uint64Value > 0 {
+            return nil
+        }
+        var immDB: OpaquePointer?
+        let uri = url.absoluteString + "?immutable=1"
+        if sqlite3_open_v2(uri, &immDB, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK, let immDB {
+            return immDB
+        }
+        sqlite3_close(immDB)
+        return nil
+    }
+
+    private static func readSQLiteTableColumns(tableName: String, from database: OpaquePointer) -> [String: SQLiteAffinity]? {
+        // 表名仅由字母数字下划线组成，防止 SQL 注入
+        guard tableName.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }) else { return nil }
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(database, "PRAGMA table_info(\(tableName))", -1, &statement, nil) == SQLITE_OK else {
+            return nil
+        }
+        var columns: [String: SQLiteAffinity] = [:]
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let namePtr = sqlite3_column_text(statement, 1) else { continue }
+            let colName = String(cString: namePtr).uppercased()
+            let typeStr = sqlite3_column_text(statement, 2).map { String(cString: $0) } ?? ""
+            columns[colName] = normalizeAffinity(typeStr)
+        }
+        return columns
     }
 
     /// SQLite backup API 包含 WAL 中已提交的事务，不用文件拷贝冒充一致性快照。

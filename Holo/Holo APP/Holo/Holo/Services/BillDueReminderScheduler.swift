@@ -2,10 +2,9 @@
 //  BillDueReminderScheduler.swift
 //  Holo
 //
-//  周期账单到期提醒（Plus 权益）
-//  按各周期项目的下一期扣款日减提前量排一次性通知；文案在排程时固化，
-//  财务数据变化 / App 活跃时按前缀清旧重排。账单到期不是每日滚动，
-//  因此不继承 RollingNotificationScheduler，结构参照其模式独立实现。
+//  订阅 / 周期支出到期提醒（免费档限 3 个，超出 Plus）
+//  每条开启提醒的周期项目按「下次扣款日 − 单条提前天数」排一次性通知，每项预排未来 2 期；
+//  财务数据变化 / 会员状态变化 / App 活跃时按前缀清旧重排。
 //
 
 import Foundation
@@ -23,12 +22,18 @@ final class BillDueReminderScheduler {
     private static let hourKey = "holo.billDue.hour"
     private static let minuteKey = "holo.billDue.minute"
 
-    /// 通知标识前缀（identifier 形如 holo.billDue.{projectId}），重排前按前缀清旧
+    /// 通知标识前缀（identifier 形如 holo.billDue.{projectId}.{期次}），重排前按前缀清旧
     private static let identifierPrefix = "holo.billDue."
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "BillDueReminder")
 
     private var cancellables = Set<AnyCancellable>()
+
+    /// 免费档可开启到期提醒的订阅数量上限
+    static let freeTierLimit = 3
+
+    /// 支持的单条提前天数选项
+    static let leadDayOptions: [Int32] = [0, 1, 3, 7]
 
     // MARK: - Settings
 
@@ -40,7 +45,7 @@ final class BillDueReminderScheduler {
         }
     }
 
-    /// 提前量（天）：0 | 1 | 3
+    /// 全局默认提前量（天）：0 | 1 | 3 | 7（新建订阅时作为默认值）
     var advance: Int {
         get { UserDefaults.standard.integer(forKey: Self.advanceKey) }
         set {
@@ -61,10 +66,39 @@ final class BillDueReminderScheduler {
         }
     }
 
+    // MARK: - 名额判定（UI 撞墙门禁与排程共用同一口径）
+
+    /// 当前已开启提醒的活跃周期项目（未暂停、未软删、有剩余期次）
+    static func enabledReminderProjects() -> [SpendingProject] {
+        SpendingProjectRepository.shared.allProjects()
+            .filter { $0.isRecurring && !$0.isPaused && $0.hasRemainingOccurrences && $0.reminderEnabled }
+    }
+
+    /// 能否给某条订阅开启提醒（会员短路 + 免费档名额判定）。
+    static func canEnableReminder(for project: SpendingProject? = nil) -> Bool {
+        if HoloEntitlementState.shared.isPlusActive { return true }
+        return freeQuotaAllows(for: project)
+    }
+
+    static func freeQuotaAllows(for project: SpendingProject? = nil) -> Bool {
+        freeQuotaAllows(for: project, enabledProjects: enabledReminderProjects())
+    }
+
+    /// 名额判定纯函数（单测入口）。已占前 3 名额的项目始终可编辑/关闭，防止 Plus 过期后死锁。
+    static func freeQuotaAllows(for project: SpendingProject?, enabledProjects: [SpendingProject]) -> Bool {
+        if let project, enabledProjects.prefix(freeTierLimit).contains(project) { return true }
+        return enabledProjects.filter { $0 != project }.count < freeTierLimit
+    }
+
+    /// 实际排程的订阅列表：免费档只取前 3 个（超额配置保留、提醒暂停，续费恢复）
+    static func schedulableProjects(from enabledProjects: [SpendingProject], isPlusActive: Bool) -> [SpendingProject] {
+        isPlusActive ? enabledProjects : Array(enabledProjects.prefix(freeTierLimit))
+    }
+
     private init() {
         UserDefaults.standard.register(defaults: [
             Self.enabledKey: true,
-            Self.advanceKey: 1,
+            Self.advanceKey: 3,
             Self.hourKey: 9,
             Self.minuteKey: 0,
         ])
@@ -75,9 +109,35 @@ final class BillDueReminderScheduler {
                 self?.refresh()
             }
             .store(in: &cancellables)
+
+        HoloEntitlementState.shared.$isPlusActive
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.refresh()
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Entry Points
+
+    /// 开启提醒时补通知授权
+    static func requestAuthorizationIfNeeded() {
+        Task { @MainActor in
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                _ = try? await TodoNotificationService.shared.requestAuthorization()
+            case .denied:
+                HoloToastCenter.shared.show(
+                    String(localized: "通知权限已关闭，请在系统设置中开启后才能收到到期提醒"),
+                    type: .info
+                )
+            default:
+                break
+            }
+        }
+    }
 
     /// App 启动 / 回到前台：按当前数据重排
     func handleAppActivity() async {
@@ -94,11 +154,14 @@ final class BillDueReminderScheduler {
     private func reschedule() async {
         let center = UNUserNotificationCenter.current()
 
-        // 未授权 / 开关关闭 / 非 Plus：只清旧排期静默退出（权益变化靠下次数据变化或启动重排收敛）
         let settings = await center.notificationSettings()
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-        let requests = (isEnabled && authorized && HoloEntitlementState.shared.isPlusActive)
-            ? makeRequests(now: Date())
+        let activeProjects = Self.schedulableProjects(
+            from: Self.enabledReminderProjects(),
+            isPlusActive: HoloEntitlementState.shared.isPlusActive
+        )
+        let requests = (isEnabled && authorized)
+            ? Self.makeRequests(now: Date(), projects: activeProjects, reminderTime: reminderTime)
             : []
 
         await removePendingRequests()
@@ -108,45 +171,68 @@ final class BillDueReminderScheduler {
             do {
                 try await center.add(request)
             } catch {
-                Self.logger.error("排账单提醒失败 \(request.identifier, privacy: .public)：\(error.localizedDescription)")
+                Self.logger.error("排订阅提醒失败 \(request.identifier, privacy: .public)：\(error.localizedDescription)")
             }
         }
     }
 
-    private func makeRequests(now: Date) -> [UNNotificationRequest] {
-        let calendar = Calendar.current
+    /// 纯函数排程体（单测入口）：每条开启提醒的订阅预排未来 2 期，防长期不开 App 漏排。
+    static func makeRequests(
+        now: Date,
+        projects: [SpendingProject],
+        reminderTime: (hour: Int, minute: Int) = (9, 0),
+        calendar: Calendar = .current
+    ) -> [UNNotificationRequest] {
         let todayStart = calendar.startOfDay(for: now)
         guard let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return [] }
 
-        let time = reminderTime
-
         var requests: [UNNotificationRequest] = []
-        for project in SpendingProjectRepository.shared.allProjects() {
+        for project in projects {
             guard project.isRecurring,
                   !project.isPaused,
+                  project.reminderEnabled,
                   project.hasRemainingOccurrences,
-                  let nextDue = project.nextOccurrenceDate else { continue }
+                  let firstDue = project.nextOccurrenceDate else { continue }
 
-            // 提醒日 = 扣款日 0 点 − 提前天数；今天或已过不追发（只排明天 0 点起）
-            let dueDayStart = calendar.startOfDay(for: nextDue)
-            guard let reminderDayStart = calendar.date(byAdding: .day, value: -advance, to: dueDayStart),
-                  reminderDayStart >= tomorrowStart else { continue }
+            let leadDays = Int(max(0, project.reminderLeadDays))
+            let frequency = project.resolvedFrequency
+            let remainingCap: Int? = project.maxOccurrences > 0
+                ? max(0, Int(project.maxOccurrences - project.occurrencesGenerated))
+                : nil
 
-            var comps = calendar.dateComponents([.year, .month, .day], from: reminderDayStart)
-            comps.hour = time.hour
-            comps.minute = time.minute
+            var dueDate = firstDue
+            for periodIndex in 0..<2 {
+                if let remainingCap, periodIndex >= remainingCap { break }
+                if let endDate = project.endDate, dueDate > endDate { break }
 
-            let content = UNMutableNotificationContent()
-            content.title = String(localized: "\(project.name.holoTruncated())\(Self.dueOffsetText(advance))到期")
-            content.body = String(localized: "周期账单 \(Self.amountText(project.amountDecimal)) · \(Self.dueDateFormatter.string(from: dueDayStart))扣款，记得留足余额")
-            content.sound = .default
-            content.categoryIdentifier = TodoNotificationCategory.billDue
+                let dueDayStart = calendar.startOfDay(for: dueDate)
+                if let reminderDayStart = calendar.date(byAdding: .day, value: -leadDays, to: dueDayStart),
+                   reminderDayStart >= tomorrowStart {
+                    var comps = calendar.dateComponents([.year, .month, .day], from: reminderDayStart)
+                    comps.hour = reminderTime.hour
+                    comps.minute = reminderTime.minute
 
-            requests.append(UNNotificationRequest(
-                identifier: "\(Self.identifierPrefix)\(project.id.uuidString)",
-                content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-            ))
+                    let content = UNMutableNotificationContent()
+                    content.title = Self.notificationTitle(name: project.name, leadDays: leadDays)
+                    content.body = Self.notificationBody(
+                        amount: project.amountDecimal,
+                        frequency: frequency,
+                        dueDay: dueDayStart,
+                        autoGenerateTransaction: project.autoGenerateTransaction
+                    )
+                    content.sound = .default
+                    content.categoryIdentifier = TodoNotificationCategory.billDue
+
+                    requests.append(UNNotificationRequest(
+                        identifier: "\(Self.identifierPrefix)\(project.id.uuidString).\(periodIndex)",
+                        content: content,
+                        trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                    ))
+                }
+
+                guard let next = frequency.advancing(dueDate, by: 1, calendar: calendar) else { break }
+                dueDate = next
+            }
         }
         return requests
     }
@@ -162,8 +248,27 @@ final class BillDueReminderScheduler {
 
     // MARK: - Copy Helpers
 
-    /// 扣款日在提醒时刻的相对表述（提醒日 = 扣款日 − advance，故相对天数即 advance）
-    private static func dueOffsetText(_ days: Int) -> String {
+    static func notificationTitle(name: String, leadDays: Int) -> String {
+        String(localized: "\(name.holoTruncated())\(dueOffsetText(leadDays))到期")
+    }
+
+    static func notificationBody(
+        amount: Decimal,
+        frequency: SpendingProjectFrequency,
+        dueDay: Date,
+        autoGenerateTransaction: Bool
+    ) -> String {
+        let amountStr = amountText(amount)
+        let dateStr = dueDateFormatter.string(from: dueDay)
+        if autoGenerateTransaction {
+            return String(localized: "\(frequency.title) \(amountStr) · \(dateStr)自动续费并记账，可提前确认是否续订")
+        } else {
+            return String(localized: "\(frequency.title) \(amountStr) · \(dateStr)到期，记得确认是否续订或取消")
+        }
+    }
+
+    /// 扣款日在提醒时刻的相对表述
+    static func dueOffsetText(_ days: Int) -> String {
         switch days {
         case 0: return String(localized: "今天")
         case 1: return String(localized: "明天")
@@ -172,14 +277,14 @@ final class BillDueReminderScheduler {
         }
     }
 
-    private static let dueDateFormatter: DateFormatter = {
+    static let dueDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日"
         return formatter
     }()
 
-    private static func amountText(_ amount: Decimal) -> String {
+    static func amountText(_ amount: Decimal) -> String {
         NumberFormatter.currencyTrimmed.string(from: NSDecimalNumber(decimal: amount)) ?? ""
     }
 }

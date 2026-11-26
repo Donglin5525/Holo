@@ -1383,10 +1383,18 @@ public class SpendingProject: NSManagedObject {
     @NSManaged public var lastUsedDate: Date?
     @NSManaged public var categoryId: UUID?
     @NSManaged public var accountId: UUID?
+    @NSManaged public var reminderEnabled: Bool
+    @NSManaged public var reminderLeadDays: Int32
+    @NSManaged public var icon: String?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
 
     var isRecurring: Bool { kind == SpendingProjectKind.recurring.rawValue }
+    /// 有明确总期数的周期项目视为「分期」，无限期或仅按结束日期视为「订阅」
+    var isInstallment: Bool { isRecurring && maxOccurrences > 0 }
+    var resolvedFrequency: SpendingProjectFrequency {
+        SpendingProjectFrequency(rawValue: frequency ?? "") ?? .monthly
+    }
     var hasRemainingOccurrences: Bool {
         guard maxOccurrences <= 0 || occurrencesGenerated < maxOccurrences else { return false }
         if let endDate, let nextOccurrenceDate { return nextOccurrenceDate <= endDate }
@@ -1394,6 +1402,14 @@ public class SpendingProject: NSManagedObject {
     }
     var amountDecimal: Decimal { amount as Decimal }
     var perOccurrenceAmount: Decimal? { isRecurring ? amountDecimal : nil }
+
+    /// 距离下次扣款/续费日的自然天数（今天 = 0，明天 = 1，已过期 < 0）
+    func daysUntilNextOccurrence(reference: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard isRecurring, !isPaused, hasRemainingOccurrences, let next = nextOccurrenceDate else { return nil }
+        let start = calendar.startOfDay(for: reference)
+        let target = calendar.startOfDay(for: next)
+        return calendar.dateComponents([.day], from: start, to: target).day
+    }
 
     /// 一次性购买从购买日到今天经过的完整自然日数。
     var ownershipElapsedDays: Int {
@@ -1404,13 +1420,8 @@ public class SpendingProject: NSManagedObject {
     }
 
     var monthlyCommitment: Decimal? {
-        guard isRecurring else { return nil }
-        switch frequency {
-        case SpendingProjectFrequency.yearly.rawValue:
-            return amountDecimal / 12
-        default:
-            return amountDecimal
-        }
+        guard isRecurring, !isPaused, hasRemainingOccurrences else { return nil }
+        return resolvedFrequency.monthlyAmount(from: amountDecimal)
     }
 
     var dailyCost: Decimal? {
@@ -1427,6 +1438,14 @@ public class SpendingProject: NSManagedObject {
 enum SpendingProjectKind: String, CaseIterable {
     case recurring
     case oneOff
+}
+
+/// 融合外观选择（新建/编辑表单与仓库共用，贴纸与自定义图标二选一互斥）
+enum SpendingProjectAppearanceSelection: Equatable {
+    case unchanged
+    case sticker(assetID: UUID, presentation: VisualPlacementPayload.Presentation?)
+    case icon(String)
+    case clearToDefault
 }
 
 enum SpendingProjectEndMode: String, CaseIterable {
@@ -1471,7 +1490,10 @@ final class SpendingProjectRepository {
         plannedLifespanDays: Int32 = 0,
         category: Category? = nil,
         account: Account? = nil,
-        autoGenerateTransaction: Bool = true
+        autoGenerateTransaction: Bool = true,
+        reminderEnabled: Bool = false,
+        reminderLeadDays: Int32 = 3,
+        icon: String? = nil
     ) throws -> SpendingProject {
         let project = SpendingProject(context: context)
         project.id = UUID()
@@ -1490,6 +1512,13 @@ final class SpendingProjectRepository {
         project.nextOccurrenceDate = kind == .recurring ? project.startDate : nil
         project.isPaused = false
         project.autoGenerateTransaction = kind == .recurring && autoGenerateTransaction
+        project.reminderEnabled = kind == .recurring && reminderEnabled
+        project.reminderLeadDays = reminderLeadDays
+        if let trimmedIcon = icon?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmedIcon.isEmpty {
+            project.icon = trimmedIcon
+        } else {
+            project.icon = nil
+        }
         project.usageCount = 0
         project.usageDayCount = 0
         project.categoryId = category?.id
@@ -1497,46 +1526,65 @@ final class SpendingProjectRepository {
         project.createdAt = Date()
         project.updatedAt = Date()
         try context.save()
-        // 保存规则后立即补账：开始日期当天的首笔当场生成进账本，
-        // 不再依赖后台任务或下次进入固定支出页（补账幂等，未来期次不会提前入账）
+        // 保存规则后立即补账/推进下期日期：开始日期当天的首笔当场生成进账本，
+        // 仅提醒模式同步推进下次续费日（补账幂等，未来期次不会提前入账）
         try syncRecurringProjects()
         return project
     }
 
     func syncRecurringProjects(now: Date = Date()) throws {
         let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: now)
+        var didMutate = false
+
         for project in allProjects() {
             guard project.isRecurring,
                   !project.isPaused,
-                  project.autoGenerateTransaction,
                   let frequency = SpendingProjectFrequency(rawValue: project.frequency ?? "monthly") else { continue }
 
+            // 仅提醒不自动记账的订阅：不生成流水，但把 nextOccurrenceDate 推进到 >= 今天零点的最近一期
+            if !project.autoGenerateTransaction {
+                var occurrenceDate = project.startDate.startOfDay
+                var elapsedPeriods: Int32 = 0
+                while occurrenceDate < todayStart {
+                    if let endDate = project.endDate, occurrenceDate > endDate { break }
+                    if project.maxOccurrences > 0, elapsedPeriods >= project.maxOccurrences { break }
+                    elapsedPeriods += 1
+                    guard let advanced = frequency.advancing(occurrenceDate, by: 1, calendar: calendar) else { break }
+                    occurrenceDate = advanced
+                }
+                if project.occurrencesGenerated != elapsedPeriods || project.nextOccurrenceDate != occurrenceDate {
+                    project.occurrencesGenerated = elapsedPeriods
+                    project.nextOccurrenceDate = occurrenceDate
+                    project.updatedAt = Date()
+                    didMutate = true
+                }
+                continue
+            }
+
             // —— 1. 清理 startDate 之前的项目脏流水 ——
-            // 历史补账 bug 可能在开始日期之前造出非法流水；用户手工记账不会带 spendingProjectId，
-            // 因此带项目标记且早于 startDate 的流水一定是脏数据，安全删除。
             let preStartRequest = Transaction.fetchRequest()
             preStartRequest.predicate = NSPredicate(
                 format: "spendingProjectId == %@ AND date < %@",
                 project.id as CVarArg, project.startDate as NSDate
             )
-            for tx in (try? context.fetch(preStartRequest)) ?? [] {
-                context.delete(tx)
+            let preStartTransactions = (try? context.fetch(preStartRequest)) ?? []
+            if !preStartTransactions.isEmpty {
+                for tx in preStartTransactions {
+                    context.delete(tx)
+                }
+                didMutate = true
             }
 
             // —— 2. 以 startDate 为唯一起点，按周期从早到晚补账 ——
-            // 不再依赖可能被污染的 nextOccurrenceDate 作为起点，杜绝"往回找历史账单"。
-            let step: Calendar.Component = frequency == .yearly ? .year : .month
             var occurrenceDate = project.startDate
             var generatedThisSync = 0
 
             while occurrenceDate <= now {
-                // 达到 endDate 或达上限则停
                 if let endDate = project.endDate, occurrenceDate > endDate { break }
                 if project.maxOccurrences > 0, generatedThisSync >= Int(project.maxOccurrences) { break }
 
-                // —— 3. 按"年-月"维度判断该期是否已建过 ——
-                // 不再用精确到秒的日期比较（编辑/迁移若改动时分秒会导致重复补账）。
-                if !hasOccurrence(projectId: project.id, on: occurrenceDate, calendar: calendar) {
+                if !hasOccurrence(projectId: project.id, on: occurrenceDate, frequency: frequency, calendar: calendar) {
                     let transaction = Transaction(context: context)
                     transaction.id = UUID()
                     transaction.amount = project.amount
@@ -1550,10 +1598,11 @@ final class SpendingProjectRepository {
                     transaction.projectPostingState = FinanceTransactionProjectPostingState.confirmed.rawValue
                     if let categoryId = project.categoryId { transaction.category = finance.findCategory(by: categoryId) }
                     if let accountId = project.accountId { transaction.account = finance.findAccount(by: accountId) }
+                    didMutate = true
                 }
                 generatedThisSync += 1
 
-                guard let advanced = calendar.date(byAdding: step, value: 1, to: occurrenceDate) else { break }
+                guard let advanced = frequency.advancing(occurrenceDate, by: 1, calendar: calendar) else { break }
                 occurrenceDate = advanced
             }
 
@@ -1563,23 +1612,41 @@ final class SpendingProjectRepository {
                 format: "spendingProjectId == %@ AND date <= %@",
                 project.id as CVarArg, now as NSDate
             )
-            project.occurrencesGenerated = Int32((try? context.count(for: occurredCountRequest)) ?? 0)
-
-            // nextOccurrenceDate 推进到下一未到期
-            project.nextOccurrenceDate = occurrenceDate
-            project.updatedAt = Date()
+            let occurredCount = Int32((try? context.count(for: occurredCountRequest)) ?? 0)
+            if project.occurrencesGenerated != occurredCount || project.nextOccurrenceDate != occurrenceDate {
+                project.occurrencesGenerated = occurredCount
+                project.nextOccurrenceDate = occurrenceDate
+                project.updatedAt = Date()
+                didMutate = true
+            }
         }
+
+        guard didMutate else { return }
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
     }
 
-    /// 判断某项目在指定日期所属周期（年-月 或 年）是否已存在流水。
-    /// 用"年-月"维度去重，避免精确到秒的日期比较在编辑/迁移后失效。
-    private func hasOccurrence(projectId: UUID, on date: Date, calendar: Calendar) -> Bool {
-        let comps = calendar.dateComponents([.year, .month], from: date)
-        guard let rangeStart = calendar.date(from: comps),
-              let rangeEnd = calendar.date(byAdding: .month, value: 1, to: rangeStart) else { return false }
+    /// 判断某项目在指定日期所属周期窗口内是否已存在流水（周按当天、月/季/年按所属自然月去重）。
+    private func hasOccurrence(
+        projectId: UUID,
+        on date: Date,
+        frequency: SpendingProjectFrequency,
+        calendar: Calendar
+    ) -> Bool {
+        let rangeStart: Date
+        let rangeEnd: Date
+        if frequency == .weekly {
+            rangeStart = calendar.startOfDay(for: date)
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: rangeStart) else { return false }
+            rangeEnd = nextDay
+        } else {
+            let comps = calendar.dateComponents([.year, .month], from: date)
+            guard let monthStart = calendar.date(from: comps),
+                  let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return false }
+            rangeStart = monthStart
+            rangeEnd = monthEnd
+        }
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(
             format: "spendingProjectId == %@ AND date >= %@ AND date < %@",
@@ -1610,6 +1677,35 @@ final class SpendingProjectRepository {
         project.updatedAt = Date()
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    func updateReminder(for project: SpendingProject, enabled: Bool, leadDays: Int32) throws {
+        guard project.isRecurring else { return }
+        project.reminderEnabled = enabled
+        project.reminderLeadDays = leadDays
+        project.updatedAt = Date()
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    func updateAutoGenerate(for project: SpendingProject, enabled: Bool) throws {
+        guard project.isRecurring else { return }
+        project.autoGenerateTransaction = enabled
+        project.updatedAt = Date()
+        try context.save()
+        try syncRecurringProjects()
+    }
+
+    func updateCustomIcon(for project: SpendingProject, icon: String?) throws {
+        if let trimmed = icon?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
+            project.icon = trimmed
+        } else {
+            project.icon = nil
+        }
+        project.updatedAt = Date()
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
     }
 
     func updateEndCondition(for project: SpendingProject, endDate: Date?, maxOccurrences: Int32) throws {
@@ -1618,19 +1714,110 @@ final class SpendingProjectRepository {
         project.updatedAt = Date()
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
     }
 
-    /// 周期项目只编辑每期金额；已发生流水保持为历史事实，新金额从下次到期生效。
-    func updateRecurringProject(_ project: SpendingProject, amount: Decimal, endDate: Date?, maxOccurrences: Int32) throws {
+    /// 周期项目编辑：已发生流水保持为历史事实，新规则从下次到期生效。
+    func updateRecurringProject(
+        _ project: SpendingProject,
+        name: String? = nil,
+        amount: Decimal,
+        frequency: SpendingProjectFrequency? = nil,
+        startDate: Date? = nil,
+        endDate: Date?,
+        maxOccurrences: Int32,
+        category: Category? = nil,
+        account: Account? = nil,
+        autoGenerateTransaction: Bool? = nil,
+        reminderEnabled: Bool? = nil,
+        reminderLeadDays: Int32? = nil
+    ) throws {
         guard project.isRecurring, amount > 0 else { throw FinanceError.invalidData }
+        if let name {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { project.name = trimmed }
+        }
         project.amount = NSDecimalNumber(decimal: amount)
         project.amountMode = SpendingProjectAmountMode.perOccurrence.rawValue
+        if let frequency { project.frequency = frequency.rawValue }
+        if let startDate { project.startDate = startDate.startOfDay }
         project.endDate = endDate
         project.maxOccurrences = maxOccurrences
+        if let category { project.categoryId = category.id }
+        if let account { project.accountId = account.id }
+        if let autoGenerateTransaction { project.autoGenerateTransaction = autoGenerateTransaction }
+        if let reminderEnabled { project.reminderEnabled = reminderEnabled }
+        if let reminderLeadDays { project.reminderLeadDays = reminderLeadDays }
         project.updatedAt = Date()
         try context.save()
-        SpendingProjectBackgroundService.shared.scheduleNextTask()
-        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        try syncRecurringProjects()
+    }
+
+    /// 读取项目当前贴纸位置（视图层统一走仓库入口，不直连 CoreDataStack）
+    func resolvePrimaryVisual(for project: SpendingProject) -> ResolvedPlacement {
+        guard let ownerKey = project.visualOwnerKey else { return .none }
+        return VisualAssetRepository.shared.resolvePlacement(
+            ownerKind: SpendingProject.visualOwnerKind,
+            ownerKey: ownerKey,
+            slot: SpendingProject.visualSlot,
+            in: context
+        )
+    }
+
+    /// 统一提交融合外观选择（贴纸 / 自定义图标 / 恢复默认），保证贴纸与图标互斥
+    func applyAppearance(_ selection: SpendingProjectAppearanceSelection, for project: SpendingProject) async throws {
+        let container = CoreDataStack.shared.persistentContainer
+        let expected = resolvePrimaryVisual(for: project).winnerRevisionIDIfAny
+
+        switch selection {
+        case .unchanged:
+            break
+        case .sticker(let assetID, let presentation):
+            if let ownerKey = project.visualOwnerKey {
+                _ = try await VisualCommitCoordinator.shared.commit(
+                    .applyPlacement(
+                        operationID: UUID(),
+                        ownerKind: SpendingProject.visualOwnerKind,
+                        ownerKey: ownerKey,
+                        slot: SpendingProject.visualSlot,
+                        expectedSlotWinnerRevisionID: expected,
+                        payload: .setAsset(.asset(assetID), presentation: presentation)
+                    ),
+                    in: container
+                )
+            }
+            try updateCustomIcon(for: project, icon: nil)
+        case .icon(let iconKey):
+            if expected != nil, let ownerKey = project.visualOwnerKey {
+                _ = try await VisualCommitCoordinator.shared.commit(
+                    .applyPlacement(
+                        operationID: UUID(),
+                        ownerKind: SpendingProject.visualOwnerKind,
+                        ownerKey: ownerKey,
+                        slot: SpendingProject.visualSlot,
+                        expectedSlotWinnerRevisionID: expected,
+                        payload: .clear
+                    ),
+                    in: container
+                )
+            }
+            try updateCustomIcon(for: project, icon: iconKey)
+        case .clearToDefault:
+            if expected != nil, let ownerKey = project.visualOwnerKey {
+                _ = try await VisualCommitCoordinator.shared.commit(
+                    .applyPlacement(
+                        operationID: UUID(),
+                        ownerKind: SpendingProject.visualOwnerKind,
+                        ownerKey: ownerKey,
+                        slot: SpendingProject.visualSlot,
+                        expectedSlotWinnerRevisionID: expected,
+                        payload: .clear
+                    ),
+                    in: container
+                )
+            }
+            try updateCustomIcon(for: project, icon: nil)
+        }
     }
 
     func updateOneOffProject(_ project: SpendingProject, name: String, amount: Decimal, purchaseDate: Date, category: Category) throws {

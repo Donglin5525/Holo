@@ -8,13 +8,54 @@
 import Foundation
 
 nonisolated enum SpendingProjectFrequency: String, CaseIterable, Sendable {
+    case weekly
     case monthly
+    case quarterly
     case yearly
 
     var title: String {
         switch self {
+        case .weekly: return String(localized: "每周")
         case .monthly: return String(localized: "每月")
+        case .quarterly: return String(localized: "每季")
         case .yearly: return String(localized: "每年")
+        }
+    }
+
+    var shortUnitTitle: String {
+        switch self {
+        case .weekly: return String(localized: "周")
+        case .monthly: return String(localized: "月")
+        case .quarterly: return String(localized: "季")
+        case .yearly: return String(localized: "年")
+        }
+    }
+
+    /// 折合月均金额的换算倍率（周按 52/12 ≈ 4.3333，季按 1/3，年按 1/12）
+    func monthlyAmount(from perOccurrence: Decimal) -> Decimal {
+        switch self {
+        case .weekly:
+            return perOccurrence * Decimal(52) / Decimal(12)
+        case .monthly:
+            return perOccurrence
+        case .quarterly:
+            return perOccurrence / Decimal(3)
+        case .yearly:
+            return perOccurrence / Decimal(12)
+        }
+    }
+
+    /// 按当前周期向后推进 1 期
+    func advancing(_ date: Date, by periods: Int = 1, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .weekly:
+            return calendar.date(byAdding: .day, value: 7 * periods, to: date)
+        case .monthly:
+            return calendar.date(byAdding: .month, value: periods, to: date)
+        case .quarterly:
+            return calendar.date(byAdding: .month, value: 3 * periods, to: date)
+        case .yearly:
+            return calendar.date(byAdding: .year, value: periods, to: date)
         }
     }
 }
@@ -69,7 +110,7 @@ nonisolated enum SpendingProjectAmountPolicy {
             totalOccurrences: totalOccurrences,
             occurrenceIndex: 0
         ) else { return nil }
-        return frequency == .yearly ? perOccurrence / 12 : perOccurrence
+        return frequency.monthlyAmount(from: perOccurrence)
     }
 
     private static func roundedCurrency(_ value: Decimal) -> Decimal {

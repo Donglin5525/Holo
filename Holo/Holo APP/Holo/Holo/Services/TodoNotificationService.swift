@@ -640,9 +640,9 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             DeepLinkState.shared.navigate(to: .weeklyReview)
             return "weeklyReview"
         case TodoNotificationCategory.billDue:
-            Self.logger.info("账单到期通知 Deep Link")
-            DeepLinkState.shared.navigate(to: .addTransaction)
-            return "addTransaction"
+            Self.logger.info("订阅/账单到期通知 Deep Link")
+            DeepLinkState.shared.navigate(to: .finance)
+            return "finance"
         case TodoNotificationCategory.ccDue:
             if let accountIdString = userInfo["accountId"] as? String,
                let accountId = UUID(uuidString: accountIdString) {

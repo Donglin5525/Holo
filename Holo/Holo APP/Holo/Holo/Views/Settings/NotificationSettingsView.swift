@@ -103,7 +103,9 @@ struct NotificationSettingsView: View {
                             goalEntryRow
                         }
 
+                        #if DEBUG
                         testSection
+                        #endif
                     }
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.md)
@@ -352,46 +354,24 @@ struct NotificationSettingsView: View {
 
     // MARK: - 财务提醒
 
-    /// 周期账单行：Plus=开关行；非 Plus=只读当前值+锁，整行点击升级
-    @ViewBuilder
+    /// 订阅与周期账单到期提醒（免费档限 3 个订阅，总开关与默认时间/提前量全员可配）
     private var billRow: some View {
-        if entitlementState.isPlusActive {
-            settingRow(
-                icon: "receipt",
-                title: String(localized: "周期账单到期提醒"),
-                plusBadge: true,
-                summary: billSummary,
-                action: { path.append(.bill) }
-            ) {
-                toggle(isOn: $billEnabled) { newValue in
-                    BillDueReminderScheduler.shared.isEnabled = newValue
-                }
-            }
-        } else {
-            settingRow(
-                icon: "receipt",
-                title: String(localized: "周期账单到期提醒"),
-                plusBadge: true,
-                summary: billSummary,
-                action: {
-                    HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
-                }
-            ) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+        settingRow(
+            icon: "receipt",
+            title: String(localized: "订阅与周期到期提醒"),
+            summary: billSummary,
+            action: { path.append(.bill) }
+        ) {
+            toggle(isOn: $billEnabled) { newValue in
+                BillDueReminderScheduler.shared.isEnabled = newValue
             }
         }
     }
 
-    /// 账单行摘要：Plus 关=已关闭；Plus 开/非 Plus=当前提前量+时间（非 Plus 只读展示当前生效值）
     private var billSummary: String {
+        guard billEnabled else { return String(localized: "已关闭") }
         let scheduler = BillDueReminderScheduler.shared
-        let value = "\(advanceText(scheduler.advance)) \(timeText(scheduler.reminderTime))"
-        if entitlementState.isPlusActive {
-            return billEnabled ? value : String(localized: "已关闭")
-        }
-        return value
+        return "\(advanceText(scheduler.advance)) \(timeText(scheduler.reminderTime))"
     }
 
     private var budgetRow: some View {
@@ -939,20 +919,16 @@ private struct BillDueNotificationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                DetailNoteCard(text: String(localized: "房租、订阅等周期账单，到期前提醒一次，点开可快速记一笔。仅 Plus 账户可用（随周期账单功能）。"))
+                DetailNoteCard(text: String(localized: "开启后，在固定支出中打开提醒的订阅与分期会在到期前按各自提前天数推送通知。"))
 
-                if entitlementState.isPlusActive {
-                    plusCard
-                        .opacity(notificationService.isAuthorized ? 1 : 0.5)
-                } else {
-                    lockedCard
-                }
+                plusCard
+                    .opacity(notificationService.isAuthorized ? 1 : 0.5)
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.sm)
         }
         .background(Color.holoBackground)
-        .navigationTitle("周期账单到期提醒")
+        .navigationTitle("订阅与周期到期提醒")
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -964,10 +940,10 @@ private struct BillDueNotificationDetailView: View {
         }
     }
 
-    /// Plus：开关 + 提前量三选一 chips + 时间
+    /// 全局开关 + 默认提前量（0/1/3/7 天）+ 提醒时间
     private var plusCard: some View {
         VStack(spacing: 0) {
-            DetailToggleRow(icon: "receipt", title: String(localized: "到期提醒"), plusBadge: true, isOn: $enabled, disabled: !notificationService.isAuthorized)
+            DetailToggleRow(icon: "receipt", title: String(localized: "到期提醒"), isOn: $enabled, disabled: !notificationService.isAuthorized)
                 .onChange(of: enabled) { _, newValue in
                     BillDueReminderScheduler.shared.isEnabled = newValue
                 }
@@ -1035,10 +1011,10 @@ private struct BillDueNotificationDetailView: View {
         }
     }
 
-    /// 提前量三选一 chips（0/1/3 天）；interactive=false 时仅展示当前选中
+    /// 默认提前量 chips（0/1/3/7 天）
     private func advanceChips(interactive: Bool) -> some View {
         HStack(spacing: 8) {
-            ForEach([0, 1, 3], id: \.self) { days in
+            ForEach([0, 1, 3, 7], id: \.self) { days in
                 let selected = advance == days
                 Button {
                     withAnimation(HoloAnimation.quick) {

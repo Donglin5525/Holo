@@ -203,7 +203,7 @@ nonisolated class CoreDataStack: @unchecked Sendable {
                 reason: .unreadableMetadata(detail: "Z_METADATA 不可读")
             )
         }
-        guard upgradeVerdict(store: storeHashes, model: model) == .rejected else { return nil }
+        guard upgradeVerdict(store: storeHashes, model: model, storeURL: url) == .rejected else { return nil }
         let modelHashes = model.entityVersionHashesByName
         return StoreFingerprintRejection(
             storePath: url.path,
@@ -217,13 +217,15 @@ nonisolated class CoreDataStack: @unchecked Sendable {
         )
     }
 
-    /// 库指纹对当前模型的升级判定；登记簿形态只在前两档不成立时按需倒推（每档建模一次）
+    /// 库指纹对当前模型的升级判定；
+    /// 依次核对：一致 → 纯加表 → 登记簿历史形态 → SQLite 真实列结构纯增量自动核验（绝不因漏登记卡死用户）→ 拒绝。
     nonisolated static func upgradeVerdict(
         store: [String: Data],
-        model: NSManagedObjectModel
+        model: NSManagedObjectModel,
+        storeURL: URL? = nil
     ) -> CoreDataStoreUpgrade.Verdict {
         var shapes: [Int: [String: Data]] = [:]
-        return CoreDataStoreUpgrade.verdict(store: store, model: model.entityVersionHashesByName) { index in
+        let hashVerdict = CoreDataStoreUpgrade.verdict(store: store, model: model.entityVersionHashesByName) { index in
             if let shape = shapes[index] { return shape }
             let shape = CoreDataStack.shared.legacyModelHashes(
                 removing: CoreDataStoreUpgrade.additions(since: index)
@@ -231,6 +233,14 @@ nonisolated class CoreDataStack: @unchecked Sendable {
             shapes[index] = shape
             return shape
         }
+        if hashVerdict != .rejected {
+            return hashVerdict
+        }
+        if let storeURL,
+           CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: store, model: model) {
+            return .additiveColumns
+        }
+        return .rejected
     }
 
     /// 优先读取实时 WAL；无待合并 WAL 时才允许只读主文件。
@@ -293,7 +303,7 @@ nonisolated class CoreDataStack: @unchecked Sendable {
                     return
                 }
                 if let hashes = readStoreModelVersionHashes(at: storeURL) {
-                    let verdict = upgradeVerdict(store: hashes, model: container.managedObjectModel)
+                    let verdict = upgradeVerdict(store: hashes, model: container.managedObjectModel, storeURL: storeURL)
                     if verdict != .identical {
                         do {
                             let backup = try CoreDataStoreUpgrade.makeBackup(of: storeURL)

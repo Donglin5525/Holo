@@ -331,8 +331,9 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         let changed = actual.keys.filter { expected[$0] != nil && expected[$0] != actual[$0] }.sorted()
         let added = actual.keys.filter { expected[$0] == nil }.sorted()
         let removed = expected.keys.filter { actual[$0] == nil }.sorted()
+        let changedDetail = changed.map { "\($0)=\(actual[$0] ?? "")" }
         XCTAssertTrue(changed.isEmpty && added.isEmpty && removed.isEmpty, """
-            数据模型变了——改动实体 \(changed)，新增实体 \(added)，消失实体 \(removed)。
+            数据模型变了——改动实体 \(changedDetail)，新增实体 \(added)，消失实体 \(removed)。
             给已有实体加可选属性/关系：在 CoreDataStoreUpgrade.propertyHistory 登记新批次并更新本快照；
             只加新表：只更新快照；删改属性或改类型：破坏性变更，先报东林。
             """)
@@ -395,6 +396,74 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         XCTAssertEqual(verdict(["A": a, "B": b, "C": c, "D": Data([4])]), .rejected, "库比模型多出实体 = 降级，必须拒开")
     }
 
+    /// 2026-11-26：未在手工登记簿中但严格纯增量加可选字段时，SQLite 列级核验自动放行（绝不阻塞用户）
+    func test_sqliteAdditiveColumnUpgrade_allowsUnregisteredOptionalColumn() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-additive-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("test.sqlite")
+
+        let oldModel = makeMinimalModel(includeExtraColumn: false)
+        let psc = NSPersistentStoreCoordinator(managedObjectModel: oldModel)
+        try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+        try psc.persistentStores.forEach { try psc.remove($0) }
+
+        let newModel = makeMinimalModel(includeExtraColumn: true)
+        let storeHashes = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeURL))
+        XCTAssertTrue(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: storeHashes, model: newModel))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: newModel, storeURL: storeURL), .additiveColumns)
+        XCTAssertNil(CoreDataStack.storeFingerprintRejection(at: storeURL, model: newModel))
+    }
+
+    /// 2026-11-26：老库比新模型多出列（删字段或旧版降级打开新版库）必须严格拒开
+    func test_sqliteAdditiveColumnUpgrade_rejectsDroppedColumnOrDowngrade() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-downgrade-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("test.sqlite")
+
+        // 先用新版建库（含 extraNote 列），再用旧版模型（不含 extraNote 列）尝试打开
+        let newerModel = makeMinimalModel(includeExtraColumn: true)
+        let psc = NSPersistentStoreCoordinator(managedObjectModel: newerModel)
+        try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+        try psc.persistentStores.forEach { try psc.remove($0) }
+
+        let olderModel = makeMinimalModel(includeExtraColumn: false)
+        let storeHashes = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeURL))
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: storeHashes, model: olderModel))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: olderModel, storeURL: storeURL), .rejected)
+        XCTAssertNotNil(CoreDataStack.storeFingerprintRejection(at: storeURL, model: olderModel))
+    }
+
+    private func makeMinimalModel(includeExtraColumn: Bool) -> NSManagedObjectModel {
+        let model = NSManagedObjectModel()
+        let entity = NSEntityDescription()
+        entity.name = "SampleItem"
+        entity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+
+        let idAttr = NSAttributeDescription()
+        idAttr.name = "id"
+        idAttr.attributeType = .UUIDAttributeType
+        idAttr.isOptional = true
+
+        let titleAttr = NSAttributeDescription()
+        titleAttr.name = "title"
+        titleAttr.attributeType = .stringAttributeType
+        titleAttr.isOptional = true
+
+        var props: [NSPropertyDescription] = [idAttr, titleAttr]
+        if includeExtraColumn {
+            let extraAttr = NSAttributeDescription()
+            extraAttr.name = "extraNote"
+            extraAttr.attributeType = .stringAttributeType
+            extraAttr.isOptional = true
+            props.append(extraAttr)
+        }
+        entity.properties = props
+        model.entities = [entity]
+        return model
+    }
+
     // MARK: 当前模型快照（1.1.6，65 实体；Habit 含习惯描述，其余取自 1.1.4 构建写下的真实库）
     static let currentEntityHashes: [String: String] = [
         "Account": "2x54m/FMsSkocs81CnrvmpFy1rsAH0PrLI0lR7ds+ek=",
@@ -444,7 +513,7 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         "PlanSignalMO": "ip6+cnUuLPEpbKdIVV8sKHTYYLWxPT1bo1gjev78/SY=",
         "RecycleBinBatch": "QIouNCais6f37FpCYqQwjf84Cn1NanTA5a2ioFCm8EU=",
         "RepeatRule": "pC6XzT5J9+tkBesxqhgR9gZPb4RGTCytqXL7iLyJRqI=",
-        "SpendingProject": "WtYlwjbZD3scyI4QS6EOyGLFPIYS2URKTfWA2d0ycn0=",
+        "SpendingProject": "IQYckCJTp5J8dPL2W1My6Sz/EQDQSo+JD1asn3N/tB4=",
         "TaskAttachment": "1/3Y51dfSZQoa2dEwV/9c97xECRrBNJyqg0b+ZleC+c=",
         "TaskScheduleMirror": "sWvW52Dk23TP4qrYF+gJ/7TEtCiPwrhaJv9KeS/5S/A=",
         "Thought": "yr4JRLLgySoKq+56tWM8Puysr3knQvKi1FpE/LB35fc=",
