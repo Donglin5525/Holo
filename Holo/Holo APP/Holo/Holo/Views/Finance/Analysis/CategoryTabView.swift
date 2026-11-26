@@ -38,28 +38,29 @@ struct CategoryTabView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.lg) {
-                // 切换收入/支出
-                typeSwitcher
-
-                // 项目筛选（无项目时这行没有意义，不占位）
-                if !state.availableFinanceProjects.isEmpty {
-                    HStack {
+            VStack(alignment: .leading, spacing: 0) {
+                // 合并后的清爽单行筛选：告别橙色大通栏（2026-11-26 原型 1:1）
+                HStack(alignment: .center, spacing: HoloSpacing.sm) {
+                    typeSwitcher
+                    Spacer(minLength: HoloSpacing.sm)
+                    if !state.availableFinanceProjects.isEmpty {
                         projectFilterBar
-                        Spacer()
                     }
                 }
+                .padding(.top, 14)
+                .padding(.bottom, 6)
 
                 // 下钻导航栏
                 if state.isDrillingDown {
                     drillDownHeader
+                        .padding(.top, 8)
                 }
 
-                // 构成卡：构成（环形）⇄ 趋势（近 6 月堆叠面积）分段切换（2026-11-15 图表增强）
-                VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                    HStack {
+                // 无卡构成区：构成（比例条）⇄ 近6月（月度堆叠柱图）
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center) {
                         Text(showIncomeView ? "收入构成" : "支出构成")
-                            .font(.headline)
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.holoToolText)
                         Spacer()
                         compositionSwitch
@@ -73,10 +74,12 @@ struct CategoryTabView: View {
                         compositionBarPane
                     }
                 }
-                .padding(HoloSpacing.md)
-                .holoSurface()
+                .padding(.top, 14)
+                .padding(.bottom, 16)
 
-                // 分类列表
+                HoloHairlineDivider()
+
+                // 无卡分类列表（带 3pt 极细占比进度条）
                 CategoryLegendList(
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory,
@@ -84,15 +87,17 @@ struct CategoryTabView: View {
                 ) { category in
                     handleCategoryTap(category)
                 }
-                .holoSurface()
+                .padding(.top, 4)
 
                 // 选中分类的详情
                 if let category = selectedCategory,
                    let agg = currentAggregations.first(where: { $0.category.id == category.id }) {
                     selectedCategoryDetail(agg)
+                        .padding(.top, HoloSpacing.md)
                 }
             }
-            .padding(HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
+            .padding(.bottom, HoloSpacing.xxl)
         }
         .background(Color.holoToolBackground)
         .onChange(of: showIncomeView) { _, _ in
@@ -185,34 +190,37 @@ struct CategoryTabView: View {
         }
     }
 
-    // MARK: - 构成卡分段切换（灰轨白块，与习惯回顾「趋势/日历」同一语言）
+    // MARK: - 构成卡分段切换（灰轨白块 + 0.5pt 描边，无裸阴影）
 
     private var compositionSwitch: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 1) {
             compositionSegment(String(localized: "构成"), active: !showsCompositionTrend) {
                 if !showsCompositionTrend { return }
                 showsCompositionTrend = false
             }
-            compositionSegment(String(localized: "趋势"), active: showsCompositionTrend) {
+            compositionSegment(String(localized: "近6月"), active: showsCompositionTrend) {
                 if showsCompositionTrend { return }
                 showsCompositionTrend = true
             }
         }
         .padding(2.5)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.holoToolInset))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.holoToolInset))
     }
 
     private func compositionSegment(_ text: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(text)
-                .font(.system(size: 13, weight: active ? .semibold : .regular))
+                .font(.system(size: 11.5, weight: active ? .semibold : .medium))
                 .foregroundColor(active ? .holoToolText : .holoToolTextSecondary)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 36)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(active ? Color.holoToolSurface : .clear)
-                        .shadow(color: .black.opacity(active ? 0.08 : 0), radius: 1.5, y: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(active ? Color.holoToolBorder : .clear, lineWidth: 0.5)
                 )
                 .contentShape(Rectangle())
         }
@@ -220,7 +228,7 @@ struct CategoryTabView: View {
         .accessibilityAddTraits(active ? [.isSelected, .isButton] : .isButton)
     }
 
-    /// 当期构成（视觉 V4 §3：结论大数字 + 一句话 + 全宽交互比例条；告别 6+ 分类环形引线打架）
+    /// 当期构成（2026-11-26 原型 1:1：28pt 衬线主角大数字 + 10pt 全宽交互比例条）
     @ViewBuilder private var compositionBarPane: some View {
         let positive = Array(currentAggregations.enumerated()).filter { $0.element.amount > 0 }
         if positive.isEmpty {
@@ -228,29 +236,32 @@ struct CategoryTabView: View {
                 .font(.caption)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 120)
+                .frame(minHeight: 100)
         } else {
             let total = positive.reduce(Decimal(0)) { $0 + $1.element.amount }
             let totalDouble = max(Double(truncating: total as NSDecimalNumber), 0.0001)
             let totalCount = positive.reduce(0) { $0 + $1.element.transactionCount }
             let focusedAgg = selectedCategory.flatMap { sel in positive.first { $0.element.category.id == sel.id }?.element }
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
                     Text(focusedAgg?.category.name ?? (showIncomeView ? String(localized: "本期收入") : String(localized: "本期支出")))
-                        .font(.caption)
+                        .font(.system(size: 12))
                         .foregroundStyle(Color.holoToolTextSecondary)
-                    Text(NumberFormatter.currency.string(from: (focusedAgg?.amount ?? total) as NSDecimalNumber) ?? "¥0.00")
-                        .font(.system(.title, design: .default).weight(.bold)).monospacedDigit()
-                        .foregroundStyle(Color.holoToolText)
-                        .contentTransition(.numericText())
+                    Spacer(minLength: 8)
                     if let focusedAgg {
                         Text("占 \(focusedAgg.formattedPercentage) · \(focusedAgg.transactionCount) 笔")
-                            .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                            .font(.system(size: 12)).monospacedDigit()
+                            .foregroundStyle(Color.holoToolTextSecondary)
                     } else if let top = positive.first?.element {
                         Text("\(top.category.name)占 \(top.formattedPercentage) · 共 \(totalCount) 笔")
-                            .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+                            .font(.system(size: 12)).monospacedDigit()
+                            .foregroundStyle(Color.holoToolTextSecondary)
                     }
                 }
+                Text(NumberFormatter.currency.string(from: (focusedAgg?.amount ?? total) as NSDecimalNumber) ?? "¥0.00")
+                    .font(.holoHeroNumber(size: 28)).monospacedDigit()
+                    .foregroundStyle(Color.holoToolText)
+                    .contentTransition(.numericText())
                 GeometryReader { geo in
                     let gap: CGFloat = 2
                     let usable = max(geo.size.width - gap * CGFloat(max(positive.count - 1, 0)), 0)
@@ -263,7 +274,7 @@ struct CategoryTabView: View {
                             Rectangle()
                                 .fill(color)
                                 .opacity(dimmed ? 0.28 : 1)
-                                .frame(width: width, height: 14)
+                                .frame(width: width, height: 10)
                                 .onTapGesture {
                                     withAnimation(.easeOut(duration: 0.18)) {
                                         selectedCategory = (selectedCategory?.id == agg.category.id) ? nil : agg.category
@@ -273,12 +284,13 @@ struct CategoryTabView: View {
                     }
                     .clipShape(Capsule())
                 }
-                .frame(height: 14)
+                .frame(height: 10)
+                .padding(.top, 2)
             }
         }
     }
 
-    /// 趋势档内容：近 6 月堆叠面积（数据随类型/项目口径在 state 侧装载）
+    /// 趋势档内容：近 6 月月度堆叠柱状图 + 2 列紧凑可点击图例
     @ViewBuilder private var compositionTrendPane: some View {
         if let trend = state.categoryTrend, !trend.series.isEmpty {
             HoloStackedAreaChart(
@@ -286,6 +298,7 @@ struct CategoryTabView: View {
                 series: trend.series,
                 selection: $trendSelection,
                 summary: "近 6 月",
+                presentation: .stackedBar,
                 valueText: { NumberFormatter.compactCurrency(Decimal($0)) })
         } else {
             ProgressView()
@@ -293,10 +306,10 @@ struct CategoryTabView: View {
         }
     }
 
-    // MARK: - 类型切换器
+    // MARK: - 轻量类型切换器（与项目筛选并排，告别橙色大通栏）
 
     private var typeSwitcher: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 1) {
             typeButton(title: String(localized: "支出"), isSelected: !showIncomeView) {
                 showIncomeView = false
             }
@@ -305,26 +318,26 @@ struct CategoryTabView: View {
                 showIncomeView = true
             }
         }
-        .padding(4)
-        .background(Color.holoToolBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoDivider, lineWidth: 1)
-        )
+        .padding(2.5)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.holoToolInset))
     }
 
     private func typeButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .holoText(.supporting)
-                .foregroundColor(isSelected ? .white : .holoToolTextSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, HoloSpacing.sm)
+                .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .holoToolText : .holoToolTextSecondary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelected ? Color.holoPrimary : Color.holoToolSurface)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isSelected ? Color.holoToolSurface : .clear)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(isSelected ? Color.holoToolBorder : .clear, lineWidth: 0.5)
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

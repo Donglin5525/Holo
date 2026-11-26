@@ -160,7 +160,8 @@ struct ProjectTabView: View {
                 VStack(alignment: .trailing, spacing: 3) {
                     if let spent, spent > 0 {
                         Text(NumberFormatter.compactCurrency(spent))
-                            .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundColor(.holoToolText)
                         if let income, income > 0 {
                             // 本期进账（退款已在支出侧冲减，不重复出现于此）
@@ -177,7 +178,8 @@ struct ProjectTabView: View {
                     } else if let income, income > 0 {
                         // 本期只有进账没有支出的项目：露出收入，避免行内空白
                         Text(NumberFormatter.compactCurrency(income))
-                            .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundColor(.holoSuccess)
                         Text(String(localized: "本期收入"))
                             .font(.system(size: 10))

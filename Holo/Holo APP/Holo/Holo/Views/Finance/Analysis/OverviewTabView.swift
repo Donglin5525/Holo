@@ -19,7 +19,7 @@ struct OverviewTabView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.lg) {
+            VStack(alignment: .leading, spacing: 0) {
                 // 年档：同比对照卡（今年 vs 上一个同口径年，随口径切换基准；
                 // 直选历史年后标题改用年份数字，不再自称「今年」）
                 if state.isYearView {
@@ -29,10 +29,11 @@ struct OverviewTabView: View {
                         currentLabel: yearLabels.current,
                         previousLabel: yearLabels.previous
                     )
+                    .padding(.bottom, HoloSpacing.lg)
                 }
 
-                // 周期汇总卡片
-                periodSummaryCard
+                // 无卡纸本主角汇总区（2026-11-26 原型 1:1）
+                heroSummarySection
 
                 // 年档：支出同比双柱（今年 vs 上一个同口径年，按月/账期逐桶对照）
                 if state.isYearView {
@@ -41,27 +42,35 @@ struct OverviewTabView: View {
                         currentLabel: yearLabels.current,
                         previousLabel: yearLabels.previous
                     )
+                    .padding(.top, HoloSpacing.lg)
                 }
 
-                // 收支趋势：收支柱（下层）+ 余额线（上层）同画布分区
-                TrendChartView(dataPoints: state.chartDataPoints,
-                               waterfallItems: state.cashflowItems.isEmpty ? nil : state.cashflowItems)
+                // 三态独立图表区（收支 | 余额 | 现金流），一图只讲一件事
+                TrendChartView(
+                    dataPoints: state.chartDataPoints,
+                    waterfallItems: state.cashflowItems.isEmpty ? nil : state.cashflowItems,
+                    usesDayTickAnchors: true,
+                    isCardless: true
+                )
+                .padding(.top, 22)
 
                 // 年档 + 自然年口径 + 设有「每年」预算：年预算进度卡
-                //（预算周期自身管理起止，一期只挂自然年口径，记账年视图下不显示）
                 if state.isYearView && state.yearBasis == .calendar {
                     YearBudgetProgressCard()
+                        .padding(.top, HoloSpacing.lg)
                 }
 
-                // TOP3 分类
+                // 无卡分类排行
                 TopCategoryCard(
                     expenseAggregations: state.expenseCategoryAggregations,
                     incomeAggregations: state.incomeCategoryAggregations
                 ) { category in
                     onCategoryTap?(category)
                 }
+                .padding(.top, 26)
             }
-            .padding(HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
+            .padding(.bottom, HoloSpacing.xxl)
         }
         .background(Color.holoToolBackground)
     }
@@ -71,60 +80,56 @@ struct OverviewTabView: View {
         state.yearComparisonLabels
     }
 
-    /// 汇总卡头部的周期描述（与顶部日期选择器口径一致：range.end 是排他上界，减 1 秒显示）
+    /// 汇总区副标：进行中周期显「已过 X/Y 天」，完整历史周期显「共 Y 天」
     private var periodSubtitle: String {
-        // 完整日期已在页顶胶囊，这里逐字重复只差长短格式；改报窗口天数（11-05 挑刺专项E）
-        let days = Calendar.current.dateComponents([.day], from: state.currentDateRange.start, to: state.currentDateRange.end).day ?? 1
-        return String(localized: "共 \(max(1, days)) 天")
+        let info = FinanceAnalysisState.elapsedDayCount(
+            start: state.currentDateRange.start,
+            end: state.currentDateRange.end
+        )
+        if info.elapsed < info.total {
+            return String(localized: "已过 \(info.elapsed)/\(info.total) 天")
+        }
+        return String(localized: "共 \(info.total) 天")
     }
 
-    // MARK: - 周期汇总卡片
+    /// 主角汇总标题
+    private var heroExpenseTitle: String {
+        state.timeRange == .month
+            ? String(localized: "本月支出")
+            : String(localized: "本期支出")
+    }
 
-    private var periodSummaryCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 卡头与「收支趋势」「分类排行」同一套标题语言
-            HStack(spacing: HoloSpacing.sm) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("周期汇总")
-                        .font(.holoLabel)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoToolText)
+    // MARK: - 无卡纸本主角汇总区
 
-                    Text(periodSubtitle)
-                        .font(.system(size: 10))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
+    private var heroSummarySection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(heroExpenseTitle) · \(periodSubtitle)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer(minLength: HoloSpacing.sm)
 
                 Text("\(state.periodSummary.transactionCount) 笔")
-                    .font(.system(size: 10))
+                    .font(.system(size: 12))
+                    .monospacedDigit()
                     .foregroundColor(.holoToolTextSecondary)
             }
 
-            // 三列必须同构对齐：任一列行数不同就会被 HStack 垂直居中整体下坠
-            //（净收入列无日均小字时标题/金额比左右两列低半行），顶部对齐 + 空槽占位钉死
-            HStack(alignment: .top, spacing: 0) {
-                PeriodSummaryItem(
-                    title: String(localized: "总支出"),
-                    amount: state.periodSummary.formattedExpense,
-                    subtitle: averageSubtitle(expense: true),
-                    color: .holoChartOutflow,
-                    badge: yoyBadge(
-                        current: state.periodSummary.totalExpense,
-                        previous: state.previousPeriodSummary.totalExpense,
-                        increaseIsNegative: false
-                    )
-                )
+            // 主角大数字（34pt 衬线等宽）
+            Text(state.periodSummary.formattedExpense)
+                .font(.holoHeroNumber(size: 34))
+                .monospacedDigit()
+                .foregroundColor(.holoToolText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.top, 6)
 
-                Divider()
-                    .opacity(0.4)
-                    .frame(height: 40)
-
-                PeriodSummaryItem(
-                    title: String(localized: "总收入"),
-                    amount: state.periodSummary.formattedIncome,
-                    subtitle: averageSubtitle(expense: false),
+            // 次级指标单行三列：总收入 · 净结余 · 日均/月均支出
+            HStack(alignment: .top, spacing: 16) {
+                heroSubMetric(
+                    label: String(localized: "总收入"),
+                    value: state.periodSummary.formattedIncome,
                     color: .holoChartInflow,
                     badge: yoyBadge(
                         current: state.periodSummary.totalIncome,
@@ -133,33 +138,63 @@ struct OverviewTabView: View {
                     )
                 )
 
-                Divider()
-                    .opacity(0.4)
-                    .frame(height: 40)
-
-                PeriodSummaryItem(
-                    title: String(localized: "净收入"),
-                    amount: state.periodSummary.formattedNetIncome,
-                    subtitle: "",
-                    color: state.periodSummary.netIncome >= 0 ? .holoChartInflow : .holoChartOutflow,
+                heroSubMetric(
+                    label: String(localized: "净结余"),
+                    value: state.periodSummary.formattedNetIncome,
+                    color: state.periodSummary.netIncome >= 0 ? .holoChartInflow : .holoError,
                     badge: netIncomeBadge
                 )
+
+                heroSubMetric(
+                    label: state.isYearView ? String(localized: "月均支出") : String(localized: "日均支出"),
+                    value: averageExpenseValueText,
+                    color: .holoToolText,
+                    badge: nil
+                )
             }
+            .padding(.top, 16)
         }
-        .padding(HoloSpacing.md)
-        .holoSurface()
+        .padding(.top, 18)
+        .padding(.bottom, 18)
+        .overlay(alignment: .bottom) {
+            HoloHairlineDivider()
+        }
     }
 
-    /// 均值副标题：年档给月均（看全年时日均没有信息量），其他档位保持日均
-    private func averageSubtitle(expense: Bool) -> String {
-        let value = expense
-            ? (state.isYearView ? state.periodSummary.averageMonthlyExpense : state.periodSummary.averageDailyExpense)
-            : (state.isYearView ? state.periodSummary.averageMonthlyIncome : state.periodSummary.averageDailyIncome)
-        let prefix = state.isYearView
-            ? String(localized: "月均")
-            : String(localized: "日均")
-        let amount = NumberFormatter.currency.string(from: value as NSDecimalNumber) ?? "¥0"
-        return "\(prefix) \(amount)"
+    private func heroSubMetric(
+        label: String,
+        value: String,
+        color: Color,
+        badge: (text: String, color: Color)?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(.holoToolTextSecondary)
+
+            Text(value)
+                .font(.system(size: 14, weight: .semibold))
+                .monospacedDigit()
+                .foregroundColor(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            if let badge {
+                Text(badge.text)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(badge.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var averageExpenseValueText: String {
+        let value = state.isYearView
+            ? state.periodSummary.averageMonthlyExpense
+            : state.periodSummary.averageDailyExpense
+        return NumberFormatter.currency.string(from: value as NSDecimalNumber) ?? "¥0.00"
     }
 
     /// 同比 badge（年档专属）：▲/▼ 百分比；上期为 0 无基准时不显示
@@ -203,7 +238,8 @@ struct PeriodSummaryItem: View {
                 .foregroundColor(.holoToolTextSecondary)
 
             Text(amount)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .font(.system(size: 17, weight: .semibold))
+                .monospacedDigit()
                 .foregroundColor(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -319,7 +355,8 @@ struct YearOverYearSummaryCard: View {
             HoloProgress(value: base > 0 ? Double(truncating: (amount / base) as NSDecimalNumber) : 0, color: color, lineWidth: 7).frame(height: 14)
 
             Text(NumberFormatter.compactCurrency(amount))
-                .font(.system(size: 10, design: .rounded))
+                .font(.system(size: 10))
+                .monospacedDigit()
                 .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .fixedSize()

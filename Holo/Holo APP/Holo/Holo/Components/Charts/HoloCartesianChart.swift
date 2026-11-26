@@ -184,6 +184,10 @@ struct HoloBarChart: View {
     var valueText: (Double) -> String = HoloChartFormat.number
     /// 首次出现即选中最后一根（时间序列：最近一期先说话，避免空读数或无意义的合计）
     var defaultSelectsLastBucket = false
+    /// 是否显示内置读数区（业务页自绘极简读数行时可关闭）
+    var showsReadout = true
+    /// 未选中时不重复显示合计大数字（顶部已有周期汇总时避免复读）
+    var hidesIdleValues = false
     /// 等宽槽位的指定刻度（桶下标；如按天图的每周一同列）。走公共摆放规则（贴边/等宽/预算），
     /// 不在此之上叠私有画法
     var slotTicks: [Int]? = nil
@@ -204,7 +208,8 @@ struct HoloBarChart: View {
                            height: height, yDomain: yDomain, dualValueAxes: dualValueAxes,
                            summary: summary, summaryValues: summaryValues, valueText: valueText,
                            defaultSelectsLastBucket: defaultSelectsLastBucket, slotTicks: slotTicks,
-                           xAxisTickStyle: xAxisTickStyle,
+                           xAxisTickStyle: xAxisTickStyle, showsReadout: showsReadout,
+                           hidesIdleValues: hidesIdleValues,
                            rules: rules, comparison: comparison, legendToggle: legendToggle,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
         }
@@ -387,11 +392,11 @@ private struct HoloCartesianChart: View {
     }
     private var isSplitAxes: Bool { splitDomains != nil }
     private var plotDomain: ClosedRange<Double> { isSplitAxes ? 0...1 : domain }
-    /// 绘图值：双轴生效时换算进本系列的 0…1 归一空间；共轴时原值直通。读数与无障碍值仍用真实值。
+    /// 绘图值：双轴生效时换算进本系列的 0…1 归一空间（负值如退款净负日钳位至 0，防止戳穿底线压进 X 轴）；共轴时原值直通。读数与无障碍值仍用真实值。
     private func plotValue(_ raw: Double, series seriesIndex: Int) -> Double {
         guard let domains = splitDomains, domains.indices.contains(seriesIndex) else { return raw }
         let domain = domains[seriesIndex]
-        return (raw - domain.lowerBound) / (domain.upperBound - domain.lowerBound)
+        return max(0, (raw - domain.lowerBound) / (domain.upperBound - domain.lowerBound))
     }
     private var dataSignature: [HoloChartBucket] { buckets }
     private var idleValues: [Double?] {
@@ -820,18 +825,20 @@ private struct HoloCartesianChart: View {
         let anchored = monthAnchoredLabels(for: picked)
         let labels = picked.compactMap { index -> TickLabel? in
             guard pixelX.indices.contains(index), pixelX[index].isFinite else { return nil }
+            let centerX = plot.minX + pixelX[index]
             let alignment: Alignment
             let anchorX: CGFloat
-            if index == picked.first {
-                // 首尾贴边对齐：不再向图内钳位，端点标签不会压到邻居
+            // 优先对准真实柱中心；仅当标签紧贴绘图区边缘会裁切时才做贴边对齐，
+            // 修复稀疏态或端点处刻度漂移、与柱子对不上的问题（2026-11-26）
+            if index == picked.first, centerX - labelWidth / 2 < plot.minX {
                 alignment = .leading
                 anchorX = plot.minX + labelWidth / 2
-            } else if index == picked.last {
+            } else if index == picked.last, centerX + labelWidth / 2 > plot.maxX {
                 alignment = .trailing
                 anchorX = plot.maxX - labelWidth / 2
             } else {
                 alignment = .center
-                anchorX = plot.minX + pixelX[index]
+                anchorX = centerX
             }
             return TickLabel(id: index, text: anchored[index] ?? buckets[index].label, alignment: alignment, anchorX: anchorX)
         }

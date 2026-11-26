@@ -13,6 +13,19 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 财务统计分析报表高审美改版与趋势图对齐/截止日期 Bug 修复（2026-11-26，纯客户端免后端发版）
+  - 顶栏与纸本无卡重构：省去顶栏「统计分析」整行大字，日期切换胶囊居中合并进导航栏释放 44pt 空间；总览、明细、类别页全面去白卡外壳与残留圆体字（`design: .rounded`），改用 0.5pt 暖灰细线与纸底留白分层
+  - 总览页主角化与三态解耦：`OverviewTabView` 周期汇总改为 34pt 衬线主角大数字 + 单行轻量三列次级指标；`TrendChartView` 拆分为「收支 | 余额 | 现金流」三态独立切换（一图一件事，未选中时不复读全月收支大字）；`HoloWaterfallChart` 头部精简为 2 行结论、行距放宽、右侧金额回归暖墨色并修复「期末水位」压条；`TopCategoryCard` 去掉双圆圈排名改用无卡 + 3pt 发丝占比条
+  - 明细页空间扩容与常驻联动保留：`DetailTabView` 保留顶部常驻趋势图 +「交易明细」头与下方列表独立滚动联动定位（点柱/横滑实时定位并高亮对应日期），去掉白卡外壳与冗余读数后首屏常驻直出 6 条完整明细
+  - 类别页精简与月度堆叠柱图：`CategoryTabView` 去掉厚重橙色大通栏，将轻量「支出/收入」与「项目筛选」合并单行；`HoloStackedAreaChart`「近 6 月」升级为 2 列紧凑可点击图例（点击高亮单类走势）+ 月度堆叠柱状图，并修复横轴月份整体右偏半格问题；`ProjectTabView` / `AccountTabView` 同步清理圆体并统一周期天数副标
+  - 统计口径与图表 Bug 修复：`FinanceAnalysisState` 新增 `effectiveChartEnd`（进行中周期趋势图横轴截断至今天，不再留未来空槽）与 `elapsedDayCount`（日均按已过天数计算，标示「已过 X/Y 天」）；`HoloCartesianChart` 横轴刻度优先对齐柱中心并修复双轴下退款净负柱戳穿 0 线压进横轴问题
+  - 原型与验证：`docs/design/2026-11-26-财务统计报表高审美改版原型.html`；`aesthetic_guard.py` 0 新增违例、`holo_build.py build` 真绿、图表几何 11,077 项断言 + `FinanceChartScaleTests` 20/20 + `HoloChartEnhancementTests` 13/13 + `HoloChartRenderSmokeTests` 1/1 全绿 + 无头模拟器逐屏实拍验收通过
+- **iOS + 后端**: Holo Plus 付费墙编辑感重构、场景化门禁直达、权益表对齐与免费深度洞察调整为 1 次/天（2026-11-26，客户端重构+B 方案 StoreKit 配置；后端配额 2→1 改动待新版 iOS 上架后再发版）
+  - 付费墙结构与审美升级（`HoloPlusPaywallView`）：改为纸底无卡 + `HoloNoteSerif` 衬线主标题 + 一页一橙（去深褐发光黑卡、去白卡列表与按钮外发光）；底部固定吸底双卡（年/月左右并排 + 唯一主按钮），打开第一眼即见价格与开通按钮；完整 App Store 3.1.2 续费披露保留在滚动区底部，无障碍大字体自动取消吸底防死锁，弱网/商品拉取失败展示温和兜底与重试
+  - 场景化动态置顶与路径直达：新增 `HoloPlusGateContext.deepAnalysis` / `.lifePlan` 独立场景枚举，付费墙按触发来源把用户刚被拦的能力置顶高亮，其余 3 条从单一核心卖点池去重拼装；聊天流额度耗尽卡（`ChatMessageListPane`）与报告内追问 Dock（`ReportFollowUpDock`）点击升级改为按场景直达付费墙并支持购买后自动续跑，不再绕路通用会员中心丢上下文
+  - 权益对比表 1:1 对齐门禁（`HoloPlusBenefitComparisonTable` / `HoloMembershipCenterView`）：补齐全部 6 项实际拦截能力（账单智能导入、预算管理、财务分期、自定义账单周期、信用卡还款提醒、习惯补签），按三大类分组并去掉 `sparkles`；底部承诺同步修正为「日常记账、待办、想法与习惯打卡永久免费，你的个人记录始终归你所有。」
+  - 配额与 B 方案配置：普通用户深度洞察免费额度由 2 次/天调整为 1 次/天（同步改后端 `quotaPolicy.js`、`subscription-acceptance.test.js` 与客户端 `HoloEntitlementState` / 会员中心 / 权益表 / 付费墙）；`HoloPlus.storekit` 对齐 App Store Connect B 方案（¥98/年 + 7 天免费试用，¥12/月）
+  - 验证：后端配额单测 13/13、iOS `HoloPlusGateTests` 10/10 真绿、`aesthetic_guard.py` 0 新增违例、`coupling_guard.py` 本次涉及模块零新增耦合
 - **iOS**: 全局动效体系升级（Apple 临界阻尼弹簧语言）与模块打开 1–2 秒卡顿 / 转场文字抢跑根治（2026-11-26，纯客户端免后端发版）
   - 统一动效物理语言：`HoloAnimation.quick / standard / smooth / enter / snappy / grounded` 与 `Animation.holoScreenTransition` 全面收敛为临界阻尼弹簧并新增 `HoloAnimation.resolved(_:reduceMotion:fallback:)` 统一 Reduce Motion 收口，同步更新《设计规范》§7；全库清理 `CategoryPicker` / `WeekView` / `ExpandedCalendarView` / `PopupCalendarSheet` / `FeedbackSheet` / `TaskCardView` 散落裸动画
   - 状态变化细腻度：`HoloCountBadge` 与任务进度数字接入等宽数字滚动过渡，`HoloHeaderIconBtn` / `QuickTagChip` / 模块 Tab / FAB 补齐 `HoloPressStyle` 按压反馈，macOS 补齐 `holoHover` 悬停高亮；修复 `HoloLightResponse` 新插入视图 `KeyframeAnimator` 卡初值问题；全局 `HoloToast` 升级非对称弹性进出与替换态隔离；`HoloInlineState` 与今日看板加载→就绪补齐平滑过渡；侧边栏与顶栏胶囊采用 `matchedGeometryEffect` 滑动，习惯单页回顾改为方向性推入

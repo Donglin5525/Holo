@@ -28,7 +28,10 @@ private enum DetailTabFormatters {
 
 // MARK: - DetailTabView
 
-/// 明细 Tab 视图
+/// 明细 Tab 视图：
+/// 紧凑无卡趋势图与「交易明细」头常驻固定在顶部（2026-10-30 东林拍板交互：
+/// 图表不动、下方明细独立滚动，横滑/点柱实时定位下方列表；
+/// 2026-11-26 去掉白卡外壳与冗余读数后压缩图表区高度，首屏即可直出 5-6 条明细）
 struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
     /// push 覆盖层模式：外层已带返回栏与分类标题，分类筛选横幅不在本页重复出现
@@ -47,6 +50,13 @@ struct DetailTabView: View {
         }
     }
 
+    private var filteredTotals: (expense: Decimal, income: Decimal) {
+        let stats = filteredTransactions.filter { !$0.isReconciliationAdjustment }
+        let exp = stats.filter { $0.statisticsType == .expense }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+        let inc = stats.filter { $0.statisticsType == .income }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+        return (exp, inc)
+    }
+
     private var sortedFilteredTransactions: [Transaction] {
         filteredTransactions.sorted {
             sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
@@ -60,7 +70,13 @@ struct DetailTabView: View {
         }
         let range = state.currentDateRange
         var current = calendar.startOfDay(for: range.start)
-        let end = calendar.startOfDay(for: range.end)
+        let effectiveEnd = FinanceAnalysisState.effectiveChartEnd(
+            start: range.start,
+            end: range.end,
+            transactions: filteredTransactions,
+            calendar: calendar
+        )
+        let end = calendar.startOfDay(for: effectiveEnd)
         var points: [ChartDataPoint] = []
 
         while current < end {
@@ -88,33 +104,35 @@ struct DetailTabView: View {
     }
 
     var body: some View {
-        // 趋势卡与列表头固定在顶部，滚动的只有交易明细（2026-10-30 东林需求：
-        // 卡片不动、下方数据动，同时收紧纵向留白让首屏多露明细行）。
-        // 与 2026-10-16 修掉的「双层滚动顶牛」不同：图表在滚动容器之外，
-        // 全页只有列表一个滚动体，不存在内层滚到底不交棒的问题。
+        // 趋势图与列表头常驻固定在顶部，滚动的只有下方交易明细；
+        // 图表在滚动容器之外，横滑/点按选日实时联动列表定位，且不存在双层滚动顶牛。
         VStack(spacing: 0) {
             trendSection
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.sm)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
+
+            HoloHairlineDivider()
 
             transactionListHeader
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.bottom, HoloSpacing.xs)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
 
             ScrollViewReader { listProxy in
                 ScrollView {
                     transactionListContent
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.lg)
+                        .padding(.horizontal, HoloSpacing.page)
+                        .padding(.bottom, HoloSpacing.xxl)
                 }
                 .scrollIndicators(.hidden)
                 .onChange(of: listScrollRequestID) { _, _ in
                     guard let target = listScrollTarget else { return }
-
                     // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
                     DispatchQueue.main.async {
-                        listProxy.scrollTo(target, anchor: .top)
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            listProxy.scrollTo(target, anchor: .top)
+                        }
                     }
                 }
             }
@@ -128,20 +146,23 @@ struct DetailTabView: View {
     }
 
     private var trendSection: some View {
-        VStack(spacing: HoloSpacing.md) {
+        let totals = filteredTotals
+        let expText = NumberFormatter.currency.string(from: totals.expense as NSDecimalNumber) ?? "¥0.00"
+        let incText = NumberFormatter.currency.string(from: totals.income as NSDecimalNumber) ?? "¥0.00"
+        return VStack(spacing: HoloSpacing.sm) {
             if !isPushed, let category = state.selectedDetailCategory {
                 categoryFilterBanner(category)
             }
 
-            // 与总览/项目/账户页签同一张「收支趋势」柱状卡（红支出/绿收入同框），
-            // 取代本页原有的折线形态+支出/收入切换器；点选/滑动选日→列表实时定位。
-            // 不挂「查看明细」按钮：选日瞬间列表已跳转定位，按钮必是空动作（10-30 东林实报移除）。
             TrendChartView(
                 dataPoints: dailyChartDataPoints,
                 showsBalanceLine: false,
                 selectedDate: state.selectedChartDate,
                 onScrubDate: selectChartDateAndScroll,
-                usesDayTickAnchors: true
+                usesDayTickAnchors: true,
+                isCardless: true,
+                compactMode: true,
+                compactSummary: (expense: expText, income: incText)
             )
         }
     }

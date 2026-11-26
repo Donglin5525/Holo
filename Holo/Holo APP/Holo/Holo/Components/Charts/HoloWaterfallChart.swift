@@ -22,10 +22,10 @@ struct HoloWaterfallChart: View {
     var valueText: (Double) -> String = HoloChartFormat.number
 
     @State private var selectedID: String?
-    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 34
-    @ScaledMetric(relativeTo: .subheadline) private var barHeight: CGFloat = 14
-    @ScaledMetric(relativeTo: .subheadline) private var labelWidth: CGFloat = 76
-    @ScaledMetric(relativeTo: .subheadline) private var amountWidth: CGFloat = 100
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 36
+    @ScaledMetric(relativeTo: .subheadline) private var barHeight: CGFloat = 13
+    @ScaledMetric(relativeTo: .subheadline) private var labelWidth: CGFloat = 72
+    @ScaledMetric(relativeTo: .subheadline) private var amountWidth: CGFloat = 94
 
     /// 运行水位（纯函数，单测锁定）：每项 (from, to)；锚点项从 0 画到锚值
     static func levels(for items: [HoloWaterfallItem]) -> [(from: Double, to: Double)] {
@@ -83,24 +83,23 @@ struct HoloWaterfallChart: View {
         }
     }
 
-    // MARK: 结论
+    // MARK: 结论（2026-11-26 减法清爽版：2 行核心结论，不再重复复读流入/流出明细）
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(net >= 0 ? "净流入" : "净流出")
-                .font(.caption).foregroundStyle(Color.holoToolTextSecondary)
+        VStack(alignment: .leading, spacing: 4) {
             Text("\(net >= 0 ? "+" : "−")\(valueText(abs(net)))")
-                .font(.system(.title, design: .default).weight(.bold)).monospacedDigit()
-                .foregroundStyle(net >= 0 ? Color.holoChartInflow : Color.holoChartOutflow)
-                .lineLimit(1).minimumScaleFactor(0.7)
+                .font(.holoHeroNumber(size: 26)).monospacedDigit()
+                .foregroundStyle(net >= 0 ? Color.holoChartInflow : Color.holoError)
+                .lineLimit(1).minimumScaleFactor(0.75)
                 .contentTransition(.numericText())
             if let opening, let closing {
-                Text("余额 \(valueText(opening))  →  \(valueText(closing))")
-                    .font(.caption).monospacedDigit().foregroundStyle(Color.holoToolTextSecondary)
+                Text("\(net >= 0 ? "净流入" : "净流出") · 余额 \(NumberFormatter.compactCurrency(Decimal(opening))) → \(NumberFormatter.compactCurrency(Decimal(closing)))")
+                    .font(.system(size: 12)).monospacedDigit().foregroundStyle(Color.holoToolTextSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+            } else {
+                Text(net >= 0 ? "净流入" : "净流出")
+                    .font(.system(size: 12)).foregroundStyle(Color.holoToolTextSecondary)
             }
-            (Text("流入 ") + Text(valueText(inflow)).foregroundColor(.holoChartInflow)
-             + Text(" · 流出 ") + Text(valueText(outflow)).foregroundColor(.holoChartOutflow))
-                .font(.caption).monospacedDigit().foregroundStyle(Color.holoToolTextSecondary)
         }
         .accessibilityElement(children: .combine)
     }
@@ -161,9 +160,9 @@ struct HoloWaterfallChart: View {
                     .position(x: a + max(2, b - a) / 2, y: mid)
             }
             Text("\(delta >= 0 ? "+" : "−")\(valueText(abs(delta)))")
-                .font(.subheadline.weight(.semibold)).monospacedDigit()
-                .foregroundStyle(color)
-                .lineLimit(1).minimumScaleFactor(0.7)
+                .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(Color.holoToolText)
+                .lineLimit(1).minimumScaleFactor(0.75)
                 .frame(width: amountWidth, alignment: .trailing)
         }
         .frame(height: rowHeight)
@@ -207,13 +206,20 @@ struct HoloWaterfallChart: View {
                     .fill(color)
                     .frame(width: w, height: barHeight)
                     .position(x: a + w / 2, y: rowHeight / 2)
-                // 「期末水位」贴在条右侧，放不下改贴左侧
+                // 「期末水位」仅在条右侧或左侧有充足空位（≥52pt）时绘制，避免压到实色条上
                 let right = max(a + w, zero) + 6
-                let fitsRight = right + 52 <= width
-                Text("期末水位")
-                    .font(.system(size: 10.5)).foregroundStyle(Color.holoToolTextSecondary)
-                    .fixedSize()
-                    .position(x: fitsRight ? right + 26 : max(26, min(a, zero) - 32), y: rowHeight / 2)
+                let left = min(a, zero) - 6
+                if right + 52 <= width {
+                    Text("期末水位")
+                        .font(.system(size: 10.5)).foregroundStyle(Color.holoToolTextSecondary)
+                        .fixedSize()
+                        .position(x: right + 26, y: rowHeight / 2)
+                } else if left >= 52 {
+                    Text("期末水位")
+                        .font(.system(size: 10.5)).foregroundStyle(Color.holoToolTextSecondary)
+                        .fixedSize()
+                        .position(x: left - 26, y: rowHeight / 2)
+                }
             }
             Text("\(net >= 0 ? "+" : "−")\(valueText(abs(net)))")
                 .font(.subheadline.weight(.bold)).monospacedDigit()

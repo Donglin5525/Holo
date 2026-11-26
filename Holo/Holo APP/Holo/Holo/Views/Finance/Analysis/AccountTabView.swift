@@ -106,10 +106,14 @@ struct AccountTabView: View {
     }
 
     private var rangeSubtitle: String {
-        let (start, end) = state.currentDateRange
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMd")
-        return "\(df.string(from: start)) - \(df.string(from: end.addingDays(-1)))"
+        let info = FinanceAnalysisState.elapsedDayCount(
+            start: state.currentDateRange.start,
+            end: state.currentDateRange.end
+        )
+        if info.elapsed < info.total {
+            return String(localized: "已过 \(info.elapsed)/\(info.total) 天")
+        }
+        return String(localized: "共 \(info.total) 天")
     }
 
     private func accountRow(_ account: Account, aggregation: AccountAggregation?, isArchived: Bool = false) -> some View {
@@ -156,7 +160,8 @@ struct AccountTabView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     if let spent = aggregation?.expense, spent > 0 {
                         Text(NumberFormatter.compactCurrency(spent))
-                            .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .monospacedDigit()
                             .foregroundColor(.holoToolText)
                     } else {
                         Text(String(localized: "无支出"))

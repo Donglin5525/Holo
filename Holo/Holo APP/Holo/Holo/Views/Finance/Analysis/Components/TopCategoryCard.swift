@@ -2,18 +2,15 @@
 //  TopCategoryCard.swift
 //  Holo
 //
-//  TOP3 分类排行卡片（支出/收入 Segment 切换，全宽展示）
+//  分类排行区块（2026-11-26 原型 1:1 无卡纸本重构：
+//  去掉白卡外壳、系统原生分段器与双圆圈排名数字，改用极细占比条 + 暖墨等宽金额）
 //
 
 import SwiftUI
 
-private enum TopCategoryRankLayout {
-    static let amountColumnWidth: CGFloat = 96
-}
-
 // MARK: - TopCategoryCard
 
-/// TOP3 分类排行卡片
+/// 分类排行区块（无卡纸本）
 struct TopCategoryCard: View {
     let expenseAggregations: [CategoryAggregation]
     let incomeAggregations: [CategoryAggregation]
@@ -25,29 +22,30 @@ struct TopCategoryCard: View {
         showsExpense ? expenseAggregations : incomeAggregations
     }
 
-    private var accentColor: Color {
-        showsExpense ? .holoError : .holoSuccess
+    private var barColors: [Color] {
+        if !showsExpense {
+            return Array(repeating: .holoChartInflow, count: max(currentAggregations.count, 1))
+        }
+        let palette = Color.holoChartCategoryPalette
+        return currentAggregations.enumerated().map { index, agg in
+            if agg.category.name == "其他" && currentAggregations.count > 1 {
+                return .holoChartStone
+            }
+            return palette.indices.contains(index) ? palette[index] : .holoChartStone
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // 标题 + Segment（与「收支趋势」卡头的分段控件同一套，去掉自绘红胶囊）
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: HoloSpacing.md) {
-                Text("分类排行")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                Text(showsExpense ? "支出排行" : "收入排行")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
 
                 Spacer(minLength: HoloSpacing.sm)
 
-                Picker("排行类型", selection: $showsExpense) {
-                    Text("支出").tag(true)
-                    Text("收入").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 136)
-                .fixedSize(horizontal: true, vertical: false)
+                typeSwitch
             }
 
             if currentAggregations.isEmpty {
@@ -56,24 +54,57 @@ struct TopCategoryCard: View {
                 categoryList
             }
         }
-        .padding(.top, 16)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .holoCard()
+    }
+
+    private var typeSwitch: some View {
+        HStack(spacing: 1) {
+            switchButton(String(localized: "支出"), active: showsExpense) {
+                showsExpense = true
+            }
+            switchButton(String(localized: "收入"), active: !showsExpense) {
+                showsExpense = false
+            }
+        }
+        .padding(2.5)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.holoToolInset))
+    }
+
+    private func switchButton(_ title: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11.5, weight: active ? .semibold : .medium))
+                .foregroundColor(active ? .holoToolText : .holoToolTextSecondary)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(active ? Color.holoToolSurface : .clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(active ? Color.holoToolBorder : .clear, lineWidth: 0.5)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 分类列表
 
     private var categoryList: some View {
-        VStack(spacing: 6) {
-            ForEach(Array(currentAggregations.prefix(5).enumerated()), id: \.element.id) { index, agg in
+        let items = Array(currentAggregations.prefix(5))
+        return VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, agg in
                 CategoryRankRow(
-                    rank: index + 1,
                     aggregation: agg,
-                    accentColor: accentColor
+                    tintColor: barColors.indices.contains(index) ? barColors[index] : .holoChartStone
                 ) {
                     onTapCategory?(agg.category)
+                }
+
+                if index < items.count - 1 {
+                    HoloHairlineDivider(leadingInset: 44)
                 }
             }
         }
@@ -82,81 +113,67 @@ struct TopCategoryCard: View {
     // MARK: - 空状态
 
     private var emptyState: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            Spacer()
-            Image(systemName: "tray")
-                .font(.system(size: 24, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-            Text("暂无数据")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 120)
+        Text("暂无数据")
+            .font(.holoCaption)
+            .foregroundColor(.holoToolTextSecondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 88)
     }
 }
 
 // MARK: - Category Rank Row
 
-/// 分类排行行
+/// 分类排行行（无卡极简：图标 + 名称/暖墨金额 + 3pt 发丝占比条 + 百分比）
 struct CategoryRankRow: View {
-    let rank: Int
     let aggregation: CategoryAggregation
-    let accentColor: Color
+    let tintColor: Color
     let onTap: () -> Void
+
+    private var progress: Double {
+        min(max(aggregation.percentage / 100.0, 0), 1)
+    }
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 8) {
-                // 排名
-                Text("\(rank)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(width: 18, height: 18)
-                    .background(accentColor.opacity(0.85))
-                    .clipShape(Circle())
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(tintColor.opacity(0.13))
+                        .frame(width: 32, height: 32)
+                    transactionCategoryIcon(aggregation.category, size: 15)
+                }
 
-                // 分类图标
-                categoryIcon
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(aggregation.category.name)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolText)
+                            .lineLimit(1)
 
-                // 科目名称
-                Text(aggregation.category.name)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
+                        Spacer(minLength: 8)
 
-                // 金额
-                Text(aggregation.formattedCompactAmount)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(accentColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .monospacedDigit()
-                    .frame(width: TopCategoryRankLayout.amountColumnWidth, alignment: .trailing)
-                    .layoutPriority(2)
+                        Text(aggregation.formattedCompactAmount)
+                            .font(.system(size: 14, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundColor(.holoToolText)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 10) {
+                        HoloHairlineProgressTrack(progress: progress, tint: tintColor, height: 3)
+
+                        Text(aggregation.formattedPercentage)
+                            .font(.system(size: 11))
+                            .monospacedDigit()
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(minWidth: 34, alignment: .trailing)
+                    }
+                }
             }
-            .frame(height: 42)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 11)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - 分类图标
-
-    private var categoryIcon: some View {
-        ZStack {
-            Circle()
-                .fill(aggregation.category.swiftUIColor.opacity(0.15))
-                .frame(width: 24, height: 24)
-
-            transactionCategoryIcon(aggregation.category, size: 12)
-        }
     }
 }
 

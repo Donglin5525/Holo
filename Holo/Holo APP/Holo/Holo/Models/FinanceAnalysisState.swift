@@ -627,6 +627,45 @@ class FinanceAnalysisState: ObservableObject {
 
     // MARK: - 私有方法
 
+    /// 趋势图截止上界（排他）：进行中的周期截断到「明天零点」（只画到今天，不再右侧留未来空槽）；
+    /// 若用户提前记了未来日期的账，则延至最后一笔账的次日零点；历史/未来完整周期保持原 end。
+    static func effectiveChartEnd(
+        start: Date,
+        end: Date,
+        transactions: [Transaction],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        let startDay = calendar.startOfDay(for: start)
+        let todayStart = calendar.startOfDay(for: now)
+        guard startDay <= todayStart, end > todayStart else { return end }
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? end
+        let latestTxNextDay = transactions
+            .map { calendar.startOfDay(for: $0.date) }
+            .max()
+            .flatMap { calendar.date(byAdding: .day, value: 1, to: $0) }
+        let cap = max(tomorrowStart, latestTxNextDay ?? tomorrowStart)
+        return min(end, cap)
+    }
+
+    /// 周期内已过天数（用于进行中周期的真实日均口径；历史完整周期等于总天数）。
+    static func elapsedDayCount(
+        start: Date,
+        end: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> (elapsed: Int, total: Int) {
+        let startDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        let total = max(calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 1, 1)
+        let todayStart = calendar.startOfDay(for: now)
+        guard startDay <= todayStart, endDay > todayStart else {
+            return (total, total)
+        }
+        let elapsed = max((calendar.dateComponents([.day], from: startDay, to: todayStart).day ?? 0) + 1, 1)
+        return (min(elapsed, total), total)
+    }
+
     /// 计算图表数据点（含累计余额，以 initialBalance 为起始值）
     private func computeChartDataPoints(
         from transactions: [Transaction],
@@ -635,6 +674,7 @@ class FinanceAnalysisState: ObservableObject {
         initialBalance: Decimal = 0
     ) -> [ChartDataPoint] {
         let calendar = Calendar.current
+        let effectiveEnd = Self.effectiveChartEnd(start: start, end: end, transactions: transactions, calendar: calendar)
         let rangeDayCount = max(calendar.dateComponents([.day], from: start, to: end).day ?? 1, 1)
         let granularity = ChartGranularity.from(dayCount: rangeDayCount)
 
@@ -642,7 +682,7 @@ class FinanceAnalysisState: ObservableObject {
         var current = start
         var runningBalance: Decimal = initialBalance
 
-        while current < end {
+        while current < effectiveEnd {
             let next: Date?
             let label: String
             let df = DateFormatter()
@@ -726,7 +766,12 @@ class FinanceAnalysisState: ObservableObject {
             .filter { $0.statisticsType == .income }
             .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
-        let days = max(dayCount, 1)
+        let days: Int
+        if let range {
+            days = Self.elapsedDayCount(start: range.start, end: range.end).elapsed
+        } else {
+            days = max(dayCount, 1)
+        }
         let elapsedPeriods = range.map {
             BillingCycleCalculator.elapsedPeriodCount(from: $0.start, to: $0.end)
         } ?? 0

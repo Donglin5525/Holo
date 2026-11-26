@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-11-26] 数据库开库门禁加固 + 财务统计报表改版并入 1.2.0（构建 63）
+
+东林 11-26 看过后拍板两条线并入 1.2.0，构建号 63。纯客户端，不需要后端发版；不改数据库结构。
+
+- **数据库开库门禁加固**：打开前的模型核对与升级前备份合并为一次只读预检，消除「校验一次、备份前再读一次」之间可能漏备份的窗口；登记簿倒推历史形态时只基于当前传入的模型，避免误用全局模型。开库失败时提供「重新尝试」（小组件瞬时占锁、备份繁忙等偶发情况可自愈），并发调用一律等同一次加载落定，不再可能停在加载页；恢复页「复制信息」在 Mac 上也可用。提交前检查新增：改 Core Data 实体必须同批登记升级簿并更新模型快照测试（R5），暂存 App Swift 文件时同步跑审美闸门（R4）。
+- **财务统计报表改版**：见 `docs/CHANGELOG.md` 待发布区「财务统计分析报表高审美改版」条目。
+- **验证**：干净副本（e30f3a11d + 本批文件）Debug 构建真绿；`CoreDataStoreRecoveryTests`、`CoreDataSchemaHistoryTests`、`FinanceChartScaleTests`、`FinancePeriodDirectSelectTests`、`HoloChartEnhancementTests`、`HoloChartRenderSmokeTests`、`FinanceAnalysisNavigation` / `FinanceYearBasis`（独立脚本式）真绿；Release 归档见提交说明。
+
+---
+
 ## [2026-11-26] HoloAI 数值记录与单位 + Plus 会员冷启动不再被当免费版 + 1.2.0 构建缺件补齐
 
 东林 11-26 要求「数值记录这条线提交」并「把 1.2.0 处理到能发版」。方案 `docs/_common/plans/2026-11-25-HoloAI数值记录与单位方案.md`。后端配套（意图识别 v37）已于同日发版上线（`f7f3462bf`）。

@@ -39,15 +39,8 @@ struct FinanceAnalysisView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                // 顶部栏
+                // 顶部栏（返回 + 居中日期胶囊，省去多余「统计分析」整行大标题）
                 headerView
-
-                // 时间范围标签（点击内联展开筛选条，不弹抽屉）
-                TimeRangeLabel(state: state) {
-                    withAnimation(HoloAnimation.standard) {
-                        showTimeFilterBlock.toggle()
-                    }
-                }
 
                 // 内联时间筛选条：点档位立即生效并收起，数据区全程可见
                 if showTimeFilterBlock {
@@ -63,8 +56,9 @@ struct FinanceAnalysisView: View {
                     }
                 }
 
-                // Tab 栏
+                // Tab 栏 + 0.5pt 暖灰细线
                 tabBar
+                HoloHairlineDivider()
 
                 // 内容区
                 tabContentBody
@@ -148,33 +142,37 @@ struct FinanceAnalysisView: View {
     // MARK: - 顶部栏
 
     private var headerView: some View {
-        HStack {
+        HStack(spacing: HoloSpacing.sm) {
             Button {
                 onBack()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
+                    .holoIconSize(.sm, weight: .semibold)
                     .foregroundColor(.holoToolText)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 34, height: 34)
                     .background(Color.holoToolSurface)
                     .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    .overlay(Circle().strokeBorder(Color.holoToolBorder, lineWidth: 0.5))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "返回"))
+
+            Spacer(minLength: 4)
+
+            TimeRangeLabel(state: state, isCompactHeader: true) {
+                withAnimation(HoloAnimation.standard) {
+                    showTimeFilterBlock.toggle()
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            Text("统计分析")
-                .holoText(.pageTitle)
-                .foregroundColor(.holoToolText)
-
-            Spacer()
-
-            // 占位保持对称
-            Color.clear.frame(width: 36, height: 36)
+            // 占位保持日期胶囊严格居中
+            Color.clear.frame(width: 34, height: 34)
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, 0)
-        .padding(.bottom, HoloSpacing.sm)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, 4)
+        .padding(.bottom, HoloSpacing.xs)
     }
 
     // MARK: - Tab 栏
@@ -185,30 +183,29 @@ struct FinanceAnalysisView: View {
                 tabButton(tab)
             }
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.sm)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, 2)
     }
 
     private func tabButton(_ tab: AnalysisTab) -> some View {
-        Button {
+        let isSelected = selectedTab == tab
+        return Button {
             withAnimation(HoloAnimation.standard) {
                 selectedTab = tab
             }
         } label: {
             Text(tab.displayName)
-                .holoText(.supporting)
-                .fontWeight(selectedTab == tab ? .semibold : .medium)
-                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
+                .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .holoToolText : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, HoloSpacing.xs)
-                .background(
-                    VStack {
-                        Spacer()
-                        Rectangle()
-                            .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
-                            .frame(height: 2)
+                .padding(.vertical, 9)
+                .overlay(alignment: .bottom) {
+                    if isSelected {
+                        Capsule()
+                            .fill(Color.holoPrimary)
+                            .frame(width: 28, height: 2)
                     }
-                )
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

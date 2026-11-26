@@ -10,61 +10,65 @@ import SwiftUI
 
 // MARK: - CategoryLegendRow
 
-/// 分类图例行
+/// 分类图例行（2026-11-26 原型 1:1 无卡纸本：图标 + 名称/暖墨金额 + 3pt 发丝占比条 + 笔数与百分比）
 struct CategoryLegendRow: View {
     let aggregation: CategoryAggregation
     let color: Color
     let isSelected: Bool
     let onTap: () -> Void
 
+    private var progress: Double {
+        min(max(aggregation.percentage / 100.0, 0), 1)
+    }
+
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: HoloSpacing.md) {
-                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                    .fill(color)
-                    .frame(width: 8, height: 8)
-
-                // 分类图标
+            HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.12))
+                        .fill(color.opacity(0.13))
                         .frame(width: 32, height: 32)
-
-                    transactionCategoryIcon(aggregation.category, size: 16)
+                    transactionCategoryIcon(aggregation.category, size: 15)
                 }
 
-                // 分类名称
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(aggregation.category.name)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(aggregation.category.name)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoToolText)
+                                .lineLimit(1)
 
-                    Text("\(aggregation.transactionCount) 笔")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
-                }
+                            Text("\(aggregation.transactionCount) 笔")
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
 
-                Spacer()
+                        Spacer(minLength: 8)
 
-                // 金额和占比
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(aggregation.formattedCompactAmount)
-                        .font(.holoBody)
-                        .foregroundColor(isSelected ? color : .holoTextPrimary)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
+                        Text(aggregation.formattedCompactAmount)
+                            .font(.system(size: 14, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundColor(isSelected ? color : .holoToolText)
+                            .lineLimit(1)
+                    }
 
-                    Text(aggregation.formattedPercentage)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                    HStack(spacing: 10) {
+                        HoloHairlineProgressTrack(progress: progress, tint: color, height: 3)
+
+                        Text(aggregation.formattedPercentage)
+                            .font(.system(size: 11))
+                            .monospacedDigit()
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(minWidth: 34, alignment: .trailing)
+                    }
                 }
             }
-            .padding(.vertical, HoloSpacing.sm)
-            .padding(.horizontal, HoloSpacing.sm)
+            .padding(.vertical, 11)
+            .padding(.horizontal, isSelected ? 6 : 0)
             .background(
-                RoundedRectangle(cornerRadius: HoloRadius.sm)
-                    .fill(isSelected ? color.opacity(0.1) : Color.clear)
+                RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
+                    .fill(isSelected ? color.opacity(0.08) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -74,7 +78,7 @@ struct CategoryLegendRow: View {
 
 // MARK: - CategoryLegendList
 
-/// 分类图例列表
+/// 分类图例列表（无卡纸本）
 struct CategoryLegendList: View {
     let aggregations: [CategoryAggregation]
     let selectedCategory: Category?
@@ -97,13 +101,10 @@ struct CategoryLegendList: View {
                 }
 
                 if index < aggregations.count - 1 {
-                    Divider()
-                        .padding(.leading, 56)
+                    HoloHairlineDivider(leadingInset: 44)
                 }
             }
         }
-        .padding(.horizontal, HoloSpacing.sm)
-        .padding(.vertical, HoloSpacing.xs)
     }
 }
 

@@ -16,18 +16,22 @@ struct HoloStackedAreaBucket: Identifiable, Equatable {
     var detail: String? = nil
 }
 
-/// 构成趋势（堆叠面积）：多系列按桶堆叠，回答「构成怎么随时间变」。
-/// 读数/横滑/数字过渡与柱线图同一语言：固定读数区逐系列出值，idle 显示末桶。
+/// 构成趋势（支持月度堆叠柱状图 / 堆叠面积图）：多系列按桶堆叠，回答「构成怎么随时间变」。
+/// 2026-11-26 改版：默认月度堆叠柱状图 + 2 列紧凑可点击图例（点击高亮单类走势）+ 横轴月份严格居中对齐柱中心。
 struct HoloStackedAreaChart: View {
+    enum StackedPresentation { case stackedBar, stackedArea }
+
     let buckets: [HoloStackedAreaBucket]
     let series: [HoloStackedAreaSeries]
     @Binding var selection: String?
-    var height: CGFloat = 170
-    /// idle 读数行小字（如「近 6 月 · 点按或横滑查看」）；末桶合计拼在后面
+    var height: CGFloat = 156
+    /// idle 读数行小字（如「近 6 月」）；末桶合计拼在后面
     var summary: String = ""
+    var presentation: StackedPresentation = .stackedBar
     var valueText: (Double) -> String = HoloChartFormat.number
 
     @State private var haptic = UISelectionFeedbackGenerator()
+    @State private var focusedSeriesID: String? = nil
     @ScaledMetric(relativeTo: .caption2) private var axisSize: CGFloat = 11
 
     /// 堆叠累计水位（纯函数，单测锁定）：levels[i][b] = 到第 i 层的累计顶
@@ -47,61 +51,126 @@ struct HoloStackedAreaChart: View {
     private var totals: [Double] { buckets.indices.map { b in series.enumerated().map { $0.element.values.indices.contains(b) ? ($0.element.values[b] ?? 0) : 0 }.reduce(0, +) } }
     private var selected: HoloStackedAreaBucket? { buckets.first { $0.id == selection } }
     private var selectedIndex: Int? { buckets.firstIndex { $0.id == selection } }
+    private var activeBucketIndex: Int { selectedIndex ?? max(buckets.count - 1, 0) }
 
     var body: some View {
         if buckets.isEmpty {
             Text("暂无可用数据").font(.caption).foregroundStyle(Color.holoToolTextSecondary)
                 .frame(maxWidth: .infinity).frame(height: height)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                readout
+            VStack(alignment: .leading, spacing: 10) {
+                compactHeader
+                compactLegendGrid
                 chart
             }
         }
     }
 
-    private var readout: some View {
-        let index = selectedIndex
-        // 复用公共读数件：选中桶把逐层值摊进 values 数组；idle = 末桶逐层值
-        let lastValues: [Double?] = series.map { item in
-            guard let last = buckets.indices.last, item.values.indices.contains(last) else { return nil }
-            return item.values[last]
+    /// 顶部极简读数行：左侧显示当前（或最近一月）合计，右侧提示点图例高亮
+    private var compactHeader: some View {
+        let idx = activeBucketIndex
+        let bucketLabel = buckets.indices.contains(idx) ? (buckets[idx].detail ?? buckets[idx].label) : ""
+        let total = totals.indices.contains(idx) ? totals[idx] : 0
+        return HStack(alignment: .firstTextBaseline) {
+            HStack(spacing: 4) {
+                Text("\(bucketLabel)合计")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                Text(valueText(total))
+                    .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.holoToolText)
+                    .contentTransition(.numericText())
+            }
+            Spacer(minLength: 8)
+            Text(focusedSeriesID == nil ? "点图例高亮单类" : "再点恢复全部")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.holoToolTextSecondary.opacity(0.8))
         }
-        return HoloChartReadout(
-            bucket: index.map { i in
-                HoloChartBucket(id: buckets[i].id, label: buckets[i].label, detail: buckets[i].detail,
-                                values: series.map { item in
-                                    item.values.indices.contains(i) ? item.values[i] : nil
-                                })
-            },
-            series: series.map { HoloChartSeries(id: $0.id, title: $0.title, color: $0.color) },
-            summary: "\(summary)\(summary.isEmpty ? "" : " · ")\(buckets.last?.label ?? "")合计 \(valueText(totals.last ?? 0))",
-            valueText: valueText,
-            idleValues: lastValues,
-            onOpenDetail: nil
-        )
+    }
+
+    /// 2 列紧凑图例网格（替代原版 5 行竖排大字占半屏）
+    private var compactLegendGrid: some View {
+        let idx = activeBucketIndex
+        let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+        return LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(series) { item in
+                let val = item.values.indices.contains(idx) ? (item.values[idx] ?? 0) : 0
+                let isFocused = focusedSeriesID == item.id
+                let isDimmed = focusedSeriesID != nil && !isFocused
+                Button {
+                    withAnimation(.easeOut(duration: 0.16)) {
+                        focusedSeriesID = isFocused ? nil : item.id
+                    }
+                    haptic.selectionChanged()
+                } label: {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(item.color)
+                            .frame(width: 7, height: 7)
+                        Text(item.title)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(valueText(val))
+                            .font(.system(size: 12, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.holoToolText)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isFocused ? Color.holoToolInset : Color.clear)
+                    )
+                    .opacity(isDimmed ? 0.32 : 1)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var chart: some View {
         Chart {
             ForEach(series.indices, id: \.self) { s in
-                ForEach(buckets.indices, id: \.self) { b in
-                    let lower = s == 0 ? 0 : levels[s - 1][b]
-                    let upper = levels[s][b]
-                    // 多系列必须走分类通道（by: + 前景样式量表）：逐 mark 字面色在
-                    // 同型堆叠 AreaMark 上会被 coerce 成单一色系（2026-11-15 真机实锤全蓝）
-                    AreaMark(x: .value("时间", Double(b)), yStart: .value("底", lower), yEnd: .value("顶", upper))
-                        .foregroundStyle(by: .value("分类", series[s].title))
-                        .opacity(0.55)
-                        .interpolationMethod(.linear)
-                        .accessibilityLabel("\(buckets[b].label) \(series[s].title) \(valueText(series[s].values.indices.contains(b) ? (series[s].values[b] ?? 0) : 0))")
-                }
-                ForEach(buckets.indices, id: \.self) { b in
-                    LineMark(x: .value("时间", Double(b)), y: .value("层顶", levels[s][b]))
-                        .foregroundStyle(by: .value("分类", series[s].title))
-                        .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
-                        .interpolationMethod(.linear)
-                        .accessibilityHidden(true)
+                let isDimmed = focusedSeriesID != nil && focusedSeriesID != series[s].id
+                if presentation == .stackedBar {
+                    ForEach(buckets.indices, id: \.self) { b in
+                        let lower = s == 0 ? 0 : levels[s - 1][b]
+                        let upper = levels[s][b]
+                        let bucketDimmed = selectedIndex != nil && selectedIndex != b
+                        if upper > lower {
+                            BarMark(x: .value("时间", Double(b)),
+                                    yStart: .value("底", lower),
+                                    yEnd: .value("顶", upper),
+                                    width: .fixed(22))
+                                .foregroundStyle(by: .value("分类", series[s].title))
+                                .opacity(isDimmed ? 0.18 : (bucketDimmed ? 0.45 : 0.92))
+                                .cornerRadius(s == series.count - 1 ? 3 : 1)
+                                .accessibilityLabel("\(buckets[b].label) \(series[s].title) \(valueText(series[s].values.indices.contains(b) ? (series[s].values[b] ?? 0) : 0))")
+                        }
+                    }
+                } else {
+                    ForEach(buckets.indices, id: \.self) { b in
+                        let lower = s == 0 ? 0 : levels[s - 1][b]
+                        let upper = levels[s][b]
+                        AreaMark(x: .value("时间", Double(b)), yStart: .value("底", lower), yEnd: .value("顶", upper))
+                            .foregroundStyle(by: .value("分类", series[s].title))
+                            .opacity(isDimmed ? 0.15 : 0.55)
+                            .interpolationMethod(.linear)
+                            .accessibilityLabel("\(buckets[b].label) \(series[s].title) \(valueText(series[s].values.indices.contains(b) ? (series[s].values[b] ?? 0) : 0))")
+                    }
+                    ForEach(buckets.indices, id: \.self) { b in
+                        LineMark(x: .value("时间", Double(b)), y: .value("层顶", levels[s][b]))
+                            .foregroundStyle(by: .value("分类", series[s].title))
+                            .opacity(isDimmed ? 0.2 : 1)
+                            .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                            .interpolationMethod(.linear)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
             if let index = selectedIndex {
@@ -112,9 +181,10 @@ struct HoloStackedAreaChart: View {
         }
         .chartXScale(domain: -0.5...(Double(max(buckets.count - 1, 0)) + 0.5))
         .chartLegend(.hidden)
+        .chartXAxis(.hidden)
         .chartForegroundStyleScale(range: series.map(\.color))
         .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
                 AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.6))
                 AxisValueLabel {
                     if let number = value.as(Double.self) {
@@ -124,21 +194,22 @@ struct HoloStackedAreaChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: xTickValues) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self), buckets.indices.contains(index) {
-                        Text(buckets[index].label).font(.system(size: axisSize))
-                            .lineLimit(1).minimumScaleFactor(0.6)
-                            .foregroundStyle(Color.holoToolTextSecondary)
-                    }
-                }
-            }
-        }
         .chartOverlay { proxy in
             GeometryReader { geometry in
                 if let anchor = proxy.plotFrame {
                     let plot = geometry[anchor]
+                    // 横轴月份标签严格居中对齐每根柱/点中心，彻底修复 Swift Charts 默认左对齐右偏半格的 Bug
+                    ForEach(xTickValues, id: \.self) { index in
+                        if buckets.indices.contains(index), let px = proxy.position(forX: Double(index)) {
+                            let isHighlighted = (selectedIndex ?? buckets.count - 1) == index
+                            Text(buckets[index].label)
+                                .font(.system(size: axisSize, weight: isHighlighted ? .semibold : .regular))
+                                .foregroundStyle(isHighlighted ? Color.holoToolText : Color.holoToolTextSecondary)
+                                .lineLimit(1)
+                                .position(x: plot.minX + px, y: plot.maxY + axisSize / 2 + 7)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     DirectionalChartGestureOverlay(
                         onChanged: { point in inspect(point, proxy: proxy, plot: plot, clamped: true) },
                         onEnded: { _ in }, onCancelled: {},
@@ -153,6 +224,7 @@ struct HoloStackedAreaChart: View {
             }
         }
         .frame(height: height)
+        .padding(.bottom, axisSize + 12)
     }
 
     /// x 轴刻度（桶下标）：≤8 桶全显（「N月」两三字全放得下，抽样反而缺月），
