@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo Plus 付费墙重构原型 · 2026-11-26</title>
+<style>
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf");font-weight:400}
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf");font-weight:700}
+
+:root{
+  --paper:#FDFCF8;
+  --paper-warm:#F6F2E9;
+  --surface:#FFFFFF;
+  --ink:#2F2B26;
+  --ink-deep:#1C1916;
+  --ink-mid:#6E685F;
+  --ink-soft:#9E978D;
+  --rule:rgba(47,43,38,.12);
+  --rule-strong:rgba(47,43,38,.26);
+  --accent:#EA580C;
+  --accent-soft:rgba(234,88,12,.07);
+  --accent-border:rgba(234,88,12,.45);
+  --dark-paper:#141311;
+  --dark-elev:#1E1C19;
+  --dark-ink:#ECE7DD;
+  --dark-mid:#9B9488;
+  --dark-soft:#746E64;
+  --dark-rule:rgba(236,231,221,.12);
+  --dark-accent:#FF8A5C;
+  --dark-accent-soft:rgba(255,138,92,.11);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+  background:#E8E4DC;
+  color:var(--ink-deep);
+  line-height:1.5;
+  padding:32px 24px 80px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1280px;margin:0 auto}
+
+/* ===== 顶部导览与控制台 ===== */
+.header{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;
+  padding-bottom:20px;border-bottom:1.5px solid var(--ink-deep);
+}
+.kicker-top{font-size:11px;letter-spacing:2.4px;color:var(--ink-mid);text-transform:uppercase;font-weight:600;margin-bottom:6px}
+h1{font-family:"HoloSerif","Songti SC","Georgia",serif;font-size:28px;font-weight:700;letter-spacing:.6px;line-height:1.2}
+.lead{font-size:13.5px;color:#57524A;margin-top:8px;max-width:720px;line-height:1.65}
+
+.controls{
+  margin-top:20px;
+  display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;
+  background:rgba(253,252,248,.85);
+  border:.5px solid var(--rule-strong);
+  border-radius:12px;
+  padding:14px 18px;
+}
+.ctrl-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctrl-label{font-size:11.5px;font-weight:600;color:var(--ink-mid);letter-spacing:.5px}
+.seg{display:inline-flex;background:rgba(47,43,38,.08);padding:3px;border-radius:8px;gap:2px}
+.seg button{
+  border:none;background:transparent;padding:5px 11px;border-radius:6px;
+  font-size:12px;color:var(--ink-mid);cursor:pointer;font-weight:500;transition:.15s;
+}
+.seg button.active{background:#FDFCF8;color:var(--ink-deep);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
+
+/* ===== 展示舞台 ===== */
+.stage{
+  margin-top:32px;
+  display:grid;
+  grid-template-columns:375px 1fr;
+  gap:40px;
+  align-items:start;
+}
+@media (max-width:960px){
+  .stage{grid-template-columns:1fr;justify-items:center}
+}
+
+/* ===== 手机壳 (375x812 比例缩放为 375x780) ===== */
+.phone-col{width:375px}
+.phone-cap{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:10px;font-size:12.5px;font-weight:600;color:var(--ink-deep);
+}
+.phone-cap .badge{font-size:11px;font-family:"SF Mono","Menlo",monospace;color:var(--accent)}
+
+.phone{
+  width:375px;height:780px;border-radius:46px;border:9px solid #181715;
+  position:relative;overflow:hidden;
+  background:var(--paper);color:var(--ink);
+  box-shadow:0 24px 52px rgba(24,20,14,.18),0 2px 6px rgba(0,0,0,.08);
+  display:flex;flex-direction:column;
+  transition:background .2s,color .2s;
+}
+.phone.dark{background:var(--dark-paper);color:var(--dark-ink);border-color:#0B0A09}
+
+/* 状态栏 */
+.sb{
+  height:44px;flex-shrink:0;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:0 26px;font-size:12.5px;font-weight:600;
+}
+.sb-notch{
+  position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:96px;height:24px;border-radius:14px;background:#000;
+}
+
+/* 顶栏 */
+.topbar{
+  height:44px;flex-shrink:0;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:0 20px;
+}
+.brand-mark{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--ink-mid);
+}
+.phone.dark .brand-mark{color:var(--dark-mid)}
+.brand-dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.phone.dark .brand-dot{background:var(--dark-accent)}
+.close-btn{
+  border:none;background:transparent;color:var(--ink-mid);
+  font-size:14px;font-weight:500;cursor:pointer;padding:6px 4px;
+}
+.phone.dark .close-btn{color:var(--dark-mid)}
+
+/* 中间可滚区 */
+.pw-scroll{
+  flex:1;overflow-y:auto;padding:4px 22px 16px;
+}
+.pw-scroll::-webkit-scrollbar{display:none}
+
+.ctx-kicker{
+  font-size:11px;letter-spacing:1.6px;font-weight:600;
+  color:var(--accent);margin-bottom:8px;display:inline-block;
+}
+.phone.dark .ctx-kicker{color:var(--dark-accent)}
+
+.pw-title{
+  font-family:"HoloSerif","Songti SC","Georgia",serif;
+  font-size:24px;font-weight:700;line-height:1.3;letter-spacing:.3px;
+  color:var(--ink-deep);
+}
+.phone.dark .pw-title{color:var(--dark-ink)}
+
+.pw-sub{
+  font-size:13.5px;line-height:1.6;color:var(--ink-mid);margin-top:8px;
+}
+.phone.dark .pw-sub{color:var(--dark-mid)}
+
+.hairline{height:.5px;background:var(--rule);margin:16px 0}
+.phone.dark .hairline{background:var(--dark-rule)}
+
+/* 权益列表（无卡、克制、场景置顶） */
+.benefit-list{display:flex;flex-direction:column}
+.b-row{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:11px 0;
+  border-bottom:.5px solid var(--rule);
+}
+.b-row:last-child{border-bottom:none}
+.phone.dark .b-row{border-bottom-color:var(--dark-rule)}
+
+.b-row.featured{
+  background:var(--accent-soft);
+  margin:0 -12px 4px;
+  padding:12px 12px;
+  border-radius:10px;
+  border-bottom:none;
+}
+.phone.dark .b-row.featured{background:var(--dark-accent-soft)}
+
+.b-idx{
+  width:18px;flex-shrink:0;padding-top:2px;
+  font-family:"SF Mono","Menlo",monospace;font-size:11px;font-weight:600;
+  color:var(--ink-soft);
+}
+.b-row.featured .b-idx{color:var(--accent)}
+.phone.dark .b-idx{color:var(--dark-soft)}
+.phone.dark .b-row.featured .b-idx{color:var(--dark-accent)}
+
+.b-body{flex:1;min-width:0}
+.b-name{
+  font-size:14.5px;font-weight:600;color:var(--ink-deep);
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.phone.dark .b-name{color:var(--dark-ink)}
+.b-pill{
+  font-size:10px;font-weight:600;padding:1.5px 6px;border-radius:4px;
+  background:rgba(234,88,12,.14);color:var(--accent);
+}
+.phone.dark .b-pill{background:rgba(255,138,92,.2);color:var(--dark-accent)}
+.b-desc{font-size:12.5px;color:var(--ink-mid);margin-top:2px;line-height:1.45}
+.phone.dark .b-desc{color:var(--dark-mid)}
+
+.compare-link{
+  margin-top:8px;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 0 4px;
+  border:none;background:transparent;width:100%;cursor:pointer;
+  font-size:12.5px;font-weight:500;color:var(--ink-mid);
+}
+.phone.dark .compare-link{color:var(--dark-mid)}
+.compare-link:hover{color:var(--ink-deep)}
+.phone.dark .compare-link:hover{color:var(--dark-ink)}
+
+.promise-note{
+  margin-top:6px;
+  font-size:11.5px;color:var(--ink-soft);line-height:1.5;
+}
+.phone.dark .promise-note{color:var(--dark-soft)}
+
+/* ===== 吸底决策区 ===== */
+.dock{
+  flex-shrink:0;
+  background:var(--paper);
+  border-top:.5px solid var(--rule-strong);
+  padding:14px 20px 22px;
+}
+.phone.dark .dock{
+  background:var(--dark-paper);
+  border-top-color:var(--dark-rule);
+}
+
+.plan-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+.plan-card{
+  position:relative;text-align:left;cursor:pointer;
+  border-radius:12px;padding:12px 12px 11px;
+  background:transparent;
+  border:1px solid var(--rule-strong);
+  transition:.15s;
+}
+.phone.dark .plan-card{border-color:rgba(236,231,221,.18)}
+
+.plan-card.selected{
+  background:var(--accent-soft);
+  border:1.5px solid var(--accent);
+}
+.phone.dark .plan-card.selected{
+  background:var(--dark-accent-soft);
+  border-color:var(--dark-accent);
+}
+
+.plan-top{
+  display:flex;justify-content:space-between;align-items:center;gap:4px;
+  margin-bottom:6px;
+}
+.plan-name{font-size:12.5px;font-weight:600;color:var(--ink-deep)}
+.phone.dark .plan-name{color:var(--dark-ink)}
+.save-tag{
+  font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px;
+  background:var(--accent);color:#fff;white-space:nowrap;
+}
+.phone.dark .save-tag{background:var(--dark-accent);color:#141311}
+
+.plan-price-row{
+  display:flex;align-items:baseline;gap:2px;
+  font-variant-numeric:tabular-nums;
+}
+.plan-price{font-size:21px;font-weight:700;color:var(--ink-deep);letter-spacing:-.4px}
+.phone.dark .plan-price{color:var(--dark-ink)}
+.plan-unit{font-size:11.5px;color:var(--ink-mid)}
+.phone.dark .plan-unit{color:var(--dark-mid)}
+
+.plan-meta{
+  font-size:11px;color:var(--ink-mid);margin-top:4px;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.plan-card.selected .plan-meta{color:var(--accent);font-weight:500}
+.phone.dark .plan-meta{color:var(--dark-mid)}
+.phone.dark .plan-card.selected .plan-meta{color:var(--dark-accent)}
+
+.cta-btn{
+  margin-top:12px;width:100%;height:48px;border:none;border-radius:12px;
+  background:var(--accent);color:#fff;
+  font-size:15.5px;font-weight:600;letter-spacing:.2px;
+  cursor:pointer;transition:.15s;
+}
+.cta-btn:active{transform:scale(.985)}
+.phone.dark .cta-btn{background:var(--dark-accent);color:#141311}
+
+.cta-sub{
+  text-align:center;font-size:11px;color:var(--ink-mid);margin-top:7px;line-height:1.4;
+}
+.phone.dark .cta-sub{color:var(--dark-mid)}
+
+.legal-row{
+  margin-top:10px;
+  display:flex;justify-content:center;align-items:center;gap:8px;
+  font-size:11px;color:var(--ink-soft);
+}
+.phone.dark .legal-row{color:var(--dark-soft)}
+.legal-row a{color:inherit;text-decoration:none}
+
+/* 异常态（最惨态） */
+.error-dock{
+  padding:16px 4px 6px;text-align:center;
+}
+.error-title{font-size:13.5px;font-weight:600;color:var(--ink-deep)}
+.phone.dark .error-title{color:var(--dark-ink)}
+.error-sub{font-size:12px;color:var(--ink-mid);margin-top:4px}
+.phone.dark .error-sub{color:var(--dark-mid)}
+.retry-btn{
+  margin-top:12px;padding:9px 22px;border-radius:10px;
+  border:1px solid var(--rule-strong);background:transparent;
+  color:var(--ink-deep);font-size:13px;font-weight:600;cursor:pointer;
+}
+.phone.dark .retry-btn{border-color:rgba(236,231,221,.25);color:var(--dark-ink)}
+
+/* ===== 二级弹层：完整权益对比 Sheet ===== */
+.sheet-mask{
+  position:absolute;inset:0;background:rgba(20,18,16,.42);
+  display:none;flex-direction:column;justify-content:flex-end;z-index:30;
+}
+.sheet-mask.open{display:flex}
+.sheet{
+  height:86%;background:var(--paper);border-radius:24px 24px 0 0;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.phone.dark .sheet{background:var(--dark-elev)}
+.sheet-head{
+  padding:16px 20px 12px;border-bottom:.5px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.phone.dark .sheet-head{border-bottom-color:var(--dark-rule)}
+.sheet-title{font-family:"HoloSerif","Songti SC",serif;font-size:18px;font-weight:700}
+.sheet-body{flex:1;overflow-y:auto;padding:12px 20px 28px}
+.sheet-body::-webkit-scrollbar{display:none}
+.tbl-group{
+  font-size:11px;letter-spacing:1.4px;font-weight:600;color:var(--ink-soft);
+  margin:14px 0 6px;
+}
+.tbl-group:first-child{margin-top:2px}
+.tbl-row{
+  display:grid;grid-template-columns:1fr 68px 76px;align-items:center;
+  padding:9px 0;border-bottom:.5px solid var(--rule);font-size:12.5px;
+}
+.phone.dark .tbl-row{border-bottom-color:var(--dark-rule)}
+.tbl-head{font-size:11px;font-weight:600;color:var(--ink-soft);padding-bottom:6px}
+.tbl-free{text-align:center;color:var(--ink-mid);font-variant-numeric:tabular-nums}
+.tbl-plus{text-align:right;color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+.phone.dark .tbl-free{color:var(--dark-mid)}
+.phone.dark .tbl-plus{color:var(--dark-accent)}
+
+/* ===== 右侧说明与对比栏 ===== */
+.notes-col{display:flex;flex-direction:column;gap:20px}
+.note-card{
+  background:rgba(253,252,248,.88);
+  border:.5px solid var(--rule-strong);
+  border-radius:14px;
+  padding:20px 22px;
+}
+.note-card h2{
+  font-family:"HoloSerif","Songti SC",serif;
+  font-size:18px;font-weight:700;margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+.note-card h2 span{font-family:"SF Mono","Menlo",monospace;font-size:11px;color:var(--accent);letter-spacing:1px}
+.diff-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;
+}
+@media (max-width:680px){.diff-grid{grid-template-columns:1fr}}
+.diff-box{
+  padding:12px 14px;border-radius:10px;border:.5px solid var(--rule);
+  background:#FDFCF8;font-size:12.5px;line-height:1.6;
+}
+.diff-box.bad{border-color:rgba(184,74,62,.25);background:rgba(184,74,62,.04)}
+.diff-box.good{border-color:rgba(234,88,12,.3);background:rgba(234,88,12,.04)}
+.diff-box b{display:block;margin-bottom:4px;font-size:12px}
+.diff-box.bad b{color:#A8432F}
+.diff-box.good b{color:var(--accent)}
+
+.spec-list{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:13px;color:#4C4740}
+.spec-list li{padding-left:14px;position:relative;line-height:1.6}
+.spec-list li::before{
+  content:"";position:absolute;left:0;top:9px;width:5px;height:5px;border-radius:50%;background:var(--accent);
+}
+.spec-list strong{color:var(--ink-deep)}
+
+.toast{
+  position:absolute;left:20px;right:20px;bottom:108px;z-index:40;
+  background:var(--ink-deep);color:#FDFCF8;
+  padding:11px 14px;border-radius:10px;font-size:12.5px;text-align:center;
+  opacity:0;pointer-events:none;transition:.2s;
+}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div>
+      <div class="kicker-top">HOLO PLUS · PAYWALL REDESIGN PROTOTYPE</div>
+      <h1>Holo Plus 付费墙重构原型</h1>
+      <p class="lead">对齐 2026-11-24 反 AI 味编辑感规范：纸底无卡、场景化首行承接、质变卖点替代次数流水账、吸底双卡直出价格与主按钮。点击下方控制台切换不同拦截场景、定价方案与异常态。</p>
+    </div>
+  </div>
+
+  <!-- 控制台 -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">触发场景</span>
+      <div class="seg" id="ctxSeg">
+        <button class="active" data-ctx="membership">会员中心</button>
+        <button data-ctx="deepAnalysis">深度洞察撞墙</button>
+        <button data-ctx="holoAI">HoloAI 对话用完</button>
+        <button data-ctx="discovery">一个发现</button>
+        <button data-ctx="finance">预算 / 分期</button>
+        <button data-ctx="voice">5 分钟长语音</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">定价方案</span>
+      <div class="seg" id="priceSeg">
+        <button class="active" data-price="A">方案A ¥15/¥118</button>
+        <button data-price="B">方案B ¥12/¥98</button>
+        <button data-price="old">现价 ¥12/¥128</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">状态</span>
+      <div class="seg" id="stateSeg">
+        <button class="active" data-state="trial">年卡 7 天试用</button>
+        <button data-state="direct">无试用直付</button>
+        <button data-state="error">最惨异常态</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">外观</span>
+      <div class="seg" id="themeSeg">
+        <button class="active" data-theme="light">浅色</button>
+        <button data-theme="dark">深色</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 舞台 -->
+  <div class="stage">
+    <!-- 左：可交互手机原型 -->
+    <div class="phone-col">
+      <div class="phone-cap">
+        <span>新版付费墙 · 可交互预览</span>
+        <span class="badge" id="sceneTag">375×780 · 首屏闭环</span>
+      </div>
+
+      <div class="phone" id="phone">
+        <div class="sb">
+          <span>10:18</span>
+          <div class="sb-notch"></div>
+          <span>5G 100%</span>
+        </div>
+
+        <div class="topbar">
+          <div class="brand-mark"><span class="brand-dot"></span>HOLO PLUS</div>
+          <button class="close-btn" id="closeBtn">关闭</button>
+        </div>
+
+        <div class="pw-scroll">
+          <span class="ctx-kicker" id="ctxKicker">HOLO PLUS</span>
+          <h2 class="pw-title" id="pwTitle">把生活交给更懂你的 Holo</h2>
+          <p class="pw-sub" id="pwSub">解锁更主动的 AI 洞察、5 分钟长语音与财务习惯进阶工具。</p>
+
+          <div class="hairline"></div>
+
+          <div class="benefit-list" id="benefitList"></div>
+
+          <button class="compare-link" id="openCompareBtn">
+            <span>查看全部 15 项权益对比</span>
+            <span>›</span>
+          </button>
+
+          <p class="promise-note">日常记账、待办、想法与习惯打卡永久免费，你的个人记录始终归你所有。</p>
+        </div>
+
+        <!-- 吸底决策区 -->
+        <div class="dock" id="dock"></div>
+
+        <!-- 轻提示 -->
+        <div class="toast" id="toast"></div>
+
+        <!-- 完整权益对比二级 Sheet -->
+        <div class="sheet-mask" id="sheetMask">
+          <div class="sheet">
+            <div class="sheet-head">
+              <span class="sheet-title">免费版与 Plus 完整对比</span>
+              <button class="close-btn" id="closeSheetBtn">关闭</button>
+            </div>
+            <div class="sheet-body" id="sheetBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：重构拆解与拍板说明 -->
+    <div class="notes-col">
+      <div class="note-card">
+        <h2><span>01</span> 改前 vs 改后关键变化</h2>
+        <div class="diff-grid">
+          <div class="diff-box bad">
+            <b>现状问题</b>
+            打开先看深褐大卡 + 6 行配额表，首屏完全看不到价格和按钮；被预算/分期拦下来，页里却在推销语音和对话次数；底部宣称本地免费但实际在拦；年订仅省 11% 且无试用。
+          </div>
+          <div class="diff-box good">
+            <b>新版解法</b>
+            首屏零滚动直出「场景化价值 + 4 条质变卖点 + 吸底双卡与主按钮」；当前被拦功能自动置顶高亮；15 项权益与拦截门禁 100% 对齐；年卡省 32%–34% 并配 7 天试用。
+          </div>
+        </div>
+      </div>
+
+      <div class="note-card">
+        <h2><span>02</span> 交互与视觉契约要点</h2>
+        <ul class="spec-list">
+          <li><strong>场景化动态置顶</strong>：切换左上角「触发场景」可看到：从「预算/分期」进来时，财务进阶工具自动排第一条并带轻橙底标记；从「一个发现」进来时，标题与首条直指每周 5 件主动发现。</li>
+          <li><strong>一页一橙（克制聚焦）</strong>：去掉深褐发光黑卡、6 个彩色 SF Symbol 和按钮外发光阴影；全页视觉焦点只留在<strong>底部主按钮</strong>和<strong>选中方案描边</strong>。</li>
+          <li><strong>双卡并排 + 文案联动</strong>：点击原型里的「年订阅 / 月订阅」卡片，底部按钮文案与续费说明实时联动；年卡带 7 天试用时按钮显式提示试用期后价格，合规且降低犹豫。</li>
+          <li><strong>最惨异常态（必验）</strong>：切到「最惨异常态」可预览弱网 / App Store 拉取失败时的体面兜底——不露开发报错，保留「重试」与「恢复购买」。</li>
+          <li><strong>点击「查看全部 15 项权益对比」</strong>：可在手机原型内直接打开二级 Sheet，核对补全后的 3 组 15 项完整权益。</li>
+        </ul>
+      </div>
+
+      <div class="note-card">
+        <h2><span>03</span> 完整权益分组口径（与门禁 1:1 对齐）</h2>
+        <ul class="spec-list">
+          <li><strong>AI 主动理解与效率（8 项）</strong>：一个发现（1件→最多5件/周）、深度洞察、记忆洞察刷新、5 分钟长语音、账单智能导入（补齐）、AI 任务拆解、HoloAI 对话与智能解析更高额度、每周生活计划。</li>
+          <li><strong>财务进阶管理（4 项，补齐漏项）</strong>：预算管理、财务分期、自定义账单周期、信用卡还款提醒不限张数（免费 3 张）。</li>
+          <li><strong>桌面与习惯进阶（3 项）</strong>：4 类桌面小组件、习惯暂停、习惯无限补签（补齐）。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SCENES = {
+  membership: {
+    kicker: "HOLO PLUS",
+    title: "把生活交给更懂你的 Holo",
+    sub: "更主动的 AI 洞察、5 分钟长语音，以及财务与习惯的进阶工具。",
+    items: [
+      { idx: "01", name: "每周最多 5 件「一个发现」", desc: "免费每周 1 件；Plus 几乎每天帮你留意生活里值得说的变化", featured: false },
+      { idx: "02", name: "深度洞察 10 次/天 · 5 分钟长语音", desc: "跨模块深度复盘更从容，长段口述与记忆洞察刷新不设卡", featured: false },
+      { idx: "03", name: "财务进阶管理", desc: "解锁预算、分期、自定义账单周期与不限张数信用卡提醒", featured: false },
+      { idx: "04", name: "4 类桌面小组件与习惯保护", desc: "桌面一键记录与回看，支持习惯暂停与无限次补签", featured: false }
+    ]
+  },
+  deepAnalysis: {
+    kicker: "深度洞察 · 今日 1 次已用完",
+    title: "让 Holo 把这件事帮你挖透",
+    sub: "免费版每天可做 1 次深度洞察；升级 Plus 提升至 10 次/天，跨模块复盘与追问不再中断。",
+    items: [
+      { idx: "01", name: "深度洞察：每天 1 次 → 10 次", pill: "当前解锁", desc: "支持多轮跨模块追问、消费与习惯归因分析，开通后立刻继续分析", featured: true },
+      { idx: "02", name: "一个发现：每周 1 件 → 最多 5 件", desc: "不用每次主动问，Holo 几乎每天帮你留意值得说的变化", featured: false },
+      { idx: "03", name: "记忆洞察每天可刷新 · 对话翻倍", desc: "HoloAI 对话升至 30 次/天，记忆洞察由每周 1 次变为每天 1 次", featured: false },
+      { idx: "04", name: "5 分钟长语音、小组件与财务进阶", desc: "含账单智能导入、任务拆解 100 次/月、4 类小组件与预算分期", featured: false }
+    ]
+  },
+  holoAI: {
+    kicker: "HOLOAI 对话 · 今日 15 次已用完",
+    title: "聊到一半不用停，继续问 Holo",
+    sub: "免费版每天 15 次对话（含目标规划）已用完；升级后每日额度翻倍，随时接着聊。",
+    items: [
+      { idx: "01", name: "HoloAI 对话：每天 15 次 → 30 次", pill: "当前解锁", desc: "日常提问、回顾检索与目标规划额度翻倍，开通后立即恢复对话", featured: true },
+      { idx: "02", name: "深度洞察 10 次/天 · 5 分钟长语音", desc: "复杂问题直接拉起深度分析，懒得打字时可一口气说满 5 分钟", featured: false },
+      { idx: "03", name: "每周最多 5 件「一个发现」", desc: "Holo 主动帮你把分散的记录串起来，发现平时忽略的规律", featured: false },
+      { idx: "04", name: "任务拆解、小组件与财务/习惯进阶", desc: "含账单智能导入、4 类桌面小组件、预算分期与习惯暂停补签", featured: false }
+    ]
+  },
+  discovery: {
+    kicker: "一个发现 · 周额度已用完",
+    title: "让 Holo 每周多帮你看几件事",
+    sub: "本周免费 1 件发现已送达；升级后 Holo 几乎每天都会帮你留意值得说的事。",
+    items: [
+      { idx: "01", name: "一个发现：每周 1 件 → 最多 5 件", pill: "当前解锁", desc: "有值得说的就及时告诉你；想先看某件事，点一下即可优先查看", featured: true },
+      { idx: "02", name: "记忆洞察每天可刷新", desc: "免费每周 1 次；Plus 每天都能基于最新记录刷新个人洞察", featured: false },
+      { idx: "03", name: "5 分钟长语音与账单智能导入", desc: "口述记录不受 60 秒截断，支持 AI 拆解复杂任务与导入账单", featured: false },
+      { idx: "04", name: "桌面小组件与财务/习惯进阶", desc: "含 4 类小组件、预算分期、多卡提醒及习惯暂停补签", featured: false }
+    ]
+  },
+  finance: {
+    kicker: "财务进阶工具",
+    title: "把预算与分期理得更清楚",
+    sub: "日常记账永久免费；升级 Plus 解锁全套进阶财务管理，开通后将直接回到刚才的设置。",
+    items: [
+      { idx: "01", name: "预算、分期与自定义账单周期", pill: "当前解锁", desc: "按月控预算、自动拆解分期账单、按发薪日自定义统计周期", featured: true },
+      { idx: "02", name: "账单智能导入与不限张数还款提醒", desc: "一键解析历史账单，突破免费 3 张信用卡的提醒上限", featured: false },
+      { idx: "03", name: "更主动的 AI 消费洞察与发现", desc: "每周最多 5 件「一个发现」，帮你察觉不易注意的消费趋势", featured: false },
+      { idx: "04", name: "5 分钟长语音、小组件与习惯保护", desc: "含财务桌面小组件、长语音记账与习惯暂停补签", featured: false }
+    ]
+  },
+  voice: {
+    kicker: "语音录制已达 60 秒上限",
+    title: "一口气说完，不用被 60 秒打断",
+    sub: "升级后单条语音最长支持 5 分钟，适合睡前复盘、散步记录长想法。",
+    items: [
+      { idx: "01", name: "单条语音时长：60 秒 → 5 分钟", pill: "当前解锁", desc: "识别次数同步提升至 50 次/天，长段口述自动整理成条理记录", featured: true },
+      { idx: "02", name: "每周最多 5 件「一个发现」与深度洞察", desc: "AI 结合你的记录主动提炼变化，深度分析额度提升至 10 次/天", featured: false },
+      { idx: "03", name: "账单智能导入与 AI 任务拆解", desc: "任务拆解从 5 次/月提升至 100 次/月，复杂事项一键落地", featured: false },
+      { idx: "04", name: "4 类桌面小组件与财务/习惯进阶", desc: "含语音直达桌面小组件、预算分期与习惯连胜保护", featured: false }
+    ]
+  }
+};
+
+const PRICING = {
+  A: {
+    yearlyPrice: "¥118", yearlySub: "折合 ¥9.8/月", save: "省 34%",
+    monthlyPrice: "¥15", monthlySub: "按月灵活续订",
+    yearlyBill: "¥118/年", monthlyBill: "¥15/月"
+  },
+  B: {
+    yearlyPrice: "¥98", yearlySub: "折合 ¥8.2/月", save: "省 32%",
+    monthlyPrice: "¥12", monthlySub: "按月灵活续订",
+    yearlyBill: "¥98/年", monthlyBill: "¥12/月"
+  },
+  old: {
+    yearlyPrice: "¥128", yearlySub: "折合 ¥10.7/月", save: "省 11%",
+    monthlyPrice: "¥12", monthlySub: "按月灵活续订",
+    yearlyBill: "¥128/年", monthlyBill: "¥12/月"
+  }
+};
+
+const FULL_TABLE = [
+  { group: "AI 主动理解与效率", rows: [
+    ["一个发现", "1 件/周", "最多 5 件/周"],
+    ["单条语音时长", "60 秒", "5 分钟"],
+    ["深度洞察", "1 次/天", "10 次/天"],
+    ["AI 任务拆解", "5 次/月", "100 次/月"],
+    ["账单智能导入", "—", "解锁"],
+    ["记忆洞察刷新", "1 次/周", "1 次/天"],
+    ["HoloAI 对话 / 语音 / 智能解析", "15~20/天", "30~50/天"],
+    ["每周生活计划", "1 次/周", "2 次/周"]
+  ]},
+  { group: "财务进阶管理", rows: [
+    ["预算管理", "—", "解锁"],
+    ["财务分期", "—", "解锁"],
+    ["自定义账单周期", "—", "解锁"],
+    ["信用卡还款提醒", "最多 3 张", "不限张数"]
+  ]},
+  { group: "桌面与习惯进阶", rows: [
+    ["4 类桌面小组件", "—", "全部解锁"],
+    ["习惯暂停", "—", "解锁"],
+    ["习惯补签", "限次", "无限次"]
+  ]}
+];
+
+let curCtx = "membership";
+let curPrice = "A";
+let curState = "trial";
+let curPlan = "yearly";
+
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+
+function render(){
+  const s = SCENES[curCtx];
+  document.getElementById("ctxKicker").textContent = s.kicker;
+  document.getElementById("pwTitle").textContent = s.title;
+  document.getElementById("pwSub").textContent = s.sub;
+
+  const list = document.getElementById("benefitList");
+  list.innerHTML = s.items.map(it => `
+    <div class="b-row ${it.featured ? 'featured' : ''}">
+      <span class="b-idx">${it.idx}</span>
+      <div class="b-body">
+        <div class="b-name">${it.name}${it.pill ? `<span class="b-pill">${it.pill}</span>` : ''}</div>
+        <div class="b-desc">${it.desc}</div>
+      </div>
+    </div>
+  `).join("");
+
+  const dock = document.getElementById("dock");
+  if(curState === "error"){
+    dock.innerHTML = `
+      <div class="error-dock">
+        <div class="error-title">暂时无法获取订阅方案</div>
+        <div class="error-sub">请检查网络连接后重试，或直接恢复已有订阅</div>
+        <button class="retry-btn" id="retryBtn">重新加载</button>
+      </div>
+      <div class="legal-row">
+        <a href="javascript:void(0)" id="restoreLink">恢复购买</a>
+        <span>·</span>
+        <a href="javascript:void(0)">隐私政策</a>
+        <span>·</span>
+        <a href="javascript:void(0)">订阅条款</a>
+      </div>
+    `;
+    document.getElementById("retryBtn").onclick = () => showToast("已重新向 App Store 请求商品列表");
+    document.getElementById("restoreLink").onclick = () => showToast("正在向 Apple ID 恢复购买…");
+    return;
+  }
+
+  const p = PRICING[curPrice];
+  const hasTrial = (curState === "trial" && curPlan === "yearly");
+  const ctaText = hasTrial
+    ? "开启 7 天免费试用"
+    : (curPlan === "yearly" ? `立即开通 · ${p.yearlyBill}` : `立即开通 · ${p.monthlyBill}`);
+  const ctaSub = hasTrial
+    ? `7 天免费试用结束后按 ${p.yearlyBill} 自动续订，可随时在系统设置中取消`
+    : `自动续订，到期前 24 小时内扣款，可随时在系统设置中取消`;
+
+  dock.innerHTML = `
+    <div class="plan-grid">
+      <button class="plan-card ${curPlan==='yearly'?'selected':''}" id="planYearly">
+        <div class="plan-top">
+          <span class="plan-name">年订阅</span>
+          <span class="save-tag">${p.save}</span>
+        </div>
+        <div class="plan-price-row">
+          <span class="plan-price">${p.yearlyPrice}</span>
+          <span class="plan-unit">/年</span>
+        </div>
+        <div class="plan-meta">${curState==='trial' ? p.yearlySub + ' · 含7天试用' : p.yearlySub}</div>
+      </button>
+      <button class="plan-card ${curPlan==='monthly'?'selected':''}" id="planMonthly">
+        <div class="plan-top">
+          <span class="plan-name">月订阅</span>
+        </div>
+        <div class="plan-price-row">
+          <span class="plan-price">${p.monthlyPrice}</span>
+          <span class="plan-unit">/月</span>
+        </div>
+        <div class="plan-meta">${p.monthlySub}</div>
+      </button>
+    </div>
+    <button class="cta-btn" id="ctaBtn">${ctaText}</button>
+    <div class="cta-sub">${ctaSub}</div>
+    <div class="legal-row">
+      <a href="javascript:void(0)" id="restoreLink">恢复购买</a>
+      <span>·</span>
+      <a href="javascript:void(0)">隐私政策</a>
+      <span>·</span>
+      <a href="javascript:void(0)">订阅条款</a>
+      <span>·</span>
+      <a href="javascript:void(0)">管理订阅</a>
+    </div>
+  `;
+
+  document.getElementById("planYearly").onclick = () => { curPlan = "yearly"; render(); };
+  document.getElementById("planMonthly").onclick = () => { curPlan = "monthly"; render(); };
+  document.getElementById("ctaBtn").onclick = () => showToast(`拉起系统支付：${ctaText}`);
+  document.getElementById("restoreLink").onclick = () => showToast("正在向 Apple ID 恢复购买…");
+}
+
+function renderSheet(){
+  const body = document.getElementById("sheetBody");
+  body.innerHTML = `
+    <div class="tbl-row tbl-head">
+      <span>能力</span><span class="tbl-free">免费版</span><span class="tbl-plus">Plus</span>
+    </div>
+    ${FULL_TABLE.map(g => `
+      <div class="tbl-group">${g.group}</div>
+      ${g.rows.map(r => `
+        <div class="tbl-row">
+          <span>${r[0]}</span>
+          <span class="tbl-free">${r[1]}</span>
+          <span class="tbl-plus">${r[2]}</span>
+        </div>
+      `).join("")}
+    `).join("")}
+  `;
+}
+
+function bindSeg(id, cb){
+  const el = document.getElementById(id);
+  el.querySelectorAll("button").forEach(btn => {
+    btn.onclick = () => {
+      el.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      cb(btn);
+    };
+  });
+}
+
+bindSeg("ctxSeg", b => { curCtx = b.dataset.ctx; render(); });
+bindSeg("priceSeg", b => { curPrice = b.dataset.price; render(); });
+bindSeg("stateSeg", b => { curState = b.dataset.state; render(); });
+bindSeg("themeSeg", b => {
+  document.getElementById("phone").classList.toggle("dark", b.dataset.theme === "dark");
+});
+
+document.getElementById("openCompareBtn").onclick = () => document.getElementById("sheetMask").classList.add("open");
+document.getElementById("closeSheetBtn").onclick = () => document.getElementById("sheetMask").classList.remove("open");
+document.getElementById("sheetMask").onclick = (e) => {
+  if(e.target.id === "sheetMask") e.target.classList.remove("open");
+};
+document.getElementById("closeBtn").onclick = () => showToast("关闭付费墙（未购买，回到原处）");
+
+renderSheet();
+render();
+</script>
+</body>
+</html>

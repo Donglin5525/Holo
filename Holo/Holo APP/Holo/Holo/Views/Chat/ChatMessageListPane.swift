@@ -209,7 +209,7 @@ struct ChatMessageListPane: View {
                 Task { await viewModel.retryMessage(message) }
             },
             onLearnPlus: {
-                actions.onShowMembership()
+                handleQuotaLearnPlus(for: message)
             },
             onCardDelete: { msg, entityId, category, description in
                 actions.onPendingCardDelete(PendingCardDelete(
@@ -541,5 +541,32 @@ struct ChatMessageListPane: View {
               !viewModel.isLoadingEarlierSession else { return }
 
         _ = await viewModel.loadEarlierSession()
+    }
+
+    /// 聊天流额度耗尽卡直达付费墙：按消息类型与文案还原触发场景，避免绕去通用会员中心丢上下文。
+    private func handleQuotaLearnPlus(for message: ChatMessageViewData) {
+        let gateContext = Self.quotaGateContext(for: message)
+        if viewModel.messages.last?.id == message.id {
+            HoloPlusActionCoordinator.shared.requirePlus(context: gateContext) {
+                await viewModel.retryMessage(message)
+            }
+        } else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: gateContext)
+        }
+    }
+
+    private static func quotaGateContext(for message: ChatMessageViewData) -> HoloPlusGateContext {
+        if message.isQueryAnalysis
+            || message.content.contains("深度分析")
+            || message.content.contains("深度洞察") {
+            return .deepAnalysis
+        }
+        if message.content.contains("周计划") || message.content.contains("生活计划") {
+            return .lifePlan
+        }
+        if message.content.contains("记忆洞察") {
+            return .memoryGallery
+        }
+        return .holoAI
     }
 }

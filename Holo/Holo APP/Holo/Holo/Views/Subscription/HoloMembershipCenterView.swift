@@ -12,7 +12,6 @@ struct HoloMembershipCenterView: View {
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.openURL) private var openURL
-    @State private var isPaywallPresented = false
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -46,22 +45,9 @@ struct HoloMembershipCenterView: View {
         .task {
             await HoloSubscriptionService.shared.refreshStatus()
         }
-        // 会员中心位于「个人」sheet 内，付费墙必须由当前可见层级发起。
-        // 交给 App 根视图弹出会被既有 sheet 挡住，表现为按钮点击无响应。
-        #if canImport(UIKit)
-        .fullScreenCover(isPresented: $isPaywallPresented) {
-            HoloPlusPaywallView(context: .membershipCenter)
-                .holoContentColumn()
-        }
-        #else
-                .sheet(isPresented: $isPaywallPresented) {
-            HoloPlusPaywallView(context: .membershipCenter)
-                .holoContentColumn()
-        }
-        #endif
         .onChange(of: entitlementState.isPlusActive) { _, isPlusActive in
             if isPlusActive {
-                isPaywallPresented = false
+                HoloPlusActionCoordinator.shared.dismissPaywall()
             }
         }
     }
@@ -120,7 +106,7 @@ struct HoloMembershipCenterView: View {
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: HoloSpacing.sm) {
                     membershipMetric("HoloAI", entitlementState.isPlusActive ? String(localized: "30/天") : String(localized: "15/天"))
-                    membershipMetric(String(localized: "深度洞察"), entitlementState.isPlusActive ? String(localized: "10/天") : String(localized: "2/天"))
+                    membershipMetric(String(localized: "深度洞察"), entitlementState.isPlusActive ? String(localized: "10/天") : String(localized: "1/天"))
                     membershipMetric(String(localized: "语音识别"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
                     membershipMetric(String(localized: "任务"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
                 }
@@ -203,7 +189,7 @@ struct HoloMembershipCenterView: View {
     }
 
     private var footnote: some View {
-        Text("记账、待办、想法等本地功能，免费版与 Plus 版完全一致。")
+        Text("日常记账、待办、想法与习惯打卡永久免费，你的个人记录始终归你所有。")
             .font(.system(size: 12))
             .foregroundColor(.holoTextSecondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -219,7 +205,9 @@ struct HoloMembershipCenterView: View {
                 }
                 openURL(url)
             } else {
-                isPaywallPresented = true
+                // 付费墙走置顶弹层：本页开在「个人」sheet 里，挂根视图的 fullScreenCover
+                // 会被挡住（曾表现为按钮点击无响应），置顶呈现不受影响
+                HoloPlusActionCoordinator.shared.requirePlus(context: .membershipCenter)
             }
         } label: {
             Text(entitlementState.isPlusActive ? String(localized: "管理会员") : String(localized: "升级 Holo Plus"))

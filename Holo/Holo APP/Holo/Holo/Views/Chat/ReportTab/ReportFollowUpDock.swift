@@ -14,6 +14,7 @@ import SwiftUI
 
 struct ReportFollowUpDock: View {
     @ObservedObject var controller: ReportFollowUpController
+    @ObservedObject private var entitlement = HoloEntitlementState.shared
 
     var body: some View {
         VStack(spacing: 7) {
@@ -79,15 +80,49 @@ struct ReportFollowUpDock: View {
         }
     }
 
-    /// 额度说明行：发送前讲清成本；额度用尽时换成恢复提示。
+    /// 额度说明行：发送前讲清成本；额度用尽时对免费用户直达深度洞察付费墙，Plus 用户提示次日重置。
     @ViewBuilder
     private var quotaNote: some View {
         if isQuotaExhausted {
-            Text("今日深度洞察额度已用完，明天重置后可继续追问；普通对话不受影响")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.holoToolError)
-                .multilineTextAlignment(.center)
-                .padding(.vertical, 4)
+            if !entitlement.isPlusActive {
+                HStack(spacing: 8) {
+                    Text("今日免费深度洞察已用完 · Plus 享 10 次/天")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Spacer(minLength: 4)
+
+                    Button {
+                        let hasDraft = !controller.draftText
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .isEmpty
+                        HoloPlusActionCoordinator.shared.requirePlus(
+                            context: .deepAnalysis,
+                            resume: hasDraft ? { @MainActor in controller.sendDraft() } : nil
+                        )
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("升级 Plus")
+                                .font(.system(size: 12, weight: .semibold))
+                            Image(systemName: "chevron.right")
+                                .holoIconSize(.xs, weight: .semibold)
+                        }
+                        .foregroundStyle(Color.holoToolAction)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 2)
+            } else {
+                Text("今日深度洞察额度已用完，明天重置后可继续追问；普通对话不受影响")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.holoToolError)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, 4)
+            }
         } else {
             Text(quotaNoteText)
                 .font(.system(size: 10.5, weight: .medium))
@@ -183,18 +218,38 @@ struct ReportFollowUpDock: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "返回修改追问内容"))
 
-                    Button {
-                        controller.retryLast(text: controller.draftText)
-                    } label: {
-                        Text("重试")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(Color.holoPrimary, in: Capsule())
+                    if !entitlement.isPlusActive, message.contains("Holo Plus") {
+                        Button {
+                            HoloPlusActionCoordinator.shared.requirePlus(
+                                context: .deepAnalysis,
+                                resume: { @MainActor in
+                                    controller.retryLast(text: controller.draftText)
+                                }
+                            )
+                        } label: {
+                            Text("升级 Plus")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.holoToolAction, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "升级 Holo Plus 并继续追问"))
+                    } else {
+                        Button {
+                            controller.retryLast(text: controller.draftText)
+                        } label: {
+                            Text("重试")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.holoPrimary, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "原样重试这次追问"))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "原样重试这次追问"))
                 }
             }
         }
