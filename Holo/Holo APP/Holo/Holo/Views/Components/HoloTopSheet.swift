@@ -104,6 +104,12 @@ final class HoloTopSheetHost<Content: View>: UIHostingController<Content> {
     private var isDismissRequestedBeforeAppear = false
     private var isDismissing = false
 
+    /// 显式空析构并关闭优化：Xcode 26.3 Release（-O 全模块优化）在 EarlyPerfInliner 内联
+    /// 本类自动合成的析构时崩溃（ThrowingTaskGroup<String, String> 类型不匹配，编译器 bug），
+    /// 导致 1.2.0 无法归档。无析构逻辑，行为不变；升级 Xcode 后可复验移除。
+    @_optimize(none)
+    deinit {}
+
     /// 收起本页；还在弹出动画里就等落定后再收
     func requestDismiss() {
         guard !isBeingDismissed else { return }
@@ -146,6 +152,10 @@ final class HoloTopSheetHost<Content: View>: UIHostingController<Content> {
 /// 承载视图：只为拿「进窗口」这一刻（App 刚启动、首帧之前就排队的请求靠它弹出）；不参与触摸
 private final class HoloTopSheetAnchorView: UIView {
     var onMovedToWindow: ((UIWindow?) -> Void)?
+
+    /// 同 HoloTopSheetHost：规避 Xcode 26.3 Release 内联合成析构时的编译器崩溃
+    @_optimize(none)
+    deinit {}
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
@@ -204,6 +214,10 @@ final class HoloTopSheetPresenter<Item: Identifiable & Equatable, SheetContent: 
     /// 当前这次收起是不是 owner 置空 item 发起的——是的话收起后不回写 item
     /// （收起动画期间 owner 可能已经设了新的一页）
     private var isDismissingByOwner = false
+
+    /// 同 HoloTopSheetHost：规避 Xcode 26.3 Release 内联合成析构时的编译器崩溃
+    @_optimize(none)
+    deinit {}
 
     func sync(
         item: Item?,

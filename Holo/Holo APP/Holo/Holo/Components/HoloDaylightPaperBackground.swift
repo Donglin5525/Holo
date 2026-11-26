@@ -41,9 +41,9 @@ struct HoloDaylightPaperBackground: View {
     }
 
     private static func period(at date: Date) -> HoloDaylightPeriod {
-        // App Store 截图模式固定正午，避免截图偏色
-        if HoloAppStoreScreenshotSeeder.isRequested { return .noon }
         #if DEBUG
+        // App Store 截图模式固定正午，避免截图偏色（摆拍工具只在开发包编译，Release 无此模式）
+        if HoloAppStoreScreenshotSeeder.isRequested { return .noon }
         if let forced = HoloDaylightPaperDebug.forcedPeriod { return forced }
         #endif
         return HoloDaylightPeriod.period(forHour: Calendar.current.component(.hour, from: date))
