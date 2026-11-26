@@ -435,6 +435,233 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         XCTAssertNotNil(CoreDataStack.storeFingerprintRejection(at: storeURL, model: olderModel))
     }
 
+    /// 2026-11-26：改列类型或新增非可选无默认值字段，SQLite 列级核验必须严格拒绝
+    func test_sqliteAdditiveColumnUpgrade_rejectsTypeChangeAndNonOptionalAddition() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-unsafe-schema-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("test.sqlite")
+
+        let baseModel = makeMinimalModel(includeExtraColumn: false)
+        let psc = NSPersistentStoreCoordinator(managedObjectModel: baseModel)
+        try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+        try psc.persistentStores.forEach { try psc.remove($0) }
+        let storeHashes = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeURL))
+
+        // 1) 改类型：title 从 String 改为 Int64
+        let typeChangedModel = makeMinimalModel(includeExtraColumn: false)
+        let titleAttr = try XCTUnwrap(typeChangedModel.entitiesByName["SampleItem"]?.attributesByName["title"])
+        titleAttr.attributeType = .integer64AttributeType
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: storeHashes, model: typeChangedModel))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: typeChangedModel, storeURL: storeURL), .rejected)
+
+        // 2) 新增必填无默认值字段
+        let nonOptionalModel = makeMinimalModel(includeExtraColumn: false)
+        let entity = try XCTUnwrap(nonOptionalModel.entitiesByName["SampleItem"])
+        let requiredAttr = NSAttributeDescription()
+        requiredAttr.name = "mustHaveCode"
+        requiredAttr.attributeType = .stringAttributeType
+        requiredAttr.isOptional = false
+        requiredAttr.defaultValue = nil
+        entity.properties.append(requiredAttr)
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: storeHashes, model: nonOptionalModel))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: nonOptionalModel, storeURL: storeURL), .rejected)
+    }
+
+    /// 2026-11-26 红队回归：同亲和类改类型（Date → Double）、收紧已有含 NULL 列为非可选、删除多对多关系，均必须严格拦截
+    func test_sqliteAdditiveColumnUpgrade_rejectsDateToDoubleTightenedNullAndDroppedManyToMany() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-redteam-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // A) Date → Double（两者 SQLite affinity 都是 REAL，必须靠 TIMESTAMP vs FLOAT 区分拦截）
+        //    + 已有列含 NULL 时收紧为非可选无默认值，必须拦截
+        let storeA = dir.appendingPathComponent("date-null.sqlite")
+        let oldModelA = makeMinimalModel(includeExtraColumn: false)
+        let oldItem = try XCTUnwrap(oldModelA.entitiesByName["SampleItem"])
+        let createdAt = NSAttributeDescription()
+        createdAt.name = "createdAt"
+        createdAt.attributeType = .dateAttributeType
+        createdAt.isOptional = true
+        oldItem.properties.append(createdAt)
+        do {
+            let psc = NSPersistentStoreCoordinator(managedObjectModel: oldModelA)
+            try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeA, options: nil)
+            let ctx = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+            ctx.persistentStoreCoordinator = psc
+            let row = NSEntityDescription.insertNewObject(forEntityName: "SampleItem", into: ctx)
+            row.setValue(UUID(), forKey: "id")
+            // title 故意留 nil
+            row.setValue(Date(), forKey: "createdAt")
+            try ctx.save()
+            try psc.persistentStores.forEach { try psc.remove($0) }
+        }
+        let hashesA = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeA))
+
+        let dateToDoubleModel = try XCTUnwrap(oldModelA.copy() as? NSManagedObjectModel)
+        dateToDoubleModel.entitiesByName["SampleItem"]?.attributesByName["createdAt"]?.attributeType = .doubleAttributeType
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeA, storeHashes: hashesA, model: dateToDoubleModel))
+
+        let tightenedNullModel = try XCTUnwrap(oldModelA.copy() as? NSManagedObjectModel)
+        tightenedNullModel.entitiesByName["SampleItem"]?.attributesByName["title"]?.isOptional = false
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeA, storeHashes: hashesA, model: tightenedNullModel))
+
+        // B) 删除多对多关系（旧库有 Z_<N>TAGS 联合表，新模型删除该关系 → 必须拦截）
+        let storeB = dir.appendingPathComponent("many-to-many.sqlite")
+        let m2mModel = makeManyToManyModel(includeRelationship: true)
+        do {
+            let psc = NSPersistentStoreCoordinator(managedObjectModel: m2mModel)
+            try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeB, options: nil)
+            try psc.persistentStores.forEach { try psc.remove($0) }
+        }
+        let hashesB = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeB))
+        let droppedM2MModel = makeManyToManyModel(includeRelationship: false)
+        XCTAssertFalse(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeB, storeHashes: hashesB, model: droppedM2MModel))
+    }
+
+    private func makeManyToManyModel(includeRelationship: Bool) -> NSManagedObjectModel {
+        let model = NSManagedObjectModel()
+        let note = NSEntityDescription()
+        note.name = "M2MNote"
+        note.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+        let noteTitle = NSAttributeDescription()
+        noteTitle.name = "title"
+        noteTitle.attributeType = .stringAttributeType
+        noteTitle.isOptional = true
+
+        let tag = NSEntityDescription()
+        tag.name = "M2MTag"
+        tag.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+        let tagName = NSAttributeDescription()
+        tagName.name = "name"
+        tagName.attributeType = .stringAttributeType
+        tagName.isOptional = true
+
+        if includeRelationship {
+            let tagsRel = NSRelationshipDescription()
+            tagsRel.name = "tags"
+            tagsRel.destinationEntity = tag
+            tagsRel.isOptional = true
+            tagsRel.maxCount = 0
+
+            let notesRel = NSRelationshipDescription()
+            notesRel.name = "notes"
+            notesRel.destinationEntity = note
+            notesRel.isOptional = true
+            notesRel.maxCount = 0
+
+            tagsRel.inverseRelationship = notesRel
+            notesRel.inverseRelationship = tagsRel
+
+            note.properties = [noteTitle, tagsRel]
+            tag.properties = [tagName, notesRel]
+        } else {
+            note.properties = [noteTitle]
+            tag.properties = [tagName]
+        }
+        model.entities = [note, tag]
+        return model
+    }
+
+    /// 2026-11-26：干净关闭且目录只读（无法创建 -shm 锁文件）时，必须触发 immutable=1 兜底而不是误拒锁库
+    func test_sqliteAdditiveColumnUpgrade_immutableFallbackOnReadOnlyDir() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-readonly-dir-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let storeURL = dir.appendingPathComponent("test.sqlite")
+
+        let oldModel = makeMinimalModel(includeExtraColumn: false)
+        let psc = NSPersistentStoreCoordinator(managedObjectModel: oldModel)
+        try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+        try psc.persistentStores.forEach { try psc.remove($0) }
+        // 清理 WAL/SHM 后将目录设为只读，强制普通 SQLITE_OPEN_READONLY 无法创建 -shm
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = URL(fileURLWithPath: storeURL.path + suffix)
+            if FileManager.default.fileExists(atPath: sidecar.path) {
+                try FileManager.default.removeItem(at: sidecar)
+            }
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
+
+        let newModel = makeMinimalModel(includeExtraColumn: true)
+        let storeHashes = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeURL))
+        XCTAssertTrue(CoreDataStoreUpgrade.isSQLiteAdditiveSchemaUpgrade(at: storeURL, storeHashes: storeHashes, model: newModel))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: newModel, storeURL: storeURL), .additiveColumns)
+        XCTAssertNil(CoreDataStack.storeFingerprintRejection(at: storeURL, model: newModel))
+    }
+
+    /// 2026-11-26：用 Holo 真实完整模型（65 实体）模拟「漏登记新增可选字段」的端到端自动备份与无损升级
+    func test_realFullModel_unregisteredAdditiveColumnUpgrade_succeedsEndToEnd() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("holo-real-full-model-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let storeURL = dir.appendingPathComponent("HoloReal.sqlite")
+        let projectID = UUID()
+
+        // 1) 用当前真实 65 实体模型建库并写入一条真实 SpendingProject
+        try autoreleasepool {
+            let currentModel = try XCTUnwrap(CoreDataStack.shared.createDataModel().copy() as? NSManagedObjectModel)
+            for entity in currentModel.entities {
+                entity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+            }
+            let psc = NSPersistentStoreCoordinator(managedObjectModel: currentModel)
+            try psc.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: storeURL, options: nil)
+            let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+            context.persistentStoreCoordinator = psc
+            let project = NSEntityDescription.insertNewObject(forEntityName: "SpendingProject", into: context)
+            project.setValue(projectID, forKey: "id")
+            project.setValue("iCloud+", forKey: "name")
+            project.setValue(Date(), forKey: "createdAt")
+            try context.save()
+            try psc.persistentStores.forEach { try psc.remove($0) }
+        }
+
+        // 2) 构造「未来版本真实完整模型」：给 SpendingProject 加一个未在 propertyHistory 登记的可选字段
+        let futureModel = try XCTUnwrap(CoreDataStack.shared.createDataModel().copy() as? NSManagedObjectModel)
+        for entity in futureModel.entities {
+            entity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+        }
+        let spendingProject = try XCTUnwrap(futureModel.entitiesByName["SpendingProject"])
+        let futureNote = NSAttributeDescription()
+        futureNote.name = "futureUnregisteredNote"
+        futureNote.attributeType = .stringAttributeType
+        futureNote.isOptional = true
+        spendingProject.properties.append(futureNote)
+
+        // 3) 校验 verdict 落到 .additiveColumns，并通过 loadStoreAllowingRecovery 完成先备份再无损迁移
+        let storeHashes = try XCTUnwrap(CoreDataStack.readStoreModelVersionHashes(at: storeURL))
+        XCTAssertEqual(CoreDataStack.upgradeVerdict(store: storeHashes, model: futureModel, storeURL: storeURL), .additiveColumns)
+
+        let container = NSPersistentContainer(name: "HoloDataModel", managedObjectModel: futureModel)
+        let description = NSPersistentStoreDescription(url: storeURL)
+        description.shouldAddStoreAsynchronously = false
+        description.type = NSSQLiteStoreType
+        description.shouldMigrateStoreAutomatically = true
+        description.shouldInferMappingModelAutomatically = true
+        container.persistentStoreDescriptions = [description]
+
+        var loadError: Error?
+        let done = expectation(description: "real full model additive upgrade")
+        CoreDataStack.loadStoreAllowingRecovery(container, logger: Logger(subsystem: "com.holo.app.tests", category: "FullModelUpgrade")) { error in
+            loadError = error
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 10)
+        XCTAssertNil(loadError, "真实 65 实体模型未登记纯增量加字段应自动放行，实际报错：\(String(describing: loadError))")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("StoreUpgradeBackups").path), "升级前必须落一致性备份")
+
+        let fetch = NSFetchRequest<NSManagedObject>(entityName: "SpendingProject")
+        let rows = try container.viewContext.fetch(fetch)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.value(forKey: "id") as? UUID, projectID)
+        XCTAssertEqual(rows.first?.value(forKey: "name") as? String, "iCloud+")
+        rows.first?.setValue("无损升级验证", forKey: "futureUnregisteredNote")
+        try container.viewContext.save()
+    }
+
     private func makeMinimalModel(includeExtraColumn: Bool) -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         let entity = NSEntityDescription()

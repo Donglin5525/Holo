@@ -129,6 +129,64 @@ def main():
         for p in problems:
             print("  - " + p, file=sys.stderr)
         sys.exit(1)
+
+    # R4 审美底座闸门：只要暂存了 App Swift 文件，同步跑 aesthetic_guard.py，防止回退到圆体/sparkles/旧白卡/裸阴影
+    staged_app_swift = [
+        f for f in staged_files()
+        if f.startswith("Holo/Holo APP/Holo/Holo/") and f.endswith(".swift")
+    ]
+    if staged_app_swift:
+        guard_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aesthetic_guard.py")
+        if os.path.exists(guard_script):
+            r = subprocess.run([sys.executable, guard_script], capture_output=True, text=True)
+            if r.returncode != 0:
+                print("Pre-Commit Guard 拦截（审美底座闸门未通过）：", file=sys.stderr)
+                if r.stderr:
+                    print(r.stderr.strip(), file=sys.stderr)
+                sys.exit(1)
+
+    # R5 CoreData 实体模型变更守门（2026-11-26：防止给实体加字段漏登记/漏跑模型绊线）
+    current_staged = staged_files()
+    schema_files = [
+        f for f in current_staged
+        if f.startswith("Holo/Holo APP/Holo/Holo/Models/CoreDataStack+")
+        and (f.endswith("Entities.swift") or f.endswith("Entity.swift"))
+    ]
+    core_stack_file = "Holo/Holo APP/Holo/Holo/Models/CoreDataStack.swift"
+    if core_stack_file in current_staged:
+        stack_diff = subprocess.run(
+            ["git", "diff", "--cached", "--", core_stack_file],
+            capture_output=True, text=True,
+        ).stdout or ""
+        if any(
+            kw in stack_diff
+            for kw in ("makeDataModel", "NSEntityDescription", "NSAttributeDescription", "NSRelationshipDescription", "makeSoftDeleteAttributes")
+        ):
+            schema_files.append(core_stack_file)
+    if schema_files:
+        snapshot_test = "Holo/Holo APP/Holo/HoloTests/Models/CoreDataStoreRecoveryTests.swift"
+        snapshot_updated = False
+        if snapshot_test in current_staged:
+            test_diff = subprocess.run(
+                ["git", "diff", "--cached", "--", snapshot_test],
+                capture_output=True, text=True,
+            ).stdout or ""
+            snapshot_updated = "currentEntityHashes" in test_diff or re.search(r'^\+\s*"[A-Za-z0-9_]+":\s*"[A-Za-z0-9+/=]{20,}"', test_diff, re.M) is not None
+        if not snapshot_updated:
+            print("Pre-Commit Guard 拦截（CoreData 模型文件改动未同步更新模型快照）：", file=sys.stderr)
+            print("  涉及文件：" + ", ".join(schema_files), file=sys.stderr)
+            print(
+                "  若新增了实体/属性/关系：必须同步登记 CoreDataStoreUpgrade.propertyHistory、"
+                "更新 CoreDataStoreRecoveryTests.swift 的 currentEntityHashes 快照，"
+                "并实跑 CoreDataSchemaHistoryTests 全绿。",
+                file=sys.stderr,
+            )
+            print(
+                "  若纯注释/代码整理未改变模型结构：用 HOLO_ALLOW_RISKY=1 git commit 并在提交说明写明原因。",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     print("Pre-Commit Guard: 通过")
 
 

@@ -188,48 +188,68 @@ nonisolated class CoreDataStack: @unchecked Sendable {
         }
     }
 
+    /// 打开前一次性只读预检：消除「校验一次、备份前再读一次」的 TOCTOU 漏备份窗口与重复建模开销。
+    /// 返回 .success(verdict) = 新库（.identical）或经验证的向前安全升级；返回 .failure(error) = 拒开。
+    nonisolated static func evaluateStorePreload(
+        at url: URL,
+        model: NSManagedObjectModel
+    ) -> Result<CoreDataStoreUpgrade.Verdict, Error> {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return .success(.identical) }
+        guard let storeHashes = readStoreModelVersionHashes(at: url) else {
+            return .failure(StoreFingerprintRejection(
+                storePath: url.path,
+                reason: .unreadableMetadata(detail: "Z_METADATA 不可读")
+            ))
+        }
+        let verdict = upgradeVerdict(store: storeHashes, model: model, storeURL: url)
+        guard verdict != .rejected else {
+            let modelHashes = model.entityVersionHashesByName
+            return .failure(StoreFingerprintRejection(
+                storePath: url.path,
+                reason: .mismatch(
+                    onlyInStore: storeHashes.keys.filter { modelHashes[$0] == nil }.sorted(),
+                    onlyInModel: modelHashes.keys.filter { storeHashes[$0] == nil }.sorted(),
+                    hashDifferences: storeHashes.keys
+                        .filter { modelHashes[$0] != nil && storeHashes[$0] != modelHashes[$0] }
+                        .sorted()
+                )
+            ))
+        }
+        return .success(verdict)
+    }
+
     /// 打开前只读核对 store 的模型指纹与当前模型是否一致。
-    /// 返回 nil = 新库、指纹一致、纯加表，或登记簿认得的已发版旧形态（见 CoreDataStoreUpgrade.verdict）；
+    /// 返回 nil = 新库、指纹一致、纯加表，或登记簿/列级核验认得的安全旧形态；
     /// 返回错误 = 拒绝打开。只做只读检查，绝不迁移、绝不改写库文件。
     nonisolated static func storeFingerprintRejection(
         at url: URL,
         model: NSManagedObjectModel
     ) -> Error? {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: url.path) else { return nil }
-        guard let storeHashes = readStoreModelVersionHashes(at: url) else {
-            return StoreFingerprintRejection(
-                storePath: url.path,
-                reason: .unreadableMetadata(detail: "Z_METADATA 不可读")
-            )
+        if case .failure(let error) = evaluateStorePreload(at: url, model: model) {
+            return error
         }
-        guard upgradeVerdict(store: storeHashes, model: model, storeURL: url) == .rejected else { return nil }
-        let modelHashes = model.entityVersionHashesByName
-        return StoreFingerprintRejection(
-            storePath: url.path,
-            reason: .mismatch(
-                onlyInStore: storeHashes.keys.filter { modelHashes[$0] == nil }.sorted(),
-                onlyInModel: modelHashes.keys.filter { storeHashes[$0] == nil }.sorted(),
-                hashDifferences: storeHashes.keys
-                    .filter { modelHashes[$0] != nil && storeHashes[$0] != modelHashes[$0] }
-                    .sorted()
-            )
-        )
+        return nil
     }
 
     /// 库指纹对当前模型的升级判定；
-    /// 依次核对：一致 → 纯加表 → 登记簿历史形态 → SQLite 真实列结构纯增量自动核验（绝不因漏登记卡死用户）→ 拒绝。
+    /// 依次核对：一致 → 纯加表 → 登记簿历史形态（仅基于传入 model 本身倒推）→ SQLite 真实列结构纯增量自动核验 → 拒绝。
     nonisolated static func upgradeVerdict(
         store: [String: Data],
         model: NSManagedObjectModel,
         storeURL: URL? = nil
     ) -> CoreDataStoreUpgrade.Verdict {
         var shapes: [Int: [String: Data]] = [:]
+        let isProductionModel = (model === sharedDataModel)
         let hashVerdict = CoreDataStoreUpgrade.verdict(store: store, model: model.entityVersionHashesByName) { index in
             if let shape = shapes[index] { return shape }
-            let shape = CoreDataStack.shared.legacyModelHashes(
-                removing: CoreDataStoreUpgrade.additions(since: index)
-            )
+            let additions = CoreDataStoreUpgrade.additions(since: index)
+            let shape: [String: Data]
+            if isProductionModel {
+                shape = CoreDataStack.shared.legacyModelHashes(removing: additions)
+            } else {
+                shape = legacyModelHashes(from: model, removing: additions)
+            }
             shapes[index] = shape
             return shape
         }
@@ -241,6 +261,19 @@ nonisolated class CoreDataStack: @unchecked Sendable {
             return .additiveColumns
         }
         return .rejected
+    }
+
+    /// 基于传入的 model 副本剥离指定新增属性/关系并计算指纹（避免传入非生产模型时误用 sharedDataModel）。
+    private nonisolated static func legacyModelHashes(
+        from model: NSManagedObjectModel,
+        removing additions: [String: Set<String>]
+    ) -> [String: Data] {
+        guard let copy = model.copy() as? NSManagedObjectModel else { return [:] }
+        for (entityName, names) in additions {
+            guard let entity = copy.entitiesByName[entityName] else { continue }
+            entity.properties = entity.properties.filter { !names.contains($0.name) }
+        }
+        return copy.entityVersionHashesByName
     }
 
     /// 优先读取实时 WAL；无待合并 WAL 时才允许只读主文件。
@@ -297,13 +330,12 @@ nonisolated class CoreDataStack: @unchecked Sendable {
     ) {
         storeWorkQueue.async(execute: DispatchWorkItem {
             if let storeURL = container.persistentStoreDescriptions.first?.url {
-                if let rejection = storeFingerprintRejection(at: storeURL, model: container.managedObjectModel) {
+                switch evaluateStorePreload(at: storeURL, model: container.managedObjectModel) {
+                case .failure(let rejection):
                     logger.fault("指纹预检拒绝打开（原库原地保留）：\(rejection.localizedDescription, privacy: .public)")
                     onFinish(rejection)
                     return
-                }
-                if let hashes = readStoreModelVersionHashes(at: storeURL) {
-                    let verdict = upgradeVerdict(store: hashes, model: container.managedObjectModel, storeURL: storeURL)
+                case .success(let verdict):
                     if verdict != .identical {
                         do {
                             let backup = try CoreDataStoreUpgrade.makeBackup(of: storeURL)
@@ -820,6 +852,24 @@ nonisolated class CoreDataStack: @unchecked Sendable {
     /// 存储加载失败原因（R01）；nil = 成功或尚未到终态。恢复门据此向用户说明。
     nonisolated func storeLoadError() -> Error? {
         lock.withLock { _storeLoadError }
+    }
+
+    /// 仅在加载进入失败终态时重置并重试装载（应对小组件瞬态锁冲突或偶发备份繁忙，避免卡死用户主流程）。
+    /// 若并发调用时另一路正在加载中，也一律等待该次加载到达终态后再返回，杜绝上层状态机卡死在加载页。
+    func retryLoadIfFailed() async {
+        let alreadyReady = lock.withLock { () -> Bool in
+            if _storeLoaded { return true }
+            if _storeLoadSettled, _storeLoadError != nil {
+                _persistentContainer = nil
+                _storeLoaded = false
+                _storeLoadSettled = false
+                _storeLoadError = nil
+                _containerBuildScheduled = false
+            }
+            return false
+        }
+        guard !alreadyReady else { return }
+        await waitUntilReady()
     }
 
     // MARK: - Context Management

@@ -12,6 +12,8 @@
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 struct StoreConflictRecoveryGate: ViewModifier {
@@ -50,12 +52,21 @@ struct StoreConflictRecoveryGate: ViewModifier {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .textSelection(.enabled)
-                    Button("复制") {
-                        #if canImport(UIKit)
-                        UIPasteboard.general.string = detail
-                        #endif
+                    HStack(spacing: HoloSpacing.md) {
+                        Button("重新尝试") {
+                            phase = .loading
+                            Task {
+                                await CoreDataStack.shared.retryLoadIfFailed()
+                                applyCurrentStoreState()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button("复制信息") {
+                            copyToClipboard(detail)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
                 }
                 .padding(HoloSpacing.xl)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -65,13 +76,7 @@ struct StoreConflictRecoveryGate: ViewModifier {
             .task {
                 // waitUntilReady 的失败也是终态，必须先检查错误，不能直接放行业务读写。
                 await CoreDataStack.shared.waitUntilReady()
-                if let error = CoreDataStack.shared.storeLoadError() {
-                    phase = .failed(error.localizedDescription)
-                    return
-                }
-                guard CoreDataStack.shared.isReady else { return }
-                pendingEvent = CoreDataStack.pendingConflictRecoveryEvent()
-                phase = .ready
+                applyCurrentStoreState()
             }
             .alert(
                 "数据已自动保护",
@@ -97,6 +102,30 @@ struct StoreConflictRecoveryGate: ViewModifier {
                     ShareSheet(items: sharePayload)
                 }
             }
+    }
+
+    /// 按当前存储终态更新页面相位：绝不在非就绪态静默 return 导致永久停留在加载页。
+    private func applyCurrentStoreState() {
+        if let error = CoreDataStack.shared.storeLoadError() {
+            phase = .failed(error.localizedDescription)
+            return
+        }
+        if CoreDataStack.shared.isReady {
+            pendingEvent = CoreDataStack.pendingConflictRecoveryEvent()
+            phase = .ready
+            return
+        }
+        phase = .failed(String(localized: "本地数据库尚未准备就绪，请点击「重新尝试」再次打开。"))
+    }
+
+    private func copyToClipboard(_ text: String) {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = text
+        #elseif canImport(AppKit)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        #endif
     }
 
     /// 关闭说明弹层：分享路径尚未结束，先不清确认标记（R16：
