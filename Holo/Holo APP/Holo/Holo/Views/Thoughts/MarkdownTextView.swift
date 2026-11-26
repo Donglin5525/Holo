@@ -1839,7 +1839,7 @@ struct MarkdownTextView: UIViewRepresentable {
             let plainText: String?
             var taskIdToRemove: UUID?
             var taskSourceLength: Int?
-            var actionName = String(localized: "移除 Token")
+            var actionName = String(localized: "移除标签或引用")
             switch node {
             case .tag(_, let displayPath):
                 plainText = displayPath

@@ -71,7 +71,7 @@ struct PeriodReplayPickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Sections
@@ -165,6 +165,7 @@ struct PeriodReplayPickerSheet: View {
             DatePicker(
                 title,
                 selection: selection,
+                in: ...Date(),
                 displayedComponents: .date
             )
             .labelsHidden()

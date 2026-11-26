@@ -126,6 +126,11 @@ struct HealthView: View {
         .task {
             await refreshAll()
         }
+        .onChange(of: motionScenePhase) { _, phase in
+            if phase == .active && (shouldShowUnavailableView || shouldShowPermissionView) {
+                Task { await refreshAll() }
+            }
+        }
         .onChange(of: selectedDate) {
             Task { await loadDateData(for: selectedDate) }
         }
@@ -826,19 +831,28 @@ struct HealthView: View {
             }
 
             if repository.dataSourceState == .denied {
-                Button("打开系统设置") {
-                    #if canImport(UIKit)
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
+                VStack(spacing: HoloSpacing.sm) {
+                    Button("打开系统设置") {
+                        #if canImport(UIKit)
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                        #else
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        #endif
                     }
-                    #else
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
-                        NSWorkspace.shared.open(url)
+                    .holoText(.body)
+                    .foregroundColor(.holoPrimary)
+
+                    Button("我已开启，重新检查") {
+                        HapticManager.light()
+                        Task { await refreshAll() }
                     }
-                    #endif
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                 }
-                .holoText(.body)
-                .foregroundColor(.holoPrimary)
             }
         }
         .padding(HoloSpacing.lg)

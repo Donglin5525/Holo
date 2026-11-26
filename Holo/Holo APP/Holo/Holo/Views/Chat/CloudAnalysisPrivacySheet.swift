@@ -24,40 +24,42 @@ struct CloudAnalysisPrivacySheet: View {
                     .font(.system(size: 17, weight: .semibold))
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                Label {
-                    Text("为了让你锁屏、离开 App 后分析和回放也能完成，Holo 会把本次所需的数据（如任务、账目、习惯、想法、健康摘要）**加密上传到云端**完成处理。")
-                } icon: {
-                    Image(systemName: "icloud.and.arrow.up").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label {
+                        Text("为了让你锁屏、离开 App 后分析和回放也能完成，Holo 会把本次所需的数据（如任务、账目、习惯、想法、健康摘要）**加密上传到云端**完成处理。")
+                    } icon: {
+                        Image(systemName: "icloud.and.arrow.up").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
+                    Label {
+                        Text("深度分析与周期回放上传的数据都会**包含健康与活动摘要**（如睡眠、步数的每日汇总，不含原始明细），让分析和回放能覆盖你的生活全貌。")
+                    } icon: {
+                        Image(systemName: "heart.fill").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
+                    Label {
+                        Text("回放的**长期摘要维护**（把每一期并入跨期摘要）也在云端完成，上传的本期内容**用完即删**，云端不留存。")
+                    } icon: {
+                        Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
+                    Label {
+                        Text("这些数据**仅用于这一次分析**——分析结束或失败后立即删除，云端不会保留。")
+                    } icon: {
+                        Image(systemName: "trash").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
+                    Label {
+                        Text("**分析结果只保存在你的设备上**，不会在云端留存副本。")
+                    } icon: {
+                        Image(systemName: "iphone").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
+                    Label {
+                        Text("Holo 不会出售你的数据，也不用于广告。")
+                    } icon: {
+                        Image(systemName: "hand.raised").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
+                    }
                 }
-                Label {
-                    Text("深度分析与周期回放上传的数据都会**包含健康与活动摘要**（如睡眠、步数的每日汇总，不含原始明细），让分析和回放能覆盖你的生活全貌。")
-                } icon: {
-                    Image(systemName: "heart.fill").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
-                }
-                Label {
-                    Text("回放的**长期摘要维护**（把每一期并入跨期摘要）也在云端完成，上传的本期内容**用完即删**，云端不留存。")
-                } icon: {
-                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
-                }
-                Label {
-                    Text("这些数据**仅用于这一次分析**——分析结束或失败后立即删除，云端不会保留。")
-                } icon: {
-                    Image(systemName: "trash").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
-                }
-                Label {
-                    Text("**分析结果只保存在你的设备上**，不会在云端留存副本。")
-                } icon: {
-                    Image(systemName: "iphone").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
-                }
-                Label {
-                    Text("Holo 不会出售你的数据，也不用于广告。")
-                } icon: {
-                    Image(systemName: "hand.raised").font(.system(size: 13)).foregroundColor(.holoTextSecondary)
-                }
+                .font(.system(size: 14))
+                .foregroundColor(.holoTextPrimary)
             }
-            .font(.system(size: 14))
-            .foregroundColor(.holoTextPrimary)
 
             Text("确认后，这次分析就会在云端进行。")
                 .font(.system(size: 12))

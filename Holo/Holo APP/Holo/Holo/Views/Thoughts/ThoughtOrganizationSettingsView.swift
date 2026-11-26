@@ -39,10 +39,10 @@ struct ThoughtOrganizationSettingsView: View {
                         .accessibilityIdentifier("thoughts.settings.automatic")
                     Toggle("自动形成新主题", isOn: $newTopics).disabled(!automatic)
                         .accessibilityIdentifier("thoughts.settings.newTopics")
-                    Toggle("显示相关笔记", isOn: $related).disabled(!automatic)
+                    Toggle("显示相关想法", isOn: $related).disabled(!automatic)
                         .accessibilityIdentifier("thoughts.settings.related")
                 } header: { Text("智能整理") } footer: {
-                    Text("随手记录时，Holo 根据笔记内容把笔记归入已有主题，积累同一方向后自动形成新主题；这些功能默认开启，关闭后停止新的 AI 处理，已形成的主题和手动标签保留。处理时会将必要的脱敏正文和少量相关笔记交给 AI 服务核对；需要你已授予 HoloAI 数据处理授权。")
+                    Text("随手记录时，Holo 根据想法内容归入已有主题，积累同一方向后自动形成新主题；这些功能默认开启，关闭后停止新的 AI 处理，已形成的主题和手动标签保留。处理时会将必要的脱敏正文和少量相关想法交给 AI 服务核对；需要你已授予 HoloAI 数据处理授权。")
                 }
                 // AI 参与范围：隐私边界控制，独立成区不埋进管理列表（2026-10-21 标签级 AI 排除）
                 Section {
@@ -81,10 +81,10 @@ struct ThoughtOrganizationSettingsView: View {
                     else if !granted {
                         NavigationLink("授权后开始整理") { AIDataProcessingConsentView() }
                     } else if let stats {
-                        LabeledContent("已归类", value: "\(classifiedCount) 条笔记 · \(topicCount) 个主题")
-                        LabeledContent("已建立智能索引", value: "\(stats.activeItems) 条笔记")
+                        LabeledContent("已归类", value: "\(classifiedCount) 条想法 · \(topicCount) 个主题")
+                        LabeledContent("已建立智能索引", value: "\(stats.activeItems) 条想法")
                         LabeledContent("整理进度", value: stats.unfinishedThoughts > 0
-                                       ? "\(stats.unfinishedThoughts) 条笔记待整理"
+                                       ? "\(stats.unfinishedThoughts) 条想法待整理"
                                        : stats.failedJobs > 0 ? "\(stats.failedJobs) 项处理失败，可重试" : "全部处理完成")
                         if let last = stats.lastFinishedAt {
                             LabeledContent("最近整理", value: last.formatted(.relative(presentation: .named)))
@@ -100,7 +100,7 @@ struct ThoughtOrganizationSettingsView: View {
                                                ? "\(briefStats.count) 个主题已代写 · 最近 \(briefStats.lastUpdatedAt!.formatted(.relative(presentation: .named)))"
                                                : "\(briefStats.count) 个主题已代写")
                             } else {
-                                LabeledContent("类别理解", value: "待起草（分类主题攒够 5 条笔记后自动开始）")
+                                LabeledContent("类别理解", value: "待起草（分类主题攒够 5 条想法后自动开始）")
                             }
                         }
                         // 等待原因只保留一条：与主题发现状态撞同一文案时去重，避免同句提示重复出现
@@ -110,7 +110,7 @@ struct ThoughtOrganizationSettingsView: View {
                         } else if newTopics, let discoveryMessage, discoveryMessage != ThoughtSemanticRetryPolicy.userMessage(for: stats.waitingReason ?? "") {
                             Text(discoveryMessage).font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                         }
-                        Text("处理完成的笔记不一定需要归类；只有原文支持具体主题时才会归入。")
+                        Text("处理完成的想法不一定需要归类；只有原文支持具体主题时才会归入。")
                             .font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                     } else { Text("正在准备智能整理") }
                     // W3 脉络核对试点诊断：三档状态 + 手动重试 + 范围透明可关闭。
@@ -126,7 +126,7 @@ struct ThoughtOrganizationSettingsView: View {
                     }
                     // 未授权/已关闭时这个按钮永远不可用，藏掉而不是灰着占一行
                     if automatic && granted {
-                        Button("核对全部笔记并重试失败项") {
+                        Button("核对全部想法并重试失败项") {
                             busy = true
                             Task {
                                 await ThoughtSemanticPipeline.shared.bootstrap()
@@ -144,7 +144,7 @@ struct ThoughtOrganizationSettingsView: View {
                 }
                 Section {
                     Button("清理想法数据") { destination = .clear }
-                } footer: { Text("清理的数据进入回收站，自动整理不会代替你删除笔记。") }
+                } footer: { Text("清理的数据进入最近删除，自动整理不会代替你删除想法。") }
             }
             .tint(.holoPrimary)
             .navigationTitle("想法设置")

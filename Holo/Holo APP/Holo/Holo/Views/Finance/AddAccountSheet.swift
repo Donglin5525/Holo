@@ -184,10 +184,28 @@ struct AddAccountSheet: View {
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            if isEditMode {
                 HStack(spacing: HoloSpacing.sm) {
-                    ForEach(AccountType.allCases, id: \.self) { type in
-                        typeButton(for: type)
+                    Image(systemName: selectedType.icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(Color(hex: selectedType.defaultColor))
+                    Text(selectedType.displayName)
+                        .font(.holoBody)
+                        .foregroundColor(.holoToolText)
+                    Spacer()
+                    Text("创建后不可更改")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: HoloSpacing.sm) {
+                        ForEach(AccountType.allCases, id: \.self) { type in
+                            typeButton(for: type)
+                        }
                     }
                 }
             }
@@ -273,7 +291,7 @@ struct AddAccountSheet: View {
 
     private var balanceSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text(isEditMode ? "期初余额" : "初始余额")
+            Text("初始余额")
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 

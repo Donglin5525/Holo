@@ -15,57 +15,63 @@ struct OnboardingTopicSetupPage: View {
     @State private var customTitle = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-            Spacer(minLength: HoloSpacing.md)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+                    Text("想从哪些方向开始？")
+                        .font(.holoTitle)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("可以先选几个方向，也可以直接跳过——主题会从你的想法里长出来，Holo 攒够同类想法后会建议你建立主题。")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, HoloSpacing.md)
 
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                Text("想从哪些方向开始？")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
-                Text("可以先选几个方向，也可以直接跳过——主题会从你的想法里长出来，Holo 攒够同类想法后会建议你建立主题。")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: HoloSpacing.sm) {
+                    ForEach(allTopics, id: \.self) { title in
+                        topicButton(title)
+                    }
+                }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: HoloSpacing.sm) {
-                ForEach(allTopics, id: \.self) { title in
-                    topicButton(title)
+                HStack(spacing: HoloSpacing.sm) {
+                    TextField("自定义主题", text: $customTitle)
+                        .font(.holoBody)
+                        .submitLabel(.done)
+                        .onSubmit(addCustomTopic)
+                        .padding(.horizontal, HoloSpacing.md)
+                        .frame(minHeight: 46)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+
+                    Button("添加") { addCustomTopic() }
+                        .font(.holoBody)
+                        .foregroundColor(normalizedCustomTitle.isEmpty ? .holoTextPlaceholder : .holoPrimary)
+                        .frame(minWidth: 60, minHeight: 44)
+                        .disabled(normalizedCustomTitle.isEmpty)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoToolError)
                 }
             }
-
-            HStack(spacing: HoloSpacing.sm) {
-                TextField("自定义主题", text: $customTitle)
-                    .font(.holoBody)
-                    .padding(.horizontal, HoloSpacing.md)
-                    .frame(minHeight: 46)
-                    .background(Color.holoCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                Button("添加") { addCustomTopic() }
-                    .font(.holoBody)
-                    .foregroundColor(.holoPrimary)
-                    .frame(minWidth: 60, minHeight: 44)
-                    .disabled(normalizedCustomTitle.isEmpty)
-            }
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoToolError)
-            }
-
-            Spacer()
-
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.lg)
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .safeAreaInset(edge: .bottom) {
             OnboardingPrimaryButton(title: selectedTopics.isEmpty ? String(localized: "先不选，之后再说") : String(localized: "继续")) {
                 onContinue()
             }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.xl)
+            .padding(.top, HoloSpacing.sm)
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.bottom, HoloSpacing.xl)
     }
 
     private var allTopics: [String] {

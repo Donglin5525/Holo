@@ -65,7 +65,8 @@ struct InsightFeedbackSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(!userCorrection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
     }
 
     // MARK: - Accuracy

@@ -23,6 +23,7 @@ struct LifePlanReviewView: View {
     @State private var selectedPriorityIDs: Set<UUID> = []
     @State private var selectedActionIDs: Set<UUID> = []
     @State private var rejections: [UUID: String] = [:]
+    @State private var rejectionNotes: [UUID: String] = [:]
     @State private var rejectingAction: LifePlanActionSnapshot?
     @State private var rejectionFreeText = ""
 
@@ -54,9 +55,9 @@ struct LifePlanReviewView: View {
                     Button("取消", action: onCancel)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("确认落库", action: confirm)
+                    Button("确认安排", action: confirm)
                         .font(.system(size: 15, weight: .semibold))
-                        .disabled(selectedPriorityIDs.isEmpty && selectedActionIDs.isEmpty)
+                        .disabled(selectedPriorityIDs.isEmpty && selectedActionIDs.isEmpty && rejections.isEmpty)
                 }
             }
             .sheet(item: $rejectingAction) { action in
@@ -111,7 +112,7 @@ struct LifePlanReviewView: View {
 
     private var actionsCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader(String(localized: "行动卡"), subtitle: String(localized: "任务 / 习惯；左滑或点「拒绝」告诉我原因"))
+            sectionHeader(String(localized: "行动卡"), subtitle: String(localized: "任务 / 习惯；点「拒绝」可告诉我原因"))
             ForEach(snapshot.actions.filter { $0.status == "proposed" }) { action in
                 actionRow(action)
             }
@@ -168,7 +169,7 @@ struct LifePlanReviewView: View {
                 }
                 Spacer()
                 Button("拒绝") {
-                    rejectionFreeText = ""
+                    rejectionFreeText = rejectionNotes[action.id] ?? ""
                     rejectingAction = action
                 }
                 .font(.holoLabel)
@@ -186,7 +187,6 @@ struct LifePlanReviewView: View {
                 Button {
                     rejections[action.id] = tag.raw
                     selectedActionIDs.remove(action.id)
-                    rejectingAction = nil
                 } label: {
                     HStack {
                         Text(tag.label)
@@ -208,6 +208,26 @@ struct LifePlanReviewView: View {
                 .padding(HoloSpacing.sm)
                 .background(Color.holoDivider.opacity(0.3))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+
+            Button {
+                let trimmed = rejectionFreeText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if rejections[action.id] == nil {
+                    rejections[action.id] = "no_need"
+                }
+                rejectionNotes[action.id] = trimmed.isEmpty ? nil : trimmed
+                selectedActionIDs.remove(action.id)
+                rejectingAction = nil
+            } label: {
+                Text("确定")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.holoPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            }
+            .buttonStyle(.plain)
+            .disabled(rejections[action.id] == nil && rejectionFreeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(HoloSpacing.lg)
     }
@@ -235,7 +255,7 @@ struct LifePlanReviewView: View {
     private func confirm() {
         let rejectionList: [(actionID: UUID, reasonTag: String?, freeText: String?)] = rejections
             .filter { $0.value.isEmpty == false || rejectingRecorded($0.key) }
-            .map { (actionID: $0.key, reasonTag: $0.value, freeText: nil) }
+            .map { (actionID: $0.key, reasonTag: $0.value, freeText: rejectionNotes[$0.key]) }
         onConfirm(LifePlanConfirmSelection(
             planID: snapshot.id,
             selectedPriorityIDs: selectedPriorityIDs,

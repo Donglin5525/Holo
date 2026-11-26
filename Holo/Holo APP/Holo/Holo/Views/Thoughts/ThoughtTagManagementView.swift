@@ -78,7 +78,7 @@ struct ThoughtTagManagementView: View {
                          : String(localized: "仅来自 AI 建议、尚未被你认可的标签；确认后才会进入你的标签库。"))
                 }
             }
-            .navigationTitle("标签治理")
+            .navigationTitle("标签管理")
             #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -126,7 +126,7 @@ struct ThoughtTagManagementView: View {
                         .padding(.vertical, HoloSpacing.sm)
                         .background(Capsule().fill(Color.holoCardBackground).shadow(radius: 4))
                         .padding(.bottom, HoloSpacing.lg)
-                        .task {
+                        .task(id: notice) {
                             try? await Task.sleep(nanoseconds: 2_000_000_000)
                             withAnimation { self.notice = nil }
                         }

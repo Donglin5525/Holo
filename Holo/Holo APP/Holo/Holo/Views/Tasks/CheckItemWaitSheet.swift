@@ -20,6 +20,7 @@ struct CheckItemWaitSheet: View {
 
     @State private var note: String = ""
     @State private var remind: Bool = true
+    @FocusState private var isNoteFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     private static var tomorrowNine: Date {
@@ -58,8 +59,14 @@ struct CheckItemWaitSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    TextField("也可以自己写一句", text: $note)
+                    TextField(
+                        item.waitHints.isEmpty
+                            ? String(localized: "写一句你在等什么（可选）")
+                            : String(localized: "也可以自己写一句"),
+                        text: $note
+                    )
                         .font(.holoBody)
+                        .focused($isNoteFocused)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .background(
@@ -67,6 +74,13 @@ struct CheckItemWaitSheet: View {
                                 .fill(Color.holoNestedCardBackground)
                         )
                         .accessibilityIdentifier("checkItemWaitInput")
+                        .onAppear {
+                            if item.waitHints.isEmpty {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    isNoteFocused = true
+                                }
+                            }
+                        }
 
                     if !item.waitHints.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {

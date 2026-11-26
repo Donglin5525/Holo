@@ -8,6 +8,7 @@
 //  同时挂在两处：HoloApp 根部 ZStack（冷启动防闪现）与 AppLockManager 的系统级窗口（盖住浮层）
 //
 
+import LocalAuthentication
 import SwiftUI
 
 struct AppLockOverlayView: View {
@@ -68,7 +69,7 @@ struct AppLockOverlayView: View {
                             .tint(.holoToolOnAction)
                     } else {
                         HStack(spacing: HoloSpacing.sm) {
-                            Image(systemName: "faceid")
+                            Image(systemName: unlockSymbolName)
                             Text("解锁")
                         }
                     }
@@ -82,6 +83,22 @@ struct AppLockOverlayView: View {
             .accessibilityLabel(String(localized: "解锁 Holo"))
         }
         .padding(.bottom, 80)
+    }
+
+    private var unlockSymbolName: String {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            return "lock.open"
+        }
+        switch context.biometryType {
+        case .faceID:
+            return "faceid"
+        case .touchID:
+            return "touchid"
+        default:
+            return "lock.open"
+        }
     }
 
     // MARK: - 遮罩态（后台快照）

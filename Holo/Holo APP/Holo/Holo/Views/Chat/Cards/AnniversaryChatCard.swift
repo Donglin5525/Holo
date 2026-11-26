@@ -21,7 +21,7 @@ struct AnniversaryChatCard: View {
                 icon: data.icon,
                 title: headerTitle,
                 badge: badge,
-                subtitle: data.typeDisplayName,
+                subtitle: data.requiresConfirmation ? "\(data.title) · \(data.typeDisplayName)" : data.typeDisplayName,
                 isDeleted: isDeleted
             )
 

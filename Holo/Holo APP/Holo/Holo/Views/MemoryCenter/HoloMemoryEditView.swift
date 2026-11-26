@@ -20,6 +20,17 @@ struct HoloMemoryEditView: View {
     @State private var isSaving = false
     @State private var showConflict = false
     @State private var conflictDraft: String?
+    @State private var showDiscardConfirm = false
+    @FocusState private var isStatementFocused: Bool
+
+    private func requestDismiss() {
+        guard !isSaving else { return }
+        if canSave {
+            showDiscardConfirm = true
+        } else {
+            dismiss()
+        }
+    }
 
     init(
         originalRecord: HoloMemoryRecord,
@@ -39,7 +50,7 @@ struct HoloMemoryEditView: View {
                 .padding(.bottom, 14)
 
             HStack {
-                Button(action: { dismiss() }) {
+                Button(action: { requestDismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color.holoToolText)
@@ -75,23 +86,10 @@ struct HoloMemoryEditView: View {
                     TextField("用一句你说得出口的话", text: $statement, axis: .vertical)
                         .font(.system(size: 15.5))
                         .lineSpacing(4)
+                        .focused($isStatementFocused)
                         .padding(13)
                         .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.holoToolBorder, lineWidth: 1))
-
-                    formLabel("适用范围")
-                    HStack(spacing: 8) {
-                        Text("当前阶段（原范围保留）")
-                            .font(.system(size: 13.5, weight: .semibold))
-                            .foregroundStyle(Color.holoToolText)
-                        Spacer()
-                        Text("到期时间暂不支持修改")
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(Color.holoToolTextSecondary)
-                    }
-                    .padding(12)
-                    .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.holoToolBorder, lineWidth: 0.5))
 
                     HStack(alignment: .top, spacing: 9) {
                         Image(systemName: "info.circle")
@@ -128,6 +126,14 @@ struct HoloMemoryEditView: View {
         }
         .background(Color.holoToolBackground)
         .presentationDragIndicator(.hidden)
+        .interactiveDismissDisabled(canSave || isSaving)
+        .sheetDismissGuard { requestDismiss() }
+        .unsavedChangesAlert(isPresented: $showDiscardConfirm, onConfirmDismiss: { dismiss() })
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isStatementFocused = true
+            }
+        }
     }
 
     private var canSave: Bool {

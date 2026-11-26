@@ -280,7 +280,11 @@ struct AISettingsView: View {
                 Button {
                     HoloBackendPromptService.shared.clearCache()
                     PromptManager.shared.clearCache()
-                    showPromptRefreshed = true
+                    HapticManager.light()
+                    HoloToastCenter.shared.show(
+                        String(localized: "已刷新 Prompt 缓存，下次生成将使用最新版本"),
+                        type: .success
+                    )
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
@@ -288,11 +292,6 @@ struct AISettingsView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.holoPrimary)
-                }
-                .alert("已刷新", isPresented: $showPromptRefreshed) {
-                    Button("好的", role: .cancel) {}
-                } message: {
-                    Text("后端 Prompt 缓存已清除，下次生成洞察时将使用最新版本")
                 }
             }
         }

@@ -57,6 +57,7 @@ struct TaskExperienceView: View {
     /// 范围外新任务提示（提示+查看，用户点才切范围，§7.1）
     @State private var outOfScopeToastID: UUID? = nil
     @State private var pendingCreatedTaskID: UUID? = nil
+    @State private var pendingDeleteTask: TaskRecordSnapshot? = nil
     /// Deep Link 状态（任务详情目标由本页消费，纪念日仍归容器）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -223,6 +224,24 @@ struct TaskExperienceView: View {
         }
         .sheet(isPresented: $showRulesSheet) {
             TaskQuadrantRulesSheet()
+        }
+        .alert(
+            String(localized: "确认删除任务"),
+            isPresented: Binding(
+                get: { pendingDeleteTask != nil },
+                set: { if !$0 { pendingDeleteTask = nil } }
+            ),
+            presenting: pendingDeleteTask
+        ) { target in
+            Button(String(localized: "取消"), role: .cancel) {
+                pendingDeleteTask = nil
+            }
+            Button(String(localized: "删除"), role: .destructive) {
+                pendingDeleteTask = nil
+                deleteTask(target)
+            }
+        } message: { target in
+            Text(String(localized: "确定要删除「\(target.title)」吗？删除后 30 天内可在「设置 → 最近删除」中恢复。"))
         }
         .sheet(item: Binding(
             get: { classificationTarget.map { ClassificationTarget(snapshot: $0) } },
@@ -714,7 +733,7 @@ struct TaskExperienceView: View {
             onPlanRange: { member in plannedRangeTarget = member },
             onToggleToday: { member in toggleToday(member) },
             onArchive: { member in archiveTask(member) },
-            onDelete: { member in deleteTask(member) },
+            onDelete: { member in pendingDeleteTask = member },
             onToggleCheckItem: { member, snapshot in toggleCheckItem(member: member, snapshot: snapshot) },
             onAddCheckItem: { member, title in addCheckItem(member: member, title: title) }
         )
@@ -739,7 +758,7 @@ struct TaskExperienceView: View {
             onPlanRange: { plannedRangeTarget = member },
             onToggleToday: { toggleToday(member) },
             onArchive: { archiveTask(member) },
-            onDelete: { deleteTask(member) },
+            onDelete: { pendingDeleteTask = member },
             onToggleCheckItem: { toggleCheckItem(member: member, snapshot: $0) },
             onAddCheckItem: { addCheckItem(member: member, title: $0) }
         )

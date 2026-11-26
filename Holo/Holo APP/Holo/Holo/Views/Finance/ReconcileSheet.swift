@@ -19,6 +19,7 @@ struct ReconcileSheet: View {
 
     @State private var currentBalance: Decimal = 0
     @State private var actualBalanceString: String = ""
+    @State private var isDebtInput: Bool = false
     @State private var note: String = ""
     @State private var showError = false
     @State private var errorMessage = ""
@@ -27,9 +28,18 @@ struct ReconcileSheet: View {
     @FocusState private var isAmountFocused: Bool
     @FocusState private var isNoteFocused: Bool
 
+    private var supportsDebtSignToggle: Bool {
+        account.accountType.isCreditCard || currentBalance < 0
+    }
+
     private var actualBalance: Decimal? {
         // 空值不算 0：必须显式输入才能确认，防止误把「没填」当「对平」
-        actualBalanceString.isEmpty ? nil : Decimal(string: actualBalanceString)
+        let trimmed = actualBalanceString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let raw = Decimal(string: trimmed) else { return nil }
+        if supportsDebtSignToggle && isDebtInput {
+            return raw == 0 ? 0 : -abs(raw)
+        }
+        return raw
     }
 
     private var difference: Decimal? {
@@ -89,12 +99,13 @@ struct ReconcileSheet: View {
                 }
             }
             .alert("对账失败", isPresented: $showError) {
-                Button("确定", role: .cancel) {}
+                Button("知道了", role: .cancel) {}
             } message: {
                 Text(errorMessage)
             }
             .onAppear {
                 currentBalance = FinanceRepository.shared.getAccountBalance(account)
+                isDebtInput = account.accountType.isCreditCard || currentBalance < 0
             }
         }
     }
@@ -120,11 +131,26 @@ struct ReconcileSheet: View {
 
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("银行 App 里的实际余额")
+            Text(supportsDebtSignToggle
+                 ? (isDebtInput ? "银行 App 显示的当前欠款" : "银行 App 显示的结余 / 溢缴款")
+                 : "银行 App 里的实际余额")
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 
+            if supportsDebtSignToggle {
+                Picker("余额方向", selection: $isDebtInput) {
+                    Text("欠款").tag(true)
+                    Text(account.accountType.isCreditCard ? "溢缴款" : "结余").tag(false)
+                }
+                .pickerStyle(.segmented)
+            }
+
             HStack(spacing: HoloSpacing.sm) {
+                if supportsDebtSignToggle && isDebtInput {
+                    Text("-")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.holoToolError)
+                }
                 Text("¥")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.holoToolText)
@@ -139,15 +165,12 @@ struct ReconcileSheet: View {
             .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
-            // 信用卡/欠款账户：银行 App 展示的「欠款」是正数，这里要输负数，必须提前讲清
-            if account.accountType.isCreditCard || currentBalance < 0 {
-                let outstanding = abs(min(currentBalance, 0))
-                // verbatim：金额数字直接按字面渲染（不走本地化插值调试描述），输出与既有展示一致
-                Text(verbatim: currentBalance < 0
-                     ? "当前为欠款状态（欠 ¥\(outstanding)）。银行 App 显示的「欠款 ¥\(outstanding)」在这里请输入 \(-outstanding)（负数）"
-                     : "信用卡如处于欠款状态，请输入负数（如 -3200）")
+            if supportsDebtSignToggle {
+                Text(isDebtInput
+                     ? "直接输入正数金额即可，系统会自动按欠款计算"
+                     : "输入当前多还或结余的正数金额")
                     .font(.system(size: 12))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             if !reconciled, difference == nil || difference != 0 {

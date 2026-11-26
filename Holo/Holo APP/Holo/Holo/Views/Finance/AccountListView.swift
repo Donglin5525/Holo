@@ -173,11 +173,15 @@ struct AccountListView: View {
             .onChange(of: showDetail) { _, showing in
                 if !showing { loadData() }
             }
-            // 模块级 FAB（账户页签）请求新增：交给本视图自己的表单，保存后自动刷新
+            // 模块级 FAB（账户页签）请求新增：按当前子页签分流到账户或项目表单
             .onChange(of: externalAddRequest) { _, requested in
                 guard requested else { return }
                 externalAddRequest = false
-                showAddAccount = true
+                if pageMode == .accounts {
+                    showAddAccount = true
+                } else {
+                    showAddProject = true
+                }
             }
         }
     }
@@ -363,7 +367,6 @@ struct AccountListView: View {
     private func accountRow(item: AccountRowItem, isArchived: Bool) -> some View {
         let palette = AccountCardPalette.palette(for: item.account)
         return Button {
-            guard !isArchived else { return }
             detailAccount = item.account
             showDetail = true
         } label: {
@@ -444,9 +447,22 @@ struct AccountListView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isArchived)
         .contextMenu {
-            if !isArchived {
+            if isArchived {
+                Button {
+                    do {
+                        try FinanceRepository.shared.unarchiveAccount(item.account)
+                        HapticManager.light()
+                        HoloToastCenter.shared.show(String(localized: "已恢复「\(item.account.name)」"), type: .success)
+                        loadData()
+                    } catch {
+                        errorMessage = String(localized: "恢复账户失败，请稍后重试")
+                        showError = true
+                    }
+                } label: {
+                    Label("取消归档", systemImage: "arrow.uturn.backward")
+                }
+            } else {
                 Button { editingAccount = item.account } label: {
                     Label("编辑账户", systemImage: "pencil")
                 }
@@ -458,6 +474,8 @@ struct AccountListView: View {
                 } else {
                     Button {
                         FinanceRepository.shared.setDefaultAccount(item.account)
+                        HapticManager.light()
+                        HoloToastCenter.shared.show(String(localized: "已将「\(item.account.name)」设为默认账户"), type: .success)
                         loadData()
                     } label: {
                         Label("设为默认", systemImage: "star")
@@ -467,9 +485,11 @@ struct AccountListView: View {
                 Button(role: .destructive) {
                     do {
                         try FinanceRepository.shared.archiveAccount(item.account)
+                        HapticManager.light()
+                        HoloToastCenter.shared.show(String(localized: "已归档「\(item.account.name)」，可在已归档列表随时恢复"), type: .info)
                         loadData()
                     } catch {
-                        errorMessage = error.localizedDescription
+                        errorMessage = String(localized: "归档失败，请稍后重试")
                         showError = true
                     }
                 } label: {

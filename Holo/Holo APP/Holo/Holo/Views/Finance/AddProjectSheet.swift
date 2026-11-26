@@ -31,6 +31,7 @@ struct AddProjectSheet: View {
     @State private var endDate: Date = Date()
     @State private var budgetText: String = ""
     @State private var showIconPicker: Bool = false
+    @State private var saveErrorMessage: String?
 
     private let colorPresets = [
         "#22C55E", "#07C160", "#1677FF", "#6366F1",
@@ -76,6 +77,19 @@ struct AddProjectSheet: View {
             }
             .sheet(isPresented: $showIconPicker) {
                 UnifiedIconPickerSheet(currentIcon: icon) { icon = $0 }
+            }
+            .alert("保存失败", isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { if !$0 { saveErrorMessage = nil } }
+            )) {
+                Button("知道了", role: .cancel) {}
+            } message: {
+                Text(saveErrorMessage ?? "")
+            }
+            .onChange(of: startDate) { _, newStart in
+                if endDate < newStart {
+                    endDate = newStart
+                }
             }
             .onAppear { populateForEdit() }
         }
@@ -266,22 +280,28 @@ struct AddProjectSheet: View {
         let end = hasDateRange ? endDate : nil
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        switch mode {
-        case .create:
-            _ = try? FinanceProjectRepository.shared.create(
-                name: trimmedName, icon: icon, color: color,
-                note: trimmedNote.isEmpty ? nil : trimmedNote,
-                startDate: start, endDate: end, budgetAmount: budget
-            )
-        case .edit(let project):
-            try? FinanceProjectRepository.shared.update(
-                project,
-                name: trimmedName, icon: icon, color: color,
-                note: trimmedNote.isEmpty ? nil : trimmedNote,
-                startDate: start, endDate: end, budgetAmount: budget
-            )
+        do {
+            switch mode {
+            case .create:
+                _ = try FinanceProjectRepository.shared.create(
+                    name: trimmedName, icon: icon, color: color,
+                    note: trimmedNote.isEmpty ? nil : trimmedNote,
+                    startDate: start, endDate: end, budgetAmount: budget
+                )
+            case .edit(let project):
+                try FinanceProjectRepository.shared.update(
+                    project,
+                    name: trimmedName, icon: icon, color: color,
+                    note: trimmedNote.isEmpty ? nil : trimmedNote,
+                    startDate: start, endDate: end, budgetAmount: budget
+                )
+            }
+            HapticManager.success()
+            onComplete()
+            dismiss()
+        } catch {
+            HapticManager.error()
+            saveErrorMessage = String(localized: "暂时未能保存项目，你的修改仍保留在这里，请稍后重试。")
         }
-        onComplete()
-        dismiss()
     }
 }

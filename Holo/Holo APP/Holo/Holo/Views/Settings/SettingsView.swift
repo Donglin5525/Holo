@@ -87,6 +87,7 @@ struct SettingsView: View {
     /// 默认开；只改变展示，拨动即时生效
     @AppStorage(HoloPaperSettings.daylightKey) private var daylightPaperEnabled = true
     @AppStorage(HoloPaperSettings.agingKey) private var memoryAgingEnabled = true
+    @State private var deleteAccountConfirmText = ""
     #if DEBUG
     /// 「开发者选项」折叠行展开状态（默认收起，跨启动记忆）
     @AppStorage("settings.developerOptionsExpanded") private var developerOptionsExpanded = false
@@ -169,13 +170,19 @@ struct SettingsView: View {
         } message: {
             Text("退出登录只会清除 Holo 的本地登录状态，不会删除本机数据，也不会删除 iCloud 云端数据。")
         }
+        .interactiveDismissDisabled(isDeletingAccountData)
         .alert("删除 Holo 账号与数据？", isPresented: $showDeleteAccountDataConfirmation) {
-            Button("取消", role: .cancel) {}
-            Button("删除", role: .destructive) {
+            TextField("输入「删除」以确认", text: $deleteAccountConfirmText)
+            Button("取消", role: .cancel) {
+                deleteAccountConfirmText = ""
+            }
+            Button("确认永久删除", role: .destructive) {
+                deleteAccountConfirmText = ""
                 Task { await deleteAccountAndData() }
             }
+            .disabled(deleteAccountConfirmText.trimmingCharacters(in: .whitespacesAndNewlines) != "删除")
         } message: {
-            Text("这会删除本机 Holo 数据、附件、AI 记忆、缓存和登录状态。已同步到 iCloud 的 Holo 数据会在系统同步后尝试删除；如果设备离线，删除同步可能延后。")
+            Text("此操作不可撤销，将永久删除本机 Holo 数据、附件、AI 记忆、缓存和登录状态，并在系统同步后尝试删除 iCloud 数据。请输入「删除」以继续。")
         }
         .sheet(isPresented: $showUserProfileEditor) {
             UserProfileEditorView()

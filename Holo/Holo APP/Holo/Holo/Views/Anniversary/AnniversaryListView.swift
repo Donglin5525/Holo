@@ -5,6 +5,7 @@
 //  纪念日列表页 —— 系统 List + swipeActions + 空状态
 //
 
+import CoreData
 import SwiftUI
 
 /// 列表页 sheet 目标（新增 / 编辑某个纪念日）
@@ -103,16 +104,34 @@ struct AnniversaryListView: View {
             ),
             presenting: anniversaryToDelete
         ) { item in
-            Button("删除纪念日及关联任务", role: .destructive) {
-                deleteAnniversary(item, deleteTasks: true)
-            }
-            Button("仅删除纪念日", role: .destructive) {
-                deleteAnniversary(item, deleteTasks: false)
+            let linkedCount = linkedTaskCount(for: item)
+            if linkedCount > 0 {
+                Button("删除纪念日及 \(linkedCount) 条关联任务", role: .destructive) {
+                    deleteAnniversary(item, deleteTasks: true)
+                }
+                Button("仅删除纪念日", role: .destructive) {
+                    deleteAnniversary(item, deleteTasks: false)
+                }
+            } else {
+                Button("删除纪念日", role: .destructive) {
+                    deleteAnniversary(item, deleteTasks: false)
+                }
             }
             Button("取消", role: .cancel) {}
-        } message: { _ in
-            Text("这个纪念日可能已生成关联任务，你想如何处理？")
+        } message: { item in
+            let linkedCount = linkedTaskCount(for: item)
+            if linkedCount > 0 {
+                Text("这个纪念日已生成 \(linkedCount) 条关联任务，你想如何处理？")
+            } else {
+                Text("删除后可在「设置 → 最近删除」中恢复。")
+            }
         }
+    }
+
+    private func linkedTaskCount(for anniversary: Anniversary) -> Int {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: "sourceAnniversaryId == %@ AND deletedFlag == NO", anniversary.id as CVarArg)
+        return (try? repository.context.count(for: request)) ?? 0
     }
 
     // MARK: - 顶部导航

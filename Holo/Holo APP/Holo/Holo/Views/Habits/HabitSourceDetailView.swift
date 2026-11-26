@@ -137,22 +137,30 @@ struct HabitSourceDetailView: View {
 
     private func recordActions(for habit: Habit) -> some View {
         VStack(spacing: 0) {
-            Button(habit.isCheckInType ? (HabitRepository.shared.findTodayCheckInRecord(for: habit)?.isCompleted == true ? "撤回今天的打卡" : "记录今天已做到") : "记录本次数值") {
-                if habit.isCheckInType {
-                    Task { let saved = await model.record(kind: .toggleCheckIn, habitId: route.habitID); reload(); if !saved { error = "没有保存成功，请重试" } }
-                } else { editor = .numeric }
-            }.buttonStyle(GoalJourneyPrimaryStyle()).disabled(habit.isPaused || habit.isArchived)
-            if !habit.isBadHabit {
-                Button("补录过去的记录") { editor = .retro }
-                    .goalJourneyText(.supporting).foregroundStyle(GoalJourneyStyle.action)
-                    .frame(maxWidth: .infinity, minHeight: 44).disabled(habit.isPaused || habit.isArchived)
+            if habit.isPaused || habit.isArchived {
+                Text(habit.isArchived ? "该习惯已归档，恢复后可继续记录" : "该习惯已暂停，恢复后可继续记录")
+                    .goalJourneyText(.supporting)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+            } else {
+                Button(habit.isCheckInType ? (HabitRepository.shared.findTodayCheckInRecord(for: habit)?.isCompleted == true ? "撤回今天的打卡" : "记录今天已做到") : "记录本次数值") {
+                    if habit.isCheckInType {
+                        Task { let saved = await model.record(kind: .toggleCheckIn, habitId: route.habitID); reload(); if !saved { error = "没有保存成功，请重试" } }
+                    } else { editor = .numeric }
+                }.buttonStyle(GoalJourneyPrimaryStyle())
+                if !habit.isBadHabit {
+                    Button("补录过去的记录") { editor = .retro }
+                        .goalJourneyText(.supporting).foregroundStyle(GoalJourneyStyle.action)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
             }
         }.padding(.top, 16)
     }
 
     private func sourceHeader(_ habit: Habit) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("习惯 · 原模块明细").goalJourneyText(.metadata).foregroundStyle(Color.holoToolTextSecondary).padding(.top, 8)
+            Text("习惯明细").goalJourneyText(.metadata).foregroundStyle(Color.holoToolTextSecondary).padding(.top, 8)
             Text("\(GoalAnalysisSection.dayText(route.start))–\(GoalAnalysisSection.dayText(route.endExclusive.addingTimeInterval(-1)))")
                 .goalJourneyText(.heading).padding(.top, 7)
             Text(summary(habit)).goalJourneyText(.amount).monospacedDigit().padding(.top, 12).accessibilityIdentifier("habit-source-summary")

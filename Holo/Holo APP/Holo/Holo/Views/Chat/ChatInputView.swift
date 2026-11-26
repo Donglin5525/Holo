@@ -200,9 +200,8 @@ struct ChatInputView: View {
 
                 Spacer(minLength: 0)
 
-                // 发送/停止按钮：停止键在「普通流式进行中」或「存在等待/恢复中的 Agent 消息」
-                // 时都要可见——Agent 等待网络/系统资源期间输入框已解锁可发新消息，但用户
-                // 必须始终保有停止入口（cancelStreaming 会取消等待任务并定稿消息）。
+                // 发送/停止按钮：普通流式进行中只显停止；若后台有等待/恢复中的 Agent 分析
+                // 且输入框已解锁，保留停止入口的同时允许继续发新消息（不因 30 分钟后台任务锁死发送键）。
                 if viewModel.isStreaming || viewModel.hasActiveStreamingMessage {
                     Button {
                         viewModel.cancelStreaming()
@@ -220,7 +219,8 @@ struct ChatInputView: View {
                     }
                     .keyboardShortcut(".", modifiers: .command)
                     .accessibilityLabel(String(localized: "停止生成"))
-                } else {
+                }
+                if !viewModel.isStreaming && (!viewModel.hasActiveStreamingMessage || canSend) {
                     Button {
                         Task { await viewModel.sendMessage() }
                     } label: {

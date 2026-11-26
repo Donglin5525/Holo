@@ -342,6 +342,7 @@ struct TaskExperienceRow: View {
         Button(action: onArchive) {
             Label(String(localized: "归档"), systemImage: "archivebox")
         }
+        Divider()
         Button(role: .destructive, action: onDelete) {
             Label(String(localized: "删除"), systemImage: "trash")
         }

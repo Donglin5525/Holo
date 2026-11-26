@@ -67,7 +67,7 @@ struct DeviceIntelligenceIndexView: View {
                 Task { await destroyIndex() }
             }
         } message: {
-            Text("向量、候选关系、主题摘要将全部删除且不可恢复；你的想法原文、主题与标签不受影响。")
+            Text("本机智能索引、关联关系与自动生成的主题摘要将全部删除且不可恢复；你的想法原文、主题与标签不受影响。")
         }
     }
 

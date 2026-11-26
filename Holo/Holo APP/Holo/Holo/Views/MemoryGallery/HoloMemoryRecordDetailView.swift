@@ -77,7 +77,7 @@ struct HoloMemoryRecordDetailView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("只会删除当前这条记忆。如果之后出现新的证据，Holo 仍可能重新形成相似记忆。你的原始业务数据不会被删除。")
+            Text("只会删除当前这条记忆。如果之后出现新的证据，Holo 仍可能重新形成相似记忆。你原本的记录不会被删除。")
         }
     }
 

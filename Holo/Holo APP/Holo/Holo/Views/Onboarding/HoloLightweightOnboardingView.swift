@@ -60,6 +60,17 @@ struct HoloLightweightOnboardingView: View {
             OnboardingPageDots(currentPage: currentPage, pageCount: 4)
 
             HStack(spacing: 0) {
+                if currentPage > 0 {
+                    Button {
+                        withAnimation(HoloAnimation.smooth) { currentPage -= 1 }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 44, height: 44, alignment: .leading)
+                    }
+                    .accessibilityLabel(String(localized: "返回上一步"))
+                }
                 Spacer()
                 if currentPage < 3 {
                     Button {
@@ -121,9 +132,8 @@ struct HoloLightweightOnboardingView: View {
 
     /// 统一收尾：保存昵称（仅非整体跳过）、标记旧 onboarding、按选择授权、写 completed key、回调。
     private func finish(_ choice: OnboardingCompletionChoice) {
-        // 1. 仅在非整体跳过时保存昵称草稿；跳过不保存半输入昵称。
-        //    统一出口内部会跳过空值；写入同步表后卸载重装昵称随云端回来。
-        if choice != .skippedOnboarding {
+        // 1. 正常完成，或已离开昵称页（用户已确认输入昵称）后跳过后续步骤时，均保留已填昵称。
+        if choice != .skippedOnboarding || currentPage > 0 {
             UserPreferenceRepository.shared.setDisplayName(nicknameDraft)
         }
         // 2. 完成/跳过都标记旧昵称 onboarding，避免旧 Alert 再次出现。

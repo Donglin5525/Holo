@@ -215,6 +215,20 @@ struct GoalEditSheet: View {
     private let baseRevisionID: UUID?
     private let initialDraft: GoalDraft
     let onSaved: () -> Void
+    @State private var showDiscardConfirm = false
+
+    private var hasUnsavedChanges: Bool {
+        draft != initialDraft
+    }
+
+    private func requestDismiss() {
+        guard !isSaving else { return }
+        if hasUnsavedChanges {
+            showDiscardConfirm = true
+        } else {
+            dismiss()
+        }
+    }
 
     init(goal: Goal, onSaved: @escaping () -> Void) {
         self.goal = goal
@@ -245,7 +259,7 @@ struct GoalEditSheet: View {
     var body: some View {
         HoloSheetScaffold(
             title: String(localized: "编辑目标"),
-            onClose: { dismiss() },
+            onClose: { requestDismiss() },
             primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "保存"),
             primaryAction: { save() },
             primaryDisabled: !canSave,
@@ -273,6 +287,12 @@ struct GoalEditSheet: View {
             hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
         }
         .presentationDetents([.large])
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .sheetDismissGuard { requestDismiss() }
+        .unsavedChangesAlert(
+            isPresented: $showDiscardConfirm,
+            onConfirmDismiss: { dismiss() }
+        )
         .onChange(of: draft) { before, after in
             if before.goalKind != after.goalKind || before.sourceHabitId != after.sourceHabitId
                 || before.metricSource != after.metricSource || before.healthMetricKind != after.healthMetricKind

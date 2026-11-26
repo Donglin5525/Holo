@@ -229,6 +229,7 @@ extension AddTransactionSheet {
     /// 异步保存交易（用于下拉刷新）
     func saveTransactionAsync() async {
         guard !isSaving else { return }
+        await MainActor.run { calculateExpression() }
         let motionOperationID = UUID()
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
@@ -263,6 +264,7 @@ extension AddTransactionSheet {
             } else {
                 await MainActor.run {
                     isSaving = false
+                    signalSaveBlocked(reason: String(localized: "请先创建或选择一个账户"))
                 }
                 return
             }
@@ -501,7 +503,10 @@ extension AddTransactionSheet {
                 // body 重读已删对象的字段而闪退；仅失败时恢复可交互
             } catch {
                 logger.error("删除失败: \(error.localizedDescription)")
-                isDeleting = false
+                await MainActor.run {
+                    isDeleting = false
+                    HoloToastCenter.shared.show(String(localized: "删除失败，请稍后重试"), type: .error)
+                }
             }
         }
     }
@@ -527,6 +532,9 @@ extension AddTransactionSheet {
                 } else if let defaultAcc = try await repository.getDefaultAccount() {
                     account = defaultAcc
                 } else {
+                    await MainActor.run {
+                        signalSaveBlocked(reason: String(localized: "请先创建或选择一个账户"))
+                    }
                     return
                 }
 
@@ -545,10 +553,16 @@ extension AddTransactionSheet {
                     }
                 )
 
-                HapticManager.success()
-                onSave(nil)
+                await MainActor.run {
+                    HapticManager.success()
+                    HoloToastCenter.shared.show(String(localized: "已复制一笔到所选日期"), type: .success)
+                    onSave(nil)
+                }
             } catch {
                 logger.error("复制交易失败: \(error)")
+                await MainActor.run {
+                    HoloToastCenter.shared.show(String(localized: "复制失败，请稍后重试"), type: .error)
+                }
             }
         }
     }

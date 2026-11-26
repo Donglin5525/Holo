@@ -15,6 +15,8 @@ struct GoalSettingsSheet: View {
     /// 面板字段直接读写 GoalDraft；allowAIContext 由调用方持有并负责落库
     @Binding var draft: GoalDraft
     @Binding var allowAIContext: Bool
+    var primaryDisabled: Bool = false
+    var primaryTitle: String = String(localized: "保存")
     let onClose: () -> Void
     let onSave: () -> Void
 
@@ -25,8 +27,9 @@ struct GoalSettingsSheet: View {
         HoloSheetScaffold(
             title: String(localized: "目标设置"),
             onClose: onClose,
-            primaryTitle: String(localized: "保存"),
+            primaryTitle: primaryTitle,
             primaryAction: onSave,
+            primaryDisabled: primaryDisabled,
             primaryActionColor: GoalJourneyStyle.action,
             footerBackground: GoalJourneyStyle.sheetFooterCream
         ) {
@@ -265,19 +268,46 @@ struct GoalSettingsEditSheet: View {
     @State private var allowAIContext: Bool
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var showDiscardConfirm = false
+    private let initialDraft: GoalDraft
+    private let initialAllowAIContext: Bool
 
     init(goal: Goal) {
         self.goal = goal
-        self._draft = State(initialValue: GoalEditForm.draft(from: goal))
+        let initial = GoalEditForm.draft(from: goal)
+        self.initialDraft = initial
+        self.initialAllowAIContext = goal.allowAIContext
+        self._draft = State(initialValue: initial)
         self._allowAIContext = State(initialValue: goal.allowAIContext)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft != initialDraft || allowAIContext != initialAllowAIContext
+    }
+
+    private func requestDismiss() {
+        guard !isSaving else { return }
+        if hasUnsavedChanges {
+            showDiscardConfirm = true
+        } else {
+            dismiss()
+        }
     }
 
     var body: some View {
         GoalSettingsSheet(
             draft: $draft,
             allowAIContext: $allowAIContext,
-            onClose: { dismiss() },
+            primaryDisabled: isSaving,
+            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "保存"),
+            onClose: { requestDismiss() },
             onSave: { save() }
+        )
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .sheetDismissGuard { requestDismiss() }
+        .unsavedChangesAlert(
+            isPresented: $showDiscardConfirm,
+            onConfirmDismiss: { dismiss() }
         )
         .alert("保存失败", isPresented: Binding(
             get: { saveError != nil },
@@ -310,7 +340,7 @@ struct GoalSettingsEditSheet: View {
                 dismiss()
             } catch {
                 isSaving = false
-                saveError = error.localizedDescription
+                saveError = String(localized: "暂时未能保存设置，你的修改仍保留在这里，请稍后重试。")
             }
         }
     }

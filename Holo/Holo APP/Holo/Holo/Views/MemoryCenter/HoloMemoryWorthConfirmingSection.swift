@@ -447,13 +447,32 @@ struct HoloMemoryKnowledgeCorrectionSheet: View {
     let onSave: () -> Void
     let onCancel: () -> Void
 
+    @State private var showDiscardConfirm = false
+    @FocusState private var isEditorFocused: Bool
+
+    private var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        !trimmedText.isEmpty && trimmedText != original.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func requestClose() {
+        if hasUnsavedChanges {
+            showDiscardConfirm = true
+        } else {
+            onCancel()
+        }
+    }
+
     var body: some View {
         HoloSheetScaffold(
             title: "改一下这条理解",
-            onClose: onCancel,
+            onClose: requestClose,
             primaryTitle: "保存",
             primaryAction: onSave,
-            primaryDisabled: text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            primaryDisabled: !hasUnsavedChanges
         ) {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 Text("Holo 的理解")
@@ -467,6 +486,7 @@ struct HoloMemoryKnowledgeCorrectionSheet: View {
                     .holoText(.metadata)
                     .foregroundStyle(Color.holoToolTextSecondary)
                 TextEditor(text: $text)
+                    .focused($isEditorFocused)
                     .frame(minHeight: 120)
                     .padding(HoloSpacing.sm)
                     .holoSurface()
@@ -476,5 +496,13 @@ struct HoloMemoryKnowledgeCorrectionSheet: View {
             .padding(.vertical, HoloSpacing.md)
         }
         .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .sheetDismissGuard { requestClose() }
+        .unsavedChangesAlert(isPresented: $showDiscardConfirm, onConfirmDismiss: onCancel)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isEditorFocused = true
+            }
+        }
     }
 }

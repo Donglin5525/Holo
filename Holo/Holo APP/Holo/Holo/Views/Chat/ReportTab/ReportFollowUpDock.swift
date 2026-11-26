@@ -34,36 +34,45 @@ struct ReportFollowUpDock: View {
 
     // MARK: 输入态
 
+    private var isQuotaExhausted: Bool {
+        if let remaining = controller.quotaRemaining, remaining <= 0 {
+            return true
+        }
+        return false
+    }
+
     private var inputDock: some View {
         VStack(spacing: 7) {
-            HStack(spacing: 8) {
-                TextField("就这份报告继续问…", text: $controller.draftText, axis: .vertical)
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1...3)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 9)
-                    .background(Color.holoBackground.opacity(0.9), in: Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.holoBorder.opacity(0.6), lineWidth: 0.8)
-                    )
-                    .onSubmit { controller.sendDraft() }
-
-                Button {
-                    controller.sendDraft()
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            canSend ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3),
-                            in: Circle()
+            if !isQuotaExhausted {
+                HStack(spacing: 8) {
+                    TextField("就这份报告继续问…", text: $controller.draftText, axis: .vertical)
+                        .font(.system(size: 13))
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1...3)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(Color.holoBackground.opacity(0.9), in: Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.holoBorder.opacity(0.6), lineWidth: 0.8)
                         )
+                        .onSubmit { controller.sendDraft() }
+
+                    Button {
+                        controller.sendDraft()
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                canSend ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3),
+                                in: Circle()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSend)
+                    .accessibilityLabel(String(localized: "发送追问"))
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .accessibilityLabel(String(localized: "发送追问"))
             }
 
             quotaNote
@@ -73,10 +82,12 @@ struct ReportFollowUpDock: View {
     /// 额度说明行：发送前讲清成本；额度用尽时换成恢复提示。
     @ViewBuilder
     private var quotaNote: some View {
-        if let remaining = controller.quotaRemaining, remaining <= 0 {
-            Text("深度洞察额度已用完，恢复后可继续追问；普通对话不受影响")
-                .font(.system(size: 10.5, weight: .medium))
+        if isQuotaExhausted {
+            Text("今日深度洞察额度已用完，明天重置后可继续追问；普通对话不受影响")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.holoToolError)
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 4)
         } else {
             Text(quotaNoteText)
                 .font(.system(size: 10.5, weight: .medium))
@@ -86,13 +97,13 @@ struct ReportFollowUpDock: View {
 
     private var quotaNoteText: String {
         if let remaining = controller.quotaRemaining {
-            return String(localized: "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度（本周剩 \(remaining) 次）")
+            return String(localized: "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度（今日剩 \(remaining) 次）")
         }
         return String(localized: "追问会生成一份新报告挂在本报告下 · 消耗深度洞察额度")
     }
 
     private var canSend: Bool {
-        !controller.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isQuotaExhausted && !controller.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: 生成中
@@ -155,18 +166,36 @@ struct ReportFollowUpDock: View {
                     .foregroundColor(.holoError.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button {
-                    controller.retryLast(text: controller.draftText)
-                } label: {
-                    Text("重试")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Color.holoPrimary, in: Capsule())
+                HStack(spacing: 6) {
+                    Button {
+                        controller.returnToDraft()
+                    } label: {
+                        Text("修改")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.holoBackground.opacity(0.9), in: Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.holoBorder.opacity(0.6), lineWidth: 0.8)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "返回修改追问内容"))
+
+                    Button {
+                        controller.retryLast(text: controller.draftText)
+                    } label: {
+                        Text("重试")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.holoPrimary, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "原样重试这次追问"))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "原样重试这次追问"))
             }
         }
     }

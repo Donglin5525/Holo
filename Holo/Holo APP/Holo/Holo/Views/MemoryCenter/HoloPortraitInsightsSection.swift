@@ -24,6 +24,7 @@ struct HoloPortraitInsightsSection: View {
 
     @State private var isSynthesizing = false
     @State private var statusBanner: String?
+    @State private var pendingRejectEntry: PortraitEntry?
 
     private var targetConfidence: PortraitConfidence {
         mode == .confirmed ? .confirmed : .inferred
@@ -244,9 +245,7 @@ struct HoloPortraitInsightsSection: View {
                 } else {
                     Menu {
                         Button(role: .destructive) {
-                            HoloPortraitSynthesisRuntime.rejectEntry(key: entry.key)
-                            store = HoloPortraitSynthesisRuntime.loadStore()
-                            statusBanner = "已移出「\(entry.statement)」"
+                            pendingRejectEntry = entry
                         } label: {
                             Label("不再记住", systemImage: "trash")
                         }
@@ -255,6 +254,23 @@ struct HoloPortraitInsightsSection: View {
                             .font(.system(size: 13))
                             .foregroundStyle(Color.holoToolTextSecondary)
                             .frame(width: 24, height: 24)
+                    }
+                    .alert(
+                        "不再记住这条画像？",
+                        isPresented: Binding(
+                            get: { pendingRejectEntry?.key == entry.key },
+                            set: { if !$0 { pendingRejectEntry = nil } }
+                        )
+                    ) {
+                        Button("取消", role: .cancel) { pendingRejectEntry = nil }
+                        Button("不再记住", role: .destructive) {
+                            HoloPortraitSynthesisRuntime.rejectEntry(key: entry.key)
+                            store = HoloPortraitSynthesisRuntime.loadStore()
+                            statusBanner = "已移出「\(entry.statement)」"
+                            pendingRejectEntry = nil
+                        }
+                    } message: {
+                        Text("移出后，Holo 不会再使用「\(PortraitTextSanitizer.sanitize(entry.statement))」这条画像。")
                     }
                 }
             }

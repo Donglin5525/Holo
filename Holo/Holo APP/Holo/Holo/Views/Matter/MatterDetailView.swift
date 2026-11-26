@@ -563,13 +563,42 @@ struct MatterDetailView: View {
                         ) {
                             if loop.state == .open {
                                 Button {
-                                    Task { try? await repository.setOpenLoopState(id: loop.id, state: .waiting, actor: .user) }
+                                    Task {
+                                        do {
+                                            try await repository.setOpenLoopState(id: loop.id, state: .waiting, actor: .user)
+                                            HapticManager.light()
+                                        } catch {
+                                            HoloToastCenter.shared.show(String(localized: "更新状态失败，请稍后重试"), type: .error)
+                                        }
+                                    }
                                 } label: {
                                     Label(String(localized: "标记为等待中"), systemImage: "hourglass")
                                 }
+                            } else if loop.state == .waiting {
+                                Button {
+                                    Task {
+                                        do {
+                                            try await repository.setOpenLoopState(id: loop.id, state: .open, actor: .user)
+                                            HapticManager.light()
+                                        } catch {
+                                            HoloToastCenter.shared.show(String(localized: "更新状态失败，请稍后重试"), type: .error)
+                                        }
+                                    }
+                                } label: {
+                                    Label(String(localized: "恢复为待处理"), systemImage: "arrow.uturn.backward")
+                                }
                             }
+                            Divider()
                             Button(role: .destructive) {
-                                Task { try? await repository.dismissOpenLoop(id: loop.id, actor: .user) }
+                                Task {
+                                    do {
+                                        try await repository.dismissOpenLoop(id: loop.id, actor: .user)
+                                        HapticManager.light()
+                                        HoloToastCenter.shared.show(String(localized: "已标记为不需要处理"), type: .info)
+                                    } catch {
+                                        HoloToastCenter.shared.show(String(localized: "操作失败，请稍后重试"), type: .error)
+                                    }
+                                }
                             } label: {
                                 Label(String(localized: "不需要处理"), systemImage: "xmark.circle")
                             }
@@ -815,7 +844,7 @@ struct MatterDetailView: View {
     nonisolated private static func eventAnchorTitle(_ event: HoloMatterEvent) -> String {
         let payload = event.payload
         if let title = payload["title"], !title.isEmpty { return title }
-        return payload["openLoopID"] ?? ""
+        return payload["openLoopID"] != nil ? String(localized: "这个问题") : ""
     }
 
     /// 相关内容计数（按真实 link 分类，方案 §13.4-6）。

@@ -73,6 +73,7 @@ struct AddHabitSheet: View {
 
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
+    @FocusState private var isNameFocused: Bool
 
     // 目标三态（方案 §8.2/§12.4）：目标关闭 = 编辑模式提交 clear，不能被误解释为「不更新」
     @State private var targetEnabled: Bool = false
@@ -321,8 +322,16 @@ struct AddHabitSheet: View {
                 .holoText(.body)
                 .foregroundColor(.holoToolText)
                 .tint(Color.holoToolAction)
+                .focused($isNameFocused)
                 .padding(.horizontal, 16)
                 .frame(minHeight: 50, alignment: .leading)
+                .onAppear {
+                    if editingHabit == nil && name.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            isNameFocused = true
+                        }
+                    }
+                }
 
             Rectangle()
                 .fill(Color.holoToolBorder.opacity(0.5))

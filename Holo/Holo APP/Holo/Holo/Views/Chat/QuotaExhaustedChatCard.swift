@@ -28,18 +28,20 @@ struct QuotaExhaustedChatCard: View {
                     .foregroundColor(.holoTextPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Button {
-                    onLearnPlus?()
-                } label: {
-                    HStack(spacing: 3) {
-                        Text("了解 Holo Plus")
-                            .font(.caption.weight(.semibold))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
+                if !HoloEntitlementState.shared.isPlusActive {
+                    Button {
+                        onLearnPlus?()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("了解 Holo Plus")
+                                .font(.caption.weight(.semibold))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundColor(.holoPrimary)
                     }
-                    .foregroundColor(.holoPrimary)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             Spacer(minLength: 0)

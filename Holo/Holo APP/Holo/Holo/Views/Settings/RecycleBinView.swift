@@ -75,7 +75,7 @@ struct RecycleBinView: View {
                 }
                 ToolbarItem(placement: .destructiveAction) {
                     if !recycleBin.batches.isEmpty {
-                        Button("清空回收站") { showPurgeAllAlert = true }
+                        Button("清空最近删除") { showPurgeAllAlert = true }
                             .foregroundColor(.holoToolError)
                             .disabled(purgeAction.isRunning)
                     }
@@ -86,13 +86,13 @@ struct RecycleBinView: View {
             await recycleBin.reloadBatches()
         }
         .interactiveDismissDisabled(purgeAction.isRunning)
-        .alert("清空回收站", isPresented: $showPurgeAllAlert) {
+        .alert("清空最近删除", isPresented: $showPurgeAllAlert) {
             Button("取消", role: .cancel) {}
             Button("彻底删除", role: .destructive) {
                 Task { await purgeAll() }
             }
         } message: {
-            Text("回收站内所有数据将被立即彻底删除，无法恢复。")
+            Text("最近删除内的所有数据将被立即彻底删除，无法恢复。")
         }
     }
 
@@ -168,7 +168,7 @@ struct RecycleBinView: View {
     private func purgeAll() async {
         await purgeAction.run {
             try await recycleBin.purgeAll()
-            HoloToastCenter.shared.show(String(localized: "回收站已清空"), type: .success)
+            HoloToastCenter.shared.show(String(localized: "最近删除已清空"), type: .success)
         }
     }
 }
@@ -206,7 +206,7 @@ struct RecycleBinBatchDetailView: View {
                         .foregroundColor(.holoToolError)
                 }
 
-                HStack(spacing: HoloSpacing.md) {
+                VStack(spacing: HoloSpacing.md) {
                     restoreButton
                     purgeButton
                 }

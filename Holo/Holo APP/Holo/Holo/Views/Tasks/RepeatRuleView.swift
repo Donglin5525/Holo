@@ -25,6 +25,7 @@ struct RepeatRuleView: View {
     @State private var untilCount: Int?
     @State private var skipWeekends = false
     @State private var skipHolidays = false
+    @State private var showDeleteRuleConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -98,10 +99,16 @@ struct RepeatRuleView: View {
                 if task.repeatRule != nil {
                     Section("当前规则") {
                         Button("删除重复规则", role: .destructive) {
-                            deleteRepeatRule()
+                            showDeleteRuleConfirm = true
                         }
                     }
                 }
+            }
+            .confirmationDialog("删除这条重复规则？后续将不再自动生成重复任务。", isPresented: $showDeleteRuleConfirm, titleVisibility: .visible) {
+                Button("删除重复规则", role: .destructive) {
+                    deleteRepeatRule()
+                }
+                Button("取消", role: .cancel) {}
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)

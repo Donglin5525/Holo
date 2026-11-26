@@ -18,6 +18,7 @@ struct GoalMetricLogSheet: View {
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var showDismissAlert = false
+    @FocusState private var isValueFocused: Bool
 
     private var unitText: String { goal.metricUnitText }
 
@@ -49,11 +50,16 @@ struct GoalMetricLogSheet: View {
                             #if canImport(UIKit)
                             .keyboardType(.decimalPad)
                             #endif
+                            .focused($isValueFocused)
                             .font(.holoBody)
                             .foregroundColor(.holoToolText)
                             .padding(HoloSpacing.sm)
-                            .background(Color.holoToolBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .stroke(Color.holoToolBorder, lineWidth: 0.5)
+                            )
                         Text(isTargetKind
                              ? String(localized: "记录当前水平，进度取最新一条计算")
                              : String(localized: "记录每次的量，会自动累加到目标进度"))
@@ -71,8 +77,12 @@ struct GoalMetricLogSheet: View {
                             .foregroundColor(.holoToolText)
                             .lineLimit(1...2)
                             .padding(HoloSpacing.sm)
-                            .background(Color.holoToolBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .stroke(Color.holoToolBorder, lineWidth: 0.5)
+                            )
                     }
 
                     // 日期
@@ -92,20 +102,25 @@ struct GoalMetricLogSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Color.holoToolBackground)
             .navigationTitle(isTargetKind ? String(localized: "记当前水平") : String(localized: "记一笔"))
             #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isValueFocused = false }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: requestDismiss)
                         .disabled(isSaving)
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isValueFocused = true
                 }
             }
             .safeAreaInset(edge: .bottom) {

@@ -30,6 +30,35 @@ struct UserProfileEditorView: View {
     @State private var showCropEditor = false
     @State private var isProcessing = false
     @State private var errorMessage: String?
+    @State private var showDiscardNicknameAlert = false
+    @FocusState private var isNicknameFocused: Bool
+
+    private var savedNickname: String {
+        UserDisplayNameSettings.isDisplayNameSet(displayName) ? displayName : ""
+    }
+
+    private var normalizedNicknameDraft: String? {
+        UserDisplayNameSettings.normalizedDisplayName(nicknameDraft)
+    }
+
+    private var hasUnsavedNickname: Bool {
+        let current = nicknameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return didInitializeNickname && current != savedNickname
+    }
+
+    private var canSaveNickname: Bool {
+        guard let normalized = normalizedNicknameDraft else { return false }
+        return normalized != savedNickname
+    }
+
+    private func requestClose() {
+        guard !isProcessing else { return }
+        if hasUnsavedNickname {
+            showDiscardNicknameAlert = true
+        } else {
+            dismiss()
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -50,7 +79,7 @@ struct UserProfileEditorView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button("关闭") { requestClose() }
                 }
             }
         }
@@ -142,7 +171,9 @@ struct UserProfileEditorView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(isProcessing)
+        .interactiveDismissDisabled(isProcessing || hasUnsavedNickname)
+        .sheetDismissGuard { requestClose() }
+        .unsavedChangesAlert(isPresented: $showDiscardNicknameAlert, onConfirmDismiss: { dismiss() })
     }
 
     private var avatarEditor: some View {
@@ -180,6 +211,7 @@ struct UserProfileEditorView: View {
 
             HStack(spacing: HoloSpacing.sm) {
                 TextField("怎么称呼你", text: $nicknameDraft)
+                    .focused($isNicknameFocused)
                     #if canImport(UIKit)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
@@ -189,7 +221,7 @@ struct UserProfileEditorView: View {
                 Button("保存", action: saveNickname)
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .disabled(UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) == nil)
+                    .disabled(!canSaveNickname)
             }
             .padding(.horizontal, HoloSpacing.md)
             .frame(minHeight: 50)
@@ -218,10 +250,12 @@ struct UserProfileEditorView: View {
     }
 
     private func saveNickname() {
-        guard let normalized = UserDisplayNameSettings.normalizedDisplayName(nicknameDraft) else { return }
+        guard canSaveNickname, let normalized = normalizedNicknameDraft else { return }
         UserPreferenceRepository.shared.setDisplayName(normalized)
         nicknameDraft = normalized
-        HapticManager.light()
+        isNicknameFocused = false
+        HapticManager.success()
+        HoloToastCenter.shared.show(String(localized: "昵称已保存"), type: .success)
     }
 
     private func loadSelectedPhoto(_ item: PhotosPickerItem) async {

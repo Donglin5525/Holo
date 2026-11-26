@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holo 财务统计报表 · 高审美改版原型 · 2026-11-26</title>
+<style>
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf");font-weight:400}
+@font-face{font-family:"HoloSerif";src:url("../../Holo/Holo%20APP/Holo/Holo/Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf");font-weight:700}
+
+:root{
+  --paper:#FDFCF8;
+  --surface:#FFFFFF;
+  --inset:#F5F1E9;
+  --ink:#2F2B26;
+  --ink-deep:#1C1916;
+  --ink-mid:#6E685F;
+  --ink-soft:#9E978D;
+  --stone:#BDB5A8;
+  --rule:rgba(47,43,38,.12);
+  --rule-subtle:rgba(47,43,38,.07);
+  --vermilion:#EA580C;
+  --vermilion-soft:rgba(234,88,12,.10);
+  /* Holo V4 纸本图表语义色 */
+  --outflow:#C86446;      /* 赭橙 / 支出 */
+  --outflow-deep:#B84A3E; /* 印泥红 */
+  --inflow:#4E8C64;       /* 苔绿 / 收入 */
+  --chart-ink:#40546B;    /* 墨蓝 / 余额 */
+  --cat-1:#C86446;        /* 赭橙 居住 */
+  --cat-2:#40546B;        /* 墨蓝 餐饮 */
+  --cat-3:#C9A255;        /* 麦金 购物 */
+  --cat-4:#93799F;        /* 藕紫 出行 */
+  --cat-5:#BDB5A8;        /* 石灰 其他 */
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+  background:#E6E1D8;
+  color:var(--ink-deep);
+  line-height:1.5;
+  padding:40px 28px 100px;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-variant-numeric:tabular-nums}
+.serif-num{
+  font-family:"New York","Georgia","HoloSerif","Songti SC",serif;
+  font-variant-numeric:tabular-nums;
+}
+
+.wrap{max-width:1520px;margin:0 auto}
+
+/* ===== 页头导览 ===== */
+.hero-head{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+  padding-bottom:22px;border-bottom:1.5px solid var(--ink-deep);
+}
+.hero-kicker{font-size:11px;letter-spacing:2.4px;color:var(--ink-mid);text-transform:uppercase;margin-bottom:6px;font-weight:600}
+h1{font-family:"HoloSerif","Songti SC","Georgia",serif;font-size:30px;font-weight:700;letter-spacing:.6px;line-height:1.25}
+.lead{color:#57524A;font-size:14px;max-width:780px;margin-top:8px;line-height:1.7}
+
+.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.seg-toggle{
+  display:inline-flex;background:rgba(47,43,38,.09);padding:3px;border-radius:9px;gap:2px;
+}
+.seg-toggle button{
+  border:none;background:transparent;padding:6px 13px;border-radius:7px;
+  font-size:12.5px;color:var(--ink-mid);cursor:pointer;font-weight:500;transition:.15s;
+}
+.seg-toggle button.active{
+  background:var(--paper);color:var(--ink-deep);box-shadow:0 1px 3px rgba(0,0,0,.09);
+}
+
+.principles{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;
+}
+.p-item{
+  background:rgba(253,252,248,.82);
+  border:.5px solid var(--rule);
+  border-radius:10px;padding:12px 14px;font-size:12.5px;color:#544F47;
+}
+.p-item b{display:block;color:var(--ink-deep);font-size:13px;margin-bottom:3px}
+.p-item span{color:var(--vermilion);font-family:"SF Mono","Menlo",monospace;font-size:11px;margin-right:6px;font-weight:600}
+
+/* ===== 手机并排展示 ===== */
+.stage{
+  display:grid;
+  grid-template-columns:repeat(4,344px);
+  gap:26px;
+  margin-top:34px;
+  overflow-x:auto;
+  padding:8px 4px 20px;
+}
+.col{width:344px}
+.col-h{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:10px;padding:0 4px;
+}
+.col-h strong{font-size:14px;font-weight:600;color:var(--ink-deep)}
+.col-h .badge{
+  font-size:11px;font-family:"SF Mono","Menlo",monospace;
+  color:var(--vermilion);font-weight:600;
+}
+.col-h .badge.muted{color:var(--ink-mid)}
+.cap{
+  font-size:12px;color:#57524A;margin-top:12px;line-height:1.65;padding:0 4px;
+}
+.cap b{color:var(--ink-deep)}
+
+/* ===== 手机外壳 ===== */
+.phone{
+  width:344px;height:732px;border-radius:48px;border:9px solid #181715;
+  position:relative;overflow:hidden;
+  background:var(--paper);color:var(--ink);
+  box-shadow:0 24px 52px rgba(24,20,14,.18),0 2px 6px rgba(0,0,0,.08);
+  display:flex;flex-direction:column;
+  transition:background .2s,color .2s;
+}
+.phone.dark{
+  --paper:#0E0E10;
+  --surface:#1C1C1E;
+  --inset:#262629;
+  --ink:#F2EFE9;
+  --ink-deep:#FFFFFF;
+  --ink-mid:#A49F96;
+  --ink-soft:#6E6A63;
+  --stone:#635E57;
+  --rule:rgba(255,255,255,.11);
+  --rule-subtle:rgba(255,255,255,.06);
+  --vermilion:#FF8A5C;
+  --vermilion-soft:rgba(255,138,92,.14);
+  --outflow:#E08265;
+  --outflow-deep:#E57A6E;
+  --inflow:#7DBF92;
+  --chart-ink:#8FA8C4;
+  border-color:#070707;
+}
+
+/* 状态栏 */
+.sb{
+  height:42px;flex:0 0 42px;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:0 26px;font-size:12px;font-weight:600;
+  color:var(--ink-deep);
+}
+.sb-r{display:flex;gap:6px;align-items:center;font-size:10px;opacity:.75}
+
+/* ===== 瘦身后的统一顶部导航（返回 + 居中日期胶囊） ===== */
+.top-nav{
+  height:40px;flex:0 0 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;
+}
+.icon-btn{
+  width:32px;height:32px;border-radius:50%;
+  border:.5px solid var(--rule);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-deep);cursor:pointer;font-size:14px;
+}
+.date-pill{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px;border-radius:999px;
+  background:var(--inset);
+  font-size:13px;font-weight:600;color:var(--ink-deep);
+  cursor:pointer;user-select:none;
+}
+.date-pill .arrow{color:var(--ink-mid);font-size:12px;padding:0 2px}
+.date-pill .arrow.disabled{opacity:.3;cursor:default}
+
+/* Tab 栏（极简 5 栏，无多余背景） */
+.tabs{
+  display:flex;padding:4px 16px 0;
+  border-bottom:.5px solid var(--rule);
+  flex:0 0 auto;
+}
+.tab{
+  flex:1;text-align:center;padding:8px 0 9px;
+  font-size:13px;font-weight:500;color:var(--ink-mid);
+  position:relative;cursor:pointer;
+}
+.tab.active{color:var(--ink-deep);font-weight:600}
+.tab.active::after{
+  content:"";position:absolute;left:22%;right:22%;bottom:0;height:2px;
+  background:var(--vermilion);border-radius:2px;
+}
+
+/* 可滚动主体 */
+.scr{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  padding:0 20px 76px;
+  position:relative;
+}
+.scr::-webkit-scrollbar{display:none}
+
+/* 底部 Tab 栏 */
+.bottom-bar{
+  position:absolute;left:0;right:0;bottom:0;height:62px;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:.5px solid var(--rule);
+  display:flex;align-items:flex-start;padding-top:8px;
+  z-index:10;
+}
+.b-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:10px;color:var(--ink-soft);font-weight:500;
+}
+.b-item.active{color:var(--vermilion)}
+.b-dot{width:4px;height:4px;border-radius:50%;background:var(--vermilion);margin-bottom:-2px}
+.b-ico{width:19px;height:19px;display:flex;align-items:center;justify-content:center}
+
+/* ===== 无卡纸本排版元素 ===== */
+.hero-summary{
+  padding:20px 0 18px;
+  border-bottom:.5px solid var(--rule);
+}
+.kicker-row{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;color:var(--ink-mid);margin-bottom:6px;
+}
+.hero-amount{
+  font-size:34px;font-weight:600;letter-spacing:-.5px;
+  color:var(--ink-deep);line-height:1.12;
+}
+.hero-amount .yen{font-size:22px;font-weight:500;margin-right:2px;color:var(--ink-mid)}
+.sub-metrics{
+  display:flex;gap:18px;margin-top:16px;
+}
+.sub-m{flex:1}
+.sub-m .lbl{font-size:11px;color:var(--ink-soft);margin-bottom:2px}
+.sub-m .val{font-size:14px;font-weight:600;color:var(--ink-deep)}
+.sub-m .val.inflow{color:var(--inflow)}
+.sub-m .val.outflow{color:var(--outflow-deep)}
+
+/* 区块头（无前置装饰图标） */
+.sec-bar{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:22px;margin-bottom:12px;
+}
+.sec-title{font-size:15px;font-weight:600;color:var(--ink-deep)}
+.sec-sub{font-size:11.5px;color:var(--ink-soft)}
+
+/* 迷你分段器（灰底白块，轻量统一） */
+.mini-seg{
+  display:inline-flex;background:var(--inset);padding:2.5px;border-radius:8px;gap:1px;
+}
+.mini-seg button{
+  border:none;background:transparent;padding:4px 10px;border-radius:6px;
+  font-size:11.5px;font-weight:500;color:var(--ink-mid);cursor:pointer;transition:.15s;
+}
+.mini-seg button.active{
+  background:var(--surface);color:var(--ink-deep);font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.07);
+}
+
+/* ===== 交互读数条（极简，平时隐匿重复数字，点按浮出单日） ===== */
+.readout-bar{
+  min-height:22px;display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:6px;font-size:11.5px;color:var(--ink-mid);
+}
+.readout-bar .dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:1px;
+}
+.readout-bar b{color:var(--ink-deep);font-weight:600;margin-left:3px}
+.readout-pair{display:flex;gap:12px;align-items:center}
+
+/* ===== SVG 图表样式 ===== */
+.chart-box{position:relative;width:100%}
+.chart-box svg{display:block;width:100%;overflow:visible}
+.axis-txt{font-size:10px;fill:var(--ink-soft);font-variant-numeric:tabular-nums}
+.grid-line{stroke:var(--rule-subtle);stroke-width:1}
+.bar-hit{cursor:pointer}
+.bar-hit:hover .bar-rect{opacity:.85}
+
+/* ===== 现金流瀑布（减法清爽版） ===== */
+.wf-head{margin-bottom:14px}
+.wf-big{font-size:26px;font-weight:600;color:var(--outflow-deep);line-height:1.15}
+.wf-sub{font-size:11.5px;color:var(--ink-mid);margin-top:4px}
+.wf-row{
+  display:grid;grid-template-columns:64px 1fr 78px;align-items:center;
+  height:36px;font-size:12.5px;cursor:pointer;transition:opacity .15s;
+}
+.wf-row.dimmed{opacity:.32}
+.wf-lbl{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-amt{text-align:right;font-weight:600;color:var(--ink-deep);font-size:12.5px}
+.wf-amt.muted-sign{font-weight:500}
+.wf-track{position:relative;height:36px;margin:0 8px}
+.wf-zero{position:absolute;top:0;bottom:0;border-left:1px dashed var(--stone);opacity:.6}
+.wf-bar{position:absolute;height:13px;top:11.5px;border-radius:3.5px}
+.wf-divider{height:.5px;background:var(--rule);margin:6px 0}
+.wf-foot{font-size:11.5px;color:var(--ink-mid);margin-top:8px}
+
+/* ===== 无卡分类排行 ===== */
+.rank-list{margin-top:4px}
+.rank-row{
+  display:flex;align-items:center;gap:11px;
+  padding:11px 0;border-bottom:.5px solid var(--rule-subtle);
+  cursor:pointer;
+}
+.rank-row:last-child{border-bottom:none}
+.cat-ico{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex:0 0 32px;
+}
+.rank-mid{flex:1;min-width:0}
+.rank-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.rank-name{font-size:14px;font-weight:500;color:var(--ink-deep)}
+.rank-amt{font-size:14px;font-weight:600;color:var(--ink-deep)}
+.rank-meta{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hair-track{flex:1;height:3px;background:var(--rule-subtle);border-radius:2px;overflow:hidden}
+.hair-fill{height:100%;border-radius:2px}
+.rank-pct{font-size:11px;color:var(--ink-soft);min-width:34px;text-align:right}
+
+/* ===== 明细页：滚动吸顶紧凑条 ===== */
+.sticky-summary{
+  position:sticky;top:0;z-index:6;
+  margin:0 -20px;padding:9px 20px;
+  background:color-mix(in srgb,var(--paper) 94%,transparent);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:.5px solid var(--rule);
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;
+  opacity:0;pointer-events:none;transform:translateY(-6px);
+  transition:opacity .18s,transform .18s;
+}
+.sticky-summary.visible{opacity:1;pointer-events:auto;transform:translateY(0)}
+.sticky-summary .nums{display:flex;gap:10px;color:var(--ink-mid)}
+.sticky-summary .nums b{color:var(--ink-deep);font-weight:600}
+.pill-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 9px;border-radius:999px;
+  background:var(--inset);color:var(--ink);
+  font-size:11px;font-weight:500;border:none;cursor:pointer;
+}
+.pill-btn.accent{background:var(--vermilion-soft);color:var(--vermilion)}
+
+.detail-chart-wrap{
+  padding:14px 0 14px;
+  border-bottom:.5px solid var(--rule);
+}
+.list-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 0 8px;
+}
+.list-head .l{display:flex;align-items:baseline;gap:6px}
+.list-head strong{font-size:15px;font-weight:600;color:var(--ink-deep)}
+.list-head span{font-size:11.5px;color:var(--ink-soft)}
+
+.day-group{margin-top:14px}
+.day-group:first-of-type{margin-top:4px}
+.day-hd{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0 6px;font-size:12px;color:var(--ink-soft);
+}
+.day-hd.highlight{
+  background:var(--vermilion-soft);color:var(--vermilion);
+  margin:0 -8px;padding:4px 8px 6px;border-radius:6px;
+}
+.tx-row{
+  display:flex;align-items:center;gap:11px;
+  padding:10px 0;border-bottom:.5px solid var(--rule-subtle);
+}
+.tx-row:last-child{border-bottom:none}
+.tx-title{font-size:14.5px;font-weight:500;color:var(--ink-deep);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-note{font-size:11px;color:var(--ink-soft);margin-top:1px}
+.tx-amt{font-size:14.5px;font-weight:600;color:var(--ink-deep)}
+.tx-amt.inflow{color:var(--inflow)}
+
+/* ===== 类别页：精简一行筛选 + 2列紧凑图例 ===== */
+.filter-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 0 6px;
+}
+.chip-select{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 10px;border-radius:8px;
+  border:.5px solid var(--rule);background:var(--surface);
+  font-size:12px;color:var(--ink-mid);cursor:pointer;
+}
+.legend-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;
+  margin:4px 0 14px;
+}
+.lg-item{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer;transition:opacity .15s,background .15s;
+}
+.lg-item.dimmed{opacity:.32}
+.lg-item.selected{background:var(--inset)}
+.lg-l{display:flex;align-items:center;gap:6px;color:var(--ink-mid)}
+.lg-dot{width:7px;height:7px;border-radius:2px;flex:0 0 7px}
+.lg-v{font-weight:600;color:var(--ink-deep)}
+
+.prop-bar{
+  display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden;
+  margin:14px 0 6px;
+}
+.prop-seg{height:100%;cursor:pointer;transition:opacity .15s}
+
+/* 稀疏态留白提示 */
+.sparse-note{
+  margin-top:10px;padding:10px 12px;border-radius:8px;
+  background:var(--inset);font-size:11.5px;color:var(--ink-mid);
+  line-height:1.55;
+}
+.scroll-hint{
+  font-size:11px;color:var(--vermilion);text-align:center;
+  padding:5px 0 2px;letter-spacing:.2px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero-head">
+    <div>
+      <div class="hero-kicker">HOLO · FINANCE ANALYTICS REDESIGN PROTOTYPE · 2026-11-26</div>
+      <h1>财务统计报表 · 苹果呼吸感与可视化重构原型</h1>
+      <p class="lead">
+        基于 Holo「纸本留白 · 默认无卡 · 尺度反差 · 一页一橙」规范重构。示例数据已做脱敏处理。
+        所有手机壳内均可直接点击切换图表、点柱看单日读数、或在「明细」屏内上下滚动体验图表折叠与摘要吸顶。
+      </p>
+    </div>
+    <div class="toolbar">
+      <div class="seg-toggle" id="themeToggle">
+        <button class="active" data-theme="light">浅色纸本</button>
+        <button data-theme="dark">深色模式</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="principles">
+    <div class="p-item"><b><span>01</span>顶部与容器做减法</b>去掉整行「统计分析」大字，日期胶囊上移至顶栏居中；去除层层白卡，用 0.5pt 细线与留白分层。</div>
+    <div class="p-item"><b><span>02</span>主角大数字 + 尺度反差</b>告别 3 列等权圆体表格；34pt 衬线大数字做主角，次级指标轻量一行，不再重复复读。</div>
+    <div class="p-item"><b><span>03</span>截断至今天 + 刻度对齐</b>进行中的月份只画到今天（11/26），日均按已过 26 天算；柱图与月图刻度严格居中对齐。</div>
+    <div class="p-item"><b><span>04</span>把 80% 空间还给明细</b>明细页取消大图表死钉顶部；图表随列表上滑收拢为 34pt 吸顶摘要条，首屏直出 5+ 条记录。</div>
+  </div>
+
+  <div class="stage">
+    <!-- ==================== 屏 1：总览 ==================== -->
+    <div class="col">
+      <div class="col-h">
+        <strong>① 总览 · 纸本主角 + 三态独立图</strong>
+        <span class="badge">可点切换 收支/余额/现金流</span>
+      </div>
+      <div class="phone" id="phone-overview">
+        <div class="sb"><span>20:08</span><span class="sb-r">5G · 82%</span></div>
+        <div class="top-nav">
+          <button class="icon-btn" aria-label="返回">‹</button>
+          <div class="date-pill mono"><span class="arrow">‹</span><span>11月1日 – 11月26日</span><span class="arrow disabled">›</span></div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">总览</div>
+          <div class="tab">明细</div>
+          <div class="tab">类别</div>
+          <div class="tab">项目</div>
+          <div class="tab">账户</div>
+        </div>
+
+        <div class="scr">
+          <!-- 无卡主角汇总 -->
+          <div class="hero-summary">
+            <div class="kicker-row">
+              <span>本月支出 · 已过 26/30 天</span>
+              <span class="mono">58 笔</span>
+            </div>
+            <div class="hero-amount serif-num"><span class="yen">¥</span>12,840.50</div>
+            <div class="sub-metrics">
+              <div class="sub-m">
+                <div class="lbl">总收入</div>
+                <div class="val mono inflow">¥9,200.00</div>
+              </div>
+              <div class="sub-m">
+                <div class="lbl">净结余</div>
+                <div class="val mono outflow">-¥3,640.50</div>
+              </div>
+              <div class="sub-m">
+                <div class="lbl">日均支出</div>
+                <div class="val mono">¥493.87</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 图表区：一图一件事 -->
+          <div class="sec-bar">
+            <span class="sec-title" id="ovChartTitle">收支走势</span>
+            <div class="mini-seg" id="ovSeg">
+              <button class="active" data-mode="flow">收支</button>
+              <button data-mode="balance">余额</button>
+              <button data-mode="cashflow">现金流</button>
+            </div>
+          </div>
+
+          <!-- 态 A：收支柱状图（截断到 11/26，不复读汇总大字） -->
+          <div id="ovPaneFlow">
+            <div class="readout-bar" id="ovFlowReadout">
+              <span>截止今日（11/26）</span>
+              <span class="readout-pair">
+                <span><i class="dot" style="background:var(--outflow)"></i>支出</span>
+                <span><i class="dot" style="background:var(--inflow)"></i>收入</span>
+              </span>
+            </div>
+            <div class="chart-box" id="ovFlowChart"></div>
+          </div>
+
+          <!-- 态 B：余额折线图 -->
+          <div id="ovPaneBalance" style="display:none">
+            <div class="readout-bar" id="ovBalReadout">
+              <span>期初 ¥6.82万 → 今日 ¥6.46万</span>
+              <span class="mono" style="color:var(--chart-ink);font-weight:600">净变动 -¥3,640</span>
+            </div>
+            <div class="chart-box" id="ovBalChart"></div>
+          </div>
+
+          <!-- 态 C：现金流瀑布图（减法清爽版） -->
+          <div id="ovPaneCashflow" style="display:none">
+            <div class="wf-head">
+              <div class="wf-big serif-num">-¥3,640.50</div>
+              <div class="wf-sub mono">净流出 · 余额 ¥68,200 → ¥64,559</div>
+            </div>
+            <div id="ovWaterfall"></div>
+          </div>
+
+          <!-- 无卡分类排行 -->
+          <div class="sec-bar" style="margin-top:26px">
+            <span class="sec-title">支出排行</span>
+            <div class="mini-seg" id="rankSeg">
+              <button class="active" data-type="expense">支出</button>
+              <button data-type="income">收入</button>
+            </div>
+          </div>
+          <div class="rank-list" id="ovRankList"></div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="b-item"><span class="b-ico">▤</span>账户</div>
+          <div class="b-item"><span class="b-ico">☰</span>账本</div>
+          <div class="b-item active"><span class="b-dot"></span><span class="b-ico">◔</span>统计</div>
+          <div class="b-item"><span class="b-ico">⇄</span>固定</div>
+          <div class="b-item"><span class="b-ico">⚙</span>设置</div>
+        </div>
+      </div>
+      <div class="cap">
+        <b>关键改进：</b>去掉三列等权白卡和圆体字；收支与余额拆成独立分段，单屏就能同时看到「主角数字 + 趋势图 + 分类排行」；柱图严格截止到 11/26，点击任一根柱子可看单日读数。
+      </div>
+    </div>
+
+    <!-- ==================== 屏 2：明细 ==================== -->
+    <div class="col">
+      <div class="col-h">
+        <strong>② 明细 · 滚动收拢图表，空间还给账单</strong>
+        <span class="badge">可上下滚动体验吸顶</span>
+      </div>
+      <div class="phone" id="phone-detail">
+        <div class="sb"><span>20:08</span><span class="sb-r">5G · 82%</span></div>
+        <div class="top-nav">
+          <button class="icon-btn" aria-label="返回">‹</button>
+          <div class="date-pill mono"><span class="arrow">‹</span><span>11月1日 – 11月26日</span><span class="arrow disabled">›</span></div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="tabs">
+          <div class="tab">总览</div>
+          <div class="tab active">明细</div>
+          <div class="tab">类别</div>
+          <div class="tab">项目</div>
+          <div class="tab">账户</div>
+        </div>
+
+        <div class="scr" id="detailScroll">
+          <!-- 上滑后出现的吸顶摘要条 -->
+          <div class="sticky-summary" id="stickyBar">
+            <div class="nums mono">
+              <span>支 <b>¥12,840</b></span>
+              <span>收 <b>¥9,200</b></span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="pill-btn" id="backToChartBtn">图表</button>
+              <button class="pill-btn accent">时间 ↓</button>
+            </div>
+          </div>
+
+          <!-- 紧凑迷你趋势图（随页面自然滚走） -->
+          <div class="detail-chart-wrap" id="detailChartSection">
+            <div class="readout-bar" id="dtFlowReadout">
+              <span class="mono">支 <b style="color:var(--outflow-deep)">¥12,840.50</b> · 收 <b style="color:var(--inflow)">¥9,200.00</b></span>
+              <span style="font-size:11px;color:var(--ink-soft)">点柱定位</span>
+            </div>
+            <div class="chart-box" id="dtFlowChart"></div>
+          </div>
+
+          <div class="list-head">
+            <div class="l"><strong>交易明细</strong><span class="mono">58 笔</span></div>
+            <button class="pill-btn accent">时间 ↓</button>
+          </div>
+
+          <div id="detailList"></div>
+          <div class="scroll-hint">↑ 向上滚动，体验图表自然收起 ↑</div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="b-item"><span class="b-ico">▤</span>账户</div>
+          <div class="b-item"><span class="b-ico">☰</span>账本</div>
+          <div class="b-item active"><span class="b-dot"></span><span class="b-ico">◔</span>统计</div>
+          <div class="b-item"><span class="b-ico">⇄</span>固定</div>
+          <div class="b-item"><span class="b-ico">⚙</span>设置</div>
+        </div>
+      </div>
+      <div class="cap">
+        <b>关键改进：</b>取消原版把大卡片死钉在顶部的设计；图表收紧至 104pt 且去掉白卡边框，首屏直出 5 条完整明细；上滑浏览时图表滚走、34pt 摘要条吸顶，80%+ 屏幕归还给明细。
+      </div>
+    </div>
+
+    <!-- ==================== 屏 3：类别 ==================== -->
+    <div class="col">
+      <div class="col-h">
+        <strong>③ 类别 · 控件合行 + 月度堆叠柱图</strong>
+        <span class="badge">可点切换 构成/趋势</span>
+      </div>
+      <div class="phone" id="phone-category">
+        <div class="sb"><span>20:08</span><span class="sb-r">5G · 82%</span></div>
+        <div class="top-nav">
+          <button class="icon-btn" aria-label="返回">‹</button>
+          <div class="date-pill mono"><span class="arrow">‹</span><span>11月1日 – 11月26日</span><span class="arrow disabled">›</span></div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="tabs">
+          <div class="tab">总览</div>
+          <div class="tab">明细</div>
+          <div class="tab active">类别</div>
+          <div class="tab">项目</div>
+          <div class="tab">账户</div>
+        </div>
+
+        <div class="scr">
+          <!-- 合并后的清爽单行筛选：告别橙色大通栏 -->
+          <div class="filter-row">
+            <div class="mini-seg" id="catTypeSeg">
+              <button class="active" data-t="expense">支出</button>
+              <button data-t="income">收入</button>
+            </div>
+            <div class="chip-select">项目：全部 <span>⌄</span></div>
+          </div>
+
+          <div class="sec-bar" style="margin-top:14px">
+            <span class="sec-title">支出构成</span>
+            <div class="mini-seg" id="catModeSeg">
+              <button data-m="bar">构成</button>
+              <button class="active" data-m="trend">近6月</button>
+            </div>
+          </div>
+
+          <!-- 模式 A：近 6 月堆叠柱状图（2列紧凑图例 + 居中月份刻度） -->
+          <div id="catTrendPane">
+            <div class="readout-bar" id="catTrendReadout">
+              <span>11月合计 <b class="mono">¥12,840</b></span>
+              <span style="font-size:11px;color:var(--ink-soft)">点图例高亮单类</span>
+            </div>
+            <div class="legend-grid" id="catLegendGrid"></div>
+            <div class="chart-box" id="catStackChart"></div>
+          </div>
+
+          <!-- 模式 B：当期构成比例条 -->
+          <div id="catBarPane" style="display:none;padding-bottom:6px">
+            <div class="kicker-row" style="margin-bottom:4px">
+              <span>本期支出</span>
+              <span class="mono">居住占 38% · 共 58 笔</span>
+            </div>
+            <div class="hero-amount serif-num" style="font-size:28px"><span class="yen" style="font-size:18px">¥</span>12,840.50</div>
+            <div class="prop-bar" id="catPropBar"></div>
+          </div>
+
+          <div style="height:.5px;background:var(--rule);margin:16px 0 4px"></div>
+          <div class="rank-list" id="catList"></div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="b-item"><span class="b-ico">▤</span>账户</div>
+          <div class="b-item"><span class="b-ico">☰</span>账本</div>
+          <div class="b-item active"><span class="b-dot"></span><span class="b-ico">◔</span>统计</div>
+          <div class="b-item"><span class="b-ico">⇄</span>固定</div>
+          <div class="b-item"><span class="b-ico">⚙</span>设置</div>
+        </div>
+      </div>
+      <div class="cap">
+        <b>关键改进：</b>去掉厚重的橙色大通栏，「支出/收入」与「项目筛选」合并为一行；5 行竖排大字图例改为 2 列紧凑网格；堆叠月柱图取代难读的斜坡面积图，月份严格居中对齐柱中心。
+      </div>
+    </div>
+
+    <!-- ==================== 屏 4：最惨稀疏态（月初 2 天） ==================== -->
+    <div class="col">
+      <div class="col-h">
+        <strong>④ 稀疏态实景 · 月初第 2 天（挑刺闸门）</strong>
+        <span class="badge muted">规范必验状态</span>
+      </div>
+      <div class="phone" id="phone-sparse">
+        <div class="sb"><span>20:08</span><span class="sb-r">5G · 82%</span></div>
+        <div class="top-nav">
+          <button class="icon-btn" aria-label="返回">‹</button>
+          <div class="date-pill mono"><span class="arrow">‹</span><span>12月1日 – 12月2日</span><span class="arrow disabled">›</span></div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">总览</div>
+          <div class="tab">明细</div>
+          <div class="tab">类别</div>
+          <div class="tab">项目</div>
+          <div class="tab">账户</div>
+        </div>
+
+        <div class="scr">
+          <div class="hero-summary">
+            <div class="kicker-row">
+              <span>本月支出 · 已过 2/31 天</span>
+              <span class="mono">3 笔</span>
+            </div>
+            <div class="hero-amount serif-num"><span class="yen">¥</span>186.50</div>
+            <div class="sub-metrics">
+              <div class="sub-m">
+                <div class="lbl">总收入</div>
+                <div class="val mono">¥0.00</div>
+              </div>
+              <div class="sub-m">
+                <div class="lbl">净结余</div>
+                <div class="val mono outflow">-¥186.50</div>
+              </div>
+              <div class="sub-m">
+                <div class="lbl">日均支出</div>
+                <div class="val mono">¥93.25</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sec-bar">
+            <span class="sec-title">收支走势</span>
+            <span class="sec-sub">截止今日（12/2）</span>
+          </div>
+
+          <div class="chart-box" id="sparseFlowChart"></div>
+          <div class="sparse-note">
+            月初前 2 天仅展示已过日期，不留 29 天空白空槽；柱宽上限锁定 18pt，避免孤柱撑成粗大方块。
+          </div>
+
+          <div class="sec-bar" style="margin-top:22px">
+            <span class="sec-title">支出排行</span>
+          </div>
+          <div class="rank-list" id="sparseRankList"></div>
+        </div>
+
+        <div class="bottom-bar">
+          <div class="b-item"><span class="b-ico">▤</span>账户</div>
+          <div class="b-item"><span class="b-ico">☰</span>账本</div>
+          <div class="b-item active"><span class="b-dot"></span><span class="b-ico">◔</span>统计</div>
+          <div class="b-item"><span class="b-ico">⇄</span>固定</div>
+          <div class="b-item"><span class="b-ico">⚙</span>设置</div>
+        </div>
+      </div>
+      <div class="cap">
+        <b>稀疏态验收：</b>月初刚过 2 天时，横轴自然只显 `12/1` 与 `12/2`，日均按 2 天计算（¥93.25 而非除以 31 天的 ¥6.02），画面克制体面，无空网格也无孤柱顶格。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 脱敏演示数据（11/1 ~ 11/26，共 26 天） =====
+const dailyData = [
+  {d:1,  exp:480,  inc:0},
+  {d:2,  exp:120,  inc:0},
+  {d:3,  exp:4850, inc:3200},
+  {d:4,  exp:85,   inc:0},
+  {d:5,  exp:210,  inc:6000},
+  {d:6,  exp:540,  inc:0},
+  {d:7,  exp:92,   inc:0},
+  {d:8,  exp:260,  inc:0},
+  {d:9,  exp:145,  inc:0},
+  {d:10, exp:0,    inc:0},
+  {d:11, exp:390,  inc:0},
+  {d:12, exp:240,  inc:0},
+  {d:13, exp:615,  inc:0},
+  {d:14, exp:78,   inc:0},
+  {d:15, exp:320,  inc:0},
+  {d:16, exp:1180, inc:0},
+  {d:17, exp:64,   inc:0},
+  {d:18, exp:642,  inc:0},
+  {d:19, exp:110,  inc:0},
+  {d:20, exp:780,  inc:0},
+  {d:21, exp:195,  inc:0},
+  {d:22, exp:88,   inc:0},
+  {d:23, exp:960,  inc:0},
+  {d:24, exp:140,  inc:0},
+  {d:25, exp:126.5,inc:0},
+  {d:26, exp:130,  inc:0}
+];
+
+// 计算每日余额（期初 68200）
+let bal = 68200;
+const balanceData = dailyData.map(item => {
+  bal = bal + item.inc - item.exp;
+  return {d: item.d, val: bal};
+});
+
+const categories = [
+  {name:'居住', amt:4850.00, pct:38, count:2,  color:'var(--cat-1)', ico:'⌂'},
+  {name:'餐饮', amt:2890.50, pct:23, count:28, color:'var(--cat-2)', ico:'☕'},
+  {name:'购物', amt:2140.00, pct:17, count:11, color:'var(--cat-3)', ico:'◈'},
+  {name:'出行', amt:1320.00, pct:10, count:9,  color:'var(--cat-4)', ico:'→'},
+  {name:'其他', amt:1640.00, pct:12, count:8,  color:'var(--cat-5)', ico:'·'}
+];
+
+const incomeCats = [
+  {name:'薪资', amt:6000.00, pct:65, count:1, color:'var(--inflow)', ico:'¥'},
+  {name:'理财', amt:3200.00, pct:35, count:2, color:'var(--chart-ink)', ico:'↗'}
+];
+
+const waterfallData = [
+  {label:'薪资',   delta: 6000},
+  {label:'理财',   delta: 3200},
+  {label:'居住',   delta:-4850},
+  {label:'餐饮',   delta:-2890.5},
+  {label:'购物',   delta:-2140},
+  {label:'其余 2 类', delta:-2960}
+];
+
+const detailTxns = [
+  {day:'11月26日 星期四', total:'-¥130.00', d:26, items:[
+    {name:'早午餐 · 社区咖啡', note:'餐饮 · 银行卡', amt:'-¥48.00', ico:'☕', color:'var(--cat-2)'},
+    {name:'生鲜超市采买',     note:'餐饮 · 电子支付', amt:'-¥82.00', ico:'☕', color:'var(--cat-2)'}
+  ]},
+  {day:'11月25日 星期三', total:'-¥126.50', d:25, items:[
+    {name:'拿铁咖啡',         note:'餐饮 · 电子支付', amt:'-¥18.50', ico:'☕', color:'var(--cat-2)'},
+    {name:'地铁与打车',       note:'出行 · 交通卡',   amt:'-¥42.00', ico:'→', color:'var(--cat-4)'},
+    {name:'日用品补货',       note:'购物 · 信用卡',   amt:'-¥66.00', ico:'◈', color:'var(--cat-3)'}
+  ]},
+  {day:'11月24日 星期二', total:'-¥140.00', d:24, items:[
+    {name:'工作日晚餐',       note:'餐饮 · 电子支付', amt:'-¥95.00', ico:'☕', color:'var(--cat-2)'},
+    {name:'水果店',           note:'餐饮 · 电子支付', amt:'-¥45.00', ico:'☕', color:'var(--cat-2)'}
+  ]},
+  {day:'11月23日 星期一', total:'-¥960.00', d:23, items:[
+    {name:'秋冬外套',         note:'购物 · 信用卡',   amt:'-¥799.00', ico:'◈', color:'var(--cat-3)'},
+    {name:'朋友聚餐',         note:'餐饮 · 电子支付', amt:'-¥161.00', ico:'☕', color:'var(--cat-2)'}
+  ]},
+  {day:'11月20日 星期五', total:'-¥780.00', d:20, items:[
+    {name:'冬季护肤补货',     note:'购物 · 信用卡',   amt:'-¥540.00', ico:'◈', color:'var(--cat-3)'},
+    {name:'加油站',           note:'出行 · 银行卡',   amt:'-¥240.00', ico:'→', color:'var(--cat-4)'}
+  ]}
+];
+
+const monthlyStack = [
+  {m:'6月',  vals:[4850, 2400, 1800, 950,  1100]},
+  {m:'7月',  vals:[4850, 3100, 2600, 1400, 1900]},
+  {m:'8月',  vals:[4850, 2950, 3400, 1650, 2200]},
+  {m:'9月',  vals:[4850, 2700, 2100, 1200, 1500]},
+  {m:'10月', vals:[4850, 3250, 2900, 1100, 1750]},
+  {m:'11月', vals:[4850, 2890, 2140, 1320, 1640]}
+];
+
+const fmtMoney = n => '¥' + Number(n).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtCompact = n => n >= 10000 ? '¥' + (n/10000).toFixed(1) + '万' : '¥' + Math.round(n).toLocaleString('zh-CN');
+
+// ===== 1. 绘制收支柱状图（支持截断到今天 + 精准居中刻度 + 点击读数） =====
+function renderFlowBars(containerId, data, opts = {}) {
+  const el = document.getElementById(containerId);
+  const W = 286, H = opts.height || 138;
+  const padR = 32, padT = 8, padB = 22;
+  const plotW = W - padR, plotH = H - padT - padB;
+  const maxVal = opts.maxVal || 6000;
+  const ticksY = opts.ticksY || [0, 3000, 6000];
+  const n = data.length;
+  const slotW = plotW / n;
+  const barW = Math.min(opts.maxBarW || 5.5, slotW * 0.36);
+
+  // 选 4 个均匀刻度（首、中间两个、尾），严格对准柱子中心
+  let tickIdx = n <= 4 ? data.map((_,i)=>i) : [0, Math.round((n-1)/3), Math.round((n-1)*2/3), n-1];
+  let selectedDay = opts.selectedDay || null;
+
+  function draw() {
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+    // 水平参考线 + 右侧 Y 轴
+    ticksY.forEach(v => {
+      const y = padT + plotH * (1 - v / maxVal);
+      svg += `<line x1="0" y1="${y}" x2="${plotW}" y2="${y}" class="grid-line"/>`;
+      svg += `<text x="${plotW + 6}" y="${y + 3.5}" class="axis-txt">${v === 0 ? '0' : (v >= 1000 ? (v/1000)+'k' : v)}</text>`;
+    });
+
+    // 柱子
+    data.forEach((item, i) => {
+      const cx = (i + 0.5) * slotW;
+      const dimmed = selectedDay !== null && selectedDay !== item.d;
+      const op = dimmed ? 0.28 : 1;
+      const expH = item.exp > 0 ? Math.max(2, (item.exp / maxVal) * plotH) : 0;
+      const incH = item.inc > 0 ? Math.max(2, (item.inc / maxVal) * plotH) : 0;
+
+      if (selectedDay === item.d) {
+        svg += `<line x1="${cx}" y1="${padT}" x2="${cx}" y2="${padT + plotH}" stroke="var(--stone)" stroke-width="1" stroke-dasharray="2 2"/>`;
+      }
+      svg += `<g class="bar-hit" data-day="${item.d}" opacity="${op}">`;
+      svg += `<rect x="${i*slotW}" y="${padT}" width="${slotW}" height="${plotH}" fill="transparent"/>`;
+      if (expH > 0) {
+        const xExp = incH > 0 ? cx - barW - 0.8 : cx - barW / 2;
+        svg += `<rect class="bar-rect" x="${xExp}" y="${padT + plotH - expH}" width="${barW}" height="${expH}" rx="2" fill="var(--outflow)"/>`;
+      }
+      if (incH > 0) {
+        const xInc = expH > 0 ? cx + 0.8 : cx - barW / 2;
+        svg += `<rect class="bar-rect" x="${xInc}" y="${padT + plotH - incH}" width="${barW}" height="${incH}" rx="2" fill="var(--inflow)"/>`;
+      }
+      svg += `</g>`;
+    });
+
+    // 横轴刻度：严格对准对应柱子的 cx 中心，防边缘裁切仅微调锚点
+    tickIdx.forEach((idx, k) => {
+      const item = data[idx];
+      const cx = (idx + 0.5) * slotW;
+      const lbl = (k === 0 || opts.fullLabel) ? `${opts.month || 11}/${item.d}` : `${item.d}`;
+      const anchor = k === 0 && cx < 14 ? 'start' : (k === tickIdx.length - 1 && cx > plotW - 14 ? 'end' : 'middle');
+      const tx = anchor === 'start' ? 0 : (anchor === 'end' ? plotW : cx);
+      svg += `<text x="${tx}" y="${H - 4}" text-anchor="${anchor}" class="axis-txt">${lbl}</text>`;
+    });
+
+    svg += `</svg>`;
+    el.innerHTML = svg;
+
+    el.querySelectorAll('.bar-hit').forEach(g => {
+      g.addEventListener('click', () => {
+        const d = Number(g.dataset.day);
+        selectedDay = selectedDay === d ? null : d;
+        draw();
+        if (opts.onSelect) opts.onSelect(selectedDay ? data.find(x => x.d === selectedDay) : null);
+      });
+    });
+  }
+  draw();
+}
+
+// ===== 2. 绘制余额折线图（动态极值 + 顶部安全余量，杜绝折线冲顶压字） =====
+function renderBalanceLine() {
+  const el = document.getElementById('ovBalChart');
+  const W = 286, H = 144, padR = 36, padT = 12, padB = 22;
+  const plotW = W - padR, plotH = H - padT - padB;
+  const vals = balanceData.map(p => p.val);
+  const rawMin = Math.min(...vals), rawMax = Math.max(...vals);
+  const span = Math.max(rawMax - rawMin, 1000);
+  // 上下留足余量并取整齐 0.2 万刻度，确保折线永不越界压到上方文字
+  const minV = Math.floor((rawMin - span * 0.15) / 2000) * 2000;
+  const maxV = Math.ceil((rawMax + span * 0.15) / 2000) * 2000;
+  const midV = (minV + maxV) / 2;
+  const n = balanceData.length;
+  const pts = balanceData.map((p, i) => {
+    const x = (i / (n - 1)) * plotW;
+    const y = padT + plotH * (1 - (p.val - minV) / (maxV - minV));
+    return [x, y];
+  });
+  const lineD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaD = lineD + ` L${plotW},${padT+plotH} L0,${padT+plotH} Z`;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+    <defs>
+      <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--chart-ink)" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="var(--chart-ink)" stop-opacity="0.0"/>
+      </linearGradient>
+    </defs>`;
+  [minV, midV, maxV].forEach(v => {
+    const y = padT + plotH * (1 - (v - minV) / (maxV - minV));
+    svg += `<line x1="0" y1="${y}" x2="${plotW}" y2="${y}" class="grid-line"/>`;
+    svg += `<text x="${plotW + 6}" y="${y + 3.5}" class="axis-txt">${(v/10000).toFixed(1)}万</text>`;
+  });
+  svg += `<path d="${areaD}" fill="url(#balGrad)"/>`;
+  svg += `<path d="${lineD}" fill="none" stroke="var(--chart-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const last = pts[pts.length - 1];
+  svg += `<circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--chart-ink)"/>`;
+  [[0,'11/1'], [8,'9'], [17,'18'], [25,'26']].forEach(([idx, lbl], k) => {
+    const x = pts[idx][0];
+    const anchor = k === 0 ? 'start' : (k === 3 ? 'end' : 'middle');
+    svg += `<text x="${x}" y="${H - 4}" text-anchor="${anchor}" class="axis-txt">${lbl}</text>`;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+// ===== 3. 绘制减法清爽版现金流瀑布 =====
+function renderWaterfall() {
+  const el = document.getElementById('ovWaterfall');
+  let run = 0;
+  const rows = waterfallData.map(item => {
+    const from = run;
+    run += item.delta;
+    return {...item, from, to: run};
+  });
+  const vals = rows.flatMap(r => [r.from, r.to]).concat([0]);
+  const lo = Math.min(...vals) - 600, hi = Math.max(...vals) + 600;
+  const toPct = v => ((v - lo) / (hi - lo)) * 100;
+  const zeroPct = toPct(0);
+
+  let selected = null;
+  function draw() {
+    let html = '';
+    rows.forEach((r, idx) => {
+      const isPos = r.delta >= 0;
+      const left = toPct(Math.min(r.from, r.to));
+      const width = Math.max(2, Math.abs(toPct(r.to) - toPct(r.from)));
+      const dim = selected !== null && selected !== idx ? 'dimmed' : '';
+      html += `
+        <div class="wf-row ${dim}" data-idx="${idx}">
+          <div class="wf-lbl">${r.label}</div>
+          <div class="wf-track">
+            <div class="wf-zero" style="left:${zeroPct}%"></div>
+            <div class="wf-bar" style="left:${left}%;width:${width}%;background:${isPos ? 'var(--inflow)' : 'var(--outflow)'}"></div>
+          </div>
+          <div class="wf-amt mono">${isPos ? '+' : '−'}${fmtCompact(Math.abs(r.delta))}</div>
+        </div>`;
+    });
+    const net = rows[rows.length - 1].to;
+    const netLeft = toPct(Math.min(0, net));
+    const netW = Math.max(3, Math.abs(toPct(net) - zeroPct));
+    html += `<div class="wf-divider"></div>
+      <div class="wf-row">
+        <div class="wf-lbl" style="font-weight:600">结余变化</div>
+        <div class="wf-track">
+          <div class="wf-zero" style="left:${zeroPct}%"></div>
+          <div class="wf-bar" style="left:${netLeft}%;width:${netW}%;background:var(--outflow-deep)"></div>
+        </div>
+        <div class="wf-amt mono" style="color:var(--outflow-deep)">−${fmtCompact(Math.abs(net))}</div>
+      </div>
+      <div class="wf-foot">${selected !== null ? `${rows[selected].label}占本月${rows[selected].delta>=0?'流入':'流出'} ${Math.round(Math.abs(rows[selected].delta)/(rows[selected].delta>=0?9200:12840)*100)}%` : '钱主要流向居住，占流出 38%'}</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll('.wf-row[data-idx]').forEach(row => {
+      row.addEventListener('click', () => {
+        const i = Number(row.dataset.idx);
+        selected = selected === i ? null : i;
+        draw();
+      });
+    });
+  }
+  draw();
+}
+
+// ===== 4. 绘制无卡分类排行 =====
+function renderRankList(containerId, list) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = list.map(c => `
+    <div class="rank-row">
+      <div class="cat-ico" style="background:color-mix(in srgb,${c.color} 14%,transparent);color:${c.color}">${c.ico}</div>
+      <div class="rank-mid">
+        <div class="rank-top">
+          <span class="rank-name">${c.name}</span>
+          <span class="rank-amt mono">${fmtMoney(c.amt)}</span>
+        </div>
+        <div class="rank-meta">
+          <div class="hair-track"><div class="hair-fill" style="width:${c.pct}%;background:${c.color}"></div></div>
+          <span class="rank-pct mono">${c.pct}%</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ===== 5. 绘制明细列表 =====
+function renderDetailList(highlightDay = null) {
+  const el = document.getElementById('detailList');
+  el.innerHTML = detailTxns.map(g => `
+    <div class="day-group" data-day="${g.d}">
+      <div class="day-hd ${highlightDay === g.d ? 'highlight' : ''}">
+        <span>${g.day}</span>
+        <span class="mono">${g.total}</span>
+      </div>
+      ${g.items.map(it => `
+        <div class="tx-row">
+          <div class="cat-ico" style="background:color-mix(in srgb,${it.color} 13%,transparent);color:${it.color}">${it.ico}</div>
+          <div style="flex:1;min-width:0">
+            <div class="tx-title">${it.name}</div>
+            <div class="tx-note">${it.note}</div>
+          </div>
+          <div class="tx-amt mono">${it.amt}</div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+// ===== 6. 绘制类别页：2 列紧凑图例 + 月度堆叠柱状图 =====
+let activeCatIdx = null;
+function renderCategoryTrend() {
+  const legendEl = document.getElementById('catLegendGrid');
+  legendEl.innerHTML = categories.map((c, i) => `
+    <div class="lg-item ${activeCatIdx !== null && activeCatIdx !== i ? 'dimmed' : ''} ${activeCatIdx === i ? 'selected' : ''}" data-i="${i}">
+      <span class="lg-l"><span class="lg-dot" style="background:${c.color}"></span>${c.name}</span>
+      <span class="lg-v mono">${fmtCompact(c.amt)}</span>
+    </div>`).join('');
+  legendEl.querySelectorAll('.lg-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const i = Number(item.dataset.i);
+      activeCatIdx = activeCatIdx === i ? null : i;
+      renderCategoryTrend();
+    });
+  });
+
+  const el = document.getElementById('catStackChart');
+  const W = 286, H = 148, padR = 32, padT = 8, padB = 22;
+  const plotW = W - padR, plotH = H - padT - padB;
+  const maxVal = 16000;
+  const slotW = plotW / monthlyStack.length;
+  const barW = 22;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  [0, 8000, 16000].forEach(v => {
+    const y = padT + plotH * (1 - v / maxVal);
+    svg += `<line x1="0" y1="${y}" x2="${plotW}" y2="${y}" class="grid-line"/>`;
+    svg += `<text x="${plotW + 6}" y="${y + 3.5}" class="axis-txt">${v === 0 ? '0' : (v/10000).toFixed(1)+'万'}</text>`;
+  });
+
+  monthlyStack.forEach((m, mi) => {
+    const cx = (mi + 0.5) * slotW;
+    let yCursor = padT + plotH;
+    m.vals.forEach((v, ci) => {
+      const h = (v / maxVal) * plotH;
+      const y = yCursor - h;
+      const dim = activeCatIdx !== null && activeCatIdx !== ci;
+      const isTop = ci === m.vals.length - 1;
+      svg += `<rect x="${cx - barW/2}" y="${y}" width="${barW}" height="${Math.max(1, h - 1)}" rx="${isTop ? 3 : 1}" fill="${categories[ci].color}" opacity="${dim ? 0.18 : 0.92}"/>`;
+      yCursor = y;
+    });
+    // 严格居中对齐柱中心！
+    svg += `<text x="${cx}" y="${H - 4}" text-anchor="middle" class="axis-txt" style="${mi===5?'fill:var(--ink-deep);font-weight:600':''}">${m.m}</text>`;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function renderCatPropBar() {
+  document.getElementById('catPropBar').innerHTML = categories.map(c =>
+    `<div class="prop-seg" style="width:${c.pct}%;background:${c.color}" title="${c.name} ${c.pct}%"></div>`
+  ).join('');
+}
+
+// ===== 初始渲染 =====
+renderFlowBars('ovFlowChart', dailyData, {
+  height: 138,
+  onSelect: item => {
+    const bar = document.getElementById('ovFlowReadout');
+    if (!item) {
+      bar.innerHTML = `<span>截止今日（11/26）</span><span class="readout-pair"><span><i class="dot" style="background:var(--outflow)"></i>支出</span><span><i class="dot" style="background:var(--inflow)"></i>收入</span></span>`;
+    } else {
+      bar.innerHTML = `<span>11月${item.d}日</span><span class="readout-pair mono"><span><i class="dot" style="background:var(--outflow)"></i><b>${fmtMoney(item.exp)}</b></span>${item.inc>0?`<span><i class="dot" style="background:var(--inflow)"></i><b>${fmtMoney(item.inc)}</b></span>`:''}</span>`;
+    }
+  }
+});
+renderBalanceLine();
+renderWaterfall();
+renderRankList('ovRankList', categories);
+
+// 明细页紧凑图 + 列表 + 滚动吸顶
+renderFlowBars('dtFlowChart', dailyData, {
+  height: 104,
+  onSelect: item => {
+    const bar = document.getElementById('dtFlowReadout');
+    if (!item) {
+      bar.innerHTML = `<span class="mono">支 <b style="color:var(--outflow-deep)">¥12,840.50</b> · 收 <b style="color:var(--inflow)">¥9,200.00</b></span><span style="font-size:11px;color:var(--ink-soft)">点柱定位</span>`;
+      renderDetailList(null);
+    } else {
+      bar.innerHTML = `<span class="mono">11月${item.d}日 · 支 <b>${fmtMoney(item.exp)}</b></span><span style="font-size:11px;color:var(--vermilion)">已定位</span>`;
+      renderDetailList(item.d);
+      const target = document.querySelector(`#detailList .day-group[data-day="${item.d}"]`);
+      if (target) target.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+  }
+});
+renderDetailList();
+
+const detailScr = document.getElementById('detailScroll');
+const stickyBar = document.getElementById('stickyBar');
+detailScr.addEventListener('scroll', () => {
+  stickyBar.classList.toggle('visible', detailScr.scrollTop > 110);
+});
+document.getElementById('backToChartBtn').addEventListener('click', () => {
+  detailScr.scrollTo({top: 0, behavior: 'smooth'});
+});
+
+// 类别页
+renderCategoryTrend();
+renderCatPropBar();
+renderRankList('catList', categories);
+
+// 稀疏态（月初 2 天）
+renderFlowBars('sparseFlowChart', [{d:1, exp:124.5, inc:0}, {d:2, exp:62, inc:0}], {
+  height: 118, maxVal: 200, ticksY: [0, 100, 200], maxBarW: 16, month: 12, fullLabel: true
+});
+renderRankList('sparseRankList', [
+  {name:'餐饮', amt:124.50, pct:67, color:'var(--cat-2)', ico:'☕'},
+  {name:'出行', amt:62.00,  pct:33, color:'var(--cat-4)', ico:'→'}
+]);
+
+// ===== 交互绑定 =====
+// 总览三态切换
+document.querySelectorAll('#ovSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#ovSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    document.getElementById('ovPaneFlow').style.display = mode === 'flow' ? 'block' : 'none';
+    document.getElementById('ovPaneBalance').style.display = mode === 'balance' ? 'block' : 'none';
+    document.getElementById('ovPaneCashflow').style.display = mode === 'cashflow' ? 'block' : 'none';
+    document.getElementById('ovChartTitle').textContent = mode === 'flow' ? '收支走势' : (mode === 'balance' ? '余额走势' : '现金流 · 去向');
+  });
+});
+
+// 总览排行切换
+document.querySelectorAll('#rankSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#rankSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRankList('ovRankList', btn.dataset.type === 'expense' ? categories : incomeCats);
+  });
+});
+
+// 类别构成/趋势切换
+document.querySelectorAll('#catModeSeg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#catModeSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const m = btn.dataset.m;
+    document.getElementById('catTrendPane').style.display = m === 'trend' ? 'block' : 'none';
+    document.getElementById('catBarPane').style.display = m === 'bar' ? 'block' : 'none';
+  });
+});
+
+// 浅色/深色主题切换
+document.querySelectorAll('#themeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#themeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const isDark = btn.dataset.theme === 'dark';
+    document.querySelectorAll('.phone').forEach(p => p.classList.toggle('dark', isDark));
+  });
+});
+</script>
+</body>
+</html>

@@ -126,7 +126,7 @@ struct HabitPauseSheet: View {
             dismiss()
         } catch {
             HoloToastCenter.shared.show(
-                error.localizedDescription,
+                String(localized: "暂停习惯失败，请稍后重试"),
                 type: .error
             )
         }

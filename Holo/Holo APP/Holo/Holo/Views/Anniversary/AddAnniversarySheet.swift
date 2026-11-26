@@ -7,6 +7,7 @@
 //  顶部迷你预览卡全程实时跟随；新建保存后播放「已点亮」庆祝时刻。
 //
 
+import CoreData
 import SwiftUI
 
 struct AddAnniversarySheet: View {
@@ -63,6 +64,14 @@ struct AddAnniversarySheet: View {
     @State private var isSaving = false
     @State private var showDismissAlert = false
     @State private var showDeleteAlert = false
+    @FocusState private var isTitleFocused: Bool
+
+    private var linkedTaskCount: Int {
+        guard let target = editingAnniversary else { return 0 }
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: "sourceAnniversaryId == %@ AND deletedFlag == NO", target.id as CVarArg)
+        return (try? AnniversaryRepository.shared.context.count(for: request)) ?? 0
+    }
 
     private var isEditMode: Bool { editingAnniversary != nil }
 
@@ -121,16 +130,28 @@ struct AddAnniversarySheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
-        .alert(String(localized: "删除纪念日"), isPresented: $showDeleteAlert) {
-            Button(String(localized: "删除纪念日及关联任务"), role: .destructive) {
-                performDelete(deleteTasks: true)
-            }
-            Button(String(localized: "仅删除纪念日"), role: .destructive) {
-                performDelete(deleteTasks: false)
+        .confirmationDialog(String(localized: "删除纪念日"), isPresented: $showDeleteAlert, titleVisibility: .visible) {
+            let count = linkedTaskCount
+            if count > 0 {
+                Button(String(localized: "删除纪念日及 \(count) 条关联任务"), role: .destructive) {
+                    performDelete(deleteTasks: true)
+                }
+                Button(String(localized: "仅删除纪念日"), role: .destructive) {
+                    performDelete(deleteTasks: false)
+                }
+            } else {
+                Button(String(localized: "删除纪念日"), role: .destructive) {
+                    performDelete(deleteTasks: false)
+                }
             }
             Button(String(localized: "取消"), role: .cancel) {}
         } message: {
-            Text(String(localized: "这个纪念日可能已生成关联任务，你想如何处理？"))
+            let count = linkedTaskCount
+            if count > 0 {
+                Text(String(localized: "这个纪念日已生成 \(count) 条关联任务，你想如何处理？"))
+            } else {
+                Text(String(localized: "删除后可在「设置 → 最近删除」中恢复。"))
+            }
         }
         // 无改动时保留系统下拉关闭；有改动时拦下并走 requestDismiss 的确认分流
         .interactiveDismissDisabled(hasUnsavedChanges || showCelebration)
@@ -260,12 +281,20 @@ struct AddAnniversarySheet: View {
 
                 TextField(String(localized: "如：妈妈的生日"), text: $title)
                     .font(.holoBody)
+                    .focused($isTitleFocused)
                     .padding(HoloSpacing.md)
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.md)
                             .stroke(Color.holoPrimary.opacity(title.isEmpty ? 0 : 0.3), lineWidth: 1))
+                    .onAppear {
+                        if !isEditMode && title.isEmpty {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                isTitleFocused = true
+                            }
+                        }
+                    }
             }
 
             // 配色与图标细调（场景预设已覆盖大多数场景，按需展开）

@@ -24,6 +24,7 @@ struct VoiceInputSheet: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: VoiceInputViewModel
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
+    @State private var showReRecordConfirm = false
 
     let readySubtitle: String
     let submitButtonTitle: String
@@ -91,6 +92,17 @@ struct VoiceInputSheet: View {
         .background((thoughtReview ? Color.holoToolBackground : Color.holoBackground).ignoresSafeArea())
         .presentationDetents(thoughtReview && isTranscriptReady ? [.height(preferredSheetHeight), .large] : [.height(preferredSheetHeight), .medium])
         .presentationDragIndicator(thoughtReview && isTranscriptReady ? .visible : .hidden)
+        .interactiveDismissDisabled(
+            viewModel.state == .recording ||
+            (isTranscriptReady && !viewModel.editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        )
+        .confirmationDialog("重录会覆盖当前已识别的文字，确定重录吗？", isPresented: $showReRecordConfirm, titleVisibility: .visible) {
+            Button("重新录制", role: .destructive) {
+                HapticManager.selection()
+                viewModel.reRecord()
+            }
+            Button("取消", role: .cancel) {}
+        }
         .task {
             #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = true
@@ -239,8 +251,12 @@ struct VoiceInputSheet: View {
 
             HStack(spacing: 14) {
                 Button("重录") {
-                    HapticManager.selection()
-                    viewModel.reRecord()
+                    if viewModel.editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        HapticManager.selection()
+                        viewModel.reRecord()
+                    } else {
+                        showReRecordConfirm = true
+                    }
                 }
                 .buttonStyle(VoiceSecondaryButtonStyle())
 
@@ -338,19 +354,7 @@ struct VoiceInputSheet: View {
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
-            Button("重录") {
-                HapticManager.selection()
-                viewModel.reRecord()
-            }
-            .buttonStyle(VoiceSecondaryButtonStyle())
-
-            if error.allowsRetryTranscription {
-                Button("重试识别") {
-                    HapticManager.medium()
-                    viewModel.retryTranscription()
-                }
-                .buttonStyle(VoicePrimaryButtonStyle())
-            }
+            failedPrimaryAction(for: error)
         }
     }
 
@@ -363,6 +367,33 @@ struct VoiceInputSheet: View {
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
+            failedPrimaryAction(for: error)
+        }
+    }
+
+    @ViewBuilder
+    private func failedPrimaryAction(for error: VoiceInputError) -> some View {
+        switch error {
+        case .microphonePermissionDenied:
+            #if canImport(UIKit)
+            Button("去设置") {
+                HapticManager.selection()
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .buttonStyle(VoicePrimaryButtonStyle())
+            #endif
+        case .quotaExhausted:
+            if !entitlementState.isPlusActive {
+                Button("了解 Holo Plus") {
+                    HapticManager.selection()
+                    dismiss()
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
+                }
+                .buttonStyle(VoicePrimaryButtonStyle())
+            }
+        default:
             Button("重录") {
                 HapticManager.selection()
                 viewModel.reRecord()
@@ -398,6 +429,10 @@ struct VoiceInputSheet: View {
                 return String(localized: "识别结果")
             }
             return resultConfig?.title ?? String(localized: "识别结果")
+        case .failed(.microphonePermissionDenied):
+            return String(localized: "需要麦克风权限")
+        case .failed(.quotaExhausted):
+            return String(localized: "语音次数已用完")
         case .failed:
             return String(localized: "识别失败")
         }

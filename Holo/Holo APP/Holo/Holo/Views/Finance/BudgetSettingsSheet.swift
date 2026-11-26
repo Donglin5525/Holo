@@ -41,6 +41,7 @@ struct BudgetSettingsSheet: View {
     @State private var selectedCategory: Category?
     @State private var categories: [Category] = []
     @State private var expandedParentId: UUID? = nil
+    @FocusState private var isAmountFocused: Bool
 
     private var isEditMode: Bool { existingBudget != nil }
 
@@ -86,13 +87,33 @@ struct BudgetSettingsSheet: View {
                         modeSelector
                     }
 
-                    // 分类选择器（仅分类模式）
+                    // 分类选择器（新建可选；编辑模式展示只读分类，避免误以为可改）
                     if isCategoryMode {
-                        CategoryBudgetPicker(
-                            selectedCategory: $selectedCategory,
-                            categories: categories,
-                            expandedParentId: $expandedParentId
-                        )
+                        if isEditMode {
+                            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                                Text("预算分类")
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoToolTextSecondary)
+                                HStack {
+                                    Text(selectedCategory?.name ?? String(localized: "已选分类"))
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoToolText)
+                                    Spacer()
+                                    Text("创建后不可更改")
+                                        .font(.holoCaption)
+                                        .foregroundColor(.holoToolTextSecondary)
+                                }
+                                .padding(HoloSpacing.md)
+                                .background(Color.holoToolSurface)
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            }
+                        } else {
+                            CategoryBudgetPicker(
+                                selectedCategory: $selectedCategory,
+                                categories: categories,
+                                expandedParentId: $expandedParentId
+                            )
+                        }
                     }
 
                     // 预算金额输入
@@ -110,6 +131,7 @@ struct BudgetSettingsSheet: View {
                                 #if canImport(UIKit)
                                 .keyboardType(.decimalPad)
                                 #endif
+                                .focused($isAmountFocused)
                         }
                         .padding(HoloSpacing.md)
                         .background(Color.holoToolSurface)
@@ -121,23 +143,36 @@ struct BudgetSettingsSheet: View {
                         }
                     }
 
-                    // 预算周期选择
+                    // 预算周期选择（编辑模式只读展示，不给假可点控件）
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text("预算周期")
                             .font(.holoLabel)
                             .foregroundColor(.holoToolTextSecondary)
 
-                        HStack(spacing: HoloSpacing.sm) {
-                            ForEach(BudgetPeriod.allCases) { period in
-                                HoloFilterChip(
-                                    title: period.displayName,
-                                    isSelected: selectedPeriod == period,
-                                    action: {
-                                        if !isEditMode {
+                        if isEditMode {
+                            HStack {
+                                Text(selectedPeriod.displayName)
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoToolText)
+                                Spacer()
+                                Text("创建后不可更改")
+                                    .font(.holoCaption)
+                                    .foregroundColor(.holoToolTextSecondary)
+                            }
+                            .padding(HoloSpacing.md)
+                            .background(Color.holoToolSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        } else {
+                            HStack(spacing: HoloSpacing.sm) {
+                                ForEach(BudgetPeriod.allCases) { period in
+                                    HoloFilterChip(
+                                        title: period.displayName,
+                                        isSelected: selectedPeriod == period,
+                                        action: {
                                             selectedPeriod = period
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -182,6 +217,13 @@ struct BudgetSettingsSheet: View {
                     Spacer(minLength: 0)
                 }
                 .padding(HoloSpacing.lg)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isAmountFocused = false }
+                }
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? String(localized: "预算设置") : String(localized: "新建预算"))

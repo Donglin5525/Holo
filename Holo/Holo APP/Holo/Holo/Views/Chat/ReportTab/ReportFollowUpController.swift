@@ -184,4 +184,9 @@ final class ReportFollowUpController: ObservableObject {
         draftText = ""
         Task { await loadFollowUps() }
     }
+
+    /// 失败态下用户选择「修改」：退回输入态并保留草稿，不锁死在重试栏。
+    func returnToDraft() {
+        phase = .idle
+    }
 }
