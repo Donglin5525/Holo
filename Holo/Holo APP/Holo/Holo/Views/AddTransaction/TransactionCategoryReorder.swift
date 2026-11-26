@@ -3,13 +3,12 @@
 //  Holo
 //
 //  「记一笔」分类宫格长按拖拽排序（2026-11-09 空间优化）：
-//  习惯模块（HabitDragReorder）真机验证过的组合手势结构移植到 5 列网格：
-//  · 手势：LongPress(0.45) 激活 → sequenced Drag 跟手 → 松手落位（回调挂组成手势上）
+//  · 手势：原生长按达到 0.45 秒后开始排序并跟手；此前的位移交给滚动区。
 //  · 长按原地松手（未拖动）= 打开现有「分类管理」页（承接被删的 ⚙管理 入口）
 //  · 长按后拖动 = 排序：二维换位（拖拽位移 / 列宽行高 → 目标格 index），
 //    其余格 identity 保持平滑让位，原位留虚线占位
 //  · 落位即写库（onCommit → FinanceRepository.reorderCategories，模型层字段对管理页同样生效）
-//  · 收尾兜底（习惯模块踩坑实录：iOS 26 序列手势可能丢 onEnded）——三路幂等收尾、先到者生效：
+//  · 旧系统 SwiftUI 序列手势的收尾兜底（三路幂等、先到者生效）：
 //    ① Drag.onEnded（最小距离 0，原地松手也回调）；② 格内 @GestureState 在手势结束/取消时
 //    必被 SwiftUI 复位；③ 本格持有会话时 Button 收到的抬手点击。再叠会话陈旧窗口 +
 //    admitInteraction 点击时刻自愈（他格点击）；松手后 0.2s 防误触锁定窗口防长按松手误触
@@ -18,6 +17,9 @@
 import SwiftUI
 import Combine
 import CoreGraphics
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - 手感参数
 
@@ -291,7 +293,7 @@ final class CategoryGridReorderModel: ObservableObject {
 
 // MARK: - 可排序分类格
 
-/// 宫格分类格：Button 承担点击（下钻/选中），长按+拖拽排序手势并行挂载。
+/// 宫格分类格：Button 承担点击（下钻/选中），长按达成后才进入排序。
 /// 被拖时：内容放大 1.17 + 投影 + 跟手位移，原网格位留虚线占位（图标恒 48pt，无尺寸跳变）
 struct ReorderableCategoryCell: View {
     let category: Category
@@ -303,23 +305,58 @@ struct ReorderableCategoryCell: View {
     /// 任何点击先执行（键盘状态机：点分类格收计算键盘，长按也算交互）
     let onInteraction: () -> Void
 
+    #if !canImport(UIKit)
     /// 排序手势进行中（长按达成后为 true）；手势结束/取消时 SwiftUI 必复位——收尾兜底信号
     @GestureState private var isReorderGestureActive = false
+    #endif
 
+    #if canImport(UIKit)
     var body: some View {
+        // Button 保留键盘与辅助功能激活入口，格内触摸交给同一组 UIKit 手势。
+        categoryButton
+            .overlay {
+                CategoryReorderTouchSurface(
+                    categoryID: category.id,
+                    model: model,
+                    onLift: onInteraction,
+                    onTap: selectCategory
+                )
+                .accessibilityHidden(true)
+            }
+    }
+    #else
+    var body: some View {
+        categoryButton
+            .simultaneousGesture(reorderGesture)
+            .onChange(of: isReorderGestureActive) { _, isActive in
+                if !isActive {
+                    model.gestureDidFinish(id: category.id)
+                }
+            }
+    }
+    #endif
+
+    private func selectCategory() {
+        onInteraction()
+        guard model.admitInteraction() else { return }
+        onTap()
+    }
+
+    private var categoryButton: some View {
         let isDragging = model.draggingId == category.id
 
-        Button {
-            onInteraction()
+        return Button {
+            #if !canImport(UIKit)
             // 本格持有会话时收到的点击 = 这次长按触摸的抬手（Button 与手势回调先后不定）：
             // 按松手收尾（未拖=开管理页 / 拖过=落位），绝不当普通点击——
             // 否则「长按后按住不动超过陈旧窗口再松手」会被陈旧自愈放行成下钻/选中
             if model.draggingId == category.id {
+                onInteraction()
                 model.dragEnded()
                 return
             }
-            guard model.admitInteraction() else { return }
-            onTap()
+            #endif
+            selectCategory()
         } label: {
             ZStack {
                 if isDragging {
@@ -330,12 +367,6 @@ struct ReorderableCategoryCell: View {
             .holoRowHitArea(alignment: .center)
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(reorderGesture)
-        .onChange(of: isReorderGestureActive) { _, isActive in
-            if !isActive {
-                model.gestureDidFinish(id: category.id)
-            }
-        }
         // 格销毁（分类被删/切视图）时手势随之消失、回调不会再来——正被拖的格就地取消会话
         .onDisappear {
             if model.draggingId == category.id {
@@ -384,6 +415,7 @@ struct ReorderableCategoryCell: View {
         .offset(isDragging ? model.dragTranslation : .zero)
     }
 
+    #if !canImport(UIKit)
     /// 长按+拖拽组合手势（回调挂组成手势上，同习惯模块）：
     /// Drag 最小距离 0——长按达成后立即接管触点，原地松手也能走到 onEnded；
     /// 拖动语义由模型按 dragMinimumDistance 判定
@@ -406,4 +438,77 @@ struct ReorderableCategoryCell: View {
                 }
             }
     }
+    #endif
 }
+
+#if canImport(UIKit)
+/// 给格内的轻点和长按共用一处原生触摸入口。手指先移动时两个识别器都会让位给滚动；
+/// 原地按够时间才由长按接管，按住移动和纯轻点都不会触发对方的动作。
+private struct CategoryReorderTouchSurface: UIViewRepresentable {
+    let categoryID: UUID
+    let model: CategoryGridReorderModel
+    let onLift: () -> Void
+    let onTap: () -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePress(_:)))
+        press.minimumPressDuration = CategoryGridReorderFeel.liftDelay
+        press.allowableMovement = 10
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap))
+        tap.require(toFail: press)
+        view.addGestureRecognizer(press)
+        view.addGestureRecognizer(tap)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject {
+        var parent: CategoryReorderTouchSurface
+        private var origin: CGPoint?
+
+        init(_ parent: CategoryReorderTouchSurface) {
+            self.parent = parent
+        }
+
+        @objc func handleTap() {
+            parent.onTap()
+        }
+
+        @objc func handlePress(_ press: UILongPressGestureRecognizer) {
+            let model = parent.model
+            // 用窗口坐标，避免格子跟手或换位时把自身位移算进手指位移。
+            let location = press.location(in: nil)
+
+            switch press.state {
+            case .began:
+                model.beginPress(id: parent.categoryID)
+                guard model.draggingId == parent.categoryID else { return }
+                origin = location
+                parent.onLift()
+            case .changed, .ended:
+                guard let origin, model.draggingId == parent.categoryID else { return }
+                model.dragMoved(translation: CGSize(width: location.x - origin.x, height: location.y - origin.y))
+                if press.state == .ended {
+                    self.origin = nil
+                    model.dragEnded()
+                }
+            case .cancelled, .failed:
+                defer { origin = nil }
+                if origin != nil, model.draggingId == parent.categoryID {
+                    model.cancelDrag()
+                }
+            default:
+                break
+            }
+        }
+    }
+}
+#endif

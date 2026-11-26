@@ -100,6 +100,7 @@ struct MemoryGalleryTimelineView: View {
     /// 想法标题=老长廊规格 15pt semibold 衬线（2026-11-15 东林拍板：与旧版同规格，
     /// 覆盖原型 20pt 粗衬线——大号衬线在真机上「廉价」）。
     private let leadHeadlineSize: CGFloat = 15
+    private let thoughtPreviewLineLimit = 6
     private let rowTitleSize: CGFloat = 15
     private let rowValueSize: CGFloat = 14
     private let metaSize: CGFloat = 12
@@ -536,7 +537,7 @@ struct MemoryGalleryTimelineView: View {
 
     // MARK: 记录行
 
-    /// 主预览想法：可选 1.88:1 大图 + 衬线标题 + 模块元信息。
+    /// 主预览想法：可选 1.88:1 大图 + 保留段落的正文节选 + 模块元信息。
     private func leadRecord(_ event: CalendarEvent) -> some View {
         Button {
             onSelect(event)
@@ -553,11 +554,12 @@ struct MemoryGalleryTimelineView: View {
                         .padding(.bottom, 11)
                 }
                 // P4 #4：想法节选主标题改思源宋体（真正的中文衬线，黑体衬线回退问题同月份名）
-                Text(event.title)
+                Text(event.thoughtExcerpt ?? event.title)
                     .font(.holoEditorialSerif(size: leadHeadlineSize, bold: true))
                     .memoryAgedInk(.ink)
+                    .lineLimit(thoughtPreviewLineLimit)
+                    .lineSpacing(MarkdownRenderer.bodyLineSpacing)
                     .multilineTextAlignment(.leading)
-                    .lineSpacing(2)
                 if hasBadges(event) {
                     MemoryGalleryBadgeRow(topics: event.topicBadges ?? [], tags: event.tagBadges ?? [])
                         .padding(.top, 7)
@@ -579,10 +581,11 @@ struct MemoryGalleryTimelineView: View {
         .buttonStyle(.plain)
     }
 
-    /// 紧凑记录行：30pt 图标块 + 标题/元信息 + 金额或状态（缺省箭头），最小 54pt。
+    /// 记录行：想法显示分段节选，其余记录保留紧凑标题及金额或状态。
     /// 习惯源图标为 emoji 时直接透出（原型 ④，与习惯模块双轨渲染同口径）；
     /// 同日聚合行（habitMoments ≥ 2）轻点展开逐条时刻（原型 ②），单条行保持打开详情。
     private func recordRow(_ event: CalendarEvent) -> some View {
+        let isThought = event.module == .thought
         let momentCount = event.habitMoments?.count ?? 0
         let isAggregated = momentCount > 1
         return VStack(alignment: .leading, spacing: 0) {
@@ -599,7 +602,7 @@ struct MemoryGalleryTimelineView: View {
                     onSelect(event)
                 }
             } label: {
-                HStack(spacing: 9) {
+                HStack(alignment: isThought ? .top : .center, spacing: 9) {
                     if let emoji = event.sourceIconEmoji {
                         Text(emoji)
                             .font(.system(size: 16))
@@ -614,11 +617,12 @@ struct MemoryGalleryTimelineView: View {
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(event.title)
+                            Text(event.thoughtExcerpt ?? event.title)
                                 .font(.system(size: rowTitleSize, weight: .semibold,
-                                              design: event.module == .thought ? .serif : .default))
+                                              design: isThought ? .serif : .default))
                                 .memoryAgedInk(.ink)
-                                .lineLimit(2)
+                                .lineLimit(isThought ? thoughtPreviewLineLimit : 2)
+                                .lineSpacing(isThought ? MarkdownRenderer.bodyLineSpacing : 0)
                                 .multilineTextAlignment(.leading)
                             if isAggregated {
                                 Text("×\(momentCount)")

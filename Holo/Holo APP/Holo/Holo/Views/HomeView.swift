@@ -51,6 +51,9 @@ struct HomeView: View {
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
 
+    /// 首页视觉模板（允许用户自由切换经典光球 / 纸本星象 / 盈亏月相）
+    @ObservedObject private var homeTemplate = HomeTemplateManager.shared
+
     /// 当前选中的导航标签
     @State private var selectedTab: BottomNavBar.TabItem = .ai
 
@@ -1062,8 +1065,124 @@ struct HomeView: View {
             }
         }
         .background(
-            backgroundDecorations
+            activeBackgroundDecorations
         )
+    }
+
+    @ViewBuilder
+    private var activeBackgroundDecorations: some View {
+        switch homeTemplate.currentStyle {
+        case .classic:
+            backgroundDecorations
+        case .sundial:
+            sundialAmbientBackground
+        case .moonPhase:
+            moonPhaseAmbientBackground
+        }
+    }
+
+    /// 纸本星象环境光：克制的暖纸微光晕 + 大径极细天文轨道
+    private var sundialAmbientBackground: some View {
+        TimelineView(.animation(minimumInterval: 0.1, paused: !backgroundMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let drift = CGFloat(0.5 + 0.5 * sin(2 * .pi * t / 8.0))
+            let slowArc = (t / 120.0).truncatingRemainder(dividingBy: 1.0) * 360.0
+            ZStack {
+                Color.holoPaper
+                    .ignoresSafeArea()
+
+                // 顶部极淡暖日光晕
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPrimaryLight.opacity(0.18), Color.clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 240
+                        )
+                    )
+                    .frame(width: 480, height: 480)
+                    .offset(x: 70, y: -150 + drift * 10)
+                    .blur(radius: 70)
+
+                // 底部极淡墨蓝空气感
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoInfo.opacity(0.07), Color.clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 220
+                        )
+                    )
+                    .frame(width: 420, height: 420)
+                    .offset(x: -90, y: 180 - drift * 8)
+                    .blur(radius: 65)
+
+                // 大径极细天文弧线
+                Circle()
+                    .trim(from: 0.05, to: 0.34)
+                    .stroke(Color.holoAlmanacInk.opacity(0.08), style: StrokeStyle(lineWidth: 0.7, lineCap: .round))
+                    .frame(width: 390, height: 390)
+                    .rotationEffect(.degrees(slowArc))
+            }
+            .allowsHitTesting(false)
+        }
+        .scaleEffect(homeWidthTier == .expanded ? 1.6 : (homeWidthTier == .medium ? 1.25 : 1.0))
+    }
+
+    /// 盈亏月相环境光：晨昏雾感渐变 + 缓慢呼吸星尘细点
+    private var moonPhaseAmbientBackground: some View {
+        TimelineView(.animation(minimumInterval: 0.1, paused: !backgroundMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let drift = CGFloat(0.5 + 0.5 * sin(2 * .pi * t / 9.0))
+            let twinkleA = 0.35 + 0.65 * (0.5 + 0.5 * sin(2 * .pi * t / 4.8))
+            let twinkleB = 0.35 + 0.65 * (0.5 + 0.5 * sin(2 * .pi * t / 6.2 + 1.4))
+            ZStack {
+                Color.holoPaper
+                    .ignoresSafeArea()
+
+                // 中心柔和月雾光晕
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.holoInfo.opacity(0.11),
+                                Color.holoPrimaryLight.opacity(0.09),
+                                Color.clear
+                            ],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 250
+                        )
+                    )
+                    .frame(width: 500, height: 500)
+                    .offset(y: -12 + drift * 10)
+                    .blur(radius: 75)
+
+                // 右上淡琥珀晨昏晕
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPrimary.opacity(0.07), Color.clear],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 190
+                        )
+                    )
+                    .frame(width: 360, height: 360)
+                    .offset(x: 110, y: -170 - drift * 8)
+                    .blur(radius: 60)
+
+                // 4 颗克制呼吸的细微星点
+                decorDot(color: .holoAlmanacInk, size: 3.0, radius: 182, angle: -24, opacity: twinkleA * 0.7)
+                decorDot(color: .holoPrimary, size: 3.5, radius: 196, angle: 48, opacity: twinkleB * 0.85)
+                decorDot(color: .holoInfo, size: 3.0, radius: 174, angle: 142, opacity: twinkleA * 0.75)
+                decorDot(color: .holoAlmanacInk, size: 2.5, radius: 188, angle: 235, opacity: twinkleB * 0.65)
+            }
+            .allowsHitTesting(false)
+        }
+        .scaleEffect(homeWidthTier == .expanded ? 1.6 : (homeWidthTier == .medium ? 1.25 : 1.0))
     }
 
     // MARK: - 子视图
@@ -1177,17 +1296,32 @@ struct HomeView: View {
         HStack {
             // 左侧问候语
             VStack(alignment: .leading, spacing: 4) {
-                Text("Holo")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .kerning(1.2)
-                
-                Text(UserDisplayNameSettings.greetingText(
-                    hour: Calendar.current.component(.hour, from: Date()),
-                    rawName: userName
-                ))
-                    .font(.holoHeading)
-                    .foregroundColor(.holoToolText)
+                if homeTemplate.currentStyle.isEditorial {
+                    Text(Self.editorialDateEyebrow)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .kerning(1.8)
+
+                    Text(UserDisplayNameSettings.greetingText(
+                        hour: Calendar.current.component(.hour, from: Date()),
+                        rawName: userName
+                    ))
+                    .font(.holoEditorialSerif(size: 24, bold: true))
+                    .kerning(0.6)
+                    .foregroundStyle(Color.holoAlmanacInk)
+                } else {
+                    Text("Holo")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+                        .kerning(1.2)
+                    
+                    Text(UserDisplayNameSettings.greetingText(
+                        hour: Calendar.current.component(.hour, from: Date()),
+                        rawName: userName
+                    ))
+                        .font(.holoHeading)
+                        .foregroundColor(.holoToolText)
+                }
             }
             
             Spacer()
@@ -1197,23 +1331,46 @@ struct HomeView: View {
                 Button {
                     showSettingsView = true
                 } label: {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: HoloRadius.full)
-                            .fill(.ultraThinMaterial)
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: HoloRadius.full)
-                                    .stroke(Color.holoBorder, lineWidth: 1)
-                            )
+                    if homeTemplate.currentStyle.isEditorial {
+                        ZStack {
+                            Circle()
+                                .fill(Color.holoCardBackground.opacity(0.65))
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.holoAlmanacInk.opacity(0.18), lineWidth: 0.7)
+                                )
 
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoToolText)
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 16, weight: .light))
+                                .foregroundStyle(Color.holoAlmanacInk)
+                        }
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.full)
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 52, height: 52)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: HoloRadius.full)
+                                        .stroke(Color.holoBorder, lineWidth: 1)
+                                )
+
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoToolText)
+                        }
                     }
                 }
                 .accessibilityLabel(String(localized: "设置"))
             }
         }
+    }
+
+    private static var editorialDateEyebrow: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy · MM · dd · EEE"
+        return formatter.string(from: Date()).uppercased()
     }
     
     /// 中央主内容区域
@@ -1435,19 +1592,6 @@ struct HomeView: View {
     
     // MARK: - Deep Link 处理
 
-    /// 识图记账深链专用清场：收掉会挡住财务模块 sheet 的输入/浏览弹层。
-    /// onboarding/付费墙/导入这类系统级流程不在此列（不该被记账结果打断）。
-    /// - Returns: 是否收掉了任何弹层
-    private func dismissReceiptBlockingPresentations() -> Bool {
-        var dismissedAny = false
-        if showThoughtEditor { showThoughtEditor = false; dismissedAny = true }
-        if showAddTaskSheet { showAddTaskSheet = false; dismissedAny = true }
-        if showAddTransactionSheet { showAddTransactionSheet = false; dismissedAny = true }
-        if showMatterList { showMatterList = false; dismissedAny = true }
-        if matterDetailTarget != nil { matterDetailTarget = nil; dismissedAny = true }
-        return dismissedAny
-    }
-
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
     ///
@@ -1457,12 +1601,34 @@ struct HomeView: View {
     private func handleDeepLink() {
         guard let target = deepLinkState.pendingTarget else { return }
 
+        // 识图记账落点：置顶弹层直接盖在当前界面之上——不切屏、不收任何已开页面。
+        // 旧做法「先收掉挡路弹层、切到财务模块、等 dismissal 落定再由 FinanceView 弹」
+        // 认不全所有页面（聊天页等兄弟模块的 sheet 就收不到）——东林实报「开着别的页面，
+        // 截图记账的内容要关掉那个页面才出来」（2026-11-24）。
+        if case .receiptReview(let draftID) = target {
+            // 草案可能已被处理/过期：不存在时明确提示，不开空页
+            if ReceiptBookingResultStore.shared.loadDrafts().contains(where: { $0.id == draftID }) {
+                ReceiptBookingPagePresenter.shared.present(.review(draftID: draftID))
+            } else {
+                HoloToastCenter.shared.show(String(localized: "这条待复核已处理或已过期"), type: .info)
+            }
+            deepLinkState.pendingTarget = nil
+            return
+        }
+        if case .receiptBookingResult(let resultID) = target {
+            if ReceiptBookingResultStore.shared.loadResults().contains(where: { $0.id == resultID }) {
+                ReceiptBookingPagePresenter.shared.present(.bookingSettings(resultID: resultID))
+            } else {
+                HoloToastCenter.shared.show(String(localized: "这条结果已过期清理"), type: .info)
+            }
+            deepLinkState.pendingTarget = nil
+            return
+        }
+
         // 深链到达时先收起内容覆盖层（个人/设置、iPad 页面层、看板 cover）：
         // 下方 navigateToScreen 只切常驻栈，导航发生在覆盖层下面时用户看到的
         // 还是原界面（点小组件拉起后停在个人页不动的根因）。目标自身要开的层
         // （看板、各编辑器 sheet、goalDetail 的个人页）在各 case 里再开。
-        let hadCoverPresentation = showPersonalView || showSettingsView
-            || showPersonalPage || showSettingsPage || showDailyKanban
         showPersonalView = false
         showSettingsView = false
         showPersonalPage = false
@@ -1537,23 +1703,8 @@ struct HomeView: View {
             pendingFinanceEvidenceReviewDeepLink = link
             navigateToScreen(.finance)
         case .receiptReview, .receiptBookingResult:
-            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果。
-            // 2026-10-14 清场：财务模块的复核/结果 sheet 会被任何还开着的弹层静默
-            // 挡住（SwiftUI 同窗同时刻只呈现一个 sheet，被挡的呈现直接丢弃且无回执）
-            // ——东林实锤「Holo 打开了其他页面就不会立马跳到记账确认页」。这里把
-            // HomeView 层的输入/浏览弹层一并收掉；有弹层在收时延迟重派一次深链，
-            // 等 dismissal 落定后 FinanceView 再消费，确认页必达。
-            let hadBlockingPresentation = hadCoverPresentation
-                || dismissReceiptBlockingPresentations()
-            navigateToScreen(.finance)
-            if hadBlockingPresentation {
-                // navigate 对相同目标先清空再异步设置，onChange 必再触发；
-                // 弹层 dismissal 动画约 0.4s，0.6s 后重派时已落定
-                let current = target
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    deepLinkState.navigate(to: current)
-                }
-            }
+            // 函数开头已交给置顶弹层并 return，此分支只为 switch 穷尽
+            break
         case .addTransaction:
             showAddTransactionSheet = true
             deepLinkState.pendingTarget = nil

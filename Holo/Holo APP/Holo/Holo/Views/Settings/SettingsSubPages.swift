@@ -148,23 +148,149 @@ struct SettingsSheetShell<Content: View>: View {
 
 // MARK: - 外观二级页
 
-/// 外观三选一：跟随系统 / 浅色 / 深色（原一级页「外观」组的 3 行平铺收进门）
+/// 外观设置：明暗模式 + 首页视觉模板（允许用户自由切换经典光球 / 纸本星象 / 盈亏月相）
 struct SettingsAppearancePage: View {
     @ObservedObject private var darkModeManager = DarkModeManager.shared
+    @ObservedObject private var homeTemplateManager = HomeTemplateManager.shared
     @Environment(\.colorScheme) private var systemColorScheme
 
     var body: some View {
         SettingsSheetShell(String(localized: "外观")) {
-            VStack(spacing: 0) {
-                ForEach(DarkModeSetting.allCases, id: \.self) { setting in
-                    optionRow(setting)
+            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text(String(localized: "明暗模式"))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        ForEach(DarkModeSetting.allCases, id: \.self) { setting in
+                            optionRow(setting)
+                        }
+                    }
+                    .background(Color.holoToolSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                }
+
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text(String(localized: "首页风格"))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .padding(.horizontal, 4)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(HomeTemplateStyle.allCases.enumerated()), id: \.element.id) { idx, style in
+                            if idx > 0 {
+                                SettingsRowDivider()
+                            }
+                            homeTemplateRow(style)
+                        }
+                    }
+                    .background(Color.holoToolSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                 }
             }
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
         // sheet 有独立的 presentation 场景，preferredColorScheme 需挂 sheet 内容才生效
         .preferredColorScheme(darkModeManager.colorScheme)
+    }
+
+    private func homeTemplateRow(_ style: HomeTemplateStyle) -> some View {
+        let isSelected = style == homeTemplateManager.currentStyle
+        return Button {
+            homeTemplateManager.updateStyle(style)
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                homeTemplateThumbnail(style, isSelected: isSelected)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(style.displayName)
+                        .holoText(.body)
+                        .foregroundStyle(Color.holoToolText)
+                    Text(style.subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 8)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.holoPrimary)
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    @ViewBuilder
+    private func homeTemplateThumbnail(_ style: HomeTemplateStyle, isSelected: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                .fill(isSelected ? Color.holoPrimary.opacity(0.09) : Color.holoToolInset)
+                .frame(width: 44, height: 44)
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .strokeBorder(isSelected ? Color.holoPrimary.opacity(0.45) : Color.clear, lineWidth: 0.8)
+                )
+
+            switch style {
+            case .classic:
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.holoPrimaryLight, .holoPrimary, .holoPrimaryDark],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 24, height: 24)
+                    .overlay(Circle().stroke(Color.white.opacity(0.55), lineWidth: 1).frame(width: 14, height: 14))
+            case .sundial:
+                ZStack {
+                    Circle()
+                        .stroke(Color.holoAlmanacInk.opacity(0.32), style: StrokeStyle(lineWidth: 0.9, dash: [1.5, 2.5]))
+                        .frame(width: 26, height: 26)
+                    Circle()
+                        .fill(Color.holoPaper)
+                        .frame(width: 17, height: 17)
+                        .overlay(Circle().stroke(Color.holoAlmanacInk.opacity(0.25), lineWidth: 0.6))
+                    Capsule()
+                        .fill(Color.holoAlmanacInk)
+                        .frame(width: 1.2, height: 8)
+                        .offset(y: -2.5)
+                        .rotationEffect(.degrees(32))
+                    Circle()
+                        .fill(Color.holoPrimary)
+                        .frame(width: 3, height: 3)
+                }
+            case .moonPhase:
+                ZStack {
+                    Circle()
+                        .stroke(Color.holoAlmanacInk.opacity(0.24), lineWidth: 0.8)
+                        .frame(width: 26, height: 26)
+                    Circle()
+                        .fill(Color.holoAlmanacInk.opacity(0.85))
+                        .frame(width: 16, height: 16)
+                        .mask(
+                            ZStack {
+                                Circle().frame(width: 16, height: 16)
+                                Circle().frame(width: 15, height: 15).offset(x: -6).blendMode(.destinationOut)
+                            }
+                            .compositingGroup()
+                        )
+                    Circle()
+                        .fill(Color.holoPrimary)
+                        .frame(width: 2.8, height: 2.8)
+                        .offset(y: -11)
+                }
+            }
+        }
     }
 
     private func optionRow(_ setting: DarkModeSetting) -> some View {

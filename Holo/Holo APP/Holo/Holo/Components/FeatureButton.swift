@@ -31,17 +31,69 @@ struct FeatureButtonContent: View {
     
     /// 按钮配置
     let config: FeatureButtonConfig
+
+    @ObservedObject private var homeTemplate = HomeTemplateManager.shared
     
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 4) {
-            // 图标容器
-            iconContainer
-            
-            // 标题文字
-            titleText
+        if homeTemplate.currentStyle.isEditorial {
+            editorialBody
+        } else {
+            VStack(spacing: 4) {
+                // 图标容器
+                iconContainer
+                
+                // 标题文字
+                titleText
+            }
         }
+    }
+
+    /// 刊物/星象模板入口：去 56×56 厚重白方块，改用极轻透微渐变圆晕 + 细线图标 + 衬线标签
+    private var editorialBody: some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.holoCardBackground.opacity(0.75),
+                                Color.holoPaper.opacity(0.32)
+                            ],
+                            center: UnitPoint(x: 0.35, y: 0.3),
+                            startRadius: 2,
+                            endRadius: 28
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.holoAlmanacInk.opacity(0.18),
+                                        Color.holoAlmanacInk.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 0.65
+                            )
+                    )
+                    .shadow(color: Color.holoAlmanacInk.opacity(0.04), radius: 6, x: 0, y: 2)
+
+                Image(systemName: config.icon)
+                    .font(.system(size: 18, weight: .light))
+                    .foregroundStyle(Color.holoAlmanacInk.opacity(0.88))
+            }
+
+            Text(config.title)
+                .font(.holoEditorialSerif(size: 12, bold: false))
+                .kerning(1.0)
+                .foregroundStyle(Color.holoAlmanacInk.opacity(0.78))
+        }
+        .frame(minWidth: 52, minHeight: 68)
     }
     
     // MARK: - 子视图

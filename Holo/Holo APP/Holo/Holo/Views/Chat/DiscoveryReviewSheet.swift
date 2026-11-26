@@ -314,20 +314,17 @@ struct DiscoveryReviewSheet: View {
         }
     }
 
-    /// 说明页完全关闭后再弹系统付费墙（弹层叠弹层不可靠，02 审查 E7）。
-    /// 走查实测（2026-11-22）：onDismiss 时机仍在评审页 sheet 收起动画内，立即发起根部
-    /// fullScreenCover 会被 UIKit 静默丢弃——延后半秒等 presentation 释放后再弹（E7 第二方案）。
+    /// 说明页完全关闭后再弹付费墙。付费墙走置顶弹层：此刻说明页还在收起转场里，
+    /// 置顶呈现会等转场落定后从新的最顶层再弹，不需要再延半秒（02 审查 E7）。
     private func presentPaywallIfRequested() {
         guard upgradeAfterExplainer else { return }
         upgradeAfterExplainer = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly, resume: {
-                await MainActor.run {
-                    DiscoveryTopicStore.shared.clearInsightQuotaWall()
-                    NotificationCenter.default.post(name: .holoDiscoverySettingsDidChange, object: nil)
-                }
-            })
-        }
+        HoloPlusActionCoordinator.shared.requirePlus(context: .discoveryInsightWeekly, resume: {
+            await MainActor.run {
+                DiscoveryTopicStore.shared.clearInsightQuotaWall()
+                NotificationCenter.default.post(name: .holoDiscoverySettingsDidChange, object: nil)
+            }
+        })
     }
 
     // MARK: - 健康提示

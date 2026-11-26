@@ -29,6 +29,8 @@ struct BottomNavBar: View {
     /// 中心按钮点击回调（Holo One 快捷动作）
     var onCenterTap: (() -> Void)? = nil
 
+    @ObservedObject private var homeTemplate = HomeTemplateManager.shared
+
     /// 导航项枚举
     enum TabItem: String, CaseIterable {
         case profile = "个人"
@@ -39,6 +41,14 @@ struct BottomNavBar: View {
     // MARK: - Body
     
     var body: some View {
+        if homeTemplate.currentStyle.isEditorial {
+            editorialNavBar
+        } else {
+            classicNavBar
+        }
+    }
+
+    private var classicNavBar: some View {
         // iPad：整条导航栏限宽居中（浮动毛玻璃条不横跨大屏），iPhone 撑满不变
         ContentColumnContainer(maxWidth: 520) {
             HStack(spacing: 0) {
@@ -84,6 +94,105 @@ struct BottomNavBar: View {
                     )
                     .shadow(color: HoloShadow.card, radius: 8, x: 0, y: 3)
             )
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+    }
+
+    /// 刊物/星象模板底部栏：0.5pt 渐隐墨线刊脚 + 衬线双翼 + 立体暖墨朱砂圆印（去凸起 sparkles）
+    private var editorialNavBar: some View {
+        ContentColumnContainer(maxWidth: 520) {
+            VStack(spacing: 12) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.holoAlmanacInk.opacity(0.04),
+                                Color.holoAlmanacInk.opacity(0.24),
+                                Color.holoAlmanacInk.opacity(0.04)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: 0.6)
+
+                HStack(spacing: 0) {
+                    Button {
+                        if let onProfileTap {
+                            onProfileTap()
+                        } else {
+                            selectedTab = .profile
+                        }
+                    } label: {
+                        Text(String(localized: "个人"))
+                            .font(.holoEditorialSerif(size: 14, bold: selectedTab == .profile))
+                            .kerning(1.8)
+                            .foregroundStyle(selectedTab == .profile ? Color.holoAlmanacInk : Color.holoToolTextSecondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HoloPressStyle())
+
+                    Button {
+                        if let onCenterTap {
+                            onCenterTap()
+                        } else {
+                            selectedTab = .ai
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.holoAlmanacInk,
+                                            Color.holoAlmanacInk.opacity(0.84)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.22), lineWidth: 0.6)
+                                )
+                                .shadow(color: Color.holoAlmanacInk.opacity(0.18), radius: 10, x: 0, y: 4)
+
+                            Circle()
+                                .stroke(Color.holoBackground.opacity(0.82), lineWidth: 1.15)
+                                .frame(width: 17, height: 17)
+
+                            Circle()
+                                .fill(Color.holoPrimary)
+                                .frame(width: 5.5, height: 5.5)
+                                .shadow(color: Color.holoPrimary.opacity(0.55), radius: 3)
+                        }
+                        .frame(width: 52, height: 44)
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(HoloPressStyle())
+                    .accessibilityLabel(String(localized: "与 Holo 对话"))
+
+                    Button {
+                        if let onMemoryTap {
+                            onMemoryTap()
+                        } else {
+                            selectedTab = .memory
+                        }
+                    } label: {
+                        Text(String(localized: "记忆长廊"))
+                            .font(.holoEditorialSerif(size: 14, bold: selectedTab == .memory))
+                            .kerning(1.8)
+                            .foregroundStyle(selectedTab == .memory ? Color.holoAlmanacInk : Color.holoToolTextSecondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(HoloPressStyle())
+                }
+            }
+            .padding(.horizontal, HoloSpacing.sm)
+            .padding(.bottom, 4)
         }
         .padding(.horizontal, HoloSpacing.lg)
     }
