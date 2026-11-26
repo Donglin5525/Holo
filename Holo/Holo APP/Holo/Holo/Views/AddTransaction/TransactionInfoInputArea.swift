@@ -228,11 +228,15 @@ extension AddTransactionSheet {
     private var installmentRow: some View {
         Button {
             showNumericKeypad = false
-            // 分期为 Plus 权益：非 Plus 弹付费墙，购买成功后回开分期设置
+            // 分期为 Plus 权益：非 Plus 弹付费墙，购买成功后回开分期设置；直接关闭 = 放弃
             guard HoloEntitlementState.shared.isPlusActive else {
                 HoloPlusActionCoordinator.shared.requirePlus(
                     context: .financeInstallment,
-                    onDismiss: { showInstallmentSheet = true }
+                    resume: {
+                        await MainActor.run {
+                            withAnimation(HoloAnimation.enter) { showInstallmentSheet = true }
+                        }
+                    }
                 )
                 return
             }

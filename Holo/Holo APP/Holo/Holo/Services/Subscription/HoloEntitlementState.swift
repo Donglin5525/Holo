@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import OSLog
 
 @MainActor
 final class HoloEntitlementState: ObservableObject {
@@ -23,7 +24,13 @@ final class HoloEntitlementState: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastErrorMessage: String?
 
+    /// 本进程是否已完成过一次权益刷新（不论成败）。false = 冷启动空窗期：内存里的档位
+    /// 只是磁盘上的旧快照（续订空档落盘的免费态、不落盘的内部验收态），Plus 门禁应等
+    /// 刷新落定再判，别拿过期快照把会员拦在付费墙外。
+    var hasSettledStatus = false
+
     private static let cacheKey = "holo.entitlement.snapshot.v1"
+    private static let logger = Logger(subsystem: "com.holo.app", category: "Subscription")
 
     private init() {
         // 冷启动先恢复上次成功刷新的权益快照：断网/弱网冷启动时 Plus 用户
@@ -38,9 +45,11 @@ final class HoloEntitlementState: ObservableObject {
             source = .backend
             acceptanceMode = cached.acceptanceModeRaw.flatMap(HoloAcceptanceMode.init(rawValue:)) ?? .followPurchase
         }
+        Self.logger.log("权益冷启动快照 plus=\(self.isPlusActive ? 1 : 0)")
     }
 
     func apply(status: HoloSubscriptionStatusResponse) {
+        let wasPlusActive = isPlusActive
         tier = HoloSubscriptionTier(rawValue: status.tier) ?? .free
         isPlusActive = status.isPlusActive
         productId = status.productId
@@ -51,6 +60,23 @@ final class HoloEntitlementState: ObservableObject {
             ?? (source == .acceptance ? (tier == .plus ? .plus : .free) : .followPurchase)
         lastErrorMessage = nil
         persistSnapshotIfBackend()
+        if wasPlusActive != isPlusActive {
+            // 档位翻转留痕：真机上「会员被当免费版」取证靠这一行
+            Self.logger.log("权益档位变化 plus=\(wasPlusActive ? 1 : 0) → \(self.isPlusActive ? 1 : 0)，来源 \(String(describing: self.source), privacy: .public)")
+        }
+    }
+
+    /// 一次权益刷新结束时调用（成功、失败、超时都算）
+    func markStatusAttemptFinished() {
+        hasSettledStatus = true
+    }
+
+    /// Plus 门禁的冷启动空窗期等待：刷新落定或超时即返回（超时后按现有快照判）
+    func waitForFirstStatus(timeout: TimeInterval) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !hasSettledStatus, Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     /// 仅缓存正式权益；内部验收态（acceptance）不落盘，避免验收残留污染正式启动
@@ -114,7 +140,7 @@ final class HoloEntitlementState: ObservableObject {
             ]
             : [
                 "chat": 15,
-                "deepAnalysis": 2,
+                "deepAnalysis": 1,
                 "naturalLanguageFinance": 20,
                 "naturalLanguageTask": 20,
                 "asr": 20,

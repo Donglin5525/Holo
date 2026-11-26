@@ -7,6 +7,7 @@
 
 import Combine
 import Foundation
+import OSLog
 import StoreKit
 
 @MainActor
@@ -46,28 +47,30 @@ final class HoloSubscriptionService: ObservableObject {
         // 截图摆拍 / Plus 功能验收通道（HOLO_DEBUG_PLUS）下权益由本地置为 Plus，
         // 不与服务端同步，避免后端 free 态覆盖摆拍状态（踩坑记录：plus-badge-squash 案）
         if HoloAppStoreScreenshotSeeder.isRequested
-            || ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" { return }
+            || ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" {
+            entitlementState.markStatusAttemptFinished()
+            return
+        }
         #endif
-        guard let url = URL(string: "\(baseURL)/v1/subscription/status") else { return }
         entitlementState.setRefreshing(true)
-        defer { entitlementState.setRefreshing(false) }
+        // 一次刷新到此为止：成败都算「已落定」，冷启动空窗期等待的门禁据此放行
+        defer {
+            entitlementState.setRefreshing(false)
+            entitlementState.markStatusAttemptFinished()
+        }
 
         do {
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = 30
-            request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
-            // S01：设备会话头与 APIClient 主链路同一注入规则
-            await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
-
-            let (data, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                entitlementState.setError(String(localized: "会员服务尚未接通，当前按免费版展示"))
-                return
+            let fetched = try await fetchStatus()
+            var status = fetched
+            // 权益自愈（2026-11-24）：服务端权益只在购买 / 恢复购买 / Transaction.updates 推送
+            // 时更新，订阅到期到新交易回传之间会落后于 Apple 侧事实（判免费）——这个「免费」
+            // 还会落盘成快照，之后每次冷启动都先把会员当免费版（东林实报：已开通 Plus 却
+            // 处处弹付费墙）。本机 Apple 签发的有效凭证才是事实源：两边不一致就先把凭证
+            // 回传再重取，把空档挡在用户看不见的地方。
+            if !fetched.isPlusActive, await syncCurrentEntitlements() {
+                status = try await fetchStatus()
+                Self.logger.notice("权益自愈：服务端判免费但本机有有效凭证，已回传并重取，plus=\(status.isPlusActive ? 1 : 0)")
             }
-
-            let status = try JSONDecoder().decode(HoloSubscriptionStatusResponse.self, from: data)
             entitlementState.apply(status: status)
             HoloServerFeatureFlags.apply(status.featureFlags)
             HoloWidgetSnapshotService.shared.refreshEntitlementSnapshot(
@@ -75,8 +78,33 @@ final class HoloSubscriptionService: ObservableObject {
                 source: status.source ?? "backend"
             )
         } catch {
-            entitlementState.setError(String(localized: "会员状态刷新失败，当前按最近状态展示"))
+            let message = (error as? URLError)?.code == .badServerResponse
+                ? String(localized: "会员服务尚未接通，当前按免费版展示")
+                : String(localized: "会员状态刷新失败，当前按最近状态展示")
+            entitlementState.setError(message)
         }
+    }
+
+    private static let logger = Logger(subsystem: "com.holo.app", category: "Subscription")
+
+    /// 取服务端会员状态；非 2xx 抛 badServerResponse（与解码/网络失败区分开文案）
+    private func fetchStatus() async throws -> HoloSubscriptionStatusResponse {
+        guard let url = URL(string: "\(baseURL)/v1/subscription/status") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+        // S01：设备会话头与 APIClient 主链路同一注入规则
+        await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(HoloSubscriptionStatusResponse.self, from: data)
     }
 
     func loadProducts() async {
@@ -168,8 +196,11 @@ final class HoloSubscriptionService: ObservableObject {
         }
     }
 
-    /// 遍历当前设备上的全部有效权益交易，逐笔同步给服务器并补 finish
-    private func syncCurrentEntitlements() async {
+    /// 遍历当前设备上的全部有效权益交易，逐笔同步给服务器并补 finish。
+    /// - Returns: 是否至少回传成功一笔（权益自愈据此决定要不要重取状态）
+    @discardableResult
+    private func syncCurrentEntitlements() async -> Bool {
+        var syncedAny = false
         for await result in StoreKit.Transaction.currentEntitlements {
             guard let verified = try? checkVerifiedTransaction(result) else { continue }
 
@@ -180,11 +211,13 @@ final class HoloSubscriptionService: ObservableObject {
             do {
                 try await sync(verified)
                 await verified.transaction.finish()
+                syncedAny = true
             } catch {
                 // 单笔失败不中断其余交易同步；未 finish 的交易仍可经 updates 补偿
                 continue
             }
         }
+        return syncedAny
     }
 
     #if DEBUG

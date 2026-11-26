@@ -156,16 +156,12 @@ class DeepLinkState: ObservableObject {
         // 否则点小组件拉起 App 后要等最多 30 秒服务端响应才导航；正式权益仍由
         // 冷启动/回前台的既有刷新通道保持准确。
         guard HoloEntitlementState.shared.isPlusActive else {
-            // 免费用户点小组件拉起：弹付费墙；无论购买成功（resume）还是直接关闭
-            // （onDismiss，深链落点页面本身不需要 Plus），都续跳到目标页，
-            // 避免用户关掉付费墙后被丢在首页。
-            let navigateToTarget = {
-                self.navigate(to: DeepLinkTarget(widgetTarget))
-            }
+            // 免费用户点小组件拉起：弹付费墙，购买成功才续跳到目标页。
+            // 直接关闭 = 放弃、回到原界面（2026-11-24 东林拍板「所见即所得」）——旧设计
+            // 关墙也续跳，表现为「一定要先看 Plus 页，关掉才看到要去的页面」。
             HoloPlusActionCoordinator.shared.requirePlus(
                 context: .desktopWidget,
-                resume: navigateToTarget,
-                onDismiss: navigateToTarget
+                resume: { self.navigate(to: DeepLinkTarget(widgetTarget)) }
             )
             return
         }
