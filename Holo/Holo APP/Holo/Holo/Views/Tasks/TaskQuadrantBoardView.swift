@@ -287,7 +287,7 @@ struct TaskQuadrantBoardView: View {
         let members = model.groupedMembers.first { $0.quadrant == quadrant }?.members ?? []
         let isTarget = dragContext.hoverTarget == quadrant
         return VStack(spacing: 0) {
-            TaskQuadrantCellHeader(quadrant: quadrant, count: members.count) {
+            TaskQuadrantCellHeader(quadrant: quadrant, count: model.quadrantCounts[quadrant] ?? 0) {
                 onCreateInQuadrant(quadrant)
             }
             if members.isEmpty {
@@ -346,7 +346,7 @@ struct TaskQuadrantBoardView: View {
             member: member,
             dueText: due?.text,
             isOverdue: due?.isOverdue ?? false,
-            isDone: model.pendingCompletionTaskID == member.id,
+            isDone: model.isCompletionInFlight(member.id),
             onToggle: { toggleCompletion(member) },
             onOpenDetail: { onOpenDetail(member.id) },
             onDragStarted: { dragContext.beginDrag() }
@@ -579,7 +579,7 @@ private struct TaskQuadrantSidebarPanel: View {
             Spacer(minLength: 24)
             TaskQuadrantVerticalText(title: String(localized: "待确认"))
                 .foregroundColor(TaskQuadrantPalette.handleText)
-            Text(verbatim: "\(members.count)")
+            Text(verbatim: "\(model.unclassifiedCount)")
                 .font(.system(size: 11, weight: .semibold))
                 .monospacedDigit()
                 .foregroundColor(TaskQuadrantPalette.handleText)
@@ -718,7 +718,7 @@ private struct TaskQuadrantSidebarPanel: View {
                 Text("待确认")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(TaskQuadrantPalette.ink)
-                HoloCountBadge(count: members.count)
+                HoloCountBadge(count: model.unclassifiedCount)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 14)
@@ -743,7 +743,7 @@ private struct TaskQuadrantSidebarPanel: View {
             member: member,
             dueText: due?.text,
             isOverdue: due?.isOverdue ?? false,
-            isDone: model.pendingCompletionTaskID == member.id,
+            isDone: model.isCompletionInFlight(member.id),
             onToggle: { toggleCompletion(member) },
             onOpenDetail: { onOpenDetail(member.id) },
             onDragStarted: { dragContext.beginDrag() }

@@ -625,7 +625,8 @@ struct TaskExperienceView: View {
         VStack(spacing: 0) {
             if model.isLoading {
                 loadingView
-            } else if model.conservedTotal == 0 && model.unclassifiedCount == 0 {
+            } else if model.listGroups.isEmpty {
+                // 按展示行判断：最后一条任务划掉的 3 秒内仍留在原位，划完再切空态
                 emptyStateView
             } else {
                 Text("按清单查看任务，包含未安排与待判断重要性的任务。")
@@ -657,7 +658,8 @@ struct TaskExperienceView: View {
             Text(group.title)
                 .font(.system(size: 12.5, weight: .bold))
                 .foregroundColor(.holoTextSecondary)
-            HoloCountBadge(count: group.members.count)
+            // 计数不含正在划掉的那条（行留在原位划完再移出，数字先减）
+            HoloCountBadge(count: group.members.filter { !model.isCompletionInFlight($0.id) }.count)
             Spacer()
         }
         .padding(.top, HoloSpacing.md)
@@ -682,6 +684,8 @@ struct TaskExperienceView: View {
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
                 .fill(Color.primary.opacity(0.03))
         )
+        // 划完线落库后行淡出收起，不是整行瞬间消失
+        .animation(reduceMotion ? nil : HoloAnimation.smooth, value: members.map(\.id))
         .padding(.bottom, HoloSpacing.md)
     }
 
@@ -724,7 +728,7 @@ struct TaskExperienceView: View {
             member: member,
             calendar: model.calendar,
             now: model.now,
-            isCompleting: model.pendingCompletionTaskID == member.id,
+            isCompleting: model.isCompletionInFlight(member.id),
             isCompleted: member.completed,
             isHistoryRow: isHistoryRow,
             isInTodayPlan: model.todayEntryIDs.contains(member.id),
@@ -788,6 +792,9 @@ struct TaskExperienceView: View {
 
     /// 键盘高度（真机实报：展开态输「加一步」时完成任务的撤回 toast 被键盘盖住）
     @State private var keyboardHeight: CGFloat = 0
+
+    /// 系统「减弱动态效果」：行移出不做过渡
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 完成横条只在完成由本页（列表/四象限视图）发起时展示；跨页来源由发起页自己出横条
     /// （2026-11-05 真机回归：四象限勾选完成一度无撤回提示——source 门闸漏了 taskMatrix）

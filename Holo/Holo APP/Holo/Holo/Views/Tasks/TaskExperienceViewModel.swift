@@ -33,7 +33,9 @@ final class TaskExperienceViewModel: ObservableObject {
     // MARK: - 状态
 
     /// 全量任务快照（唯一计算链的源）
-    @Published private(set) var snapshots: [TaskRecordSnapshot] = []
+    @Published private(set) var snapshots: [TaskRecordSnapshot] = [] {
+        didSet { pruneSettlingCompletions() }
+    }
     @Published private(set) var isLoading: Bool = true
     @Published private(set) var loadFailed: Bool = false
 
@@ -59,6 +61,23 @@ final class TaskExperienceViewModel: ObservableObject {
     private let completionCoordinator = HoloTaskCompletionCoordinator.shared
     var pendingCompletionTaskID: UUID? {
         completionCoordinator.pending?.taskID
+    }
+
+    /// 已确认落库、但快照尚未刷新到「已完成」的任务（落库→重读之间的空档）。
+    /// 这段时间行仍按划掉态展示，避免墨线先淡出再整行消失；快照刷新到完成/消失后剪除。
+    private var settlingCompletionIDs: Set<UUID> = []
+
+    /// 「划完线再移出」（2026-11-26 东林拍板）：撤回窗口内与落库空档期的任务
+    /// 仍留在列表原位显示划掉态，计数照旧立即减一。
+    private var completingTaskIDs: Set<UUID> {
+        var ids = settlingCompletionIDs
+        if let pendingID = pendingCompletionTaskID { ids.insert(pendingID) }
+        return ids
+    }
+
+    /// 行是否处于「正在完成」展示态（撤回窗口内或落库空档）
+    func isCompletionInFlight(_ taskID: UUID) -> Bool {
+        completingTaskIDs.contains(taskID)
     }
 
     private let repository: TodoRepository
@@ -132,6 +151,18 @@ final class TaskExperienceViewModel: ObservableObject {
         completionCoordinator.$pending
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        // 落库成功：行继续保持划掉态，直到快照刷新为已完成再移出（不让墨线回弹）
+        completionCoordinator.$lastConfirmed
+            .dropFirst() // 跳过订阅时回放的旧值（单例里可能是很久以前的一次完成）
+            .compactMap { $0?.taskID }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] taskID in
+                guard let self else { return }
+                objectWillChange.send()
+                settlingCompletionIDs.insert(taskID)
+            }
             .store(in: &cancellables)
 
         scheduleBoundaryRefresh()
@@ -323,11 +354,23 @@ final class TaskExperienceViewModel: ObservableObject {
         if todayEntryIDs != ids { todayEntryIDs = ids }
     }
 
-    /// 当前范围的活动未完成任务（pending 完成任务暂时移出待办，§4.3）
+    /// 当前范围的活动未完成任务——计数口径（正在完成的任务立即不计，§4.3）
     var activeMembers: [TaskRecordSnapshot] {
-        let members = scope.activeMembers(from: snapshots, now: now, calendar: calendar)
-        guard let pendingID = pendingCompletionTaskID else { return members }
-        return members.filter { $0.id != pendingID }
+        let completing = completingTaskIDs
+        return displayMembers.filter { !completing.contains($0.id) }
+    }
+
+    /// 列表展示口径：含正在完成的任务，让「一笔划掉」在原位划完再移出
+    private var displayMembers: [TaskRecordSnapshot] {
+        scope.activeMembers(from: snapshots, now: now, calendar: calendar)
+    }
+
+    /// 快照刷新后剪除已落定（已完成 / 已不在快照）的空档任务；
+    /// 若读到的是落库前的旧快照（仍未完成），继续保持划掉态
+    private func pruneSettlingCompletions() {
+        guard !settlingCompletionIDs.isEmpty else { return }
+        let stillOpen = Set(snapshots.lazy.filter { !$0.completed && !$0.deleted }.map(\.id))
+        settlingCompletionIDs.formIntersection(stillOpen)
     }
 
     /// 历史范围成员
@@ -354,7 +397,7 @@ final class TaskExperienceViewModel: ObservableObject {
 
     /// 四组任务（组内默认排序）
     var groupedMembers: [(quadrant: TaskQuadrant, members: [TaskRecordSnapshot])] {
-        let byQuadrant = Dictionary(grouping: activeMembers) { $0.quadrant(now: now, calendar: calendar) }
+        let byQuadrant = Dictionary(grouping: displayMembers) { $0.quadrant(now: now, calendar: calendar) }
         return TaskQuadrant.overviewOrder.map { quadrant in
             (quadrant, (byQuadrant[quadrant] ?? []).sorted {
                 TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar)
@@ -364,7 +407,7 @@ final class TaskExperienceViewModel: ObservableObject {
 
     /// 待确认组（按首页组内默认规则排序；口径同 unclassifiedCount）
     var unclassifiedMembers: [TaskRecordSnapshot] {
-        activeMembers
+        displayMembers
             .filter { $0.quadrant(now: now, calendar: calendar) == .unclassified }
             .sorted { TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar) }
     }
@@ -383,7 +426,7 @@ final class TaskExperienceViewModel: ObservableObject {
     /// 失效归属桶置末；0 项清单隐藏；组内复用 defaultOrder；
     /// 指定清单范围省略重复组标题（showsHeader=false 由视图按范围判断）。
     var listGroups: [TaskListGroup] {
-        let members = activeMembers
+        let members = displayMembers
         guard !members.isEmpty else { return [] }
 
         func sortedGroup(_ title: String, _ subset: [TaskRecordSnapshot]) -> TaskListGroup {

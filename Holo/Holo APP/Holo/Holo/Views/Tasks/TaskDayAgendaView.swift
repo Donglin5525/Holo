@@ -123,7 +123,7 @@ struct TaskDayAgendaView: View {
             member: member,
             calendar: model.calendar,
             now: model.now,
-            isCompleting: model.pendingCompletionTaskID == member.id,
+            isCompleting: model.isCompletionInFlight(member.id),
             isCompleted: member.completed,
             isInTodayPlan: model.todayEntryIDs.contains(member.id),
             onToggleCompletion: { actions.onToggleCompletion(member) },

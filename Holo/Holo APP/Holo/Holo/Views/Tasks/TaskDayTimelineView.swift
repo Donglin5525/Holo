@@ -185,7 +185,7 @@ struct TaskDayTimelineView: View {
         let contentWidth = availableWidth - leadingInset - 4
         let laneFraction = CGFloat(placement.lane) / CGFloat(max(placement.laneCount, 1))
         let laneWidth = contentWidth / CGFloat(max(placement.laneCount, 1)) - 3
-        let isDone = member?.completed == true || model.pendingCompletionTaskID == member?.id
+        let isDone = member?.completed == true || member.map { model.isCompletionInFlight($0.id) } == true
 
         return Button {
             if let member { onOpenDetail(member.id) }
