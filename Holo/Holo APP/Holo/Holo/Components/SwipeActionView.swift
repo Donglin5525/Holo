@@ -41,6 +41,13 @@ struct SwipeActionView<Content: View>: View {
     @State private var offset: CGFloat = 0
     @State private var showDeleteConfirmation = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 常驻模块隐藏态（HomeView ZStack opacity=0）必须同步摘除 window 手势，
+    /// 避免后台 6 个常驻模块累积上百个 UIPanGestureRecognizer 拖慢全 App 每次起手滑动。
+    @Environment(\.holoMotionSurfaceIsActive) private var motionSurfaceActive
+
+    private var effectiveSwipeEnabled: Bool {
+        isEnabled && motionSurfaceActive
+    }
 
     /// 按钮数量决定展开宽度：延期(可选) + 归档 + 删除
     private var snapOpenOffset: CGFloat {
@@ -92,12 +99,12 @@ struct SwipeActionView<Content: View>: View {
                     SwipeGestureOverlay(
                         offset: $offset,
                         isRevealed: isRevealed,
-                        isEnabled: isEnabled,
+                        isEnabled: effectiveSwipeEnabled,
                         snapOffset: snapOpenOffset
                     )
                 )
         }
-        .onChange(of: isEnabled) { _, enabled in
+        .onChange(of: effectiveSwipeEnabled) { _, enabled in
             guard !enabled else { return }
             close()
         }
@@ -236,8 +243,12 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
     func updateUIView(_ uiView: SwipeOverlayView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.ensureGestureAttached()
-        context.coordinator.panGesture?.isEnabled = isEnabled
+        if isEnabled {
+            context.coordinator.ensureGestureAttached()
+            context.coordinator.panGesture?.isEnabled = true
+        } else {
+            context.coordinator.detachGesture()
+        }
     }
 
     // MARK: - Coordinator
@@ -264,6 +275,10 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         /// 将 Pan 手势挂载到 window（不依赖 SwiftUI 内部 superview）
         /// 通过 shouldReceiveTouch 限定只在 overlay 区域内响应
         func ensureGestureAttached() {
+            guard parent.isEnabled else {
+                detachGesture()
+                return
+            }
             guard let pan = panGesture else { return }
             guard let window = overlayView?.window else {
                 scheduleRetry()
@@ -277,6 +292,13 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             pan.view?.removeGestureRecognizer(pan)
             attachRetryCount = 0
             window.addGestureRecognizer(pan)
+        }
+
+        /// 从 window 摘除 Pan 手势（常驻模块隐藏、侧栏盖住或视图离窗时调用，防止窗口手势 O(N) 堆积）
+        func detachGesture() {
+            guard let pan = panGesture else { return }
+            pan.isEnabled = false
+            pan.view?.removeGestureRecognizer(pan)
         }
 
         private func scheduleRetry() {
@@ -441,11 +463,13 @@ private class SwipeOverlayView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// 视图加入 window 时触发手势挂载
+    /// 视图加入/离开 window 时同步手势挂载状态
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil {
             coordinator?.ensureGestureAttached()
+        } else {
+            coordinator?.detachGesture()
         }
     }
 

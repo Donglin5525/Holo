@@ -80,13 +80,36 @@ private func isEmojiIconName(_ name: String) -> Bool {
     }
 }
 
-/// 名称是否为系统 SF Symbol（iOS 走 UIImage 探测，macOS 走 NSImage 等价探测）
+/// 线程安全的系统 SF Symbol 名称探测缓存：避免每次列表行重绘都调用 UIImage(systemName:) 解码系统符号库
+private final class SystemSymbolValidationCache {
+    static let shared = SystemSymbolValidationCache()
+    private let lock = NSLock()
+    private var cache: [String: Bool] = [:]
+
+    func isValid(_ name: String) -> Bool {
+        lock.lock()
+        if let hit = cache[name] {
+            lock.unlock()
+            return hit
+        }
+        lock.unlock()
+
+        #if canImport(UIKit)
+        let valid = UIImage(systemName: name) != nil
+        #else
+        let valid = NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+        #endif
+
+        lock.lock()
+        cache[name] = valid
+        lock.unlock()
+        return valid
+    }
+}
+
+/// 名称是否为系统 SF Symbol（带进程级缓存，每个名称仅探测一次）
 private func isSystemSymbolName(_ name: String) -> Bool {
-    #if canImport(UIKit)
-    UIImage(systemName: name) != nil
-    #else
-    NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
-    #endif
+    SystemSymbolValidationCache.shared.isValid(name)
 }
 
 private struct HoloFallbackCategoryIcon: View {

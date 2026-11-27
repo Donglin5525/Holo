@@ -282,6 +282,25 @@ extension HabitRepository {
         }
     }
 
+    /// 仅取单个习惯的有效记录（单习惯打卡/计数增量刷新用，避免全库扫描）
+    func tryRecordFacts(for habitId: UUID) throws -> [HabitRecordFact] {
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habitId as CVarArg)
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+
+        return try context.fetch(request).map { record in
+            HabitRecordFact(
+                id: record.id,
+                habitId: record.habitId,
+                date: record.date,
+                isCompleted: record.isCompleted,
+                value: record.valueDouble,
+                isRetroactive: record.isRetroactive,
+                recordedAt: record.isRetroactive ? record.createdAt : record.date
+            )
+        }
+    }
+
     /// 指定习惯集合的暂停窗口（解码一次，投影判定复用）
     func pauseWindowsByIds(_ ids: [UUID]) -> [UUID: [HabitPauseWindow]] {
         var result: [UUID: [HabitPauseWindow]] = [:]

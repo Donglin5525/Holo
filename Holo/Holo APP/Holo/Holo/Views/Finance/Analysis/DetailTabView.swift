@@ -40,32 +40,61 @@ struct DetailTabView: View {
     @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
     @State private var listScrollTarget: Date?
     @State private var listScrollRequestID = 0
+    /// 缓存派生的分组/图表/退款汇总：避免横滑趋势图改变 selectedChartDate 时每帧重算几百笔账单
+    @State private var cachedFilteredTransactions: [Transaction] = []
+    @State private var cachedTotals: (expense: Decimal, income: Decimal) = (0, 0)
+    @State private var cachedChartPoints: [ChartDataPoint] = []
+    @State private var cachedDayGroups: [DayGroup] = []
+    @State private var cachedAmountSorted: [Transaction] = []
+    @State private var cachedRefundTotals: [UUID: Decimal] = [:]
 
-    private var filteredTransactions: [Transaction] {
-        guard let category = state.selectedDetailCategory else {
-            return state.transactions
-        }
-        return state.transactions.filter {
-            state.transaction($0, matchesDetailCategory: category)
-        }
+    private struct DayGroup: Identifiable {
+        let date: Date
+        let transactions: [Transaction]
+        let expense: Decimal
+        let income: Decimal
+        var id: Date { date }
     }
 
-    private var filteredTotals: (expense: Decimal, income: Decimal) {
-        let stats = filteredTransactions.filter { !$0.isReconciliationAdjustment }
+    private struct DerivationKey: Equatable {
+        let txCount: Int
+        let firstID: UUID?
+        let lastID: UUID?
+        let categoryID: UUID?
+        let sortOrder: FinanceDetailSortOrder
+        let rangeStart: Date
+        let rangeEnd: Date
+    }
+
+    private var derivationKey: DerivationKey {
+        let range = state.currentDateRange
+        return DerivationKey(
+            txCount: state.transactions.count,
+            firstID: state.transactions.first?.id,
+            lastID: state.transactions.last?.id,
+            categoryID: state.selectedDetailCategory?.id,
+            sortOrder: sortOrder,
+            rangeStart: range.start,
+            rangeEnd: range.end
+        )
+    }
+
+    private func rebuildDerivedData() {
+        let filtered: [Transaction]
+        if let category = state.selectedDetailCategory {
+            filtered = state.transactions.filter {
+                state.transaction($0, matchesDetailCategory: category)
+            }
+        } else {
+            filtered = state.transactions
+        }
+
+        let stats = filtered.filter { !$0.isReconciliationAdjustment }
         let exp = stats.filter { $0.statisticsType == .expense }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let inc = stats.filter { $0.statisticsType == .income }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-        return (exp, inc)
-    }
 
-    private var sortedFilteredTransactions: [Transaction] {
-        filteredTransactions.sorted {
-            sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
-        }
-    }
-
-    private var dailyChartDataPoints: [ChartDataPoint] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: filteredTransactions) { tx in
+        let grouped = Dictionary(grouping: filtered) { tx in
             calendar.startOfDay(for: tx.date)
         }
         let range = state.currentDateRange
@@ -73,35 +102,60 @@ struct DetailTabView: View {
         let effectiveEnd = FinanceAnalysisState.effectiveChartEnd(
             start: range.start,
             end: range.end,
-            transactions: filteredTransactions,
+            transactions: filtered,
             calendar: calendar
         )
         let end = calendar.startOfDay(for: effectiveEnd)
         var points: [ChartDataPoint] = []
-
         while current < end {
             let dayTxns = grouped[current] ?? []
-            let expense = dayTxns
+            let dayExp = dayTxns
                 .filter { $0.statisticsType == .expense }
                 .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-            let income = dayTxns
+            let dayInc = dayTxns
                 .filter { $0.statisticsType == .income }
                 .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-
             points.append(ChartDataPoint(
                 date: current,
                 label: DetailTabFormatters.dayLabel.string(from: current),
-                expense: expense,
-                income: income,
+                expense: dayExp,
+                income: dayInc,
                 transactionCount: dayTxns.count
             ))
-
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }
 
-        return points
+        let dates = grouped.keys.sorted {
+            sortOrder == .timeAscending ? $0 < $1 : $0 > $1
+        }
+        let groups: [DayGroup] = dates.map { date in
+            let dayTx = sortedTransactions(grouped[date] ?? [])
+            let dayExp = dayTx.filter { $0.statisticsType == .expense }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+            let dayInc = dayTx.filter { $0.statisticsType == .income }.reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+            return DayGroup(date: date, transactions: dayTx, expense: dayExp, income: dayInc)
+        }
+
+        // 一次遍历按原交易 ID 汇总当期退款总额，消除百行 TransactionRowView 各自跑 .task N+1 查库
+        var refundMap: [UUID: Decimal] = [:]
+        for tx in state.transactions where tx.isRefund {
+            if let origID = tx.refundOfTransactionId {
+                refundMap[origID, default: 0] += tx.amountAsDecimal
+            }
+        }
+
+        cachedFilteredTransactions = filtered
+        cachedTotals = (exp, inc)
+        cachedChartPoints = points
+        cachedDayGroups = groups
+        cachedAmountSorted = sortOrder.groupsByDay ? [] : sortedTransactions(filtered)
+        cachedRefundTotals = refundMap
     }
+
+    private var filteredTransactions: [Transaction] { cachedFilteredTransactions }
+    private var filteredTotals: (expense: Decimal, income: Decimal) { cachedTotals }
+    private var sortedFilteredTransactions: [Transaction] { cachedAmountSorted }
+    private var dailyChartDataPoints: [ChartDataPoint] { cachedChartPoints }
 
     var body: some View {
         // 趋势图与列表头常驻固定在顶部，滚动的只有下方交易明细；
@@ -138,9 +192,15 @@ struct DetailTabView: View {
             }
         }
         .background(Color.holoToolBackground)
+        .onAppear { rebuildDerivedData() }
+        .onChange(of: derivationKey) { _, _ in rebuildDerivedData() }
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            DispatchQueue.main.async { rebuildDerivedData() }
+        }
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 state.refresh()
+                rebuildDerivedData()
             }
         }
     }
@@ -292,42 +352,39 @@ struct DetailTabView: View {
     // MARK: - 分组交易列表
 
     private var groupedTransactionsView: some View {
-        let grouped = Dictionary(grouping: filteredTransactions) { tx in
-            Calendar.current.startOfDay(for: tx.date)
-        }
-        let dates = grouped.keys.sorted {
-            sortOrder == .timeAscending ? $0 < $1 : $0 > $1
-        }
-
-        // 日组间距拉开到 md（2026-11-16 明细页降密度拍板）：扫读以「天」为节拍，
-        // 呼吸感来自层次而不是放大行高
-        return VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            ForEach(dates, id: \.self) { date in
-                let dayTransactions = sortedTransactions(grouped[date] ?? [])
-
+        // 真懒加载 LazyVStack：避免一次实例化整月/整年几百笔 TransactionRowView 导致进页与滚动卡顿
+        LazyVStack(alignment: .leading, spacing: HoloSpacing.md) {
+            ForEach(cachedDayGroups) { group in
                 VStack(alignment: .leading, spacing: 2) {
-                    dateHeader(date: date, transactions: dayTransactions)
-                    compactTransactionRows(dayTransactions, showsDate: false)
+                    dateHeader(date: group.date, expense: group.expense, income: group.income)
+                    compactTransactionRows(group.transactions, showsDate: false)
                 }
             }
         }
     }
 
     private var amountSortedTransactionsView: some View {
-        compactTransactionRows(
-            sortedFilteredTransactions,
-            showsDate: true
-        )
+        LazyVStack(spacing: 0) {
+            ForEach(sortedFilteredTransactions.renderable) { transaction in
+                TransactionRowView(
+                    transaction: transaction,
+                    isCompact: true,
+                    showsDate: true,
+                    preloadedRefundTotal: .some(cachedRefundTotals[transaction.id])
+                ) {
+                    editingTransaction = transaction
+                }
+
+                if transaction.id != sortedFilteredTransactions.last?.id {
+                    Divider()
+                        .background(Color.holoDivider.opacity(0.55))
+                        .padding(.leading, 56)
+                }
+            }
+        }
     }
 
-    private func dateHeader(date: Date, transactions: [Transaction]) -> some View {
-        let expense = transactions
-            .filter { $0.statisticsType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-        let income = transactions
-            .filter { $0.statisticsType == .income }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-
+    private func dateHeader(date: Date, expense: Decimal, income: Decimal) -> some View {
         return HStack(spacing: HoloSpacing.sm) {
             Text(DetailTabFormatters.dayWeekday.string(from: date))
                 .holoText(.supporting)
@@ -365,7 +422,8 @@ struct DetailTabView: View {
                 TransactionRowView(
                     transaction: transaction,
                     isCompact: true,
-                    showsDate: showsDate
+                    showsDate: showsDate,
+                    preloadedRefundTotal: .some(cachedRefundTotals[transaction.id])
                 ) {
                     editingTransaction = transaction
                 }

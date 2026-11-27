@@ -157,7 +157,6 @@ struct AIReadableResponseView: View {
                 .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
         }
     }
 
@@ -179,7 +178,6 @@ struct AIReadableResponseView: View {
                 .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
 
             if let onRetry {
                 Button(action: onRetry) {
@@ -246,7 +244,6 @@ struct AIReadableResponseView: View {
                 .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
 
         case .paragraph(let text):
             Text(inlineAttributedString(text))
@@ -254,7 +251,6 @@ struct AIReadableResponseView: View {
                 .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
 
         case .heading(let text):
             Text(inlineAttributedString(text))
@@ -262,7 +258,6 @@ struct AIReadableResponseView: View {
                 .foregroundColor(.holoToolText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
-                .textSelection(.enabled)
 
         case .unorderedList(let items):
             VStack(alignment: .leading, spacing: 10) {

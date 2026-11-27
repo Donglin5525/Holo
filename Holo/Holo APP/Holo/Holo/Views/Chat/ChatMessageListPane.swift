@@ -14,7 +14,9 @@ import SwiftUI
 
 struct ChatMessageListPane: View {
     @ObservedObject var viewModel: ChatViewModel
-    @ObservedObject var scrollController: ChatScrollController
+    /// 非 @ObservedObject 持有：滚动中途 viewport 翻转只由角落叶子视图 ChatScrollViewportOverlay 响应，
+    /// 彻底切断上下滑动期间对整张消息表（50~100 条气泡）的无谓全量重算。
+    let scrollController: ChatScrollController
     let internalLogAction: ((ChatMessageViewData) -> Void)?
 
     @Binding var didInitialScrollToBottom: Bool
@@ -76,17 +78,19 @@ struct ChatMessageListPane: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .overlay(alignment: .bottomTrailing) {
-            if scrollController.viewport.showsJumpToLatest {
-                jumpToLatestButton
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 12)
-                    .transition(.scale(scale: 0.82).combined(with: .opacity))
-            }
+            ChatScrollViewportOverlay(
+                scrollController: scrollController,
+                pendingLatestActivityCount: pendingLatestActivityCount,
+                onJumpToLatest: {
+                    pendingNewMessageCount = 0
+                    hasUnseenStreamingUpdate = false
+                    scrollController.scrollToBottom(animated: true)
+                },
+                onViewportChange: { viewport in
+                    handleViewportChange(viewport)
+                }
+            )
         }
-        .animation(
-            .spring(response: 0.28, dampingFraction: 0.82),
-            value: scrollController.viewport.showsJumpToLatest
-        )
         .onAppear {
             performInitialScrollIfNeeded()
         }
@@ -99,9 +103,6 @@ struct ChatMessageListPane: View {
         .onChange(of: viewModel.hasLoadedMessages) { _, _ in
             // 冷启动兜底：深链先到、消息后加载完成时补定位
             scrollToPendingTargetIfPossible(proxy: proxy)
-        }
-        .onChange(of: scrollController.viewport) { _, viewport in
-            handleViewportChange(viewport)
         }
         .onChange(of: viewModel.streamingText) { _, _ in
             if scrollController.viewport.showsJumpToLatest {
@@ -148,7 +149,7 @@ struct ChatMessageListPane: View {
             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
             goalDraftForReview: viewModel.goalDraftForReview,
             latestGoalPlanningAssistantMessageID: viewModel.latestGoalPlanningAssistantMessageID,
-            showsAIHeader: aiHeaderMessageIDs.contains(message.id),
+            showsAIHeader: message.showsAIHeader,
             onIntentTagTap: { msg in
                 actions.onIntentTagTap(msg)
             },
@@ -309,48 +310,6 @@ struct ChatMessageListPane: View {
         }
     }
 
-    // MARK: - AI 名头分组
-
-    /// 当前消息列表中需要显示「Holo + AI」名头行的消息集合（各组组首）。
-    /// 声明为计算属性而非 body 内局部 let：ChatMessageListPane 的 body 表达式已接近
-    /// 类型检查上限，再往 ViewBuilder 里加语句会触发 "unable to type-check in reasonable time"。
-    private var aiHeaderMessageIDs: Set<UUID> {
-        Self.computeAIHeaderMessageIDs(in: viewModel.messages)
-    }
-
-    /// 计算需要显示「Holo + AI」名头行的消息集合（各组组首）：
-    /// 连续 Holo 普通消息并入同组，仅组首显示名头行（iMessage/微信分组惯例）。
-    /// 打断并重起分组的条件：上一条不是可并组的 Holo 消息（用户消息/独立类型卡），
-    /// 或本条上方有时间分隔条、本条自身是独立类型卡。
-    private static func computeAIHeaderMessageIDs(in messages: [ChatMessageViewData]) -> Set<UUID> {
-        var ids = Set<UUID>()
-        var previousContinuesGroup = false
-        for message in messages {
-            let isAI = message.role != "user"
-            let standalone = isStandaloneCardMessage(message)
-            if isAI && (!previousContinuesGroup || message.showsTimestampSeparator || standalone) {
-                ids.insert(message.id)
-            }
-            previousContinuesGroup = isAI && !standalone
-        }
-        return ids
-    }
-
-    /// 独立类型卡消息：分析 / 回放 / 方案 / 额度等整卡形态自成视觉单元，
-    /// 前后都不并入名头分组（其自身与下一条消息都会重起名头）。
-    private static func isStandaloneCardMessage(_ message: ChatMessageViewData) -> Bool {
-        message.messageType == .periodReplay
-            || message.messageType == .quotaExhausted
-            || message.messageType == .lifePlan
-            || message.messageType == .contextPlan
-            || message.messageType == .todayRelief
-            || message.messageType == .goalPlanning
-            || message.savedGoalCard != nil
-            || message.isQueryAnalysis
-            || !message.analysisCards.isEmpty
-            || message.flexibleQueryCard != nil
-    }
-
     // MARK: - IM Scroll Behavior
 
     /// 深链定位（云端分析完成推送直达结果卡）：目标消息已在列表中才滚动，消费后清空请求；
@@ -405,47 +364,6 @@ struct ChatMessageListPane: View {
         .frame(height: 30)
         .animation(HoloAnimation.enter, value: viewModel.isLoadingEarlierSession)
         .animation(HoloAnimation.enter, value: viewModel.earlierHistoryLoadFailed)
-    }
-
-    private var jumpToLatestButton: some View {
-        Button {
-            pendingNewMessageCount = 0
-            hasUnseenStreamingUpdate = false
-            scrollController.scrollToBottom(animated: true)
-        } label: {
-            HStack(spacing: pendingLatestActivityCount > 0 ? 6 : 0) {
-                if pendingLatestActivityCount > 0 {
-                    Text(pendingLatestActivityCount > 99 ? "99+" : "\(pendingLatestActivityCount)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 20, minHeight: 20)
-                        .background(Color.holoPrimary, in: Capsule())
-                }
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.holoToolText)
-                    .frame(width: 36, height: 36)
-            }
-            // 视觉与热区同源：iOS26 下 plain 按钮热区收缩到文字，材质胶囊必须画在 label 内，
-            // contentShape 也必须在 label 末尾（挂在 Button 外不扩展命中区）
-            .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
-            .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.holoToolTextSecondary.opacity(0.18), lineWidth: 0.5)
-            }
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-        .accessibilityLabel(
-            pendingLatestActivityCount > 0
-                ? String(localized: "回到最新消息，\(pendingLatestActivityCount) 条新消息")
-                : String(localized: "回到最新消息")
-        )
     }
 
     private var pendingLatestActivityCount: Int {
@@ -568,5 +486,64 @@ struct ChatMessageListPane: View {
             return .memoryGallery
         }
         return .holoAI
+    }
+}
+
+/// 独立观察 scrollController 的叶子浮层：只负责「回到底部」按钮显隐与视口变化转发，
+/// 避免滚动途中 viewport 翻转触发外层 ChatMessageListPane 重绘全部消息。
+private struct ChatScrollViewportOverlay: View {
+    @ObservedObject var scrollController: ChatScrollController
+    let pendingLatestActivityCount: Int
+    let onJumpToLatest: () -> Void
+    let onViewportChange: (ChatScrollViewportState) -> Void
+
+    var body: some View {
+        Group {
+            if scrollController.viewport.showsJumpToLatest {
+                Button(action: onJumpToLatest) {
+                    HStack(spacing: pendingLatestActivityCount > 0 ? 6 : 0) {
+                        if pendingLatestActivityCount > 0 {
+                            Text(pendingLatestActivityCount > 99 ? "99+" : "\(pendingLatestActivityCount)")
+                                .font(.system(size: 11, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .frame(minWidth: 20, minHeight: 20)
+                                .background(Color.holoPrimary, in: Capsule())
+                        }
+
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.holoToolText)
+                            .frame(width: 36, height: 36)
+                    }
+                    .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
+                    .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.holoToolTextSecondary.opacity(0.18), lineWidth: 0.5)
+                    }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .accessibilityLabel(
+                    pendingLatestActivityCount > 0
+                        ? String(localized: "回到最新消息，\(pendingLatestActivityCount) 条新消息")
+                        : String(localized: "回到最新消息")
+                )
+                .padding(.trailing, 14)
+                .padding(.bottom, 12)
+                .transition(.scale(scale: 0.82).combined(with: .opacity))
+            }
+        }
+        .animation(
+            HoloAnimation.standard,
+            value: scrollController.viewport.showsJumpToLatest
+        )
+        .onChange(of: scrollController.viewport) { _, viewport in
+            onViewportChange(viewport)
+        }
     }
 }

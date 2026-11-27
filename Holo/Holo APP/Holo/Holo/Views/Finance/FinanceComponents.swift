@@ -191,6 +191,8 @@ struct TransactionRowView: View {
     var showsDate: Bool = false
     /// iPad 双栏选中态（右栏详情联动左栏高亮）
     var isSelected: Bool = false
+    /// 父列表已批量预取退款总额时直接传入（nil = 行内自行按需查询；.some(amount) = 已预取，跳过逐行 .task 查库）
+    var preloadedRefundTotal: Decimal?? = nil
     let onTap: () -> Void
 
     /// 原交易的累计退款（「已退 ¥X」徽章；nil=无退款）。退款笔自身徽章走 isRefund 本地判断
@@ -217,14 +219,16 @@ struct TransactionRowView: View {
     /// 独立成行不与标题挤同一行（徽章带金额太长会把科目名挤成省略号）
     private var refundBadgeText: String? {
         if transaction.isRefund { return String(localized: "退款") }
-        if let refundedTotal, refundedTotal > 0 {
-            return String(localized: "已退 ¥\(refundedTotal.formattedAsCurrency())")
+        let resolvedTotal = preloadedRefundTotal ?? refundedTotal
+        if let resolvedTotal, resolvedTotal > 0 {
+            return String(localized: "已退 ¥\(resolvedTotal.formattedAsCurrency())")
         }
         return nil
     }
 
-    /// 支出原交易的退款累计查询（列表行懒加载内跑，索引查询；退款增删靠通知刷新）
+    /// 支出原交易的退款累计查询（列表行懒加载内跑，索引查询；父列表已批量预取时直接跳过）
     private func refreshRefundBadge() async {
+        guard preloadedRefundTotal == nil else { return }
         // 刚删除的交易：行还在退场动画或他处屏幕上时收到删除完成广播，不得访问已死对象，
         // 也不得写 refundedTotal（@State 写入会重算 body，body 读已死属性同样闪退）
         guard !transaction.isInvalidated else { return }

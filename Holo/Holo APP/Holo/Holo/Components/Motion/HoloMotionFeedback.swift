@@ -14,6 +14,9 @@ extension Notification.Name {
 final class HoloMotionFeedbackCenter: ObservableObject {
     static let shared = HoloMotionFeedbackCenter()
     @Published private(set) var generations: [HoloMotionSubject: UUID] = [:]
+    /// 按目标 subject 精准投递的事件通道：让列表行无需 @ObservedObject 订阅整本 generations 字典，
+    /// 避免任意一条记录保存时打穿全 App 所有常驻列表的所有行。
+    let subjectPublisher = PassthroughSubject<HoloMotionSubject, Never>()
     private var responseOrder: [HoloMotionSubject] = []
     private var ledger = HoloMotionEventLedger()
     private static let habitDayKey = "holo.motion.habitResponseDay"
@@ -87,6 +90,7 @@ final class HoloMotionFeedbackCenter: ObservableObject {
         responseOrder.append(subject)
         generations[subject] = UUID()
         if responseOrder.count > 128 { generations[responseOrder.removeFirst()] = nil }
+        subjectPublisher.send(subject)
     }
 }
 
@@ -125,12 +129,12 @@ private struct HoloLightResponse: View {
 private struct HoloRecordArrival: ViewModifier {
     let subject: HoloMotionSubject
     let surfaceActive: Bool
-    @ObservedObject private var center = HoloMotionFeedbackCenter.shared
     @Environment(\.holoMotionSurfaceIsActive) private var parentActive
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(HoloMotionRollout.recordKey) private var recordEnabled = true
     @AppStorage(HoloMotionRollout.completionKey) private var completionEnabled = true
+    @State private var arrivalGeneration: UUID? = nil
     @State private var showing = false
     @State private var responseID: UUID?
 
@@ -145,17 +149,28 @@ private struct HoloRecordArrival: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content
+        let center = HoloMotionFeedbackCenter.shared
+        let effectiveGeneration = arrivalGeneration ?? center.generations[subject]
+        return content
             .overlay {
                 if showing {
                     HoloLightResponse(completion: subject.domain == .habit)
                         .id(responseID)
                 }
             }
-            .task(id: Delivery(subject: subject, generation: center.generations[subject], enabled: enabled,
+            .onReceive(center.subjectPublisher) { changed in
+                guard changed == subject else { return }
+                arrivalGeneration = center.generations[subject]
+            }
+            .task(id: Delivery(subject: subject, generation: effectiveGeneration, enabled: enabled,
                                visible: parentActive && surfaceActive, foreground: scenePhase == .active,
                                reduceMotion: reduceMotion)) {
-                showing = false
+                // 绝大多数日常滑动行无待播事件：直接短路，绝不写 @State 或启动 0.28s 睡眠任务
+                guard effectiveGeneration != nil else {
+                    if showing { showing = false }
+                    return
+                }
+                if showing { showing = false }
                 // 后台与关闭动态效果直接丢弃；只有短时编辑遮挡可以等待返回列表。
                 guard enabled, !reduceMotion, scenePhase == .active else {
                     center.discard(subject)

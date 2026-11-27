@@ -206,16 +206,23 @@ final class ThoughtSemanticChangeFeed {
         }
     }
 
+    /// 远端同步防抖任务：CloudKit 冷启动/批量同步会连续发出多条 NSPersistentStoreRemoteChange，
+    /// 合并为静默 2 秒后的单次后台对账，避免反复抢占主线程与 SQLite。
+    private var remoteChangeDebounceTask: Task<Void, Never>?
+
     @objc private func handleRemoteChange(_ note: Notification) {
-        // 远端批量导入：粗粒度全量核对（数量小可接受；量大时 Phase 3 换 history 事务级解析）
+        // 远端批量导入：防抖合并为单次低优先级后台核对
         guard let store else { return }
-        Task {
+        remoteChangeDebounceTask?.cancel()
+        remoteChangeDebounceTask = Task.detached(priority: .utility) { [weak self] in
+            try? await Task.sleep(for: .seconds(2.0))
+            guard !Task.isCancelled, let self else { return }
             let pending = (try? await store.pendingJobCount()) ?? 0
-            logger.debug("远端变更通知：当前待处理 \(pending)")
+            self.logger.debug("远端变更通知（防抖后）：当前待处理 \(pending)")
             // 多设备：另一台设备的排除开关/清理墓碑经 CloudKit 同步过来，本机向量库与
             // 排除状态需要按标签事实重判（ExclusionService 每次回读事实源，幂等）
             await ThoughtAIExclusionService.shared.reconcileAll()
-            await reconcileAllThoughts()
+            await self.reconcileAllThoughts()
         }
     }
 
@@ -235,33 +242,36 @@ final class ThoughtSemanticChangeFeed {
     /// 全量核对：无有效向量且未删的想法入队 embed；已有向量的入队 relate
     /// （P0-C 存量补跑：解决「开启 relation 后已有向量的想法永不归类」——
     /// 旧实现 relate 内联在 embed 尾部，已有向量提前 return 直接跳过）。
-    /// 分页快照入队（每页 500、创建时间倒序=最近内容优先），10 万级历史不整批进内存。
+    /// 分页快照入队（每页 500、创建时间倒序=最近内容优先），全部在后台上下文执行不阻塞主线程。
     func reconcileAllThoughts() async {
         guard ThoughtSemanticFeatureFlags.index != .off, let store, !isReconciling else { return }
         isReconciling = true
         defer { isReconciling = false }
-        let context = CoreDataStack.shared.viewContext
+        let bgContext = CoreDataStack.shared.persistentContainer.newBackgroundContext()
+        // 目录版本号在整轮对账里只算一次，且在私有后台队列上计算——
+        // 旧实现每条想法都在 viewContext（主线程）重扫一次 Topic 表，冷启动真机实测吃掉 60ms+ 主线程。
+        let cachedEvaluationVersion: String? = ThoughtSemanticFeatureFlags.relation != .off
+            ? await ThoughtTopicVerifier.evaluationVersion(context: bgContext)
+            : nil
         var offset = 0
         var enqueued = 0
         let pageSize = 500
         while true {
-            let page: [(id: UUID, hash: String)] = await MainActor.run {
-                context.performAndWait {
-                    let request = Thought.fetchRequest()
-                    // 「不参与 AI」标签的想法不入队（embed/relate 都不碰）
-                    request.predicate = ThoughtAIAudience.aiVisible(
-                        NSPredicate(format: "deletedAt == nil AND isArchived == NO"))
-                    request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-                    request.fetchLimit = pageSize
-                    request.fetchOffset = offset
-                    // 块内解出值类型快照：托管对象不能跨线程进 Task（行缓存被合并/清理后
-                    // 取值得到 nil，非可选 UUID 强桥接直接崩，2026-09-13 真机 SIGTRAP 实证）
-                    let thoughts = (try? context.fetch(request)) ?? []
-                    return thoughts.compactMap { thought in
-                        guard let id = thought.value(forKey: "id") as? UUID,
-                              let content = thought.value(forKey: "content") as? String else { return nil }
-                        return (id, ThoughtSemanticText.contentHash( content))
-                    }
+            let page: [(id: UUID, hash: String)] = await bgContext.perform {
+                let request = Thought.fetchRequest()
+                // 「不参与 AI」标签的想法不入队（embed/relate 都不碰）
+                request.predicate = ThoughtAIAudience.aiVisible(
+                    NSPredicate(format: "deletedAt == nil AND isArchived == NO"))
+                request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+                request.fetchLimit = pageSize
+                request.fetchOffset = offset
+                // 块内解出值类型快照：托管对象不能跨线程进 Task（行缓存被合并/清理后
+                // 取值得到 nil，非可选 UUID 强桥接直接崩，2026-09-13 真机 SIGTRAP 实证）
+                let thoughts = (try? bgContext.fetch(request)) ?? []
+                return thoughts.compactMap { thought in
+                    guard let id = thought.value(forKey: "id") as? UUID,
+                          let content = thought.value(forKey: "content") as? String else { return nil }
+                    return (id, ThoughtSemanticText.contentHash(content))
                 }
             }
             guard !page.isEmpty else { break }
@@ -271,7 +281,9 @@ final class ThoughtSemanticChangeFeed {
                     modelVersion: ThoughtSemanticStore.defaultModelVersion)) ?? false
                 if hasVector {
                     // 已有向量：只补 relate（embed 无需重做）
-                    if await enqueueRelateIfNeeded(thoughtID: snapshot.id, contentHash: snapshot.hash) {
+                    if await enqueueRelateIfNeeded(thoughtID: snapshot.id,
+                                                   contentHash: snapshot.hash,
+                                                   evaluationVersion: cachedEvaluationVersion) {
                         enqueued += 1
                     }
                 } else if await enqueueEmbedIfNeeded(thoughtID: snapshot.id, contentHash: snapshot.hash) {
@@ -318,7 +330,10 @@ final class ThoughtSemanticChangeFeed {
     /// relate 任务去重入队（P0-C）：同 (thought, hash) 无 pending 任务且从未跑过
     /// （relation_candidate 无记录）才入队。跑过的重评（主题目录变更/校准升级）
     /// 属 P2 受控重评，P0 不自动触发——避免 AI 写 link 与重评互相点火成环。
-    func enqueueRelateIfNeeded(thoughtID: UUID, contentHash: String, priority: Int = 0) async -> Bool {
+    func enqueueRelateIfNeeded(thoughtID: UUID,
+                               contentHash: String,
+                               priority: Int = 0,
+                               evaluationVersion precomputedEvaluationVersion: String? = nil) async -> Bool {
         guard ThoughtSemanticFeatureFlags.relation != .off, let store else { return false }
         // 编辑中的中间版本不入队（口径同 embed，见 enqueueEmbedIfNeeded）
         guard !ThoughtEditingSessionRegistry.shared.isEditing(thoughtID) else { return false }
@@ -326,7 +341,13 @@ final class ThoughtSemanticChangeFeed {
             if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "relate") {
                 return false
             }
-            let evaluationVersion = await ThoughtTopicVerifier.evaluationVersion(context: CoreDataStack.shared.viewContext)
+            let evaluationVersion: String
+            if let precomputedEvaluationVersion {
+                evaluationVersion = precomputedEvaluationVersion
+            } else {
+                let bgContext = CoreDataStack.shared.persistentContainer.newBackgroundContext()
+                evaluationVersion = await ThoughtTopicVerifier.evaluationVersion(context: bgContext)
+            }
             if try await store.hasRelationRecord(thoughtID: thoughtID, contentHash: contentHash, evaluationVersion: evaluationVersion) {
                 return false
             }
@@ -347,15 +368,14 @@ final class ThoughtSemanticChangeFeed {
     /// 编辑中途被杀（没有走到这里）由启动对账 reconcileAllThoughts 兜底。
     func handleEditingEnded(thoughtID: UUID) async {
         guard ThoughtSemanticFeatureFlags.index != .off, let store else { return }
-        let context = CoreDataStack.shared.viewContext
-        var finalHash: String?
-        context.performAndWait {
+        let bgContext = CoreDataStack.shared.persistentContainer.newBackgroundContext()
+        let finalHash: String? = await bgContext.perform {
             let request = Thought.fetchRequest()
             request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: thoughtID)
-            guard let thought = (try? context.fetch(request))?.first,
+            guard let thought = (try? bgContext.fetch(request))?.first,
                   let content = thought.value(forKey: "content") as? String, !content.isEmpty
-            else { return }
-            finalHash = ThoughtSemanticText.contentHash(content)
+            else { return nil }
+            return ThoughtSemanticText.contentHash(content)
         }
         guard let finalHash else { return }
         _ = await enqueueEmbedIfNeeded(thoughtID: thoughtID, contentHash: finalHash, priority: 100)

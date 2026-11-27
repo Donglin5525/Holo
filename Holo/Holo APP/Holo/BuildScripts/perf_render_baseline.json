@@ -1,0 +1,167 @@
+{
+  "Holo/Views/AI/HoloEpisodicMemoryDetailView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/AddTransaction/TransactionInfoInputArea.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/AddTransaction/TransactionReceiptViews.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/AddTransactionSheet.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/AddTransactionView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Anniversary/AddAnniversarySheet.swift": {
+    "raw_date_formatter": 3
+  },
+  "Holo/Views/Anniversary/AnniversaryDetailView.swift": {
+    "raw_date_formatter": 4
+  },
+  "Holo/Views/Chat/Analysis/AnalysisSummaryFormatter.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/Chat/Cards/ContextPlanChatCard.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Chat/Cards/LifePlanChatCard.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Chat/PeriodReplayPickerSheet.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/DailyKanban/KanbanHealthSection.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/DailyKanban/KanbanWeeklyBriefCard.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/DailyKanban/TodayReadOnlySection.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/DailyKanban/TodayReliefSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/Analysis/Components/CategoryDetailSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/Analysis/Components/ScopeInsightSections.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/Finance/Analysis/CustomDateSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/Analysis/ProjectTabView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/BudgetCategoryDetailSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/BudgetSettingsSheet.swift": {
+    "viewcontext_fetch": 1
+  },
+  "Holo/Views/Finance/FinanceEvidenceReviewView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/FinanceTransactionDetailPane.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/ReceiptBooking/ReceiptReviewDetailView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Finance/ReceiptBooking/ReceiptReviewItemEditorBlock.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Goals/GoalAnalysisSection.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Goals/GoalEditForm.swift": {
+    "raw_date_formatter": 3
+  },
+  "Holo/Views/Goals/GoalListCard.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Habits/AddHabitSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Habits/Components/HabitTodayDetailMetrics.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Habits/Components/HabitTodayVizCard.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Habits/HabitRetroactiveSheet.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/Habits/HabitTodayRecordSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Health/HealthDetailView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Matter/MatterDetailView.swift": {
+    "raw_date_formatter": 3
+  },
+  "Holo/Views/Matter/MatterListView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/MemoryCenter/HoloMemoryCenterDetailView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/MemoryCenter/HoloMemorySharedUI.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/MemoryGallery/GalleryVisualSupport.swift": {
+    "viewcontext_fetch": 1
+  },
+  "Holo/Views/Personal/Growth/HoloGrowthDetailViews.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Personal/WeeklyReviewView.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/Settings/NotificationSettingsView.swift": {
+    "viewcontext_fetch": 1
+  },
+  "Holo/Views/Settings/RecycleBinView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/RepeatPicker.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/TaskCreationSheet.swift": {
+    "raw_date_formatter": 2
+  },
+  "Holo/Views/Tasks/TaskDatePickerSheet.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/TaskDetailPropertiesSection.swift": {
+    "raw_date_formatter": 4
+  },
+  "Holo/Views/Tasks/TaskExperienceStatsView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/TaskListView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/TaskPostponeSheet.swift": {
+    "raw_date_formatter": 3
+  },
+  "Holo/Views/Tasks/TaskReminderEditor.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Tasks/TaskStatsViewModel.swift": {
+    "raw_date_formatter": 4
+  },
+  "Holo/Views/Thoughts/MarkdownTextView.swift": {
+    "uiimage_system_name": 1
+  },
+  "Holo/Views/Thoughts/ThoughtKnowledgeTreeView.swift": {
+    "raw_date_formatter": 1
+  },
+  "Holo/Views/Thoughts/ThoughtTaskSettingsCard.swift": {
+    "raw_date_formatter": 1
+  }
+}

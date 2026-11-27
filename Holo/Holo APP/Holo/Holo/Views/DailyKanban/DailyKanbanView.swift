@@ -302,11 +302,15 @@ struct DailyKanbanView: View {
         } else { legacyHeaderView }
     }
 
-    private var todayString: String {
+    private static let todayHeaderFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.setLocalizedDateFormatFromTemplate("MMMdE")
-        return f.string(from: Date())
+        return f
+    }()
+
+    private var todayString: String {
+        Self.todayHeaderFormatter.string(from: Date())
     }
 
     // MARK: - 旧版看板（flag 关闭时完整保留）

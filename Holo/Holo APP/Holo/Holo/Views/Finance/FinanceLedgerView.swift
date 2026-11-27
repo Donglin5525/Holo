@@ -440,11 +440,16 @@ struct FinanceLedgerView: View {
         .background(Color.holoToolBackground)
     }
     
+    private static let headerMonthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMd")
+        return f
+    }()
+
     /// 标题：今天显示"今日账本"，其他日期仅显示"M月d日"
     private var headerTitle: String {
         if calendarState.selectedDate.isToday { return String(localized: "今日账本") }
-        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMd")
-        return f.string(from: calendarState.selectedDate)
+        return Self.headerMonthDayFormatter.string(from: calendarState.selectedDate)
     }
 
     /// 待复核角标刷新：读草稿目录计数（轻量小文件，与设置页同款口径）

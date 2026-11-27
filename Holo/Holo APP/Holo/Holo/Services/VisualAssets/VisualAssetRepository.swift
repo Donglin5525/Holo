@@ -58,6 +58,58 @@ final class VisualAssetRepository {
     /// （02 §4.6 末段）。读取（resolve）不走此队列，由调用方 context 保证一致性。
     private let commitQueue = DispatchQueue(label: "holo.visual.commit")
 
+    /// 位置解析内存快照表（按 PersistentStoreCoordinator 隔离，避免单测多内存库互串）：
+    /// 消除想法卡片/记忆长廊滚动时每行在 body 内同步查 SQLite 的主线程尖峰。
+    /// 仅在 context 无未保存变更时读写；提交/远端变更/相关实体落库时整体失效。
+    private let placementCacheLock = NSLock()
+    private var placementCache: [ObjectIdentifier: [String: ResolvedPlacement]] = [:]
+    private var cacheObservers: [NSObjectProtocol] = []
+    /// 测试可观测：底层 SQLite resolvePlacement 实际执行次数
+    private(set) var resolveSQLiteFetchCountForTesting = 0
+
+    init() {
+        let nc = NotificationCenter.default
+        let remoteObs = nc.addObserver(forName: .NSPersistentStoreRemoteChange, object: nil, queue: nil) { [weak self] _ in
+            self?.invalidatePlacementCache()
+        }
+        let visualObs = nc.addObserver(forName: .visualAssetsDidChange, object: nil, queue: nil) { [weak self] _ in
+            self?.invalidatePlacementCache()
+        }
+        let saveObs = nc.addObserver(forName: .NSManagedObjectContextDidSave, object: nil, queue: nil) { [weak self] note in
+            guard let userInfo = note.userInfo else { return }
+            let keys = [NSInsertedObjectsKey, NSUpdatedObjectsKey, NSDeletedObjectsKey]
+            for key in keys {
+                if let objs = userInfo[key] as? Set<NSManagedObject>,
+                   objs.contains(where: {
+                       let name = $0.entity.name
+                       return name == "VisualPlacementRevision" || name == "VisualAsset" || name == "VisualAssetTombstone"
+                   }) {
+                    self?.invalidatePlacementCache()
+                    return
+                }
+            }
+        }
+        cacheObservers = [remoteObs, visualObs, saveObs]
+    }
+
+    deinit {
+        for obs in cacheObservers {
+            NotificationCenter.default.removeObserver(obs)
+        }
+    }
+
+    func invalidatePlacementCache() {
+        placementCacheLock.lock()
+        placementCache.removeAll(keepingCapacity: true)
+        placementCacheLock.unlock()
+    }
+
+    func resetTestingFetchCounter() {
+        placementCacheLock.lock()
+        resolveSQLiteFetchCountForTesting = 0
+        placementCacheLock.unlock()
+    }
+
     /// 安装级稳定 writerID（重装生成新值；不是人名/设备名）
     static let writerID: String = {
         let key = "holo.visual.writerID"
@@ -84,6 +136,30 @@ final class VisualAssetRepository {
         }
         let ownerKey = VisualPlacementCoding.normalizedOwnerKey(rawOwnerKey)
         let placementKey = VisualPlacementCoding.placementKey(ownerKind: ownerKind, ownerKey: ownerKey, slot: slot)
+
+        let coordinatorID = context.persistentStoreCoordinator.map(ObjectIdentifier.init)
+        let canUseCache = !context.hasChanges && coordinatorID != nil
+        if canUseCache, let coordID = coordinatorID {
+            placementCacheLock.lock()
+            let cached = placementCache[coordID]?[placementKey]
+            placementCacheLock.unlock()
+            if let cached { return cached }
+        }
+
+        let resolved = resolvePlacementFromStore(placementKey: placementKey, in: context)
+        if canUseCache, let coordID = coordinatorID {
+            placementCacheLock.lock()
+            placementCache[coordID, default: [:]][placementKey] = resolved
+            placementCacheLock.unlock()
+        }
+        return resolved
+    }
+
+    private func resolvePlacementFromStore(placementKey: String,
+                                           in context: NSManagedObjectContext) -> ResolvedPlacement {
+        placementCacheLock.lock()
+        resolveSQLiteFetchCountForTesting += 1
+        placementCacheLock.unlock()
 
         let request = NSFetchRequest<VisualPlacementRevision>(entityName: "VisualPlacementRevision")
         request.predicate = NSPredicate(format: "placementKey == %@", placementKey)

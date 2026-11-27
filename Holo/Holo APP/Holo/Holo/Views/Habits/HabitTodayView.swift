@@ -32,10 +32,6 @@ struct HabitTodayView: View {
     @Environment(\.holoMotionSurfaceIsActive) private var parentSurfaceActive
     @AppStorage(HoloMotionRollout.completionKey) private var completionMotionEnabled = true
 
-    /// 行内主操作按钮中心（habitToday 坐标系；不可见行不渲染即无起点 → 不飞）
-    @State private var rowLampOrigins: [UUID: CGPoint] = [:]
-    /// 页头小灯中心（同坐标系）
-    @State private var headerLampCenters: [UUID: CGPoint] = [:]
     /// 等待弹层收起中（收起后按转场时长延迟再播）
     @State private var wasWaitingForSurface = false
     /// 上一帧「已记录习惯」集合（撤销打卡时清理导演状态）
@@ -122,21 +118,14 @@ struct HabitTodayView: View {
                 // 光归处：内容坐标系 + 起终点收集 + 飞行层（与内容同系，滚动不错位）
                 .coordinateSpace(name: HabitTodayLightSpace.content)
                 .overlay(alignment: .topLeading) {
-                    HabitLightFlightLayer(flights: lightDirector.flights) {
+                    HabitLightFlightOverlay(store: lightDirector.flightStore) {
                         lightDirector.land($0)
                     }
                 }
-                .background {
-                    // 内容顶边在视口里的位置：随滚动每帧变，只写进导演的 stage（不发布，不触发整页重绘）
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: HabitContentTopKey.self,
-                            value: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
-                        )
-                    }
-                }
-                .onPreferenceChange(HabitLampOriginKey.self) { rowLampOrigins = $0 }
-                .onPreferenceChange(HabitLampDestinationKey.self) { headerLampCenters = $0 }
+                .modifier(HabitLegacyContentTopReporter())
+                // 所有几何上报统一写入非发布的 lightDirector.stage，彻底避免滚动或布局微调触发整页重算
+                .onPreferenceChange(HabitLampOriginKey.self) { lightDirector.stage.rowLampOrigins = $0 }
+                .onPreferenceChange(HabitLampDestinationKey.self) { lightDirector.stage.headerLampCenters = $0 }
                 .onPreferenceChange(HabitTallyVisibleKey.self) { lightDirector.stage.tallyIsFullyVisible = $0 }
                 // 还没量到（首帧之前）按没滚动算；那时小灯必然完整可见，走不到「往上飞走」这支
                 .onPreferenceChange(HabitContentTopKey.self) { lightDirector.stage.contentTopInViewport = $0 ?? 0 }
@@ -144,6 +133,7 @@ struct HabitTodayView: View {
                 .padding(.top, HoloSpacing.xs)
                 .padding(.bottom, 40)
             }
+            .modifier(HabitScrollOffsetTracker(director: lightDirector))
             .coordinateSpace(name: HabitTodayLightSpace.viewport)
             .onAppear {
                 consumeFocus(proxy)
@@ -244,8 +234,8 @@ struct HabitTodayView: View {
 
     /// 起飞决策（规则在 HabitLightDirector.flightPlan）：这一层只负责把量到的位置交过去
     private func flightPlan(for row: HabitRowSnapshot) -> HabitLightFlightPlan? {
-        HabitLightDirector.flightPlan(start: rowLampOrigins[row.id],
-                                      destination: headerLampCenters[row.id],
+        HabitLightDirector.flightPlan(start: lightDirector.stage.rowLampOrigins[row.id],
+                                      destination: lightDirector.stage.headerLampCenters[row.id],
                                       tallyCount: model.todayLights.count,
                                       stage: lightDirector.stage)
     }
@@ -380,17 +370,9 @@ struct HabitTodayView: View {
                     }
                 }
                 .accessibilityHidden(true)
-                // 小灯排是否完整露在视口里（顶边进了视口才算；只剩一条边按滚出去了算）
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: HabitTallyVisibleKey.self,
-                            value: HabitLightGeometry.tallyIsFullyVisible(
-                                topInViewport: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
-                            )
-                        )
-                    }
-                )
+                // 小灯排是否完整露在视口里（iOS 18+ 仅测量 content 静态 Y + onScrollGeometryChange 推导，
+                // 消除滚动每帧 GeometryReader + PreferenceKey 树归约）
+                .modifier(HabitTallyGeometryReporter(director: lightDirector))
             }
         }
         .animation(HoloAnimation.lightLandPulse, value: lit)

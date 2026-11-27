@@ -11,11 +11,6 @@ import CoreData
 import ImageIO
 
 struct MessageBubbleView: View {
-    #if DEBUG || INTERNAL_DIAGNOSTICS
-    @ObservedObject private var internalAccess = HoloInternalAccessService.shared
-    @ObservedObject private var internalLogs = HoloInternalLogService.shared
-    #endif
-
     let message: ChatMessageViewData
     let streamingText: String?
     let goalDraftForReview: GoalDraft?
@@ -180,6 +175,20 @@ struct MessageBubbleView: View {
             }
         }
         .contextMenu {
+            // 复制全文（替代逐段 .textSelection(.enabled)，消除百余个文本手势与滑动争抢）
+            if !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button {
+                    #if canImport(UIKit)
+                    UIPasteboard.general.string = displayText
+                    #else
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(displayText, forType: .string)
+                    #endif
+                    HapticManager.light()
+                } label: {
+                    Label("复制", systemImage: "doc.on.doc")
+                }
+            }
             // 删除记录（仅有关联实体且未删除的卡片消息；多卡消息逐张列出）
             if !isUser {
                 ForEach(deletableCards, id: \.entityId) { info in
@@ -201,8 +210,8 @@ struct MessageBubbleView: View {
             #if DEBUG || INTERNAL_DIAGNOSTICS
             // 完整日志仅在内部构建中开放，并继续校验后端身份，不属于 Plus 权益。
             if !isUser,
-               internalAccess.canViewAILogs,
-               internalLogs.hasLog(for: message.id) {
+               HoloInternalAccessService.shared.canViewAILogs,
+               HoloInternalLogService.shared.hasLog(for: message.id) {
                 Button {
                     onViewLog?(message)
                 } label: {

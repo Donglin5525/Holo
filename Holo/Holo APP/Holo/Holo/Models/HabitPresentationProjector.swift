@@ -128,6 +128,46 @@ struct HabitProjectionData {
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [] }
         return facts.filter { $0.date >= start && $0.date < end }
     }
+
+    /// 增量更新单个习惯的记录投影（打卡/加减数值时只重算本习惯，避免全库扫描数千条历史记录）。
+    func updatingHabit(_ habitId: UUID, records: [HabitRecordFact], now: Date) -> HabitProjectionData {
+        let dayEndMinutes = dayEndMinutesByHabit[habitId] ?? 0
+        var habitFacts: [HabitRecordFact] = []
+        habitFacts.reserveCapacity(records.count)
+        for raw in records where raw.date <= now {
+            habitFacts.append(raw.attributed(dayEndMinutes: dayEndMinutes, calendar: calendar))
+        }
+        habitFacts.sort { $0.date < $1.date }
+
+        var days: Set<Date> = []
+        for fact in habitFacts where fact.isCompleted {
+            days.insert(calendar.startOfDay(for: fact.date))
+        }
+
+        let numericFacts = habitFacts.filter { $0.value != nil }
+        let numericDaily = HabitNumericAggregator.aggregateDaily(
+            samples: numericFacts.map { HabitNumericSample(date: $0.date, value: $0.value) },
+            isCountType: true,
+            calendar: calendar
+        )
+
+        var nextRecords = recordsByHabit
+        nextRecords[habitId] = habitFacts
+        var nextCompleted = completedDaysByHabit
+        nextCompleted[habitId] = days
+        var nextNumeric = dailyNumericByHabit
+        nextNumeric[habitId] = numericDaily
+
+        return HabitProjectionData(
+            recordsByHabit: nextRecords,
+            completedDaysByHabit: nextCompleted,
+            dailyNumericByHabit: nextNumeric,
+            pauseWindowsByHabit: pauseWindowsByHabit,
+            dayEndMinutesByHabit: dayEndMinutesByHabit,
+            now: now,
+            calendar: calendar
+        )
+    }
 }
 
 // MARK: - 投影器

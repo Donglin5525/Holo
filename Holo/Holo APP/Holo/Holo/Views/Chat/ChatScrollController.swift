@@ -172,6 +172,7 @@ final class ChatScrollController: ObservableObject {
         settlingPolicy = ChatOffsetSettlingPolicy()
         guard settleDisplayLink == nil else { return }
         let link = CADisplayLink(target: self, selector: #selector(handleSettleTick))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
         link.add(to: .main, forMode: .common)
         settleDisplayLink = link
     }

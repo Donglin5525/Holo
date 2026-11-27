@@ -634,6 +634,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 previous: previous
             )
         }
+        ChatMessageViewData.applyAIHeaderFlags(to: &result)
         return result
     }
 

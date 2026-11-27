@@ -126,6 +126,13 @@ final class HabitModuleViewModel: ObservableObject {
 
     private var hasLoadedOnce = false
     private var needsReviewRebuild = true
+    /// 本视图模型自身发起记录写入期间置 true：同步发出的 .habitDataDidChange 在进入
+    /// 150ms 防抖前被过滤掉，防止打卡后第 150ms（灯芯点亮峰值）触发第二次全库 refresh()。
+    private var isPerformingLocalRecordMutation = false
+    /// 测试可观测：记录全量 refresh() 调用次数
+    private(set) var fullRefreshCount = 0
+    /// 测试可观测：记录单习惯增量刷新调用次数
+    private(set) var incrementalRefreshCount = 0
 
     init(repository: HabitRepository = .shared,
          coordinator: HabitActionCoordinator = .shared) {
@@ -155,8 +162,13 @@ final class HabitModuleViewModel: ObservableObject {
     }
 
     private func bindDataChangeNotifications() {
-        // 模块根容器观察：页面尚未创建时也不丢刷新；通知重复到达由 refresh 幂等吸收
+        // 模块根容器观察：页面尚未创建时也不丢刷新；本 ViewModel 自身打卡触发的通知在
+        // 进入 debounce 前直接过滤，彻底消灭动画播到第 150ms 时的第二次全库重算。
         NotificationCenter.default.publisher(for: .habitDataDidChange)
+            .filter { [weak self] _ in
+                guard let self else { return true }
+                return !self.isPerformingLocalRecordMutation
+            }
             .debounce(for: .milliseconds(150), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refresh()
@@ -182,6 +194,7 @@ final class HabitModuleViewModel: ObservableObject {
         // 未就绪时静默返回（等 warmUp 异步完成后会再刷）；
         // 这里绝不能同步 setup()——会在主线程阻塞等库，页面整体卡黑
         guard repository.isReady else { return }
+        fullRefreshCount += 1
         projectionNow = Date()
         let calendar = Calendar.current
 
@@ -305,6 +318,55 @@ final class HabitModuleViewModel: ObservableObject {
         }
     }
 
+    /// 单习惯增量刷新：打卡/计数/撤销单条记录时只重算目标习惯快照，
+    /// 避免全库拉取全部历史 HabitRecord 与文件夹/归档表阻塞点亮动效首帧。
+    func refreshSingleHabit(_ habitId: UUID) {
+        guard repository.isReady,
+              let currentData = lastProjectionData,
+              let habit = repository.findHabit(by: habitId),
+              let rowIndex = todayRows.firstIndex(where: { $0.id == habitId }) else {
+            refresh()
+            return
+        }
+        let now = Date()
+        // 跨日后全量重算，避免其他习惯的「今日」状态停在昨天
+        guard currentData.calendar.isDate(now, inSameDayAs: currentData.now) else {
+            refresh()
+            return
+        }
+        let habitFacts: [HabitRecordFact]
+        do {
+            habitFacts = try repository.tryRecordFacts(for: habitId)
+            reviewLoadFailed = false
+        } catch {
+            reviewLoadFailed = true
+            return
+        }
+
+        incrementalRefreshCount += 1
+        projectionNow = now
+        let updatedData = currentData.updatingHabit(habitId, records: habitFacts, now: now)
+        let updatedRow = HabitPresentationProjector.rowSnapshot(habit: habit, lifecycle: .active, data: updatedData)
+
+        lastProjectionData = updatedData
+        todayRows[rowIndex] = updatedRow
+        recordedTodayCount = todayRows.filter { $0.today.isRecorded }.count
+        if let lightIndex = todayLights.firstIndex(where: { $0.id == habitId }) {
+            let oldLight = todayLights[lightIndex]
+            let newLight = HabitTodayLight(id: oldLight.id, colorHex: updatedRow.colorHex, isLit: updatedRow.today.isRecorded)
+            if oldLight != newLight {
+                todayLights[lightIndex] = newLight
+            }
+        }
+        if let filteredIndex = filteredTodayRows.firstIndex(where: { $0.id == habitId }) {
+            filteredTodayRows[filteredIndex] = updatedRow
+        }
+        needsReviewRebuild = true
+        if selectedTab == .review {
+            rebuildReviewOverviewNow()
+        }
+    }
+
     // MARK: 记录动作
 
     /// 今天页/详情页的记录动作入口。结果驱动快照刷新与反馈时序。
@@ -313,15 +375,18 @@ final class HabitModuleViewModel: ObservableObject {
     func record(kind: HabitActionKind, habitId: UUID, note: String? = nil,
                 deferCompletionHapticToLamp: Bool = false) async -> Bool {
         inlineError = nil
-        guard let result = await coordinator.perform(kind, habitId: habitId, note: note,
-                                                     deferCompletionHapticToLamp: deferCompletionHapticToLamp) else {
+        isPerformingLocalRecordMutation = true
+        let result = await coordinator.perform(kind, habitId: habitId, note: note,
+                                               deferCompletionHapticToLamp: deferCompletionHapticToLamp)
+        isPerformingLocalRecordMutation = false
+        guard let result else {
             return false // 同习惯保存中：忽略重复提交
         }
 
         switch result {
         case .confirmed(let receipt):
-            // 先刷新真实快照，再呈现反馈（方案 §12.3）
-            refresh()
+            // 单习惯增量刷新：直接更新当前习惯行与页头灯，不再全库重扫阻塞点亮动效
+            refreshSingleHabit(habitId)
             if let removed = receipt.removedNumericValue {
                 let value = HabitPresentationProjector.formatValue(removed)
                 let unit = todayRows.first(where: { $0.id == habitId })?.unit ?? ""

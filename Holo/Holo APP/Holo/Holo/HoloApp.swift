@@ -303,23 +303,6 @@ struct HoloApp: App {
                 // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
                 await HoloPeriodReplayCoordinator.shared.appDidLaunch()
 
-                // 目标风险通知：按当前数据全量重排（文案在排程时固定，iOS 更新后可能清通知）
-                GoalNotificationService.shared.rescheduleAll()
-
-                // 每日早报：滚动重排未来 7 天（含旧「每日提醒」一次性迁移）
-                await DailyBriefScheduler.shared.handleAppActivity()
-                // 习惯打卡提醒 + 周一晨报：滚动重排
-                await HabitReminderScheduler.shared.handleAppActivity()
-                await WeeklyBriefScheduler.shared.handleAppActivity()
-                // 每周回顾：周四晚本地通知（有本周足迹才排）
-                await WeeklyReviewScheduler.shared.handleAppActivity()
-                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
-                await BillDueReminderScheduler.shared.handleAppActivity()
-                await BudgetOverrunNotificationService.shared.handleAppActivity()
-                await BudgetCarryoverNotificationService.shared.handleAppActivity()
-                // 信用卡还款提醒（免费 3 张 / Plus 不限）
-                await CreditCardDueReminderScheduler.shared.handleAppActivity()
-
                 #if DEBUG
                 let appStoreScreenshotModeActive =
                     await HoloAppStoreScreenshotSeeder.runIfRequested()
@@ -333,32 +316,6 @@ struct HoloApp: App {
                 let appStoreScreenshotModeActive = false
                 let simulatorMemoryValidationActive = false
                 #endif
-
-                // 宣传图截图模式由 Seeder 全权提供可复现记忆数据；跳过迁移与候选重评估，
-                // 避免旧版本地记忆在启动时覆盖「待确认」演示状态。
-                if !simulatorMemoryValidationActive && !appStoreScreenshotModeActive {
-                    await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
-                    await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
-                    // 通用知识（v2.2）：存量分流迁移（幂等收据/断点续跑）必须先于新写入开放；
-                    // 来源失效扇出挂业务保存/远端变更/授权变更信号。
-                    await HoloMemoryRuntime.shared.migrateKnowledgeIfNeeded()
-                    HoloMemoryRuntime.shared.startKnowledgeInvalidationFanout()
-                }
-                await HoloMemorySettings.shared.reconcileWithRepository()
-                if !simulatorMemoryValidationActive {
-                    await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
-                    // 通用个人情境萃取：启动补建历史想法（内部闸，冷启动不防抖）。
-                    if !appStoreScreenshotModeActive {
-                        Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
-                        // 2026-11-20 记忆洞察重构（Phase 1-4）：停用旧版财务算术模板直写记忆；
-                        // 冷启动预热记忆中心快照缓存（实现秒开），并按智能节流运行全局画像与跨模块洞察合成。
-                        Task.detached(priority: .utility) {
-                            await HoloMemoryCenterViewModel.prewarmIfNeeded()
-                            await UnderstandingShadowScheduler.runIfDue()
-                            _ = await HoloPortraitSynthesisRuntime.runIfDue()
-                        }
-                    }
-                }
 
                 // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
                 FinanceRepository.shared.setup()
@@ -374,66 +331,124 @@ struct HoloApp: App {
                 // 统计页「项目×分类」走查种子（-FinanceProjectSeed 触发，幂等）
                 await FinanceDemoSeed.seedProjectIfNeeded()
                 #endif
-                // 图片快捷指令自动记账（2026-09-14 方案 §27.2）：启动清理过期复核草案/证据（7 天），
-                // 不常驻轮询
-                ReceiptBookingResultStore.shared.purgeExpired()
-                SpendingProjectBackgroundService.shared.scheduleNextTask()
-                if !appStoreScreenshotModeActive {
-                    MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
-                    await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                }
-
-                // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
-                if InsightFeatureFlags.preferenceLearningEnabled {
-                    let context = CoreDataStack.shared.viewContext
-                    InsightFeedbackAggregator.shared.aggregate(in: context)
-                }
-
-                // AI 想法整理：首次启动 backfill + 恢复 pending 队列
-                let repository = ThoughtRepository()
-                repository.backfillTagAssignmentsIfNeeded()
-                repository.normalizeExistingTags()
-                // V2（2026-09-05 方案 §8.2）：旧 ai 关系标 legacy、词条身份回填（幂等，一次性）
-                repository.migrateLegacyThoughtIndexIfNeeded()
-
-                // 断网挂起 / 网络恢复续做（飞行模式写笔记等场景）
-                ThoughtOrganizationQueue.shared.startObservingNetwork()
-                ThoughtOrganizationQueue.shared.rebuildFromDatabase(coldStart: true)
-                // V2：仅恢复上次会话的持久任务展示，不再自动发起新一轮归并生成
-                Task {
-                    await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
-                }
-
-                // 回收站启动维护：旧软删标记一次性迁移 + 30 天过期数据物理清理
-                Task {
-                    await RecycleBinService.shared.performStartupMaintenance()
-                }
-
-                // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
-                await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
-
-                // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
-                Task {
-                    await HoloReplayDigestService.shared.backfillIfNeeded(
-                        historyRepo: MemoryInsightRepository()
-                    )
-                }
 
                 if HoloAIFeatureFlags.agentRuntimeEnabled {
                     await MainActor.run {
                         HoloBackgroundContinuationManager.shared.appDidLaunch()
-                    // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
-                    HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
-                    // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
-                    HoloCloudAnalysisService.shared.recoverIfNeeded()
-                    // 启动即注册远程通知（不弹授权）：云端任务完成推送的令牌上报失败
-                    // 在下次启动自动补报——注册面不再只依赖深度分析/回放两个入口
-                    HoloCloudPushTokenService.shared.registerRemoteNotifications()
-                    // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
-                    HoloDeviceSessionManager.shared.warmUp()
+                        // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
+                        HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
+                        // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
+                        HoloCloudAnalysisService.shared.recoverIfNeeded()
+                        // 启动即注册远程通知（不弹授权）：云端任务完成推送的令牌上报失败
+                        // 在下次启动自动补报——注册面不再只依赖深度分析/回放两个入口
+                        HoloCloudPushTokenService.shared.registerRemoteNotifications()
+                        // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
+                        HoloDeviceSessionManager.shared.warmUp()
                     }
                     // 遥测增量上报：上次会话的锁屏/租约/终态事件落服务端，出障可查
                     Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
+                }
+
+                // 非首屏必需的启动维护延后错峰执行（2026-11-28 真机冷启动掉帧根治）：
+                // 通知排期、小组件全量快照、历史标签归一化、记忆观测与语义对账不与首屏前 2.5s
+                // 的滑动交互争抢主线程，波次间让出 RunLoop 保持 120Hz 帧预算（≤8.3ms）。
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2.5))
+                    guard !Task.isCancelled else { return }
+
+                    // 目标风险通知 + 各模块滚动本地通知排期（波次间让出主线程）
+                    GoalNotificationService.shared.rescheduleAll()
+                    await Task.yield()
+                    await DailyBriefScheduler.shared.handleAppActivity()
+                    await HabitReminderScheduler.shared.handleAppActivity()
+                    await WeeklyBriefScheduler.shared.handleAppActivity()
+                    await WeeklyReviewScheduler.shared.handleAppActivity()
+                    await Task.yield()
+                    await BillDueReminderScheduler.shared.handleAppActivity()
+                    await BudgetOverrunNotificationService.shared.handleAppActivity()
+                    await BudgetCarryoverNotificationService.shared.handleAppActivity()
+                    await CreditCardDueReminderScheduler.shared.handleAppActivity()
+
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+
+                    // 宣传图截图模式由 Seeder 全权提供可复现记忆数据；跳过迁移与候选重评估，
+                    // 避免旧版本地记忆在启动时覆盖「待确认」演示状态。
+                    if !simulatorMemoryValidationActive && !appStoreScreenshotModeActive {
+                        await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+                        await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
+                        // 通用知识（v2.2）：存量分流迁移（幂等收据/断点续跑）必须先于新写入开放；
+                        // 来源失效扇出挂业务保存/远端变更/授权变更信号。
+                        await HoloMemoryRuntime.shared.migrateKnowledgeIfNeeded()
+                        HoloMemoryRuntime.shared.startKnowledgeInvalidationFanout()
+                    }
+                    await HoloMemorySettings.shared.reconcileWithRepository()
+                    if !simulatorMemoryValidationActive {
+                        await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                        // 通用个人情境萃取：启动补建历史想法（内部闸，冷启动不防抖）。
+                        if !appStoreScreenshotModeActive {
+                            Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
+                            // 2026-11-20 记忆洞察重构（Phase 1-4）：停用旧版财务算术模板直写记忆；
+                            // 冷启动预热记忆中心快照缓存（实现秒开），并按智能节流运行全局画像与跨模块洞察合成。
+                            Task.detached(priority: .utility) {
+                                await HoloMemoryCenterViewModel.prewarmIfNeeded()
+                                await UnderstandingShadowScheduler.runIfDue()
+                                _ = await HoloPortraitSynthesisRuntime.runIfDue()
+                            }
+                        }
+                    }
+
+                    // 图片快捷指令自动记账（2026-09-14 方案 §27.2）：启动清理过期复核草案/证据（7 天），
+                    // 不常驻轮询
+                    ReceiptBookingResultStore.shared.purgeExpired()
+                    SpendingProjectBackgroundService.shared.scheduleNextTask()
+                    if !appStoreScreenshotModeActive {
+                        MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+                        await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                    }
+                    await Task.yield()
+
+                    // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
+                    if InsightFeatureFlags.preferenceLearningEnabled {
+                        let context = CoreDataStack.shared.viewContext
+                        InsightFeedbackAggregator.shared.aggregate(in: context)
+                    }
+
+                    // AI 想法整理：首次启动 backfill + 恢复 pending 队列
+                    let repository = ThoughtRepository()
+                    repository.backfillTagAssignmentsIfNeeded()
+                    repository.normalizeExistingTags()
+                    // V2（2026-09-05 方案 §8.2）：旧 ai 关系标 legacy、词条身份回填（幂等，一次性）
+                    repository.migrateLegacyThoughtIndexIfNeeded()
+                    await Task.yield()
+
+                    // 断网挂起 / 网络恢复续做（飞行模式写笔记等场景）
+                    ThoughtOrganizationQueue.shared.startObservingNetwork()
+                    ThoughtOrganizationQueue.shared.rebuildFromDatabase(coldStart: true)
+                    // V2：仅恢复上次会话的持久任务展示，不再自动发起新一轮归并生成
+                    Task {
+                        await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
+                    }
+                    // 语义索引对账放在后台低优先级任务执行，不阻塞主线程
+                    Task.detached(priority: .utility) {
+                        await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
+                        await ThoughtSemanticPipeline.shared.kickQueue()
+                    }
+
+                    // 回收站启动维护：旧软删标记一次性迁移 + 30 天过期数据物理清理
+                    Task {
+                        await RecycleBinService.shared.performStartupMaintenance()
+                    }
+
+                    // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
+                    await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
+
+                    // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
+                    Task {
+                        await HoloReplayDigestService.shared.backfillIfNeeded(
+                            historyRepo: MemoryInsightRepository()
+                        )
+                    }
                 }
             }
             // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
@@ -504,9 +519,10 @@ struct HoloApp: App {
                 HoloBackgroundContinuationManager.shared.appDidEnterBackground()
             }
         case .active:
+            let isColdStart = !hasLoggedSession
             // 产品埋点：冷启动首激活记 cold 会话；inactive 抖动（拉下通知中心等）不重复记
-            if !hasLoggedSession || lastScenePhase == .background {
-                HoloProductAnalytics.shared.trackSessionStart(cold: !hasLoggedSession)
+            if isColdStart || lastScenePhase == .background {
+                HoloProductAnalytics.shared.trackSessionStart(cold: isColdStart)
                 hasLoggedSession = true
             }
             HoloProductAnalytics.shared.beginForegroundFlushLoop()
@@ -524,39 +540,47 @@ struct HoloApp: App {
             if !ReceiptBookingForegroundPresenter.presentIfNeeded() {
                 ReceiptBookingResultSurfacer.surfaceIfNeeded()
             }
-            // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
-            ThoughtOrganizationQueue.shared.appWillEnterForeground()
-            // 健康洞察旧生成触发已退出（2026-11-17 健康分析方案第三步）：
-            // 健康页改用端上作息回顾，「回前台后台生成」与「健康页出现生成」
-            // 两个旧触发不再调用；回前台刷新由 HealthRepository 重新读取承担。
-        Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
-            // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
-            Task { await HoloSubscriptionService.shared.refreshStatus() }
-            Task {
-                // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
-                await DailyBriefScheduler.shared.handleAppActivity()
-                await HabitReminderScheduler.shared.handleAppActivity()
-                await WeeklyBriefScheduler.shared.handleAppActivity()
-                await WeeklyReviewScheduler.shared.handleAppActivity()
-                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
-                await BillDueReminderScheduler.shared.handleAppActivity()
-                await BudgetOverrunNotificationService.shared.handleAppActivity()
-                await BudgetCarryoverNotificationService.shared.handleAppActivity()
-                // 信用卡还款提醒：权益可能在后台变化（续费恢复超额卡 / 过期降级到前 3 张）
-                await CreditCardDueReminderScheduler.shared.handleAppActivity()
-                await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                await HoloReplayDigestService.shared.backfillIfNeeded(
-                    historyRepo: MemoryInsightRepository()
-                )
-                await HoloMemoryObservationScheduler.shared.lightweightCheck(
-                    trigger: .becameActive
-                )
-                // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
-                Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
-                // 影子理解引擎与全局画像洞察：回前台跨天补偿（单飞+智能节流）。
+            // 冷启动时下列重任务已由 appRoot.task 错峰调度，不在首帧重复再跑一遍（2026-11-28）；
+            // 仅「后台回前台」才执行回前台补偿，且延后 1.5s 避开刚回前台的首屏滑动窗口。
+            if !isColdStart && lastScenePhase == .background {
+                // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
+                ThoughtOrganizationQueue.shared.appWillEnterForeground()
+                // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
+                Task { await HoloSubscriptionService.shared.refreshStatus() }
                 Task.detached(priority: .utility) {
-                    await UnderstandingShadowScheduler.runIfDue()
-                    _ = await HoloPortraitSynthesisRuntime.runIfDue()
+                    try? await Task.sleep(for: .seconds(1.5))
+                    await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
+                    await ThoughtSemanticPipeline.shared.kickQueue()
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(1.5))
+                    // 回前台滚动重排早报/习惯提醒/晨报：跨天驻留后文案快照已过期
+                    await DailyBriefScheduler.shared.handleAppActivity()
+                    await HabitReminderScheduler.shared.handleAppActivity()
+                    await WeeklyBriefScheduler.shared.handleAppActivity()
+                    await WeeklyReviewScheduler.shared.handleAppActivity()
+                    await Task.yield()
+                    // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
+                    await BillDueReminderScheduler.shared.handleAppActivity()
+                    await BudgetOverrunNotificationService.shared.handleAppActivity()
+                    await BudgetCarryoverNotificationService.shared.handleAppActivity()
+                    // 信用卡还款提醒：权益可能在后台变化（续费恢复超额卡 / 过期降级到前 3 张）
+                    await CreditCardDueReminderScheduler.shared.handleAppActivity()
+                    await Task.yield()
+                    await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                    await HoloReplayDigestService.shared.backfillIfNeeded(
+                        historyRepo: MemoryInsightRepository()
+                    )
+                    await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                        trigger: .becameActive
+                    )
+                    // 通用个人情境萃取：回前台补偿（内部闸+30 分钟防抖）。
+                    Task { await HoloPersonalContextExtractionScheduler.runPassIfDue() }
+                    // 影子理解引擎与全局画像洞察：回前台跨天补偿（单飞+智能节流）。
+                    Task.detached(priority: .utility) {
+                        await UnderstandingShadowScheduler.runIfDue()
+                        _ = await HoloPortraitSynthesisRuntime.runIfDue()
+                    }
                 }
             }
             if HoloAIFeatureFlags.agentRuntimeEnabled {

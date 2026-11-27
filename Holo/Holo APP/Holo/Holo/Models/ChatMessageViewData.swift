@@ -55,26 +55,27 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     /// 确定性函数，不参与相等判断——既正确（源相等则缓存相等）又更快
     /// （避免在 MessageBubbleView.equatable() 里比较大体积的卡片数组）。
     static func == (lhs: ChatMessageViewData, rhs: ChatMessageViewData) -> Bool {
+        // 高频变化与廉价标量前置，快速短路；rawLog 仅用于内部日志查看器、不影响气泡渲染，不参与 UI 判等。
         lhs.id == rhs.id
-            && lhs.role == rhs.role
+            && lhs.isStreaming == rhs.isStreaming
+            && lhs.metadataState == rhs.metadataState
+            && lhs.showsTimestampSeparator == rhs.showsTimestampSeparator
+            && lhs.showsAIHeader == rhs.showsAIHeader
+            && lhs.messageType == rhs.messageType
             && lhs.content == rhs.content
+            && lhs.role == rhs.role
             && lhs.timestamp == rhs.timestamp
             && lhs.intent == rhs.intent
-            && lhs.extractedDataJSON == rhs.extractedDataJSON
-            && lhs.isStreaming == rhs.isStreaming
             && lhs.parentMessageId == rhs.parentMessageId
-            && lhs.messageType == rhs.messageType
+            && lhs.cachedDeletionState == rhs.cachedDeletionState
+            && lhs.extractedDataJSON == rhs.extractedDataJSON
+            && lhs.contextPlanRunJSON == rhs.contextPlanRunJSON
+            && lhs.todayReliefJSON == rhs.todayReliefJSON
             && lhs.parsedBatch == rhs.parsedBatch
             && lhs.executionBatch == rhs.executionBatch
             && lhs.analysisContext == rhs.analysisContext
-            && lhs.rawLog == rhs.rawLog
             && lhs.agentResult == rhs.agentResult
             && lhs.insightResult == rhs.insightResult
-            && lhs.metadataState == rhs.metadataState
-            && lhs.cachedDeletionState == rhs.cachedDeletionState
-            && lhs.showsTimestampSeparator == rhs.showsTimestampSeparator
-            && lhs.contextPlanRunJSON == rhs.contextPlanRunJSON
-            && lhs.todayReliefJSON == rhs.todayReliefJSON
     }
     let id: UUID
     var role: String
@@ -113,7 +114,35 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     private var cachedSavedGoalCard: GoalSavedChatCardData?
     /// 是否在该消息上方显示时间分隔条（由 ChatViewModel 按相邻消息间隔预计算）。
     var showsTimestampSeparator: Bool = false
+    /// 是否显示「Holo + AI」名头行（由 ChatViewModel 在消息数组变更时一次性 O(N) 预计算，
+    /// 避免 ChatMessageListPane 在 ForEach 内逐行 O(N²) 重复扫描全表）。
+    var showsAIHeader: Bool = true
     var metadataState: ChatMessageMetadataState
+
+    /// 一次性 O(N) 预计算整组消息的「Holo + AI」名头行标记：
+    /// 连续 Holo 普通消息并入同组，仅组首显示名头；独立类型卡前后不并组。
+    nonisolated static func applyAIHeaderFlags(to messages: inout [ChatMessageViewData]) {
+        var previousContinuesGroup = false
+        for index in messages.indices {
+            let isAI = messages[index].role != "user"
+            let standalone = isStandaloneCardMessage(messages[index])
+            messages[index].showsAIHeader = isAI && (!previousContinuesGroup || messages[index].showsTimestampSeparator || standalone)
+            previousContinuesGroup = isAI && !standalone
+        }
+    }
+
+    private nonisolated static func isStandaloneCardMessage(_ message: ChatMessageViewData) -> Bool {
+        message.messageType == .periodReplay
+            || message.messageType == .quotaExhausted
+            || message.messageType == .lifePlan
+            || message.messageType == .contextPlan
+            || message.messageType == .todayRelief
+            || message.messageType == .goalPlanning
+            || message.savedGoalCard != nil
+            || message.isQueryAnalysis
+            || !message.cachedAnalysisCards.isEmpty
+            || message.cachedFlexibleQueryCard != nil
+    }
 
     init(
         id: UUID,

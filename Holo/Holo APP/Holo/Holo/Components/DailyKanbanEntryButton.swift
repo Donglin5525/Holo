@@ -42,6 +42,8 @@ struct DailyKanbanEntryButton: View {
     @State private var cachedTaskPercent: Double = 0
     @State private var cachedHabitPercent: Double = 0
     @State private var cachedOverallPercent: Double = 0
+    /// 首页被常驻模块遮挡时收到数据变更只标脏，恢复露面时补刷（不抢占前台打卡/完成动效帧）
+    @State private var needsProgressRefresh = false
 
     /// 统一刷新三环进度（仅在数据变更时调用，而非每次 body 求值）
     private func refreshProgress() {
@@ -96,10 +98,24 @@ struct DailyKanbanEntryButton: View {
             animatedTask = cachedTaskPercent
         }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
-            refreshProgress()
+            if surfaceActive {
+                refreshProgress()
+            } else {
+                needsProgressRefresh = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
-            refreshProgress()
+            if surfaceActive {
+                refreshProgress()
+            } else {
+                needsProgressRefresh = true
+            }
+        }
+        .onChange(of: surfaceActive) { _, isActive in
+            if isActive && needsProgressRefresh {
+                needsProgressRefresh = false
+                refreshProgress()
+            }
         }
         .onChange(of: displaySettings.dashboardVisibleHabitIds) { _, _ in
             refreshProgress()
@@ -129,7 +145,7 @@ struct DailyKanbanEntryButton: View {
     // MARK: - 球体（原版布局：三环轨道 + 中心呼吸光点）
 
     private var sphere: some View {
-        TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
+        TimelineView(.animation(paused: !ambientMotionActive)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             ZStack {
                 // 外环（320pt）— 缓慢旋转
@@ -311,7 +327,7 @@ extension DailyKanbanEntryButton {
     // MARK: 方案 ② · 纸本星象 · 日晷时间针
 
     private var sundialCenterpiece: some View {
-        TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
+        TimelineView(.animation(paused: !ambientMotionActive)) { timeline in
             let now = timeline.date
             let t = now.timeIntervalSinceReferenceDate
             let outerRotate = Self.orbitAngle(t, period: 120)
@@ -498,7 +514,7 @@ extension DailyKanbanEntryButton {
     // MARK: 方案 ④ · 盈亏月相 · 晨昏切面
 
     private var moonPhaseCenterpiece: some View {
-        TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
+        TimelineView(.animation(paused: !ambientMotionActive)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let starOrbit1 = Self.orbitAngle(t, period: 95)
             let starOrbit2 = -Self.orbitAngle(t, period: 130)

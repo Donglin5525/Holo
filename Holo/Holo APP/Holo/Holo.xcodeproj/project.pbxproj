@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		73F5C5FEA9CE5139B439D8FE /* Performance/ScrollAndMotionPerfGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85232C927AAE8E0058B5D2F4 /* Performance/ScrollAndMotionPerfGuardTests.swift */; };
 		0009867F6020999D115D66EB /* HoloLegacyMemoryStoreRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E45E5C115F57CB16E57702 /* HoloLegacyMemoryStoreRegressionTests.swift */; };
 		01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A66C7B7E7EFB79D2835DAE6 /* AnalysisReadableTextParserStandaloneTests.swift */; };
 		05E6BDB9A31A2917C3E1FF4A /* CategorySFSymbolMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */; };
@@ -628,6 +629,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		85232C927AAE8E0058B5D2F4 /* Performance/ScrollAndMotionPerfGuardTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Performance/ScrollAndMotionPerfGuardTests.swift; sourceTree = "<group>"; };
 		01D12F979B323B1B7D656B4D /* HoloMemoryConsumerPolicyIntegrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryConsumerPolicyIntegrationTests.swift; sourceTree = "<group>"; };
 		01D1CD88D4AF51CCA9C5425C /* HoloConversationToolTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloConversationToolTests.swift; sourceTree = "<group>"; };
 		03A4297911D7E65E8614741C /* Services/AI/PersonalContext/ContextPlanStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/AI/PersonalContext/ContextPlanStandaloneTests.swift; sourceTree = "<group>"; };
@@ -1822,6 +1824,7 @@
 		8D9FDE44AC903B6747A6C03F /* HoloTests */ = {
 			isa = PBXGroup;
 			children = (
+				85232C927AAE8E0058B5D2F4 /* Performance/ScrollAndMotionPerfGuardTests.swift */,
 				AD1D5AB0FA3C37EC6DDFF907 /* Services/SubscriptionDueReminderTests.swift */,
 				F8F3FA6BD0732C0166072D67 /* Services/Matter/HoloMatterBatchQueryTests.swift */,
 				29A93CE13D754A8A1D75FEB1 /* Models/FinanceCategoryNameCacheTests.swift */,
@@ -2539,6 +2542,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73F5C5FEA9CE5139B439D8FE /* Performance/ScrollAndMotionPerfGuardTests.swift in Sources */,
 				99C66B66E708089EC4C777E5 /* Services/SubscriptionDueReminderTests.swift in Sources */,
 				A36C557FF16CD24F5B56B57E /* Services/Matter/HoloMatterBatchQueryTests.swift in Sources */,
 				B347E30F21F528D523FB2521 /* Models/FinanceCategoryNameCacheTests.swift in Sources */,

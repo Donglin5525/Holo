@@ -180,12 +180,41 @@ enum ThoughtTopicLinkProjection {
         }
     }
 
+    /// 正文短哈希进程缓存：避免列表滚动时每张 ThoughtCardView 在 body 里重复跑两遍 SHA256 + String(format:)
+    private final class ContentHashCache {
+        static let shared = ContentHashCache()
+        private let lock = NSLock()
+        private var cache: [ObjectIdentifier: (updatedAt: Date?, contentLength: Int, hash: String)] = [:]
+
+        func hash(for thought: Thought) -> String {
+            let key = ObjectIdentifier(thought)
+            let updatedAt = thought.updatedAt
+            let content = thought.content
+            let length = content.utf16.count
+            lock.lock()
+            if let entry = cache[key], entry.updatedAt == updatedAt, entry.contentLength == length {
+                lock.unlock()
+                return entry.hash
+            }
+            lock.unlock()
+
+            let computed = SHA256.hash(data: Data(content.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
+                .prefix(8)
+                .map { String(format: "%02x", $0) }
+                .joined()
+            lock.lock()
+            if cache.count > 512 { cache.removeAll(keepingCapacity: true) }
+            cache[key] = (updatedAt, length, computed)
+            lock.unlock()
+            return computed
+        }
+    }
+
     /// AI 关系只对生成它的正文版本有效；用户决定持续有效。
     private static func isCurrentActive(_ link: ThoughtTopicLink, thought: Thought) -> Bool {
         guard link.stateEnum == .active else { return false }
         guard link.sourceEnum == .aiV3 else { return true }
-        let hash = SHA256.hash(data: Data(thought.content.trimmingCharacters(in: .whitespacesAndNewlines).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
-        return link.basisTextHash == hash
+        return link.basisTextHash == ContentHashCache.shared.hash(for: thought)
     }
 
     // MARK: - 读投影（Phase 1 shadow 口径；Phase 4 起为新读路径）

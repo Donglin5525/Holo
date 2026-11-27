@@ -23,9 +23,19 @@ extension CalendarEvent {
     }
 }
 
+/// 长廊照片头图二进制内存缓存：避免在滚动 body 内同步执行 CoreData fetch
+private enum MemoryGalleryHeroDataCache {
+    static let cache: NSCache<NSUUID, NSData> = {
+        let c = NSCache<NSUUID, NSData>()
+        c.countLimit = 120
+        return c
+    }()
+}
+
 /// 时间线主预览的头图横幅：贴纸完整显示（纸感底），照片沿用裁切横幅
 struct MemoryGalleryHeroBanner: View {
     let placement: ResolvedPlacement
+    @State private var loadedData: Data?
 
     var body: some View {
         if case .assetReady(let descriptor) = placement {
@@ -41,21 +51,35 @@ struct MemoryGalleryHeroBanner: View {
                 .frame(height: 132)
                 .padding(.bottom, 11)
             } else {
-                // 照片头图：沿用附件横幅的定长槽位纪律
-                if let data = heroPixelData(descriptor) {
-                    MemoryGalleryCroppedBanner(data: data, ratio: 1.88, cornerRadius: 9)
-                        .padding(.bottom, 11)
+                // 照片头图：优先首帧同步命中内存缓存，未命中则 .task 异步查库，不在 body 里同步 fetch SQLite
+                let data = loadedData ?? (MemoryGalleryHeroDataCache.cache.object(forKey: descriptor.assetID as NSUUID) as Data?)
+                Group {
+                    if let data {
+                        MemoryGalleryCroppedBanner(data: data, ratio: 1.88, cornerRadius: 9)
+                            .padding(.bottom, 11)
+                    } else {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Color.galleryInset)
+                            .aspectRatio(1.88, contentMode: .fit)
+                            .padding(.bottom, 11)
+                    }
+                }
+                .task(id: descriptor.assetID) {
+                    guard data == nil else { return }
+                    let assetID = descriptor.assetID
+                    let fetched = try? await CoreDataStack.shared.performBackgroundTask { bgContext -> Data? in
+                        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
+                        request.predicate = NSPredicate(format: "id == %@", assetID as CVarArg)
+                        request.fetchLimit = 1
+                        return (try? bgContext.fetch(request).first)?.value(forKey: "thumbnailData") as? Data
+                    }
+                    if let fetched {
+                        MemoryGalleryHeroDataCache.cache.setObject(fetched as NSData, forKey: assetID as NSUUID)
+                        loadedData = fetched
+                    }
                 }
             }
         }
-    }
-
-    private func heroPixelData(_ descriptor: VisualDescriptor) -> Data? {
-        let request = NSFetchRequest<VisualAsset>(entityName: "VisualAsset")
-        request.predicate = NSPredicate(format: "id == %@", descriptor.assetID as CVarArg)
-        request.fetchLimit = 1
-        let asset = try? CoreDataStack.shared.viewContext.fetch(request).first
-        return asset?.value(forKey: "thumbnailData") as? Data
     }
 }
 

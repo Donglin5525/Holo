@@ -465,7 +465,7 @@ private struct TimelineViewContent: View {
             if usePeriodic {
                 TimelineView(.periodic(from: .now, by: 1.0 / 60.0)) { _ in plate }
             } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in plate }
+                TimelineView(.animation) { _ in plate }
             }
         }
         .onAppear {

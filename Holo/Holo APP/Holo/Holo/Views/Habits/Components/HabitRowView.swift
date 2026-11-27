@@ -416,60 +416,57 @@ struct HabitRowView: View {
     /// 实针=已记录 ｜ 空心针=补录 ｜ 针眼=漏做 ｜ 细搭线=暂停日（不算断）｜ 淡点=还没到的日子 ｜
     /// 空圈=今天游标（位置即日期，不另标数字）；创建前=最淡的小点占位（那时还没有这个习惯，
     /// 不是漏做——但完全不画会让月中新建的习惯整条痕迹缺一截，像没显示全，2026-11-17 东林实报）。
+    /// 2026-11-28 性能根治：整月 30~31 天合并为单个 Canvas 绘制（每行从 31 个 ZStack 子视图降为 1 个），
+    /// 像素与色彩语义保持 1:1 不变。
     private var trailStitches: some View {
-        HStack(spacing: 0) {
-            ForEach(snapshot.trail) { day in
-                stitch(for: day)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-        // 打卡缝一针 / 撤销拆针：痕迹值变化时对状态切换播过渡
-        .animation(HoloAnimation.snappy, value: snapshot.trail)
-    }
+        let trail = snapshot.trail
+        let accentColor = Color(hex: snapshot.colorHex)
+        return Canvas(opaque: false, rendersAsynchronously: false) { context, size in
+            let count = trail.count
+            guard count > 0, size.width > 0 else { return }
+            let cellWidth = size.width / CGFloat(count)
+            let centerY = size.height / 2
 
-    @ViewBuilder
-    private func stitch(for day: HabitTrailDay) -> some View {
-        let color = Color(hex: snapshot.colorHex)
-        ZStack {
-            if day.isBeforeCreation {
-                // 创建前：最淡占位点（弱于未来日），保住整月痕迹的连续感
-                Circle()
-                    .fill(Color.holoToolTextSecondary.opacity(0.25))
-                    .frame(width: 2, height: 2)
-            } else if day.isFuture {
-                // 还没走到的日子：小点弱于漏做针眼。用 ToolTextSecondary 而非 ToolBorder——
-                // 后者浅色是 0.91 暖灰，米色底上不可见（11-05 挑刺专项F 浅色补弱）
-                Circle()
-                    .fill(Color.holoToolTextSecondary.opacity(0.35))
-                    .frame(width: 2, height: 2)
-            } else if day.isRecorded {
-                if day.isRetroactive {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .strokeBorder(color.opacity(0.9), lineWidth: 1.2)
-                        .frame(width: 7, height: 4)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+            let beforeFill = GraphicsContext.Shading.color(Color.holoToolTextSecondary.opacity(0.25))
+            let futureFill = GraphicsContext.Shading.color(Color.holoToolTextSecondary.opacity(0.35))
+            let pausedFill = GraphicsContext.Shading.color(Color.holoToolTextSecondary.opacity(0.8))
+            let missedFill = GraphicsContext.Shading.color(Color.holoToolTextSecondary.opacity(0.75))
+            let recordedShade = GraphicsContext.Shading.color(accentColor.opacity(0.9))
+            let todayStroke = GraphicsContext.Shading.color(accentColor.opacity(0.65))
+
+            for (index, day) in trail.enumerated() {
+                let cx = cellWidth * (CGFloat(index) + 0.5)
+                if day.isBeforeCreation {
+                    let rect = CGRect(x: cx - 1, y: centerY - 1, width: 2, height: 2)
+                    context.fill(Path(ellipseIn: rect), with: beforeFill)
+                } else if day.isFuture {
+                    let rect = CGRect(x: cx - 1, y: centerY - 1, width: 2, height: 2)
+                    context.fill(Path(ellipseIn: rect), with: futureFill)
+                } else if day.isRecorded {
+                    if day.isRetroactive {
+                        // 对齐 RoundedRectangle(cornerRadius: 2).strokeBorder(lineWidth: 1.2) 7×4
+                        let rect = CGRect(x: cx - 3.5, y: centerY - 2, width: 7, height: 4).insetBy(dx: 0.6, dy: 0.6)
+                        let path = Path(roundedRect: rect, cornerRadius: 1.4, style: .continuous)
+                        context.stroke(path, with: recordedShade, lineWidth: 1.2)
+                    } else {
+                        let rect = CGRect(x: cx - 3, y: centerY - 1.5, width: 6, height: 3)
+                        let path = Path(roundedRect: rect, cornerRadius: 1.5, style: .continuous)
+                        context.fill(path, with: recordedShade)
+                    }
+                } else if day.isPaused {
+                    let rect = CGRect(x: cx - 3, y: centerY - 0.5, width: 6, height: 1)
+                    let path = Path(roundedRect: rect, cornerRadius: 0.5, style: .continuous)
+                    context.fill(path, with: pausedFill)
                 } else {
-                    Capsule()
-                        .fill(color.opacity(0.9))
-                        .frame(width: 6, height: 3)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                    let rect = CGRect(x: cx - 1.25, y: centerY - 1.25, width: 2.5, height: 2.5)
+                    context.fill(Path(ellipseIn: rect), with: missedFill)
                 }
-            } else if day.isPaused {
-                Capsule()
-                    .fill(Color.holoToolTextSecondary.opacity(0.8))
-                    .frame(width: 6, height: 1)
-            } else {
-                Circle()
-                    .fill(Color.holoToolTextSecondary.opacity(0.75))
-                    .frame(width: 2.5, height: 2.5)
-            }
 
-            // 今天游标：空圈位置指针，独立于五态，恒显
-            if day.isToday {
-                Circle()
-                    .strokeBorder(color.opacity(0.65), lineWidth: 1)
-                    .frame(width: 4, height: 4)
-                    .offset(y: -7)
+                // 今天游标：空圈位置指针，独立于五态，恒显（对齐 4×4 strokeBorder lineWidth: 1, offset y: -7）
+                if day.isToday {
+                    let ringRect = CGRect(x: cx - 2, y: (centerY - 7) - 2, width: 4, height: 4).insetBy(dx: 0.5, dy: 0.5)
+                    context.stroke(Path(ellipseIn: ringRect), with: todayStroke, lineWidth: 1)
+                }
             }
         }
         .frame(height: 20)

@@ -1366,11 +1366,15 @@ struct HomeView: View {
         }
     }
 
-    private static var editorialDateEyebrow: String {
+    private static let editorialDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy · MM · dd · EEE"
-        return formatter.string(from: Date()).uppercased()
+        return formatter
+    }()
+
+    private static var editorialDateEyebrow: String {
+        editorialDateFormatter.string(from: Date()).uppercased()
     }
     
     /// 中央主内容区域

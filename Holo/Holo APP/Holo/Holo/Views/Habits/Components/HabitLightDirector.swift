@@ -173,6 +173,18 @@ struct HabitLightStage: Equatable {
     var tallyIsFullyVisible = false
     /// 滚动内容顶边在视口里的纵向位置：没滚时 ≥ 0，往下滚为负
     var contentTopInViewport: CGFloat = 0
+    /// 「今日的灯」在 content 坐标系中的静态顶边 Y（iOS 18+ onScrollGeometryChange 推导可见性用，不随滚动变）
+    var tallyTopInContent: CGFloat? = nil
+    /// 行内主操作按钮中心（habitToday 坐标系；不发布，避免滚动/布局微调触发整页重绘）
+    var rowLampOrigins: [UUID: CGPoint] = [:]
+    /// 页头小灯中心（同坐标系；不发布）
+    var headerLampCenters: [UUID: CGPoint] = [:]
+}
+
+/// 飞行光点独立发布源：让光点起飞/落地只刷新飞行覆盖层，不打穿外层 HabitTodayView 全表重绘
+@MainActor
+final class HabitLightFlightStore: ObservableObject {
+    @Published var flights: [HabitLightFlight] = []
 }
 
 @MainActor
@@ -186,8 +198,10 @@ final class HabitLightDirector: ObservableObject {
 
     /// 行内点亮令牌：habitId → 本次点亮的 token
     @Published private(set) var ignitions: [UUID: UUID] = [:]
-    /// 正在飞的光点
-    @Published private(set) var flights: [HabitLightFlight] = []
+    /// 飞行光点独立存储（不直接 @Published 在导演上，避免起飞/落地重绘整张习惯列表）
+    let flightStore = HabitLightFlightStore()
+    /// 正在飞的光点（兼容既有读法与单测）
+    var flights: [HabitLightFlight] { flightStore.flights }
     /// 飞行未落地前，页头对应小灯保持未亮
     @Published private(set) var pendingLanding: Set<UUID> = []
 
@@ -237,7 +251,7 @@ final class HabitLightDirector: ObservableObject {
         landingTasks[habitId] = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }
             guard let self else { return }
-            self.flights.append(HabitLightFlight(id: flightID, habitId: habitId, color: color,
+            self.flightStore.flights.append(HabitLightFlight(id: flightID, habitId: habitId, color: color,
                                                  start: flight.start, end: flight.end, kind: flight.kind))
             // 兜底：飞行视图被回收 / 回调丢失时，页头小灯也不能永远不亮
             do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
@@ -247,7 +261,7 @@ final class HabitLightDirector: ObservableObject {
 
     /// 落地：移除飞行、放行页头小灯（页头随后自播落地轻跳）
     func land(_ flightID: UUID) {
-        guard let flight = flights.first(where: { $0.id == flightID }) else { return }
+        guard let flight = flightStore.flights.first(where: { $0.id == flightID }) else { return }
         cancelLandingTask(flight.habitId)
         settle(habitId: flight.habitId, flightID: flightID)
     }
@@ -256,7 +270,7 @@ final class HabitLightDirector: ObservableObject {
     func cancel(habitId: UUID) {
         ignitions[habitId] = nil
         cancelLandingTask(habitId)
-        flights.removeAll { $0.habitId == habitId }
+        flightStore.flights.removeAll { $0.habitId == habitId }
         pendingLanding.remove(habitId)
     }
 
@@ -264,12 +278,12 @@ final class HabitLightDirector: ObservableObject {
     func clearTransient() {
         landingTasks.values.forEach { $0.cancel() }
         landingTasks.removeAll()
-        flights.removeAll()
+        flightStore.flights.removeAll()
         pendingLanding.removeAll()
     }
 
     private func settle(habitId: UUID, flightID: UUID) {
-        flights.removeAll { $0.id == flightID }
+        flightStore.flights.removeAll { $0.id == flightID }
         pendingLanding.remove(habitId)
     }
 
@@ -294,6 +308,16 @@ final class HabitLightDirector: ObservableObject {
 
 // MARK: - 飞行层
 
+/// 光点飞行层：独立观察 flightStore，起飞/落地不触发外层习惯列表重绘，不参与命中
+struct HabitLightFlightOverlay: View {
+    @ObservedObject var store: HabitLightFlightStore
+    let onLand: (UUID) -> Void
+
+    var body: some View {
+        HabitLightFlightLayer(flights: store.flights, onLand: onLand)
+    }
+}
+
 /// 光点飞行层：盖在滚动内容上（坐标同系，飞行途中滚动不错位），不参与命中
 struct HabitLightFlightLayer: View {
     let flights: [HabitLightFlight]
@@ -309,8 +333,8 @@ struct HabitLightFlightLayer: View {
 
 /// 飞行光点的局部尺寸与节拍
 private enum HabitLightFlightMetrics {
-    static let dotDiameter: CGFloat = 10
-    static let dotBlur: CGFloat = 1.5
+    /// 稍放大直径并用柔和径向渐变替代每帧实时 .blur 离屏滤镜，120Hz 全程零离屏模糊开销
+    static let dotDiameter: CGFloat = 12
     /// 落地回调相对动画时长的余量（保证最后一帧已画完）
     static let landGrace: TimeInterval = 0.05
 }
@@ -331,7 +355,7 @@ private struct HabitLightFlightDot: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [.white, flight.color, .clear],
+                        colors: [.white, flight.color.opacity(0.95), flight.color.opacity(0.35), .clear],
                         center: .center,
                         startRadius: 0,
                         endRadius: HabitLightFlightMetrics.dotDiameter / 2
@@ -339,7 +363,6 @@ private struct HabitLightFlightDot: View {
                 )
                 .frame(width: HabitLightFlightMetrics.dotDiameter,
                        height: HabitLightFlightMetrics.dotDiameter)
-                .blur(radius: HabitLightFlightMetrics.dotBlur)
                 .position(position(at: progress))
                 .opacity(opacity(at: progress))
         }
@@ -366,5 +389,85 @@ private struct HabitLightFlightDot: View {
 
     private func opacity(at progress: Double) -> Double {
         HabitLightGeometry.opacity(progress: progress, fadeStart: flight.kind.fadeStart)
+    }
+}
+
+// MARK: - 滚动几何追踪（iOS 18+ 走 onScrollGeometryChange / onGeometryChange，消除每帧偏好归约）
+
+/// iOS 18+ 无需在滚动内容上挂 GeometryReader；仅 iOS 17 兜底使用 HabitContentTopKey。
+struct HabitLegacyContentTopReporter: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+        } else {
+            content.background {
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: HabitContentTopKey.self,
+                        value: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// 挂在 ScrollView 上，iOS 18+ 直接从滚动几何同步 contentTopInViewport 与页头小灯可见性，
+/// 彻底消除滚动每帧的 GeometryReader + PreferenceKey 整树归约。
+struct HabitScrollOffsetTracker: ViewModifier {
+    let director: HabitLightDirector
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geo in
+                -geo.visibleRect.minY
+            } action: { _, contentTop in
+                director.stage.contentTopInViewport = contentTop
+                if let tallyTop = director.stage.tallyTopInContent {
+                    director.stage.tallyIsFullyVisible = HabitLightGeometry.tallyIsFullyVisible(
+                        topInViewport: contentTop + tallyTop
+                    )
+                } else {
+                    director.stage.tallyIsFullyVisible = false
+                }
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// 挂在页头「今日的灯」小灯排上：iOS 18+ 只在 content 坐标系测一次静态 minY（滚动不变），
+/// 避免每帧以 viewport 坐标系重算。
+struct HabitTallyGeometryReporter: ViewModifier {
+    let director: HabitLightDirector
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .onGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.frame(in: .named(HabitTodayLightSpace.content)).minY
+                } action: { minY in
+                    director.stage.tallyTopInContent = minY
+                    director.stage.tallyIsFullyVisible = HabitLightGeometry.tallyIsFullyVisible(
+                        topInViewport: director.stage.contentTopInViewport + minY
+                    )
+                }
+                .onDisappear {
+                    director.stage.tallyTopInContent = nil
+                    director.stage.tallyIsFullyVisible = false
+                }
+        } else {
+            content.background(
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: HabitTallyVisibleKey.self,
+                        value: HabitLightGeometry.tallyIsFullyVisible(
+                            topInViewport: geo.frame(in: .named(HabitTodayLightSpace.viewport)).minY
+                        )
+                    )
+                }
+            )
+        }
     }
 }
