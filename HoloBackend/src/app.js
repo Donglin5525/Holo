@@ -37,6 +37,11 @@ import { createAppleReceiptVerifier } from "./subscription/appleReceiptVerifier.
 import { HOLO_PLUS_PRODUCT_IDS } from "./subscription/productIds.js";
 import { createQuotaActionLedgerStore } from "./usage/quotaActionLedgerStore.js";
 import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
+import {
+  completionReplayKey,
+  createCompletionReplayCache,
+  REPLAYABLE_COMPLETION_PURPOSES,
+} from "./usage/completionReplayCache.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
@@ -185,6 +190,7 @@ export function createApp(overrides = {}) {
     config.agentStepIdempotencyStore
       ?? createStepIdempotencyStore(database.db, { responseCipher: stepResponseCipher });
   app.agentStepIdempotencyEncryption = stepIdempotencyStore.encryptionMetadata?.() ?? null;
+  const completionReplayCache = config.completionReplayCache ?? createCompletionReplayCache();
   // TTL 清理定时器：测试注入 fake store 时不启动，避免定时器泄漏
   const agentStepCleanup = config.agentStepIdempotencyStore
     ? { stop() {} }
@@ -973,7 +979,10 @@ export function createApp(overrides = {}) {
         // 缓存永远建不起来，4 次重试全部从头算全部作废）。断开后让上游算完并落幂等缓存，
         // 客户端重发同 stepID 直接命中秒回，每个后台窗口都能推进一步。
         // 其余 purpose（含流式 chat）保持断开即止，不为已离开的连接浪费上游算力。
-        clientSignal: isAgentLoop ? undefined : context.req.raw.signal,
+        // 后台萃取类同理（2026-11-27 降本）：断开后算完并落进程内重放缓存，重发同一包直接命中。
+        clientSignal: isAgentLoop || REPLAYABLE_COMPLETION_PURPOSES.has(purpose)
+          ? undefined
+          : context.req.raw.signal,
       };
       const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
       const logRequestSummary = isAgentLoop || THOUGHT_CONTENT_PURPOSES.has(purpose)
@@ -1117,7 +1126,17 @@ export function createApp(overrides = {}) {
         const upstreamComplete = useStream
           ? provider.completeViaStream.bind(provider)
           : provider.complete.bind(provider);
-        const result = deterministicIntentResult ?? (purpose === "insight"
+        const replayable = !deterministicIntentResult && REPLAYABLE_COMPLETION_PURPOSES.has(purpose);
+        const replay = replayable
+          ? await completionReplayCache.run(
+              completionReplayKey({ deviceId, request: upstreamRequest }),
+              () => upstreamComplete(upstreamRequest),
+            )
+          : null;
+        if (replay && replay.source !== "upstream") {
+          context.header("X-Holo-Replay", replay.source);
+        }
+        const result = replay?.result ?? deterministicIntentResult ?? (purpose === "insight"
           ? await completeInsightWithRetry(upstreamComplete, upstreamRequest)
           : await upstreamComplete(upstreamRequest));
         if (purpose === "agent_loop") {
@@ -1183,8 +1202,11 @@ export function createApp(overrides = {}) {
               ? summarizeAgentLoopResponse(result)
               : purpose === "insight"
                 ? summarizeInsightResponse(result)
-                : result,
-            usage: result?.usage ?? null,
+                : replay && replay.source !== "upstream"
+                  ? { status: `replay_${replay.source}` }
+                  : result,
+            // 重放命中没有新的上游计费：不记 usage，避免账单对账重复计算
+            usage: replay && replay.source !== "upstream" ? null : (result?.usage ?? null),
           });
         }
         commitQuota(quotaActionLedgerStore, quotaReservation);

@@ -41,7 +41,8 @@ const PROMPT_VERSIONS = {
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
   // 通用个人情境（2026-09-06 完整实施方案 §11）：四 purpose 首版
   // v3: statement 人话纪律（禁 JSON 字段名/英文键名/考据式括号注；businessState 键名原值不得进 statement；2026-10-09 东林反馈记忆正文出现 isCompleted 为 false 等调试文本）
-  personal_context_extraction: 3,
+  // v4（2026-11-27 降本）：输出精简——省略 null/空值字段（subjects/epistemicStatus/basis 必留）、relationText 同义省略；合成对照评测输出 -17%，召回/逐字率/关键字段完整度不变（scripts/extraction-batch-eval）
+  personal_context_extraction: 4,
   personal_context_verification: 1,
   personal_context_request: 1,
   // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、

@@ -341,7 +341,9 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_TEMPERATURE ?? 0.1),
-      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_MAX_TOKENS ?? 4000),
+      // 6000（2026-11-27 降本 P2）：iOS 每包段数 12→24，单包候选随之增多；合成评测每条候选约 300
+      // 输出 tokens，36 段单包实测 5.7k，24 段留足余量。截断=整包解析失败重付，宁可放宽上限。
+      maxTokens: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_MAX_TOKENS ?? 6000),
       reasoningEffort: process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_REASONING_EFFORT ?? "none",
       requestLimits: {
         perMinute: Number(process.env.HOLO_PERSONAL_CONTEXT_EXTRACTION_REQUESTS_PER_MINUTE ?? 4),
