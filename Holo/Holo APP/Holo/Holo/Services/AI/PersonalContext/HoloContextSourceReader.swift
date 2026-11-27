@@ -49,9 +49,12 @@ nonisolated struct HoloContextSegment: Equatable, Sendable {
 }
 
 nonisolated enum HoloContextSegmenter {
-    /// 段上限与包预算的默认值（方案 §6：段 1,800 字符、每包 12 段、合计 12,000 字符）。
+    /// 段上限与包预算的默认值（方案 §6：段 1,800 字符、合计 12,000 字符）。
+    /// 每包段数 12 → 24（2026-11-27 降本 P2）：每次调用固定开销（系统提示词约 950 tokens + 既有清单）
+    /// 摊薄一半；合成对照评测 12/24/36 段召回 17/18、17/18、18/18，零噪声误抽、引用全逐字
+    ///（scripts/extraction-batch-eval）。36 段单包输出逼近上限，故取 24 留余量；字符预算不变。
     static let defaultSegmentCharacterLimit = 1_800
-    static let defaultPackageSegmentLimit = 12
+    static let defaultPackageSegmentLimit = 24
     static let defaultPackageCharacterLimit = 12_000
     /// 相邻段之间的重叠字符数：保留跨段上下文，不引入新语义。
     static let overlapCharacters = 0

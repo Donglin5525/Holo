@@ -144,15 +144,15 @@ nonisolated enum HoloPersonalContextPromptBuilder {
             fields += ",\"plainText\":\(jsonString(segment.text))"
             lines.append("{" + fields + "}")
         }
+        // 顺序由调用方钉死（promptCandidatePayloads 按创建先后），此处不再重排。
         let existing = existingCandidates
-            .sorted { $0.contextID < $1.contextID }
             .map { payload in
                 "{\"contextID\":\(jsonString(payload.contextID)),\"statement\":\(jsonString(payload.statement))}"
             }
         let sourcesJSON = lines.joined(separator: ",")
         let existingJSON = existing.joined(separator: ",")
-        // existingCandidates 是跨包稳定块：按 contextID 钉死排序并置于 JSON 开头，
-        // 相邻包之间请求前缀一致，上下文缓存按命中价（约原价 2%-4%）计费。
+        // existingCandidates 是跨包稳定块：按创建先后排列并置于 JSON 开头，新记忆只追加在末尾，
+        // 相邻请求前缀一致，上游隐式缓存按命中价计费（2026-11-27 生产实测同前缀命中 95%）。
         return "{\"existingCandidates\":[" + existingJSON + "],\"sources\":[" + sourcesJSON + "]}"
     }
 
@@ -182,7 +182,8 @@ nonisolated enum HoloPersonalContextPromptBuilder {
             lines.append("{" + fields + "}")
         }
         var sourceLines: [String] = []
-        for (id, source) in sourcesByID.sorted(by: { $0.key < $1.key }) {
+        let cited = citedSources(candidates: candidates, sourcesByID: sourcesByID)
+        for (id, source) in cited.sorted(by: { $0.key < $1.key }) {
             var fields = "\"sourceID\":" + jsonString(id)
             fields += ",\"sourceDomain\":" + jsonString(source.sourceDomain)
             fields += ",\"sourceKind\":" + jsonString(source.sourceKind)
@@ -206,6 +207,17 @@ nonisolated enum HoloPersonalContextPromptBuilder {
         let candidatesJSON = lines.joined(separator: ",")
         let sourcesJSON = sourceLines.joined(separator: ",")
         return "{\"candidates\":[" + candidatesJSON + "],\"sources\":[" + sourcesJSON + "]}"
+    }
+
+    /// 核验只需看候选引用到的来源（及其血缘根，供核对「引用/转述」类偏差）。
+    /// 降本（2026-11-27）：此前整页 50 条来源全量进核验，核验输入（均 4.3k tokens）反超萃取本身。
+    private static func citedSources(
+        candidates: [HoloContextExtractionCandidateDTO],
+        sourcesByID: [String: HoloContextSourceSnapshot]
+    ) -> [String: HoloContextSourceSnapshot] {
+        let basisIDs = Set(candidates.flatMap { $0.basis.map(\.sourceID) })
+        let lineageIDs = basisIDs.flatMap { sourcesByID[$0]?.lineageRootIDs ?? [] }
+        return sourcesByID.filter { basisIDs.contains($0.key) || lineageIDs.contains($0.key) }
     }
 
     private static func jsonString(_ value: String) -> String {
@@ -242,7 +254,9 @@ nonisolated enum ExtractionDebugLog {
 }
 
 nonisolated struct HoloPersonalContextExtractor: Sendable {
-    /// 每包候选上限（方案 §6 初始预算）。
+    /// 每包候选上限（方案 §6 初始预算）。2026-11-27 每包段数 12→24 后刻意不放宽：
+    /// 线上核验输出上限 1000 tokens（env），每条 verdict 约 50 tokens，24 条有截断整包失败风险；
+    /// 真实数据 24 段一包约 5 条候选，触顶罕见，超出部分按缺 verdict 进待确认（不丢）。
     static let candidatesPerPackageLimit = 16
     /// 页大小（方案 §6 初始预算：源分页 50）。
     static let pageSize = 50
@@ -418,9 +432,10 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 // Reconciler 本地归并用全量 existingRecords；发给模型的候选清单走宽召回
                 // 预筛（同域/文字重合/近 7 天三路并集 + 上限），请求体积不随库无限增长。
                 let existingRecords = try await writer.existingContextRecords()
+                // 召回范围取整页而非本包（P4）：同页各包拿到同一份清单，前缀可命中缓存。
                 let existingCandidates = Self.promptCandidatePayloads(
                     from: existingRecords,
-                    package: package,
+                    package: allSegments,
                     sourcesByID: sourcesByID,
                     now: now
                 )
@@ -606,7 +621,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 .prefix(promptCandidateLimit))
         }
 
-        return selected.compactMap { $0.record.personalContext?.v1 }
+        // 按创建先后（同刻按 id）钉死：新记忆追加在末尾，不打断已有前缀的缓存命中（P4）。
+        return selected
+            .map(\.record)
+            .sorted { $0.createdAt != $1.createdAt ? $0.createdAt < $1.createdAt : $0.id < $1.id }
+            .compactMap { $0.personalContext?.v1 }
     }
 
     /// 字符 bigram 集合：宽召回用（两段文本共享任一双字串即视为相关），

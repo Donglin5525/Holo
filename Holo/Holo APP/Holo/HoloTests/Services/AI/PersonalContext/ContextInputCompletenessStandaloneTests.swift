@@ -45,6 +45,7 @@ struct ContextInputCompletenessStandaloneTests {
     static func main() async throws {
         testExtractionPromptCarriesSourceContract()
         testVerificationPromptCarriesSourceContract()
+        testVerificationPromptOnlyCarriesCitedSources()
         try await testLongSourceExtractsAllPackages()
         try testCursorPaginationReachesAllRows()
         try testCursorPaginationSameSecondFlood()
@@ -108,6 +109,49 @@ struct ContextInputCompletenessStandaloneTests {
                       "authorship", "lineageRootIDs"] {
             expect(prompt.contains(field), "核验 Prompt 必须携带来源契约字段 \(field)")
         }
+    }
+
+    /// 降本（2026-11-27）：核验只带候选引用的来源及其血缘根，不再整页 50 条全量上云。
+    private static func testVerificationPromptOnlyCarriesCitedSources() {
+        let cited = makeContractSource()
+        let lineageRoot = HoloContextSourceSnapshot(
+            sourceID: "evt-1",
+            sourceDomain: "thought",
+            sourceKind: "thought",
+            revisionDigest: "r0",
+            sourceCreatedAt: Date(timeIntervalSince1970: 1_791_000_000),
+            sourceUpdatedAt: Date(timeIntervalSince1970: 1_791_000_000),
+            plainText: "血缘根原文",
+            sensitivity: .normal,
+            accessGeneration: 1
+        )
+        let uncited = HoloContextSourceSnapshot(
+            sourceID: "thought:99",
+            sourceDomain: "thought",
+            sourceKind: "thought",
+            revisionDigest: "r9",
+            sourceCreatedAt: Date(timeIntervalSince1970: 1_791_072_000),
+            sourceUpdatedAt: Date(timeIntervalSince1970: 1_791_072_000),
+            plainText: "无关的另一条想法",
+            sensitivity: .normal,
+            accessGeneration: 1
+        )
+        let candidate = HoloContextExtractionCandidateDTO(
+            candidateRef: "c1",
+            statement: "用户养猫",
+            subjects: [.init(label: "我", scope: .user)],
+            facets: [.init(kind: .preference)],
+            epistemicStatus: "observed",
+            basis: [.init(sourceID: cited.sourceID, quote: "买猫粮", revision: "r1")],
+            openQuestions: []
+        )
+        let prompt = HoloPersonalContextPromptBuilder.verificationPrompt(
+            candidates: [candidate],
+            sourcesByID: [cited.sourceID: cited, lineageRoot.sourceID: lineageRoot, uncited.sourceID: uncited]
+        )
+        expect(prompt.contains("买猫粮"), "被引用来源必须进核验 Prompt")
+        expect(prompt.contains("血缘根原文"), "被引用来源的血缘根必须进核验 Prompt")
+        expect(!prompt.contains("无关的另一条想法"), "未被任何候选引用的来源不得进核验 Prompt")
     }
 
     // MARK: - A08 长来源分包

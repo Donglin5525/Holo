@@ -38,6 +38,7 @@ struct MemoryExtractionCostSlimTests {
         try testPersonalCandidateWideRecall()
         try testPersonalCandidateLimitPrefersOverlap()
         try testPersonalPromptOrderAndSort()
+        try testPersonalCandidateOrderStableForCache()
         print("MemoryExtractionCostSlimTests: \(assertions) assertions passed")
     }
 
@@ -272,12 +273,49 @@ struct MemoryExtractionCostSlimTests {
             prompt.hasPrefix("{\"existingCandidates\":["),
             "稳定块 existingCandidates 必须在 JSON 开头（缓存前缀）"
         )
-        let order = candidates.map(\.contextID).sorted()
+        // 2026-11-27：顺序由 promptCandidatePayloads 按创建先后钉死，Prompt 原样保持输入顺序
+        //（按 contextID 排会让新记忆插进清单中间，打断缓存前缀）。
         var positions: [Int] = []
-        for id in order {
-            positions.append(prompt.range(of: "\"contextID\":\"\(id)\"")!.lowerBound.utf16Offset(in: prompt))
+        for id in candidates.map(\.contextID) {
+            guard let range = prompt.range(of: "\"contextID\":\"\(id)\"") else {
+                expect(false, "候选 \(id) 必须进 Prompt")
+                return
+            }
+            positions.append(range.lowerBound.utf16Offset(in: prompt))
         }
-        expect(positions == positions.sorted(), "候选必须按 contextID 升序钉死")
+        expect(positions == positions.sorted(), "候选必须保持调用方给定的顺序")
+    }
+
+    /// 降本（2026-11-27 P4）：清单按创建先后排列，新记忆只追加到末尾——
+    /// 相邻请求前缀一致，上游隐式缓存按命中价计费（生产实测同前缀命中 95%）。
+    private static func testPersonalCandidateOrderStableForCache() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let segment = HoloContextSegment(
+            sourceID: "src-1", revision: "r1",
+            utf16Location: 0, utf16Length: 4, text: "内容"
+        )
+        let sourcesByID = [
+            "src-1": HoloContextSourceSnapshot(
+                sourceID: "src-1", sourceDomain: "thought", sourceKind: "userNote",
+                revisionDigest: "r1", sourceCreatedAt: now, sourceUpdatedAt: now,
+                plainText: "内容", sensitivity: .normal, accessGeneration: 1
+            )
+        ]
+        // contextID 字典序与创建先后相反：旧 = ctx-b，新 = ctx-a。
+        let older = try personalRecord(id: "ctx-b", domain: .thought,
+                                       updatedAt: now.addingTimeInterval(-30 * 86_400), statement: "旧命题")
+        let newer = try personalRecord(id: "ctx-a", domain: .thought,
+                                       updatedAt: now.addingTimeInterval(-10 * 86_400), statement: "新命题")
+        let first = HoloPersonalContextExtractor.promptCandidatePayloads(
+            from: [newer, older], package: [segment], sourcesByID: sourcesByID, now: now
+        ).map(\.contextID)
+        expect(first == ["ctx-b", "ctx-a"], "清单必须按创建先后排列，实际 \(first)")
+
+        let appended = try personalRecord(id: "ctx-0", domain: .thought, updatedAt: now, statement: "刚写入的命题")
+        let second = HoloPersonalContextExtractor.promptCandidatePayloads(
+            from: [appended, newer, older], package: [segment], sourcesByID: sourcesByID, now: now
+        ).map(\.contextID)
+        expect(second == ["ctx-b", "ctx-a", "ctx-0"], "新记忆只能追加在末尾，不得打断已有前缀，实际 \(second)")
     }
 
     // MARK: - 夹具
