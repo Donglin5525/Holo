@@ -75,6 +75,7 @@ struct HoloMemorySchedulerStandaloneTests {
         testObservationKeyContract()
         testResourceBudget()
         try await testIdempotencyFrequencyAndRetry()
+        try await testDomainFrequencyEveryThreeDays()
         // 2026-10-15 切 qwen 后无峰谷差价，HoloAIWindowPolicy 已改为恒谷（isValleyWindow 恒 true），
         // 「高峰期顺延」语义失效；WindowPolicy 恢复峰谷门控时再启用本用例。
         // try await testPeakWindowDefersToValley()
@@ -159,6 +160,41 @@ struct HoloMemorySchedulerStandaloneTests {
         }
         expect(HoloMemoryResourceBudget.evaluate(.init()) == .allowed,
                "资源正常时应允许静默观察")
+    }
+
+    /// 降本（2026-11-27 东林拍板 B）：领域萃取从「每域每天最多一次」降到「每域每 3 个本地日最多一次」。
+    private static func testDomainFrequencyEveryThreeDays() async throws {
+        let control = SchedulerControlBox()
+        let counter = CounterBox()
+        let scheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        // 2024-07-03 19:46 北京（周三谷时段）；+2 天=周五 19:46、+3 天=周六 19:46，均在谷窗。
+        let start = Date(timeIntervalSince1970: 1_720_007_200)
+        let day: TimeInterval = 86_400
+        func runOnce(at now: Date, digest: String) async -> [HoloMemorySchedulerEvent] {
+            await scheduler.markDirty(target: .domain(.finance), sourceDigest: digest, now: now)
+            return await scheduler.runIfNeeded(
+                now: now.addingTimeInterval(10),
+                resourceSnapshot: .init(),
+                extractorVersion: 1,
+                promptVersion: 1,
+                debounce: 5,
+                materialChange: { _ in true },
+                extract: { _ in await counter.extracted(); return Data("ok".utf8) },
+                commit: { _, _ in await counter.committed() }
+            )
+        }
+        let succeeded: (HoloMemorySchedulerEvent) -> Bool = { if case .succeeded = $0 { true } else { false } }
+
+        let first = await runOnce(at: start, digest: "v1")
+        expect(first.contains(where: succeeded), "首次领域萃取应成功")
+        let twoDaysLater = await runOnce(at: start.addingTimeInterval(2 * day), digest: "v2")
+        expect(twoDaysLater.contains(.deferredByFrequency(.domain(.finance))),
+               "距上次成功不足 3 个本地日的领域萃取应被频控顺延")
+        let threeDaysLater = await runOnce(at: start.addingTimeInterval(3 * day), digest: "v3")
+        expect(threeDaysLater.contains(where: succeeded), "满 3 个本地日后领域萃取应恢复执行")
     }
 
     private static func testIdempotencyFrequencyAndRetry() async throws {

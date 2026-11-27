@@ -290,8 +290,11 @@ enum HoloPersonalContextExtractionJob {
     /// - Parameters:
     ///   - packageLimit: 本轮最多处理的包数（默认 2，方案 §6 前台补偿预算）。
     ///   - now: 注入时钟。
+    ///   - isPlus: 会员档位。免费：只读近 30 天；免费升 Plus 首轮清空各域游标补萃全部历史。
+    ///     默认 true：手动触发（实验室）不受免费下界限制。
     static func runPass(
         packageLimit: Int = 2,
+        isPlus: Bool = true,
         provider: (any AIProvider)? = nil,
         now: Date = Date()
     ) async -> PassOutcome {
@@ -318,6 +321,8 @@ enum HoloPersonalContextExtractionJob {
         let domains = HoloLifeSourceObservation.domains
         let budget = max(packageLimit, 1)
         let defaults = UserDefaults.standard
+        resetCursorsIfUpgraded(isPlus: isPlus, domains: domains, defaults: defaults)
+        let historyFloor = HoloContextExtractionTierPolicy.historyFloor(isPlus: isPlus, now: now)
         let pointer = max(0, defaults.integer(forKey: roundRobinKey))
         var usedBatches = 0
         var nextPointer = pointer
@@ -337,7 +342,8 @@ enum HoloPersonalContextExtractionJob {
                 paging: paging,
                 llm: llm,
                 writer: writer,
-                domain: domain
+                domain: domain,
+                historyFloor: historyFloor
             )
             do {
                 let batch = try await extractor.runOneBatch(now: now)
@@ -370,6 +376,20 @@ enum HoloPersonalContextExtractionJob {
         logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) domains=\(outcome.domainNotes.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","), privacy: .public)")
         HoloPersonalContextDiagnostics.recordExtraction(outcome)
         return outcome
+    }
+
+    /// 免费 → Plus：清空各域游标，下一轮起从头补萃全部历史（已处理包按批次回执幂等跳过）。
+    /// 只在档位记录变化时动一次；首次记录档位不触发。
+    private static func resetCursorsIfUpgraded(isPlus: Bool, domains: [String], defaults: UserDefaults) {
+        let policy = HoloContextExtractionTierPolicy.self
+        let previous = defaults.string(forKey: policy.lastTierKey)
+        if policy.needsHistoryBackfill(previousTier: previous, isPlus: isPlus) {
+            for domain in domains {
+                defaults.removeObject(forKey: HoloPersonalContextRuntimeWriter.cursorKey(domain: domain))
+            }
+            logger.info("会员升级：情境萃取游标已重置，开始补萃全部历史")
+        }
+        defaults.set(policy.tierValue(isPlus: isPlus), forKey: policy.lastTierKey)
     }
 }
 
@@ -460,8 +480,6 @@ nonisolated enum HoloPersonalContextDiagnostics {
 @MainActor
 enum HoloPersonalContextExtractionScheduler {
     private static let lastPassAtKey = "holo_personal_context_extraction_last_pass_at_v1"
-    /// 防抖间隔：两次前台萃取之间的最小间隔。
-    static let minimumInterval: TimeInterval = 30 * 60
     /// C7 单飞保护（2026-11-12 降本四修）：冷启动（跳防抖）与回前台两条路径可在
     /// 附近各自开一轮，同游标同批包双付费（2026-11 实测 64 次萃取并发重叠）。
     /// 在途一轮结束前，后续触发直接放弃；结束后仍由防抖与谷窗决定下一次。
@@ -469,11 +487,19 @@ enum HoloPersonalContextExtractionScheduler {
 
     static func runPassIfDue(bypassDebounce: Bool = false, packageLimit: Int = 2) async {
         guard !isRunning else { return }
+        // 会员分档（2026-11-27）：权益未落定时不跑——冷启动空窗期档位可能是旧快照，
+        // 误判免费会把 Plus 用户按 30 天下界跑一轮、再误触发历史补萃重置。后台任务，顺延无损。
+        let entitlement = HoloEntitlementState.shared
+        guard entitlement.hasSettledStatus else { return }
+        let isPlus = entitlement.isPlusActive
         let defaults = UserDefaults.standard
-        if !bypassDebounce, let last = defaults.object(forKey: lastPassAtKey) as? Date,
-           Date().timeIntervalSince(last) < minimumInterval {
-            return
-        }
+        let now = Date()
+        guard HoloContextExtractionTierPolicy.isPassDue(
+            isPlus: isPlus,
+            lastPassAt: defaults.object(forKey: lastPassAtKey) as? Date,
+            now: now,
+            bypassDebounce: bypassDebounce
+        ) else { return }
         // 谷时段门控（2026-10-09 降本）：高峰期不跑也不写防抖时间戳，谷窗首次触发即补跑。
         // 手动（实验室按钮）直调 runPass 不经过这里，不受影响。
         if !HoloAIWindowPolicy.isValleyWindow() {
@@ -481,7 +507,10 @@ enum HoloPersonalContextExtractionScheduler {
         }
         isRunning = true
         defer { isRunning = false }
-        defaults.set(Date(), forKey: lastPassAtKey)
-        _ = await HoloPersonalContextExtractionJob.runPass(packageLimit: packageLimit)
+        defaults.set(now, forKey: lastPassAtKey)
+        _ = await HoloPersonalContextExtractionJob.runPass(
+            packageLimit: HoloContextExtractionTierPolicy.packageLimit(isPlus: isPlus, requested: packageLimit),
+            isPlus: isPlus
+        )
     }
 }

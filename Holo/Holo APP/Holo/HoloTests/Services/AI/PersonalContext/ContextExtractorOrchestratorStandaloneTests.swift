@@ -57,6 +57,8 @@ struct ContextExtractorOrchestratorStandaloneTests {
         try await testMidPageFailureRetriesRemainingPackagesOnly()
         try await testDomainFollowsOrchestratorAndEvidenceCarriesQuote()
         try await testRebuildMigrationArchivesAndResets()
+        testTierPolicyFreeVersusPlus()
+        try await testHistoryFloorExcludesOlderSources()
         print("ContextExtractorOrchestratorStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -121,8 +123,12 @@ struct ContextExtractorOrchestratorStandaloneTests {
         /// 指定第 N 次萃取调用抛错（1-based；模拟页内中包失败）。
         var extractErrorOnCall: (call: Int, error: Error)?
 
+        /// 收到的萃取 prompt（断言来源范围用）。
+        private(set) var extractPrompts: [String] = []
+
         func extract(prompt: String) async throws -> String {
             extractCallCount += 1
+            extractPrompts.append(prompt)
             if let extractError { throw extractError }
             if let scheduled = extractErrorOnCall, scheduled.call == extractCallCount {
                 extractErrorOnCall = nil
@@ -502,6 +508,70 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(merged.recordVersion == existingRecord.recordVersion + 1, "版本推进")
         expect(merged.personalContext?.v1?.contextID == "existing-ctx", "contextID 复用")
         expect(merged.personalContext?.v1?.basis.count == 2, "证据追加（旧1+新1）")
+    }
+
+    // MARK: 会员分档（2026-11-27 东林拍板：免费每天一轮、只看近 30 天，历史给 Plus）
+
+    static func testTierPolicyFreeVersusPlus() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
+        // 2026-11-27 15:00 北京
+        let now = Date(timeIntervalSince1970: 1_795_762_800)
+        let policy = HoloContextExtractionTierPolicy.self
+
+        let floor = policy.historyFloor(isPlus: false, now: now, calendar: calendar)
+        let expectedFloor = calendar.date(byAdding: .day, value: -30, to: calendar.startOfDay(for: now))
+        expect(floor == expectedFloor, "免费版历史下界 = 今天零点往前 30 天")
+        expect(policy.historyFloor(isPlus: true, now: now, calendar: calendar) == nil, "Plus 无历史下界")
+
+        let earlierToday = now.addingTimeInterval(-3 * 3600)
+        expect(!policy.isPassDue(isPlus: false, lastPassAt: earlierToday, now: now, bypassDebounce: true, calendar: calendar),
+               "免费版同一天已跑过不再跑（冷启动跳防抖也不例外）")
+        expect(policy.isPassDue(isPlus: false, lastPassAt: now.addingTimeInterval(-86_400), now: now, bypassDebounce: false, calendar: calendar),
+               "免费版跨天可跑")
+        expect(!policy.isPassDue(isPlus: true, lastPassAt: now.addingTimeInterval(-600), now: now, bypassDebounce: false, calendar: calendar),
+               "Plus 30 分钟内不重复跑")
+        expect(policy.isPassDue(isPlus: true, lastPassAt: now.addingTimeInterval(-600), now: now, bypassDebounce: true, calendar: calendar),
+               "Plus 冷启动可跳防抖")
+        expect(policy.isPassDue(isPlus: false, lastPassAt: nil, now: now, bypassDebounce: false, calendar: calendar),
+               "从未跑过即可跑")
+
+        expect(policy.packageLimit(isPlus: false, requested: 2) == 1, "免费每轮 1 页")
+        expect(policy.packageLimit(isPlus: true, requested: 2) == 2, "Plus 每轮 2 页")
+
+        expect(policy.needsHistoryBackfill(previousTier: "free", isPlus: true), "免费升 Plus 需补萃历史")
+        expect(!policy.needsHistoryBackfill(previousTier: nil, isPlus: true), "首次记录档位不触发补萃")
+        expect(!policy.needsHistoryBackfill(previousTier: "plus", isPlus: true), "Plus 续期不触发补萃")
+        expect(!policy.needsHistoryBackfill(previousTier: "plus", isPlus: false), "Plus 降免费不触发补萃")
+
+        let baseline = Date(timeIntervalSince1970: 1_000)
+        let later = Date(timeIntervalSince1970: 2_000)
+        expect(policy.effectiveBaseline(learningBaseline: baseline, historyFloor: later) == later, "两条下界取较晚者")
+        expect(policy.effectiveBaseline(learningBaseline: later, historyFloor: baseline) == later, "用户清空基线更晚时以基线为准")
+        expect(policy.effectiveBaseline(learningBaseline: nil, historyFloor: nil) == nil, "都没有则无下界")
+    }
+
+    /// 历史下界生效：早于下界的来源不进萃取请求。
+    static func testHistoryFloorExcludesOlderSources() async throws {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let sources = [
+            source(id: "thought-old", text: "两个月前写的旧想法", updatedAt: now.addingTimeInterval(-60 * 86_400)),
+            source(id: "thought-new", text: "上周写的新想法", updatedAt: now.addingTimeInterval(-7 * 86_400)),
+        ]
+        let llm = FakeLLM()
+        let writer = FakeWriter()
+        writer.seedRevisions(from: HoloContextSourceIndex(sources).sources)
+        let extractor = HoloPersonalContextExtractor(
+            paging: HoloContextInMemorySourcePaging(sources: sources),
+            llm: llm,
+            writer: writer,
+            domain: "thought",
+            historyFloor: now.addingTimeInterval(-30 * 86_400)
+        )
+        _ = try await extractor.runOneBatch(now: now)
+        let prompt = llm.extractPrompts.joined()
+        expect(prompt.contains("上周写的新想法"), "下界之后的来源必须进萃取")
+        expect(!prompt.contains("两个月前写的旧想法"), "早于历史下界的来源不得进萃取")
     }
 
     // MARK: 页内多包（2026-09-08 根治：原实现一页只处理首包即推游标）

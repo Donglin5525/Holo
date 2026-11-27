@@ -341,6 +341,9 @@ actor HoloMemoryObservationScheduler {
         current.learningBaselineAt == initial.learningBaselineAt
     }
 
+    /// 领域萃取最小间隔（本地日）。
+    static let domainObservationIntervalDays = 3
+
     private func reachedFrequencyLimit(
         for target: HoloMemoryObservationTarget,
         now: Date
@@ -351,7 +354,13 @@ actor HoloMemoryObservationScheduler {
         let calendar = Calendar.current
         switch target {
         case .domain:
-            return calendar.isDate(last, inSameDayAs: now)
+            // 降本（2026-11-27 东林拍板）：每域每 3 个本地日最多一次（原每天一次）。
+            let elapsedDays = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: last),
+                to: calendar.startOfDay(for: now)
+            ).day ?? 0
+            return elapsedDays < Self.domainObservationIntervalDays
         case .crossDomain:
             let lhs = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: last)
             let rhs = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)

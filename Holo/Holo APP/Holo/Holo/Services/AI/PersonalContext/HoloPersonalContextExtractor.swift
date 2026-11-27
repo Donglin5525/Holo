@@ -269,17 +269,22 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     let writer: any HoloPersonalContextRecordWriting
     /// 本编排器服务的来源域（R1 四域；游标与批次进度按域隔离）。
     let domain: String
+    /// 会员分档的历史下界（免费 = 近 30 天；Plus = nil）。与学习基线取较晚者作分页下界，
+    /// 不进控制代际比对——下界随日期滚动，不能被当成「用户控制变化」丢弃整批。
+    let historyFloor: Date?
 
     init(
         paging: any HoloContextSourcePaging,
         llm: any HoloPersonalContextLLMCalling,
         writer: any HoloPersonalContextRecordWriting,
-        domain: String = "thought"
+        domain: String = "thought",
+        historyFloor: Date? = nil
     ) {
         self.paging = paging
         self.llm = llm
         self.writer = writer
         self.domain = domain
+        self.historyFloor = historyFloor
     }
 
     enum ExtractionError: Error, Equatable {
@@ -370,7 +375,10 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         let (rawPage, nextCursor) = try await paging.fetchContextSourcePage(
             after: cursor.sourceCursor,
             limit: Self.pageSize,
-            baseline: generationAtStart.learningBaselineAt
+            baseline: HoloContextExtractionTierPolicy.effectiveBaseline(
+                learningBaseline: generationAtStart.learningBaselineAt,
+                historyFloor: historyFloor
+            )
         )
         let sourceIndex = HoloContextSourceIndex(rawPage)
         // 冲突页保留游标，等待来源修复后重试；不请求模型、不错误标记已处理。
